@@ -374,7 +374,7 @@ class TestMinSplitLoss : public ::testing::Test {
               {"gamma", std::to_string(gamma)}};
 
     RegTree tree{static_cast<bst_target_t>(this->gpair_.gpair.Shape(1)),
-                 static_cast<bst_target_t>(this->p_fmat_->Info().num_col_)};
+                 static_cast<bst_feature_t>(this->p_fmat_->Info().num_col_)};
 
     BuildTree(ctx, p_fmat_.get(), &gpair_, updater, args, &tree);
     auto n_nodes = tree.NumExtraNodes();
@@ -446,7 +446,7 @@ class TestRegularization : public ::testing::Test {
     auto gpairs = GenerateRandomGradients(ctx, n_samples, n_targets);
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
-                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+                   static_cast<bst_feature_t>(p_fmat->Info().num_col_)};
     BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "0.0"}}, &tree_0);
     // not exact, just checking the tree can be built
     if (n_targets > 1) {
@@ -456,7 +456,7 @@ class TestRegularization : public ::testing::Test {
     }
 
     RegTree tree_1{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
-                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+                   static_cast<bst_feature_t>(p_fmat->Info().num_col_)};
     BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "1024.0"}}, &tree_1);
     ASSERT_EQ(tree_1.NumNodes(), 1);
   }
@@ -552,7 +552,7 @@ class TestMaxDeltaStep : public ::testing::Test {
     auto gpairs = GenerateRandomGradients(ctx, n_samples, n_targets);
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
-                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+                   static_cast<bst_feature_t>(p_fmat->Info().num_col_)};
     BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
               &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);

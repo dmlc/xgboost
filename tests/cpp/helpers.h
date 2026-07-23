@@ -215,7 +215,7 @@ Json GetArrayInterface(HostDeviceVector<T> const* storage, size_t rows, size_t c
   array_interface["shape"][1] = cols;
 
   char t = linalg::detail::ArrayInterfaceHandler::TypeChar<T>();
-  array_interface["typestr"] = String(std::string("<") + t + std::to_string(sizeof(T)));
+  array_interface["typestr"] = String(std::string{"<"} + t + std::to_string(sizeof(T)));  // NOLINT
   array_interface["version"] = 3;
   return array_interface;
 }
@@ -492,11 +492,11 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
 /*
  * \brief Make learner model param
  */
-inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
+inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, bst_target_t n_targets,
                                 DeviceOrd device = DeviceOrd::CPU()) {
   size_t shape[1]{1};
   LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
-                           n_groups, 1, MultiStrategy::kOneOutputPerTree);
+                           n_targets, MultiStrategy::kOneOutputPerTree);
   return mparam;
 }
 

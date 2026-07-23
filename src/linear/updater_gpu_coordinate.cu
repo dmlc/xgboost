@@ -7,13 +7,13 @@
 #include <thrust/inner_product.h>
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
-#include "xgboost/span.h"
 
-#include "coordinate_common.h"
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
+#include "coordinate_common.h"
+#include "xgboost/span.h"
 
 namespace xgboost::linear {
 
@@ -35,8 +35,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     monitor_.Init("GPUCoordinateUpdater");
   }
 
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
     FromJson(config.at("linear_train_param"), &tparam_);
     FromJson(config.at("coordinate_param"), &coord_param_);
   }
@@ -71,25 +71,20 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       auto cmp = [](Entry e1, Entry e2) {
         return e1.index < e2.index;
       };
-      auto column_begin =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(0, 0.0f), cmp);
+      auto column_begin = std::lower_bound(col.cbegin(), col.cend(), xgboost::Entry(0, 0.0f), cmp);
       auto column_end =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(num_row_, 0.0f), cmp);
+          std::lower_bound(col.cbegin(), col.cend(), xgboost::Entry(num_row_, 0.0f), cmp);
       column_segments.emplace_back(static_cast<bst_uint>(column_begin - col.cbegin()),
                                    static_cast<bst_uint>(column_end - col.cbegin()));
       row_ptr_.push_back(row_ptr_.back() + (column_end - column_begin));
     }
     data_.resize(row_ptr_.back());
-    gpair_.resize(num_row_ * model_param.num_output_group);
+    gpair_.resize(num_row_ * model_param.NumTargets());
     for (size_t fidx = 0; fidx < batch.Size(); fidx++) {
       auto col = page[fidx];
       auto seg = column_segments[fidx];
-      dh::safe_cuda(cudaMemcpy(
-          data_.data().get() + row_ptr_[fidx],
-          col.data() + seg.first,
-          sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
+      dh::safe_cuda(cudaMemcpy(data_.data().get() + row_ptr_[fidx], col.data() + seg.first,
+                               sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
   }
 
@@ -115,84 +110,82 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     selector_->Setup(ctx_, *model, in_gpair->Data()->ConstHostVector(), p_fmat,
                      tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm, coord_param_.top_k);
     monitor_.Start("UpdateFeature");
-    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
-         ++group_idx) {
+    for (bst_target_t target_idx = 0; target_idx < model->learner_model_param->NumTargets();
+         ++target_idx) {
       for (auto i = 0U; i < model->learner_model_param->num_feature; i++) {
         auto fidx =
-            selector_->NextFeature(ctx_, i, *model, group_idx, in_gpair->Data()->ConstHostVector(),
+            selector_->NextFeature(ctx_, i, *model, target_idx, in_gpair->Data()->ConstHostVector(),
                                    p_fmat, tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
-        this->UpdateFeature(fidx, group_idx, model);
+        this->UpdateFeature(fidx, target_idx, model);
       }
     }
     monitor_.Stop("UpdateFeature");
   }
 
   void UpdateBias(gbm::GBLinearModel *model) {
-    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
-         ++group_idx) {
+    auto n_targets = model->learner_model_param->NumTargets();
+    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
       // Get gradient
       auto grad = GradientPair(0, 0);
       if (ctx_->IsCUDA()) {
-        grad = GetBiasGradient(group_idx, model->learner_model_param->num_output_group);
+        grad = GetBiasGradient(target_idx, n_targets);
       }
-      auto dbias = static_cast<float>(
-          tparam_.learning_rate *
-              CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
-      model->Bias()[group_idx] += dbias;
+      auto dbias = static_cast<float>(tparam_.learning_rate *
+                                      CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
+      model->Bias()[target_idx] += dbias;
 
       // Update residual
       if (ctx_->IsCUDA()) {
-        UpdateBiasResidual(dbias, group_idx, model->learner_model_param->num_output_group);
+        UpdateBiasResidual(dbias, target_idx, n_targets);
       }
     }
   }
 
-  void UpdateFeature(int fidx, int group_idx,
-                     gbm::GBLinearModel *model) {
-    bst_float &w = (*model)[fidx][group_idx];
+  void UpdateFeature(int fidx, bst_target_t target_idx, gbm::GBLinearModel *model) {
+    auto n_targets = model->learner_model_param->NumTargets();
+    bst_float &w = (*model)[fidx][target_idx];
     // Get gradient
     auto grad = GradientPair(0, 0);
     if (ctx_->IsCUDA()) {
-      grad = GetGradient(group_idx, model->learner_model_param->num_output_group, fidx);
+      grad = GetGradient(target_idx, n_targets, fidx);
     }
-    auto dw = static_cast<float>(tparam_.learning_rate *
-                                 CoordinateDelta(grad.GetGrad(), grad.GetHess(),
-                                                 w, tparam_.reg_alpha_denorm,
-                                                 tparam_.reg_lambda_denorm));
+    auto dw =
+        static_cast<float>(tparam_.learning_rate * CoordinateDelta(grad.GetGrad(), grad.GetHess(),
+                                                                   w, tparam_.reg_alpha_denorm,
+                                                                   tparam_.reg_lambda_denorm));
     w += dw;
 
     if (ctx_->IsCUDA()) {
-      UpdateResidual(dw, group_idx, model->learner_model_param->num_output_group, fidx);
+      UpdateResidual(dw, target_idx, n_targets, fidx);
     }
   }
 
   // This needs to be public because of the __device__ lambda.
-  GradientPair GetBiasGradient(int group_idx, int num_group) {
+  GradientPair GetBiasGradient(bst_target_t target_idx, bst_target_t n_targets) {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     auto counting = thrust::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
-      return idx * num_group + group_idx;
+      return idx * n_targets + target_idx;
     };  // NOLINT
-    thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(
-        counting, f);
+    thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(counting, f);
     auto perm = thrust::make_permutation_iterator(gpair_.data(), skip);
 
     return dh::SumReduction(perm, num_row_);
   }
 
   // This needs to be public because of the __device__ lambda.
-  void UpdateBiasResidual(float dbias, int group_idx, int num_groups) {
+  void UpdateBiasResidual(float dbias, bst_target_t target_idx, bst_target_t n_targets) {
     if (dbias == 0.0f) return;
     auto d_gpair = dh::ToSpan(gpair_);
     dh::LaunchN(num_row_, [=] __device__(size_t idx) {
-      auto &g = d_gpair[idx * num_groups + group_idx];
+      auto &g = d_gpair[idx * n_targets + target_idx];
       g += GradientPair(g.GetHess() * dbias, 0);
     });
   }
 
   // This needs to be public because of the __device__ lambda.
-  GradientPair GetGradient(int group_idx, int num_group, int fidx) {
+  GradientPair GetGradient(bst_target_t target_idx, bst_target_t n_targets, int fidx) {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     common::Span<xgboost::Entry> d_col = dh::ToSpan(data_).subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
@@ -200,36 +193,32 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     auto counting = thrust::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       auto entry = d_col[idx];
-      auto g = d_gpair[entry.index * num_group + group_idx];
+      auto g = d_gpair[entry.index * n_targets + target_idx];
       return GradientPair{g.GetGrad() * entry.fvalue, g.GetHess() * entry.fvalue * entry.fvalue};
     };  // NOLINT
-    thrust::transform_iterator<decltype(f), decltype(counting), GradientPair>
-        multiply_iterator(counting, f);
+    thrust::transform_iterator<decltype(f), decltype(counting), GradientPair> multiply_iterator(
+        counting, f);
     return dh::SumReduction(multiply_iterator, col_size);
   }
 
   // This needs to be public because of the __device__ lambda.
-  void UpdateResidual(float dw, int group_idx, int num_groups, int fidx) {
+  void UpdateResidual(float dw, bst_target_t target_idx, bst_target_t n_targets, int fidx) {
     common::Span<GradientPair> d_gpair = dh::ToSpan(gpair_);
     common::Span<Entry> d_col = dh::ToSpan(data_).subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
     dh::LaunchN(col_size, [=] __device__(size_t idx) {
       auto entry = d_col[idx];
-      auto &g = d_gpair[entry.index * num_groups + group_idx];
+      auto &g = d_gpair[entry.index * n_targets + target_idx];
       g += GradientPair(g.GetHess() * dw * entry.fvalue, 0);
     });
   }
 
  private:
-  bool IsEmpty() {
-    return num_row_ == 0;
-  }
+  bool IsEmpty() { return num_row_ == 0; }
 
   void UpdateGpair(const std::vector<GradientPair> &host_gpair) {
-    dh::safe_cuda(cudaMemcpyAsync(
-        gpair_.data().get(),
-        host_gpair.data(),
-        gpair_.size() * sizeof(GradientPair), cudaMemcpyHostToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(gpair_.data().get(), host_gpair.data(),
+                                  gpair_.size() * sizeof(GradientPair), cudaMemcpyHostToDevice));
   }
 
   // training parameter

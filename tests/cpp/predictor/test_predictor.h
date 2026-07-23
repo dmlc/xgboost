@@ -18,17 +18,18 @@
 
 namespace xgboost {
 inline std::unique_ptr<gbm::GBTreeModel> CreateTestModel(LearnerModelParam const* param,
-                                                         Context const* ctx, size_t n_classes = 1) {
+                                                         Context const* ctx,
+                                                         bst_target_t n_targets = 1) {
   auto model = std::make_unique<gbm::GBTreeModel>(param, ctx);
 
-  for (size_t i = 0; i < n_classes; ++i) {
+  for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
     std::vector<std::unique_ptr<RegTree>> trees;
     trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-    if (i == 0) {
+    if (target_idx == 0) {
       (*trees.back())[0].SetLeaf(1.5f);
       (*trees.back()).Stat(0).sum_hess = 1.0f;
     }
-    model->CommitModelGroup(std::move(trees), i);
+    model->CommitModelGroup(std::move(trees), target_idx);
   }
 
   return model;

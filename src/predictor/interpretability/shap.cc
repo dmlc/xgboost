@@ -441,11 +441,11 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     gbm::GBTreeModel const &model, bst_tree_t tree_end, std::vector<float> const *tree_weights) {
   auto const n_trees = static_cast<std::size_t>(tree_end);
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
-  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_targets = model.learner_model_param->NumTargets();
 
   QuadratureTreeShapModelData out;
   out.trees.reserve(n_trees);
-  out.entries_by_group.resize(n_groups);
+  out.entries_by_group.resize(n_targets);
 
   for (std::size_t i = 0; i < n_trees; ++i) {
     if (model.trees[i]->IsMultiTarget()) {
@@ -458,7 +458,7 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     if (model.trees[i]->IsMultiTarget()) {
       auto const n_targets = model.trees[i]->GetMultiTargetTree()->NumTargets();
-      CHECK_EQ(n_targets, n_groups);
+      CHECK_EQ(n_targets, n_targets);
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
         auto entry_idx = out.entries.size();
         out.entries.push_back(
@@ -472,13 +472,13 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
       out.entries_by_group[gid].push_back(entry_idx);
     }
   }
-  std::vector<double> group_root_mean_sums(n_groups, 0.0);
+  std::vector<double> group_root_mean_sums(n_targets, 0.0);
   for (bst_tree_t i = 0; i < tree_end; ++i) {
     auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     if (model.trees[i]->IsMultiTarget()) {
       auto const tree = model.trees[i]->HostMtView();
       auto const n_targets = tree.NumTargets();
-      CHECK_EQ(n_targets, n_groups);
+      CHECK_EQ(n_targets, n_targets);
       std::vector<double> root_means(n_targets, 0.0);
       detail::FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
@@ -560,13 +560,13 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   CHECK_GE(tree_end, 0);
   ValidateTreeWeights(tree_weights, tree_end);
   auto const n_threads = ctx->Threads();
-  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_targets = model.learner_model_param->NumTargets();
   auto const n_features = model.learner_model_param->num_feature;
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
-  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
+  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->NumTargets());
   std::fill(contribs.begin(), contribs.end(), 0.0f);
-  CHECK_NE(n_groups, 0);
+  CHECK_NE(n_targets, 0);
   auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
@@ -590,8 +590,8 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
       auto row_idx = view.base_rowid + i;
       auto n_valid = view.DoFill(i, feats.Data().data());
       feats.HasMissing(n_valid != feats.Size());
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+      for (bst_target_t gid = 0; gid < n_targets; ++gid) {
+        float *p_contribs = &contribs[(row_idx * n_targets + gid) * ncolumns];
         for (auto entry_idx : model_data.entries_by_group[gid]) {
           auto const &entry = model_data.entries[entry_idx];
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
@@ -611,7 +611,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
         }
         p_contribs[ncolumns - 1] += model_data.group_root_mean_sums[gid];
         if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
+          CHECK_EQ(base_margin.Shape(1), n_targets);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
           p_contribs[ncolumns - 1] += base_score(gid);
@@ -639,10 +639,10 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   ValidateTreeWeights(tree_weights, tree_end);
 
   auto const n_threads = ctx->Threads();
-  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_targets = model.learner_model_param->NumTargets();
   auto const n_features = model.learner_model_param->num_feature;
   auto const ncolumns = n_features + 1;
-  auto const row_chunk = n_groups * ncolumns * ncolumns;
+  auto const row_chunk = n_targets * ncolumns * ncolumns;
   auto const matrix_chunk = ncolumns * ncolumns;
 
   std::vector<bst_float> &contribs = out_contribs->HostVector();
@@ -675,8 +675,8 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
       auto n_valid = view.DoFill(i, feats.Data().data());
       feats.HasMissing(n_valid != feats.Size());
 
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        auto const offset = (row_idx * n_groups + gid) * matrix_chunk;
+      for (bst_target_t gid = 0; gid < n_targets; ++gid) {
+        auto const offset = (row_idx * n_targets + gid) * matrix_chunk;
         auto matrix = DenseInteractionMatrixView<bst_float>{contribs.data() + offset, ncolumns};
         std::fill(diag.begin(), diag.end(), 0.0f);
 
@@ -696,7 +696,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
         diag[ncolumns - 1] += model_data.group_root_mean_sums[gid];
         if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
+          CHECK_EQ(base_margin.Shape(1), n_targets);
           diag[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
           diag[ncolumns - 1] += base_score(gid);
@@ -743,7 +743,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto const n_threads = ctx->Threads();
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
-  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
+  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->NumTargets());
   std::fill(contribs.begin(), contribs.end(), 0);
   std::vector<std::vector<float>> mean_values(n_trees);
   std::atomic<bool> is_vector_leaf = false;
@@ -758,8 +758,8 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
     LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
   }
 
-  auto const n_groups = model.learner_model_param->num_output_group;
-  CHECK_NE(n_groups, 0);
+  auto const n_targets = model.learner_model_param->NumTargets();
+  CHECK_NE(n_targets, 0);
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -779,8 +779,8 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
       auto row_idx = view.base_rowid + i;
       auto n_valid = view.DoFill(i, feats.Data().data());
       feats.HasMissing(n_valid != feats.Size());
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+      for (bst_target_t gid = 0; gid < n_targets; ++gid) {
+        float *p_contribs = &contribs[(row_idx * n_targets + gid) * ncolumns];
         for (bst_tree_t j = 0; j < tree_end; ++j) {
           if (h_tree_groups[j] != gid) {
             continue;
@@ -795,7 +795,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
           }
         }
         if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
+          CHECK_EQ(base_margin.Shape(1), n_targets);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
           p_contribs[ncolumns - 1] += base_score(gid);
@@ -820,20 +820,20 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   CHECK(!model.learner_model_param->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();
   MetaInfo const &info = p_fmat->Info();
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const n_targets = model.learner_model_param->NumTargets();
   auto const ncolumns = model.learner_model_param->num_feature;
-  const std::size_t row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
+  const std::size_t row_chunk = n_targets * (ncolumns + 1) * (ncolumns + 1);
   const std::size_t mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
-  const std::size_t crow_chunk = ngroup * (ncolumns + 1);
+  const std::size_t crow_chunk = n_targets * (ncolumns + 1);
 
   // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
   std::vector<bst_float> &contribs = out_contribs->HostVector();
-  contribs.resize(info.num_row_ * ngroup * (ncolumns + 1) * (ncolumns + 1));
-  HostDeviceVector<bst_float> contribs_off_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+  contribs.resize(info.num_row_ * n_targets * (ncolumns + 1) * (ncolumns + 1));
+  HostDeviceVector<bst_float> contribs_off_hdv(info.num_row_ * n_targets * (ncolumns + 1));
   auto &contribs_off = contribs_off_hdv.HostVector();
-  HostDeviceVector<bst_float> contribs_on_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+  HostDeviceVector<bst_float> contribs_on_hdv(info.num_row_ * n_targets * (ncolumns + 1));
   auto &contribs_on = contribs_on_hdv.HostVector();
-  HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+  HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * n_targets * (ncolumns + 1));
   auto &contribs_diag = contribs_diag_hdv.HostVector();
 
   // Compute the difference in effects when conditioning on each of the features on and off
@@ -845,7 +845,7 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
     ApproxFeatureImportance(ctx, p_fmat, &contribs_on_hdv, model, tree_end, tree_weights);
 
     for (size_t j = 0; j < info.num_row_; ++j) {
-      for (std::remove_const_t<decltype(ngroup)> l = 0; l < ngroup; ++l) {
+      for (std::remove_const_t<decltype(n_targets)> l = 0; l < n_targets; ++l) {
         const std::size_t o_offset = j * row_chunk + l * mrow_chunk;
         const std::size_t c_offset = j * crow_chunk + l * (ncolumns + 1);
         auto matrix =

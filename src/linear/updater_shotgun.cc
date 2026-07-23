@@ -4,6 +4,7 @@
  */
 
 #include <xgboost/linear_updater.h>
+
 #include "coordinate_common.h"
 
 namespace xgboost::linear {
@@ -13,21 +14,20 @@ DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Configure(Args const& args) override {
+  void Configure(Args const &args) override {
     param_.UpdateAllowUnknown(args);
-    if (param_.feature_selector != kCyclic &&
-        param_.feature_selector != kShuffle) {
+    if (param_.feature_selector != kCyclic && param_.feature_selector != kShuffle) {
       LOG(FATAL) << "Unsupported feature selector for shotgun updater.\n"
                  << "Supported options are: {cyclic, shuffle}";
     }
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
     FromJson(config.at("linear_train_param"), &param_);
   }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
     out["linear_train_param"] = ToJson(param_);
   }
 
@@ -35,16 +35,16 @@ class ShotgunUpdater : public LinearUpdater {
               double sum_instance_weight) override {
     auto gpair = in_gpair->Data();
     param_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->learner_model_param->num_output_group;
+    auto const n_targets = model->learner_model_param->NumTargets();
 
     // update bias
-    for (int gid = 0; gid < ngroup; ++gid) {
-      auto grad = GetBiasGradientParallel(gid, ngroup, gpair->ConstHostVector(), p_fmat,
+    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+      auto grad = GetBiasGradientParallel(target_idx, n_targets, gpair->ConstHostVector(), p_fmat,
                                           ctx_->Threads());
       auto dbias = static_cast<bst_float>(param_.learning_rate *
-                               CoordinateDeltaBias(grad.first, grad.second));
-      model->Bias()[gid] += dbias;
-      UpdateBiasResidualParallel(ctx_, gid, ngroup, dbias, &gpair->HostVector(), p_fmat);
+                                          CoordinateDeltaBias(grad.first, grad.second));
+      model->Bias()[target_idx] += dbias;
+      UpdateBiasResidualParallel(ctx_, target_idx, n_targets, dbias, &gpair->HostVector(), p_fmat);
     }
 
     // lock-free parallel updates of weights
@@ -60,16 +60,16 @@ class ShotgunUpdater : public LinearUpdater {
         if (ii < 0) return;
         const bst_uint fid = ii;
         auto col = page[ii];
-        for (int gid = 0; gid < ngroup; ++gid) {
+        for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (auto &c : col) {
-            const GradientPair &p = h_gpair[c.index * ngroup + gid];
+            const GradientPair &p = h_gpair[c.index * n_targets + target_idx];
             if (p.GetHess() < 0.0f) continue;
             const bst_float v = c.fvalue;
             sum_grad += p.GetGrad() * v;
             sum_hess += p.GetHess() * v * v;
           }
-          bst_float &w = (*model)[fid][gid];
+          bst_float &w = (*model)[fid][target_idx];
           auto dw = static_cast<bst_float>(
               param_.learning_rate * CoordinateDelta(sum_grad, sum_hess, w, param_.reg_alpha_denorm,
                                                      param_.reg_lambda_denorm));
@@ -77,7 +77,7 @@ class ShotgunUpdater : public LinearUpdater {
           w += dw;
           // update grad values
           for (auto &c : col) {
-            GradientPair &p = h_gpair[c.index * ngroup + gid];
+            GradientPair &p = h_gpair[c.index * n_targets + target_idx];
             if (p.GetHess() < 0.0f) continue;
             p += GradientPair(p.GetHess() * c.fvalue * dw, 0);
           }

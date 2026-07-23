@@ -1344,7 +1344,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
   CalcPredictShape(strict_shape, type, p_m->Info().num_row_, p_m->Info().num_col_, chunksize,
-                   learner->Groups(), n_rounds, &shape, out_dim);
+                   learner->NumTargets(), n_rounds, &shape, out_dim);
   *out_shape = dmlc::BeginPtr(shape);
   API_END();
 }
@@ -1370,7 +1370,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
 
   xgboost_CHECK_C_ARG_PTR(out_dim);
-  CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
+  CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->NumTargets(),
                    learner->BoostedRounds(), &shape, out_dim);
   CHECK_GE(p_predt->Size(), n_samples);
 

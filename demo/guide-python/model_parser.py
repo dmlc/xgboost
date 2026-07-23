@@ -25,17 +25,21 @@ ParamT = Dict[str, str]
 
 def to_integers(data: Union[bytes, List[int]]) -> List[int]:
     """Convert a sequence of bytes to a list of Python integer"""
-    return [v for v in data]
+    return list(data)
 
 
 @unique
 class SplitType(IntEnum):
+    """Feature type used for tree split."""
+
     numerical = 0
     categorical = 1
 
 
 @dataclass
-class Node:
+class Node:  # pylint: disable=too-many-instance-attributes
+    """Scalar tree node."""
+
     # properties
     left: int
     right: int
@@ -87,6 +91,7 @@ class Tree:
         return self.nodes[node_id].split_type == SplitType.categorical
 
     def is_numerical(self, node_id: int) -> bool:
+        """Is this a numerical split."""
         return not self.is_categorical(node_id)
 
     def parent(self, node_id: int) -> int:
@@ -143,6 +148,7 @@ class Tree:
 class Model:
     """Gradient boosted tree model."""
 
+    # pylint: disable=too-many-locals, too-many-statements
     def __init__(self, model: dict) -> None:
         """Construct the Model from a JSON object.
 
@@ -152,12 +158,16 @@ class Model:
         """
         # Basic properties of a model
         self.learner_model_shape: ParamT = model["learner"]["learner_model_param"]
-        self.num_output_group = int(self.learner_model_shape["num_class"])
+        self.n_targets = max(
+            int(self.learner_model_shape["num_class"]),
+            int(self.learner_model_shape.get("num_target", 1)),
+            1,
+        )
         self.num_feature = int(self.learner_model_shape["num_feature"])
         self.base_score: List[float] = json.loads(
             self.learner_model_shape["base_score"]
         )
-        # A field encoding which output group a tree belongs
+        # Scalar-tree target routing indices; vector-leaf trees use a zero sentinel.
         self.tree_info = model["learner"]["gradient_booster"]["model"]["tree_info"]
 
         model_shape: ParamT = model["learner"]["gradient_booster"]["model"][
@@ -254,22 +264,17 @@ class Model:
         self.trees = trees
 
     def print_model(self) -> None:
+        """Print the model to stdout."""
         for i, tree in enumerate(self.trees):
             print("\ntree_id:", i)
             print(tree)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Demonstration for loading XGBoost JSON/UBJSON model."
-    )
-    parser.add_argument(
-        "--model", type=str, required=True, help="Path to .json/.ubj model file."
-    )
-    args = parser.parse_args()
+def main(args: argparse.Namespace) -> None:
+    """Entry point."""
     if args.model.endswith("json"):
         # use json format
-        with open(args.model, "r") as fd:
+        with open(args.model, "r", encoding="utf-8") as fd:
             model = json.load(fd)
     elif args.model.endswith("ubj"):
         if ubjson is None:
@@ -283,3 +288,14 @@ if __name__ == "__main__":
         )
     model = Model(model)
     model.print_model()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Demonstration for loading XGBoost JSON/UBJSON model."
+    )
+    parser.add_argument(
+        "--model", type=str, required=True, help="Path to .json/.ubj model file."
+    )
+    cli_args = parser.parse_args()
+    main(cli_args)

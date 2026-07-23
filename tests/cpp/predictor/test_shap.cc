@@ -112,9 +112,10 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   }
 
   auto n_features = static_cast<bst_feature_t>(std::stol(num_feature));
-  auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
-  auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
-  auto n_groups = static_cast<uint32_t>(std::max(n_classes, n_targets));
+  auto persisted_num_class = static_cast<bst_target_t>(std::stol(num_class));
+  auto persisted_num_target = static_cast<bst_target_t>(std::stol(num_target));
+  auto n_targets =
+      std::max({persisted_num_class, persisted_num_target, static_cast<bst_target_t>(1)});
   auto multi_strategy = MultiStrategy::kOneOutputPerTree;
   for (auto const& kv : model_args) {
     if (kv.first == "multi_strategy") {
@@ -124,7 +125,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
       break;
     }
   }
-  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets, multi_strategy};
+  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_targets, multi_strategy};
   out_param->Copy(tmp);
 
   auto gbtree = std::make_unique<gbm::GBTreeModel>(out_param, ctx);
@@ -332,7 +333,7 @@ void CheckShapHandlesDeepTree(Context const* ctx) {
   if (!ctx->Device().IsCPU()) {
     std::as_const(base_score).View(ctx->Device());
   }
-  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  LearnerModelParam mparam{1, std::move(base_score), 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
 
   bst_node_t constexpr kDepth = 64;
@@ -389,7 +390,7 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   if (!ctx->Device().IsCPU()) {
     std::as_const(base_score).View(ctx->Device());
   }
-  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  LearnerModelParam mparam{1, std::move(base_score), 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
 
   gbm::TreesOneGroup trees;

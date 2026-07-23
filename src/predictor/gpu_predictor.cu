@@ -6,7 +6,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include "../common/categorical.h"
 #include "../common/common.h"
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
@@ -204,7 +203,7 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
                               common::Span<float> d_out_predictions,
                               common::Span<bst_target_t const> d_tree_groups,
                               common::OptionalWeights tree_weights, bst_feature_t num_features,
-                              bool use_shared, bst_target_t n_groups, float missing,
+                              bool use_shared, bst_target_t n_targets, float missing,
                               EncAccessor acc) {
   auto n_rows = data.NumRows();
   bst_idx_t global_idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -213,7 +212,7 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
     return;
   }
 
-  if (n_groups == 1u) {
+  if (n_targets == 1u) {
     float sum = 0;
     for (std::size_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
       auto const& d_tree = d_trees[tree_idx];
@@ -230,14 +229,14 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
       cuda::std::visit(
           enc::Overloaded{[&](tree::ScalarTreeView const& tree) {
                             auto leaf = GetLeafWeight<has_missing>(global_idx, tree, &loader);
-                            bst_idx_t out_prediction_idx = global_idx * n_groups + tree_group;
+                            bst_idx_t out_prediction_idx = global_idx * n_targets + tree_group;
                             d_out_predictions[out_prediction_idx] += leaf * tree_weights[tree_idx];
                           },
                           [&](tree::MultiTargetTreeView const& tree) {
                             // Tree group is 0.
                             auto leaf = GetLeafWeight<has_missing>(global_idx, tree, &loader);
                             for (std::size_t i = 0, n = leaf.Shape(0); i < n; ++i) {
-                              bst_idx_t out_prediction_idx = global_idx * n_groups + i;
+                              bst_idx_t out_prediction_idx = global_idx * n_targets + i;
                               d_out_predictions[out_prediction_idx] +=
                                   leaf(i) * tree_weights[tree_idx];
                             }
@@ -321,9 +320,10 @@ class LaunchConfig {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;
-    this->Launch<Loader>(
-        kernel, std::move(batch), d_model.Trees(), predictions->DeviceSpan().subspan(batch_offset),
-        d_tree_groups, tree_weights, n_features, this->UseShared(), d_model.n_groups, missing, acc);
+    this->Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
+                         predictions->DeviceSpan().subspan(batch_offset), d_tree_groups,
+                         tree_weights, n_features, this->UseShared(), d_model.n_targets, missing,
+                         acc);
   }
 
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
@@ -429,7 +429,7 @@ class GPUPredictor : public xgboost::Predictor {
         cfg.template LaunchPredictKernel<Loader>(
             std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
             batch_offset, out_preds, tree_weights);
-        batch_offset += n_rows * model.learner_model_param->OutputLength();
+        batch_offset += n_rows * model.learner_model_param->NumTargets();
       });
     });
   }
