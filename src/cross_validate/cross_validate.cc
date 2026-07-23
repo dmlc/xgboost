@@ -105,6 +105,17 @@ FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
 
 [[nodiscard]] std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
 
+[[nodiscard]] std::int32_t FoldModels::BoostedRounds() const {
+  CHECK(!this->models_.empty());
+  CHECK(this->models_.front());
+  auto n_rounds = this->models_.front()->BoostedRounds();
+  for (auto const& model : this->models_) {
+    CHECK(model);
+    CHECK_EQ(model->BoostedRounds(), n_rounds) << "CV fold models are not synchronized.";
+  }
+  return n_rounds;
+}
+
 [[nodiscard]] bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->properties_.size());
   return this->properties_[fold_idx].OutputLength();
@@ -245,6 +256,14 @@ XGB_DLL int XGBCvFoldModelsCreate(size_t k_folds, DMatrixHandle dtrain, FoldMode
   xgboost_CHECK_C_ARG_PTR(out);
   auto p_fmat = CastDMatrixHandle(dtrain);
   *out = new cv::FoldModels{k_folds, p_fmat};
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldModelsBoostedRounds(FoldModelsHandle hdl, int* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = static_cast<cv::FoldModels*>(hdl)->BoostedRounds();
   API_END();
 }
 

@@ -42,6 +42,7 @@ class FoldModels {
  public:
   explicit FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
   [[nodiscard]] std::size_t KFolds() const noexcept(true);
+  [[nodiscard]] std::int32_t BoostedRounds() const;
   [[nodiscard]] bst_target_t OutputLength(std::size_t fold_idx) const;
   [[nodiscard]] bst_target_t LeafLength(std::size_t fold_idx) const;
   [[nodiscard]] bst_feature_t NumFeatures(std::size_t fold_idx) const;

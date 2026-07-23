@@ -33,6 +33,7 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     k_folds = 3
 
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+    assert cv_folds.num_boosted_rounds() == 0
 
     predts = xcv.FoldPredictions()
     folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
@@ -41,6 +42,7 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
     tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params={"max_depth": 1})
     tree_method.update(cv_folds, Xy, folds, gpairs)
+    assert cv_folds.num_boosted_rounds() == 1
 
 
 @pytest.mark.skipif(**tm.no_cupy())
