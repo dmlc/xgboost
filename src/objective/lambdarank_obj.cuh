@@ -138,7 +138,7 @@ struct MakePairsOp {
     common::cuda_impl::DefaultRng rng{args.seed + static_cast<std::uint32_t>(g)};
     auto pair_idx = i;
     rng.discard(idx - args.d_threads_group_ptr[g]);  // idx within group
-    thrust::uniform_int_distribution<std::size_t> dist(0, n_lefts + n_rights - 1);
+    common::cuda_impl::UniformIntDistribution<std::size_t> dist(0, n_lefts + n_rights - 1);
     auto ridx = dist(rng);
     SPAN_CHECK(ridx < n_lefts + n_rights);
     if (ridx >= n_lefts) {
