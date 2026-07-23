@@ -45,8 +45,10 @@ TEST(FoldModels, JsonIO) {
   FoldModels folds{kFolds, dmat};
   ASSERT_EQ(folds.KFolds(), kFolds);
   ASSERT_EQ(folds.OutputLength(0), 1);
+  ASSERT_EQ(folds.BoostedRounds(), 0);
 
   folds.CommitModel(MakeTrees(kFolds, kCols));
+  ASSERT_EQ(folds.BoostedRounds(), 1);
 
   Json model{Object{}};
   folds.SaveModel(&model);
@@ -63,8 +65,10 @@ TEST(FoldModels, JsonIO) {
   auto loaded = FoldModels::LoadModel(model);
   ASSERT_EQ(loaded.KFolds(), kFolds);
   ASSERT_EQ(loaded.OutputLength(0), 1);
+  ASSERT_EQ(loaded.BoostedRounds(), 1);
 
   loaded.CommitModel(MakeTrees(kFolds, kCols));
+  ASSERT_EQ(loaded.BoostedRounds(), 2);
 
   Json roundtrip{Object{}};
   loaded.SaveModel(&roundtrip);

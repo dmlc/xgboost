@@ -117,6 +117,14 @@ class FoldModels:
         self.handle = hdl
         self.k_folds = k_folds
 
+    def num_boosted_rounds(self) -> int:
+        """Number of boosted rounds shared by the fold models."""
+        rounds = ctypes.c_int()
+        _check_call(
+            _LIB.XGBCvFoldModelsBoostedRounds(self.handle, ctypes.byref(rounds))
+        )
+        return rounds.value
+
     def __del__(self) -> None:
         if hasattr(self, "handle"):
             hdl = self.handle
