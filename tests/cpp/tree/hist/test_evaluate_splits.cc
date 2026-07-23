@@ -61,8 +61,8 @@ void TestPartitionBasedSplit::SetUp() {
                                                    GradientPairPrecise parent_sum) {
     int32_t best_thresh = -1;
     float best_score{-std::numeric_limits<float>::infinity()};
-    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
-    auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
+    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU(), 1u};
+    auto tree_evaluator = evaluator.GetEvaluator();
     GradientPairPrecise left_sum;
     auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
     for (size_t i = 0; i < hist.size() - 1; ++i) {
@@ -180,7 +180,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   auto p_fmat =
       RandomDataGenerator{n_samples, n_features, 0.5}.Targets(n_targets).GenerateDMatrix(true);
 
-  HistMultiEvaluator evaluator{&ctx, p_fmat->Info(), &param, sampler};
+  HistMultiEvaluator evaluator{&ctx, p_fmat->Info(), &param, n_targets, sampler};
   HistMakerTrainParam hist_param;
   std::vector<BoundedHistCollection> histogram(n_targets);
   linalg::Vector<GradientPairPrecise> root_sum({2}, DeviceOrd::CPU());
@@ -423,7 +423,7 @@ class TestHistMultiEvaluator : public ::testing::Test {
                                    {"max_delta_step", "0"},
                                    {"max_cat_to_onehot", "4"}});
     param_.UpdateAllowUnknown(args);
-    evaluator_ = std::make_unique<HistMultiEvaluator>(&ctx_, info_, &param_, sampler_);
+    evaluator_ = std::make_unique<HistMultiEvaluator>(&ctx_, info_, &param_, kNTargets, sampler_);
     entries_.clear();
     entries_.emplace_back(0, 0);
 
@@ -495,4 +495,5 @@ TEST_F(TestHistMultiEvaluator, CategoricalPartition) {
 
   this->ApplyTreeSplit();
 }
+
 }  // namespace xgboost::tree

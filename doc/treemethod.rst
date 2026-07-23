@@ -138,8 +138,9 @@ Following table summarizes some differences in supported features between 4 tree
 +------------------+-----------+---------------------+------------------------+------------------------+
 | Distributed      | F         | T                   | T                      | T                      |
 +------------------+-----------+---------------------+------------------------+------------------------+
+| Vector leaf      | F         | F                   | F                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
 
 Features/parameters that are not mentioned here are universally supported for all 3 tree
-methods (for instance, column sampling and constraints).  The `P` in external memory means
-special handling.  Please note that both categorical data and external memory are
-experimental.
+methods (for instance, column sampling and constraints). The `P` in external memory means
+supported but not recommended due to performance reasons.
