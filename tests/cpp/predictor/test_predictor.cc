@@ -541,15 +541,15 @@ void TestVectorLeafPrediction(Context const *ctx) {
   size_t constexpr kCols = 5;
 
   LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
-                           linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 1, 3,
+                           linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 3,
                            MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.emplace_back(new RegTree{mparam.LeafLength(), mparam.num_feature});
+  trees.emplace_back(new RegTree{mparam.NumTreeTargets(), mparam.num_feature});
 
-  std::vector<float> p_w(mparam.LeafLength(), 0.0f);
-  std::vector<float> l_w(mparam.LeafLength(), 1.0f);
-  std::vector<float> r_w(mparam.LeafLength(), 2.0f);
+  std::vector<float> p_w(mparam.NumTreeTargets(), 0.0f);
+  std::vector<float> l_w(mparam.NumTreeTargets(), 1.0f);
+  std::vector<float> r_w(mparam.NumTreeTargets(), 2.0f);
 
   auto &tree = trees.front();
   tree->SetRoot(linalg::MakeVec(p_w.data(), p_w.size()), /*sum_hess=*/1.0f);
@@ -568,7 +568,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
     auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
     PredictionCacheEntry predt_cache;
     predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
-    ASSERT_EQ(predt_cache.predictions.Size(), kRows * mparam.LeafLength());
+    ASSERT_EQ(predt_cache.predictions.Size(), kRows * mparam.NumTreeTargets());
     predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
     auto const &h_predt = predt_cache.predictions.HostVector();
     for (auto v : h_predt) {

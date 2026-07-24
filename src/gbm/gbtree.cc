@@ -160,7 +160,7 @@ void GBTreeModel::InitTreesToUpdate() {
   }
 }
 
-void GPUCopyGradient(Context const*, linalg::Matrix<GradientPair> const*, bst_group_t,
+void GPUCopyGradient(Context const*, linalg::Matrix<GradientPair> const*, bst_target_t,
                      linalg::Matrix<GradientPair>*)
 #if defined(XGBOOST_USE_CUDA)
     ;  // NOLINT
@@ -171,15 +171,15 @@ void GPUCopyGradient(Context const*, linalg::Matrix<GradientPair> const*, bst_gr
 #endif
 
 void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpair,
-                  bst_group_t group_id, linalg::Matrix<GradientPair>* out_gpair) {
+                  bst_target_t target_idx, linalg::Matrix<GradientPair>* out_gpair) {
   out_gpair->SetDevice(ctx->Device());
   out_gpair->Reshape(in_gpair->Shape(0), 1);
   if (ctx->IsCUDA()) {
-    GPUCopyGradient(ctx, in_gpair, group_id, out_gpair);
+    GPUCopyGradient(ctx, in_gpair, target_idx, out_gpair);
   } else {
     auto const& in = *in_gpair;
     auto h_tmp = out_gpair->HostView();
-    auto h_in = in.HostView().Slice(linalg::All(), group_id);
+    auto h_in = in.HostView().Slice(linalg::All(), target_idx);
     CHECK_EQ(h_tmp.Size(), h_in.Size());
     common::ParallelFor(h_in.Size(), ctx->Threads(), [&](auto i) { h_tmp(i) = h_in(i); });
   }
@@ -191,8 +191,8 @@ void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpa
  * \param predts     Prediction for current tree.
  * \param tree_w     Tree weight.
  */
-void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_group_t,
-                       bst_group_t)
+void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_target_t,
+                       bst_target_t)
 #if defined(XGBOOST_USE_CUDA)
     ;  // NOLINT
 #else
@@ -202,7 +202,7 @@ void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, 
 #endif
 
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                            ObjFunction const* obj, std::int32_t group_idx,
+                            ObjFunction const* obj, bst_target_t target_idx,
                             std::vector<HostDeviceVector<bst_node_t>> const& node_position,
                             TreesOneGroup* p_trees) {
   CHECK(!updaters_.empty());
@@ -218,7 +218,7 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
     auto const& position = node_position[tree_idx];
     obj->UpdateTreeLeaf(position, p_fmat->Info(), tree_param_.learning_rate / trees.size(),
-                        predictions, group_idx, trees[tree_idx].get());
+                        predictions, target_idx, trees[tree_idx].get());
   }
 }
 
@@ -237,7 +237,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   }
 
   TreesOneIter new_trees;
-  bst_target_t const n_groups = model_.learner_model_param->OutputLength();
+  bst_target_t const n_targets = model_.learner_model_param->NumTargets();
   monitor_.Start("BoostNewTrees");
 
   // Define the categories.
@@ -253,8 +253,8 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
 
   predt->predictions.SetDevice(ctx_->Device());
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
-                                    model_.learner_model_param->OutputLength());
-  CHECK_NE(n_groups, 0);
+                                    model_.learner_model_param->NumTargets());
+  CHECK_NE(n_targets, 0);
 
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
@@ -271,7 +271,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
         updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
       predt->Update(1);
     }
-  } else if (model_.learner_model_param->OutputLength() == 1u) {
+  } else if (model_.learner_model_param->NumTargets() == 1u) {
     // Single target
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
@@ -284,21 +284,21 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     }
   } else {
     // Multi-target, scalar leaf
-    CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
-        << "Must have exactly n_groups * n_samples gpairs.";
+    CHECK_EQ(in_gpair->gpair.Size() % n_targets, 0U)
+        << "Must have exactly n_targets * n_samples gpairs.";
     GradientContainer tmp;
     tmp.gpair = linalg::Matrix<GradientPair>{
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
     bool update_predict = true;
-    for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
       node_position.clear();
-      CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
+      CopyGradient(ctx_, &in_gpair->gpair, target_idx, &tmp.gpair);
       TreesOneGroup ret;
-      BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
-      UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
+      BoostNewTrees(&tmp, p_fmat, target_idx, &node_position, &ret);
+      UpdateTreeLeaf(p_fmat, predt->predictions, obj, target_idx, node_position, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
-      auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
+      auto v_predt = out.Slice(linalg::All(), linalg::Range(target_idx, target_idx + 1));
       // random forest doesn't support the prediction cache yet.
       if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
             updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position},
@@ -315,7 +315,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   this->CommitModel(std::move(new_trees));
 }
 
-std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret) {
+std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t target_idx, TreesOneGroup* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -328,7 +328,7 @@ std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup
           << "Set `process_type` to `update` if you want to update existing "
              "trees.";
       // create new tree
-      std::unique_ptr<RegTree> ptr(new RegTree{this->model_.learner_model_param->LeafLength(),
+      std::unique_ptr<RegTree> ptr(new RegTree{this->model_.learner_model_param->NumTreeTargets(),
                                                this->model_.learner_model_param->num_feature});
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
@@ -344,7 +344,7 @@ std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup
           << "boosting rounds can not exceed previous training rounds";
       // move an existing tree from trees_to_update
       auto t = std::move(model_.trees_to_update[model_.trees.size() +
-                                                bst_group * model_.param.num_parallel_tree + i]);
+                                                target_idx * model_.param.num_parallel_tree + i]);
       new_trees.push_back(t.get());
       ret->push_back(std::move(t));
     }
@@ -352,13 +352,13 @@ std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup
   return new_trees;
 }
 
-void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
+void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, bst_target_t target_idx,
                            std::vector<HostDeviceVector<bst_node_t>>* out_position,
                            TreesOneGroup* ret) {
-  std::vector<RegTree*> new_trees = this->InitNewTrees(bst_group, ret);
+  std::vector<RegTree*> new_trees = this->InitNewTrees(target_idx, ret);
 
   // update the trees
-  auto n_out = model_.learner_model_param->OutputLength() * p_fmat->Info().num_row_;
+  auto n_out = model_.learner_model_param->NumTargets() * p_fmat->Info().num_row_;
   StringView msg{
       "Mismatching size between number of rows from input data and size of gradient vector."};
   if (!model_.learner_model_param->IsVectorLeaf() && p_fmat->Info().num_row_ != 0) {
@@ -644,8 +644,8 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
         std::unique_ptr<RegTree> new_tree{this->model_.trees.at(in_tree_idx)->Copy()};
         out_trees.emplace_back(std::move(new_tree));
 
-        bst_group_t group = in_tree_info[in_tree_idx];
-        out_tree_info.push_back(group);
+        bst_target_t target_idx = in_tree_info[in_tree_idx];
+        out_tree_info.push_back(target_idx);
 
         out_model.iteration_indptr[out_l + 1]++;
       });

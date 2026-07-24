@@ -122,7 +122,7 @@ class GradientBooster : public Model, public Configurable {
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
-   *         of length (nfeats + 1) * num_output_group * nsample, arranged in that order
+   *         of length (nfeats + 1) * n_targets * nsample, arranged in that order
    * \param dmat feature matrix
    * \param out_contribs output vector to hold the contributions
    * \param layer_begin Beginning of boosted tree layer used for prediction.

@@ -24,16 +24,16 @@ void MakeIndptr(GBTreeModel* out_model) {
     return;
   }
 
-  auto n_groups = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
+  auto n_targets = *std::max_element(tree_info.cbegin(), tree_info.cend()) + 1;
 
   auto& indptr = out_model->iteration_indptr;
-  auto layer_trees = out_model->param.num_parallel_tree * n_groups;
+  auto layer_trees = out_model->param.num_parallel_tree * n_targets;
   CHECK_NE(layer_trees, 0);
   indptr.resize(out_model->param.num_trees / layer_trees + 1, 0);
   indptr[0] = 0;
 
   for (std::size_t i = 1; i < indptr.size(); ++i) {
-    indptr[i] = n_groups * out_model->param.num_parallel_tree;
+    indptr[i] = n_targets * out_model->param.num_parallel_tree;
   }
   std::partial_sum(indptr.cbegin(), indptr.cend(), indptr.begin());
 }
@@ -153,9 +153,9 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
     n_new_trees += new_trees.front().size();
     this->CommitModelGroup(std::move(new_trees.front()), 0);
   } else {
-    for (bst_target_t gidx{0}; gidx < learner_model_param->OutputLength(); ++gidx) {
-      n_new_trees += new_trees[gidx].size();
-      this->CommitModelGroup(std::move(new_trees[gidx]), gidx);
+    for (bst_target_t target_idx{0}; target_idx < learner_model_param->NumTargets(); ++target_idx) {
+      n_new_trees += new_trees[target_idx].size();
+      this->CommitModelGroup(std::move(new_trees[target_idx]), target_idx);
     }
   }
 
@@ -164,11 +164,11 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
   return n_new_trees;
 }
 
-void GBTreeModel::CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx) {
+void GBTreeModel::CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t target_idx) {
   auto& h_tree_info = this->tree_info.HostVector();
   for (auto& new_tree : new_trees) {
     trees.push_back(std::move(new_tree));
-    h_tree_info.push_back(group_idx);
+    h_tree_info.push_back(target_idx);
   }
   param.num_trees += static_cast<int>(new_trees.size());
 }

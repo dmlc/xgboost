@@ -2505,8 +2505,8 @@ class Booster:
         strict_shape :
             When set to True, output shape is invariant to whether classification is
             used.  For both value and margin prediction, the output shape is (n_samples,
-            n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
-            which case the output shape can be (n_samples, ) if multi-class is not used.
+            n_targets), where n_targets == 1 for single-output models.  Default to False,
+            in which case the output shape can be (n_samples, ) for single-output models.
 
             .. versionadded:: 1.4.0
 
@@ -3163,7 +3163,7 @@ class Booster:
             size_leaf_vector = int(tree["tree_param"]["size_leaf_vector"])
             is_vector = size_leaf_vector > 1
             leaf_weights = tree["leaf_weights"] if is_vector else None
-            # The output group this tree contributes to.
+            # Scalar-tree target routing index; vector-leaf trees use a zero sentinel.
             tree_target = int(tree_info[tid])
 
             # Node id -> category codes, stored CSR-style.

@@ -7,13 +7,10 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdlib>
 #include <cuda/std/utility>  // for swap
 #include <cuda/std/variant>  // for variant
 #include <limits>
-#include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -25,7 +22,6 @@
 #include "../../common/device_helpers.cuh"
 #include "../../common/math.h"
 #include "../../common/nvtx_utils.h"
-#include "../../common/optional_weight.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
 #include "../../data/cat_container.cuh"  // for EncPolicy, MakeCatAccessor
 #include "../../data/cat_container.h"    // for NoOpAccessor
@@ -1246,29 +1242,29 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
-  CHECK_NE(ngroup, 0);
+  auto const n_targets = model.learner_model_param->NumTargets();
+  CHECK_NE(n_targets, 0);
   auto const ncolumns = model.learner_model_param->num_feature + 1;
-  auto dim_size = ncolumns * ngroup;
+  auto dim_size = ncolumns * n_targets;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
   out_contribs->Fill(0.0f);
 
   auto prepared =
-      PrepareGpuQuadratureModel(model, tree_end, ngroup, tree_weights, "Predict contribution");
+      PrepareGpuQuadratureModel(model, tree_end, n_targets, tree_weights, "Predict contribution");
 
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
   auto group_root_mean_sums = prepared.GroupRootMeanSums();
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapBuckets<16>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapBuckets<16>(ctx, loader, base_rowid, n_targets, ncolumns,
                                     prepared.compressed[0], prepared.rule, out_contribs);
-    LaunchQuadratureShapBuckets<32>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapBuckets<32>(ctx, loader, base_rowid, n_targets, ncolumns,
                                     prepared.compressed[1], prepared.rule, out_contribs);
-    LaunchQuadratureShapBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapBuckets<64>(ctx, loader, base_rowid, n_targets, ncolumns,
                                     prepared.compressed[2], prepared.rule, out_contribs);
-    LaunchQuadratureShapBuckets<128>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapBuckets<128>(ctx, loader, base_rowid, n_targets, ncolumns,
                                      prepared.compressed[3], prepared.rule, out_contribs);
   });
 
@@ -1277,8 +1273,8 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   auto base_score = model.learner_model_param->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
-  dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
-    auto [_, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
+  dh::LaunchN(n_samples * n_targets, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
+    auto [_, gid] = linalg::UnravelIndex(idx, n_samples, n_targets);
     phis[(idx + 1) * ncolumns - 1] +=
         group_root_mean_sums[gid] + (margin.empty() ? base_score(gid) : margin[idx]);
   });
@@ -1294,15 +1290,15 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   }
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
-  CHECK_NE(ngroup, 0);
+  auto const n_targets = model.learner_model_param->NumTargets();
+  CHECK_NE(n_targets, 0);
   auto const ncolumns = model.learner_model_param->num_feature + 1;
-  auto dim_size = ncolumns * ncolumns * ngroup;
+  auto dim_size = ncolumns * ncolumns * n_targets;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
   out_contribs->Fill(0.0f);
 
-  auto prepared = PrepareGpuQuadratureModel(model, tree_end, ngroup, tree_weights,
+  auto prepared = PrepareGpuQuadratureModel(model, tree_end, n_targets, tree_weights,
                                             "Predict interaction contribution");
 
   auto new_enc =
@@ -1310,13 +1306,13 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto group_root_mean_sums = prepared.GroupRootMeanSums();
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapInteractionBuckets<16>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapInteractionBuckets<16>(ctx, loader, base_rowid, n_targets, ncolumns,
                                                prepared.compressed[0], prepared.rule, out_contribs);
-    LaunchQuadratureShapInteractionBuckets<32>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapInteractionBuckets<32>(ctx, loader, base_rowid, n_targets, ncolumns,
                                                prepared.compressed[1], prepared.rule, out_contribs);
-    LaunchQuadratureShapInteractionBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapInteractionBuckets<64>(ctx, loader, base_rowid, n_targets, ncolumns,
                                                prepared.compressed[2], prepared.rule, out_contribs);
-    LaunchQuadratureShapInteractionBuckets<128>(ctx, loader, base_rowid, ngroup, ncolumns,
+    LaunchQuadratureShapInteractionBuckets<128>(ctx, loader, base_rowid, n_targets, ncolumns,
                                                 prepared.compressed[3], prepared.rule,
                                                 out_contribs);
   });
@@ -1326,12 +1322,13 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto base_score = model.learner_model_param->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
-  dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
-    auto [ridx, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
-    auto matrix_offset = (static_cast<std::size_t>(ridx) * ngroup + gid) * ncolumns * ncolumns;
+  dh::LaunchN(n_samples * n_targets, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
+    auto [ridx, target_idx] = linalg::UnravelIndex(idx, n_samples, n_targets);
+    auto matrix_offset =
+        (static_cast<std::size_t>(ridx) * n_targets + target_idx) * ncolumns * ncolumns;
     auto matrix = phis.subspan(matrix_offset, ncolumns * ncolumns);
     matrix[(ncolumns - 1) * ncolumns + (ncolumns - 1)] +=
-        group_root_mean_sums[gid] + (margin.empty() ? base_score(gid) : margin[idx]);
+        group_root_mean_sums[target_idx] + (margin.empty() ? base_score(target_idx) : margin[idx]);
     for (bst_feature_t r = 0; r < ncolumns; ++r) {
       for (bst_feature_t c = r + 1; c < ncolumns; ++c) {
         auto sym = 0.5f * (matrix[r * ncolumns + c] + matrix[c * ncolumns + r]);

@@ -157,11 +157,11 @@ class GBLinear : public GradientBooster {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
-    const int ngroup = model_.learner_model_param->num_output_group;
+    auto const n_targets = model_.learner_model_param->NumTargets();
     const size_t ncolumns = model_.learner_model_param->num_feature + 1;
-    // allocate space for (#features + bias) times #groups times #rows
+    // Allocate space for (#features + bias) times #targets times #rows.
     std::vector<bst_float>& contribs = out_contribs->HostVector();
-    contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
+    contribs.resize(p_fmat->Info().num_row_ * ncolumns * n_targets);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     auto base_score = learner_model_param_->BaseScore(ctx_);
@@ -173,18 +173,18 @@ class GBLinear : public GradientBooster {
       common::ParallelFor(nsize, ctx_->Threads(), [&](bst_omp_uint i) {
         auto inst = page[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
-        // loop over output groups
-        for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
+        // Loop over targets.
+        for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+          bst_float* p_contribs = &contribs[(row_idx * n_targets + target_idx) * ncolumns];
           // calculate linear terms' contributions
           for (auto& ins : inst) {
             if (ins.index >= model_.learner_model_param->num_feature) continue;
-            p_contribs[ins.index] = ins.fvalue * model_[ins.index][gid];
+            p_contribs[ins.index] = ins.fvalue * model_[ins.index][target_idx];
           }
           // add base margin to BIAS
           p_contribs[ncolumns - 1] =
-              model_.Bias()[gid] +
-              ((base_margin.Size() != 0) ? base_margin(row_idx, gid) : base_score(0));
+              model_.Bias()[target_idx] +
+              ((base_margin.Size() != 0) ? base_margin(row_idx, target_idx) : base_score(0));
         }
       });
     }
@@ -199,8 +199,7 @@ class GBLinear : public GradientBooster {
     // linear models have no interaction effects
     const size_t nelements =
         model_.learner_model_param->num_feature * model_.learner_model_param->num_feature;
-    contribs.resize(p_fmat->Info().num_row_ * nelements *
-                    model_.learner_model_param->num_output_group);
+    contribs.resize(p_fmat->Info().num_row_ * nelements * model_.learner_model_param->NumTargets());
     std::fill(contribs.begin(), contribs.end(), 0);
   }
 
@@ -220,14 +219,14 @@ class GBLinear : public GradientBooster {
     std::iota(out_features->begin(), out_features->end(), 0);
     // Don't include the bias term in the feature importance scores
     // The bias is the last weight
-    out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
-    auto n_groups = learner_model_param_->num_output_group;
+    out_scores->resize(model_.weight.size() - learner_model_param_->NumTargets(), 0);
+    auto n_targets = learner_model_param_->NumTargets();
     auto scores = linalg::MakeTensorView(DeviceOrd::CPU(),
                                          common::Span{out_scores->data(), out_scores->size()},
-                                         learner_model_param_->num_feature, n_groups);
+                                         learner_model_param_->num_feature, n_targets);
     for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
-      for (bst_group_t g = 0; g < n_groups; ++g) {
-        scores(i, g) = model_[i][g];
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        scores(i, target_idx) = model_[i][target_idx];
       }
     }
   }
@@ -239,25 +238,25 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float>& preds = *out_preds;
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
     // start collecting the prediction
-    const int ngroup = model_.learner_model_param->num_output_group;
-    preds.resize(p_fmat->Info().num_row_ * ngroup);
+    auto const n_targets = model_.learner_model_param->NumTargets();
+    preds.resize(p_fmat->Info().num_row_ * n_targets);
 
     auto base_score = learner_model_param_->BaseScore(DeviceOrd::CPU());
     for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
       auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
-      // k is number of group
+      // k is the number of targets.
       // parallel over local batch
       const auto nsize = static_cast<omp_ulong>(batch.Size());
       if (base_margin.Size() != 0) {
-        CHECK_EQ(base_margin.Size(), nsize * ngroup);
+        CHECK_EQ(base_margin.Size(), nsize * n_targets);
       }
       common::ParallelFor(nsize, ctx_->Threads(), [&](omp_ulong i) {
         const size_t ridx = page.base_rowid + i;
-        // loop over output groups
-        for (int gid = 0; gid < ngroup; ++gid) {
-          float margin = (base_margin.Size() != 0) ? base_margin(ridx, gid) : base_score(0);
-          this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
+        // Loop over targets.
+        for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+          float margin = (base_margin.Size() != 0) ? base_margin(ridx, target_idx) : base_score(0);
+          this->Pred(batch[i], &preds[ridx * n_targets], target_idx, margin);
         }
       });
     }
@@ -291,13 +290,14 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void Pred(const SparsePage::Inst& inst, bst_float* preds, int gid, bst_float base) {
-    bst_float psum = model_.Bias()[gid] + base;
+  void Pred(const SparsePage::Inst& inst, bst_float* preds, bst_target_t target_idx,
+            bst_float base) {
+    bst_float psum = model_.Bias()[target_idx] + base;
     for (const auto& ins : inst) {
       if (ins.index >= model_.learner_model_param->num_feature) continue;
-      psum += ins.fvalue * model_[ins.index][gid];
+      psum += ins.fvalue * model_[ins.index][target_idx];
     }
-    preds[gid] = psum;
+    preds[target_idx] = psum;
   }
 
   // biase margin score

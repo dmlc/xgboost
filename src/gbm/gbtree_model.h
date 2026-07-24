@@ -91,7 +91,7 @@ struct GBTreeModel : public Model {
    */
   bst_tree_t CommitModel(TreesOneIter&& new_trees);
 
-  void CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx);
+  void CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t target_idx);
 
   [[nodiscard]] std::int32_t BoostedRounds() const {
     if (trees.empty()) {

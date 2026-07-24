@@ -161,17 +161,17 @@ class QuantileRegression : public ObjFunction {
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       float learning_rate, HostDeviceVector<float> const& prediction,
-                      bst_target_t group_idx, RegTree* p_tree) const override {
+                      bst_target_t target_idx, RegTree* p_tree) const override {
     auto const& alphas = param_.quantile_alpha.Get();
     if (p_tree->IsMultiTarget()) {
-      CHECK_EQ(group_idx, 0);
+      CHECK_EQ(target_idx, 0);
       // Pass all the alphas
-      ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
+      ::xgboost::obj::UpdateTreeLeaf(ctx_, position, target_idx, info, learning_rate, prediction,
                                      alphas, p_tree);
     } else {
-      // Use only the alpha for the current group.
-      ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
-                                     std::vector{alphas[group_idx]}, p_tree);
+      // Use only the alpha for the current target.
+      ::xgboost::obj::UpdateTreeLeaf(ctx_, position, target_idx, info, learning_rate, prediction,
+                                     std::vector{alphas[target_idx]}, p_tree);
     }
   }
 

@@ -143,7 +143,7 @@ class Predictor {
 
   /**
    * \brief feature contributions to individual predictions; the output will be
-   * a vector of length (nfeats + 1) * num_output_group * nsample, arranged in
+   * a vector of length (nfeats + 1) * n_targets * nsample, arranged in
    * that order.
    *
    * \param [in,out]  dmat               The input feature matrix.
