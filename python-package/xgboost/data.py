@@ -482,7 +482,7 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
 
 
 def pandas_pa_type(ser: Any) -> np.ndarray:
-    """Handle pandas pyarrow extention."""
+    """Handle pandas pyarrow extension."""
     pd = import_pandas()
 
     if TYPE_CHECKING:
