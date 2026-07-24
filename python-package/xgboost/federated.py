@@ -83,10 +83,16 @@ def run_federated_server(  # pylint: disable=too-many-arguments
 
     """
     args: Dict[str, Any] = {"n_workers": n_workers}
-    secure = all(
-        path is not None
-        for path in [server_key_path, server_cert_path, client_cert_path]
-    )
+    cert_paths = [server_key_path, server_cert_path, client_cert_path]
+    n_paths_given = sum(path is not None for path in cert_paths)
+    if 0 < n_paths_given < len(cert_paths):
+        raise ValueError(
+            "Either all of `server_key_path`, `server_cert_path`, and "
+            "`client_cert_path` must be provided to run in secure mode, or "
+            "none of them to run in insecure mode. Got only "
+            f"{n_paths_given} out of {len(cert_paths)}."
+        )
+    secure = n_paths_given == len(cert_paths)
     tracker = FederatedTracker(
         n_workers=n_workers,
         port=port,
