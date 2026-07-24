@@ -310,15 +310,39 @@ class MultiTargetHistMaker {
     auto n_targets = this->split_gpair_.Shape(1);
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
 
-    // Get weights by node ID from the evaluator's buffer.
-    //
-    // TODO(jiamingy):
-    // - Avoid device to host copies.
-    // - Apply expand in batches
+    // Candidate spans can become stale while entries wait in the loss-guide queue, so
+    // look up the persistent weight storage by node ID.
+    auto weights = this->evaluator_.GetNodeWeights(n_targets);
+
+    ExpandBatch batch;
+    batch.eta = param_.learning_rate;
+
     for (auto const& candidate : h_candidates) {
-      std::vector<float> h_base_weight, h_left_weight, h_right_weight;
-      this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
-                                             &h_left_weight, &h_right_weight);
+      batch.nidxs.push_back(candidate.nidx);
+      batch.fidxs.push_back(candidate.split.findex);
+      batch.conds.push_back(candidate.split.fvalue);
+      batch.dft_lefts.push_back(candidate.split.dir == kLeftDir);
+
+      auto base_weight = weights.Base(candidate.nidx);
+      auto left_weight = weights.Left(candidate.nidx);
+      auto right_weight = weights.Right(candidate.nidx);
+
+      batch.base_weight_batch.emplace_back(base_weight);
+      batch.left_weight_batch.emplace_back(left_weight);
+      batch.right_weight_batch.emplace_back(right_weight);
+
+      batch.loss_chgs.push_back(candidate.split.loss_chg);
+      batch.left_sums.push_back(candidate.left_sum);
+      batch.right_sums.push_back(candidate.right_sum);
+    }
+
+    for (auto const& candidate : h_candidates) {
+      std::vector<float> h_base_weight(n_targets);
+      std::vector<float> h_left_weight(n_targets);
+      std::vector<float> h_right_weight(n_targets);
+      dh::CopyDeviceSpanToVector(&h_base_weight, weights.Base(candidate.nidx));
+      dh::CopyDeviceSpanToVector(&h_left_weight, weights.Left(candidate.nidx));
+      dh::CopyDeviceSpanToVector(&h_right_weight, weights.Right(candidate.nidx));
       auto h_left_leaf = h_left_weight;
       auto h_right_leaf = h_right_weight;
       auto eta = this->param_.learning_rate;

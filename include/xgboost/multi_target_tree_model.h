@@ -20,7 +20,23 @@
 namespace xgboost {
 namespace tree {
 struct MultiTargetTreeView;
-}
+using CatWordT = uint32_t;
+
+struct ExpandBatch {
+  std::vector<float> nidxs;
+  std::vector<bst_feature_t> fidxs;
+  std::vector<float> conds;
+  std::vector<std::int32_t> dft_lefts;
+  std::vector<common::Span<float>> base_weight_batch;
+  std::vector<common::Span<float>> left_weight_batch;
+  std::vector<common::Span<float>> right_weight_batch;
+  std::vector<float> loss_chgs;
+  std::vector<double> left_sums;
+  std::vector<double> right_sums;
+  std::vector<common::Span<CatWordT const>> cat_bits;
+  float eta;
+};
+}  // namespace tree
 struct TreeParam;
 
 /**

@@ -25,7 +25,6 @@
 #include <vector>
 
 namespace xgboost {
-
 namespace tree {
 struct ScalarTreeView;
 struct MultiTargetTreeView;
@@ -343,7 +342,7 @@ class RegTree : public Model {
    * \param right_sum         The sum hess of right leaf.
    */
   void ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
-                         common::Span<const uint32_t> split_cat, bool default_left,
+                         common::Span<tree::CatWordT const> split_cat, bool default_left,
                          bst_float base_weight, bst_float left_leaf_weight,
                          bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                          float left_sum, float right_sum);
@@ -351,7 +350,7 @@ class RegTree : public Model {
    * @brief Expands a leaf node with categories for a multi-target tree.
    */
   void ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
-                         common::Span<const uint32_t> split_cat, bool default_left,
+                         common::Span<tree::CatWordT const> split_cat, bool default_left,
                          linalg::VectorView<float const> base_weight,
                          linalg::VectorView<float const> left_weight,
                          linalg::VectorView<float const> right_weight, float loss_chg,
