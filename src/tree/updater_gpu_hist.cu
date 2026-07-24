@@ -22,6 +22,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
+#include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
 #include "../common/random.h"           // for ColumnSampler
 #include "../common/timer.h"
 #include "../data/batch_utils.h"     // for StaticBatch

@@ -16,6 +16,7 @@
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
+#include "../common/nvtx_utils.h"   // for xgboost_NVTX_FN_RANGE
 #include "io_utils.h"               // for GetElem
 #include "param.h"
 #include "tree_view.h"
@@ -882,6 +883,8 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
 
 void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   CHECK(IsMultiTarget());
+
+  xgboost_NVTX_FN_RANGE();
 
   auto const categories_begin = split_categories_.Size();
   this->p_mt_tree_->Expand(ctx, batch);

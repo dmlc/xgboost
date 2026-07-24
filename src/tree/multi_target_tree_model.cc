@@ -13,6 +13,7 @@
 
 #include "../common/cuda_rt_utils.h"  // for MemcpyAsync
 #include "../common/linalg_op.h"      // for cbegin
+#include "../common/nvtx_utils.h"     // for xgboost_NVTX_FN_RANGE
 #include "io_utils.h"                 // for I32ArrayT, FloatArrayT, GetElem, ...
 #include "xgboost/base.h"             // for bst_node_t, bst_feature_t, bst_target_t
 #include "xgboost/json.h"             // for Json, get, Object, Number, Integer, ...
@@ -84,6 +85,7 @@ void ApplyLearningRate(Context const* ctx, std::size_t offset, std::size_t size,
 namespace tree {
 void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch const& batch,
                          HostDeviceVector<CatWordT>* out) {
+  xgboost_NVTX_FN_RANGE();
   std::vector<CopyBatchItem<CatWordT>> copies;
   for (auto cats : batch.cat_bits) {
     if (!cats.empty()) {
@@ -164,6 +166,7 @@ void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_
 }
 
 void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
+  xgboost_NVTX_FN_RANGE();
   auto const batch_size = batch.Size();
   auto const n_split_targets = this->NumSplitTargets();
   auto const old_n_nodes = this->Size();

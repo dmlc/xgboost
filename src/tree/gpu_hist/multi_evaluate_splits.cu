@@ -17,6 +17,7 @@
 #include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
+#include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../tree_view.h"             // for MultiTargetTreeView
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -754,6 +755,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                                         common::Span<MultiExpandEntry const> h_candidates,
                                         common::Span<MultiExpandEntry const> d_candidates,
                                         bst_target_t n_targets) {
+  xgboost_NVTX_FN_RANGE();
   CHECK_EQ(h_candidates.size(), d_candidates.size());
   CHECK(!h_candidates.empty());
   CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
