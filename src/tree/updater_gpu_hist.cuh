@@ -308,6 +308,7 @@ class MultiTargetHistMaker {
 
     CHECK(!h_candidates.empty());
     auto n_targets = this->split_gpair_.Shape(1);
+    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
 
     // Get weights by node ID from the evaluator's buffer.
     //
@@ -355,7 +356,6 @@ class MultiTargetHistMaker {
                                       mt_tree.RightChild(candidate.nidx));
     }
 
-    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
                                     common::Span<MultiExpandEntry const>{h_candidates},
                                     dh::ToSpan(candidates), n_targets);
