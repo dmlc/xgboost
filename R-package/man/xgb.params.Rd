@@ -241,7 +241,6 @@ A comma separated string defining the sequence of tree updaters to run, providin
 \item \code{"grow_quantile_histmaker"}: Grow tree using quantized histogram.
 \item \code{"grow_gpu_hist"}:  Enabled when \code{tree_method} is set to \code{"hist"} along with \code{device="cuda"}.
 \item \code{"grow_gpu_approx"}: Enabled when \code{tree_method} is set to \code{"approx"} along with \code{device="cuda"}.
-\item \code{"sync"}: synchronizes trees in all distributed nodes.
 \item \code{"refresh"}: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
 \item \code{"prune"}: prunes the splits where loss < \code{min_split_loss} (or \code{gamma}) and nodes that have depth greater than \code{max_depth}.
 }
