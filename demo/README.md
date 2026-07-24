@@ -96,6 +96,7 @@ Please send pull requests if you find ones that are missing here.
 - Chris Deotte, 1st place winner of [Kaggle Playground Series S5E4 - Predict Podcast Listening Time](https://www.kaggle.com/competitions/playground-series-s5e4) (Apr 2025). A three-level ensemble that includes XGBoost/GBDT models. Link to [writeup](https://www.kaggle.com/competitions/playground-series-s5e4/writeups/chris-deotte-1st-place-rapids-cuml-stack-3-levels) and [technical blog](https://developer.nvidia.com/blog/grandmaster-pro-tip-winning-first-place-in-a-kaggle-competition-with-stacking-using-cuml/).
 - Mohammad Odeh, 1st place winner of [March Machine Learning Mania 2025](https://www.kaggle.com/competitions/march-machine-learning-mania-2025) ($50K prize). XGBoost outperformed CatBoost and LightGBM. Link to [writeup](https://www.kaggle.com/competitions/march-machine-learning-mania-2025/writeups/mohammad-odeh-first-place-solution).
 
+- Optimistix, 1st place winner of [Kaggle Playground Series S6E5 - Predicting F1 Pit Stops](https://www.kaggle.com/competitions/playground-series-s6e5/overview) (May 2026). An ensemble including XGBoost, LightGBM, CatBoost, RealMLP, TabM, and other models. Link to [write-up](https://www.kaggle.com/competitions/playground-series-s6e5/writeups/1st-place-by-the-skin-of-my-teeth).
 ## Talks
 - XGBoost: A Scalable Tree Boosting System ([video] (https://www.youtube.com/watch?v=Vly8xGnNiWs) + [slides](https://speakerdeck.com/datasciencela/tianqi-chen-xgboost-overview-and-latest-news-la-meetup-talk)) by Tianqi Chen at the Los Angeles Data Science meetup
 
