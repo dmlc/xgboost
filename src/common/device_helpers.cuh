@@ -711,14 +711,13 @@ void CopyTo(Src const &src, Dst *dst,
 }
 
 /**
- * @brief Wrapper for the @ref cudaMemcpyBatchAsync .
+ * @brief Thin wrapper of the @ref cudaMemcpyBatchAsync .
  *
  * @param dsts Host pointer to a list of device pointers.
  * @param srcs Host pointer to a list of device pointers.
  * @param sizes Host pointer to a list of sizes.
  * @param count How many batches.
- * @param fail_idx Which batch has failed, if any. When it's assigned to SIZE_MAX, then
- *   it's a general error.
+ * @param fail_idx Which batch has failed, if any. This is always SIZE_MAX in CUDA 13.
  * @param stream CUDA stream. The wrapper enforces stream order access.
  */
 template <cudaMemcpyKind kind, typename T, typename U>

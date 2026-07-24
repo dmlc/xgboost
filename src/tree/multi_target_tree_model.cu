@@ -18,12 +18,8 @@ template <typename T>
 void CopyBatch(Context const* ctx, common::Span<T*> dsts, common::Span<T const*> srcs,
                common::Span<std::size_t const> sizes) {
   std::size_t fail_idx{std::numeric_limits<std::size_t>::max()};
-  auto status = dh::MemcpyBatchAsync<cudaMemcpyDeviceToDevice>(
-      dsts.data(), srcs.data(), sizes.data(), dsts.size(), &fail_idx, ctx->CUDACtx()->Stream());
-  if (status != cudaSuccess) {
-    LOG(FATAL) << "CUDA batch copy failed at index " << fail_idx << ": "
-               << cudaGetErrorString(status);
-  }
+  dh::safe_cuda(dh::MemcpyBatchAsync<cudaMemcpyDeviceToDevice>(
+      dsts.data(), srcs.data(), sizes.data(), dsts.size(), &fail_idx, ctx->CUDACtx()->Stream()));
 }
 
 template void CopyBatch(Context const* ctx, common::Span<float*> dsts,
