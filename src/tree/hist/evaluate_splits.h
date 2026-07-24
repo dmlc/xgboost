@@ -773,11 +773,11 @@ class HistMultiEvaluator {
     auto as_span = [](linalg::VectorView<float const> weight) {
       return weight.Values().subspan(0, weight.Size());
     };
-    ExpandBatch batch{ctx_->Device(), param_->learning_rate};
+    ExpandBatch batch{param_->learning_rate};
     batch.Push(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                candidate.split.DefaultLeft(), as_span(base_weight), as_span(left_weight),
                as_span(right_weight), loss_chg, left_sum_hess, right_sum_hess, cat_bits);
-    p_tree->Expand(batch);
+    p_tree->Expand(ctx_, batch);
 
     CHECK(p_tree->IsMultiTarget());
     auto left_child = p_tree->LeftChild(candidate.nid);

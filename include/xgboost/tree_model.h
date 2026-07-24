@@ -306,7 +306,7 @@ class RegTree : public Model {
    *
    * A non-empty category span marks a categorical split; an empty span marks a numerical split.
    */
-  void Expand(tree::ExpandBatch const& batch);
+  void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /**
    * @brief Set all leaf weights for a multi-target tree.
    *

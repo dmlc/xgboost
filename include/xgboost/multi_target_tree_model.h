@@ -35,10 +35,11 @@ struct ExpandBatch {
   std::vector<double> left_sums;
   std::vector<double> right_sums;
   std::vector<common::Span<CatWordT const>> cat_bits;
-  DeviceOrd device;
+  // Total number of CatWordT storage elements in cat_bits.
+  std::size_t n_cat_words{0};
   float eta;
 
-  ExpandBatch(DeviceOrd device, float eta) : device{device}, eta{eta} {}
+  explicit ExpandBatch(float eta) : eta{eta} {}
 
   [[nodiscard]] std::size_t Size() const { return nidxs.size(); }
 
@@ -57,6 +58,7 @@ struct ExpandBatch {
     left_sums.push_back(left_sum);
     right_sums.push_back(right_sum);
     cat_bits.emplace_back(cats);
+    n_cat_words += cats.size();
   }
 };
 }  // namespace tree
@@ -129,7 +131,7 @@ class MultiTargetTree : public Model {
    * Base weights are stored unchanged. Left and right child weights are multiplied by
    * `batch.eta`.
    */
-  void Expand(tree::ExpandBatch const& batch);
+  void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
   /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */
