@@ -764,7 +764,7 @@ template <cudaMemcpyKind kind, typename T, typename U>
 #if CUDART_VERSION >= 13000
   // CUDA 13 no longer exposes the per-copy failure index in this overload.
   *fail_idx = std::numeric_limits<std::size_t>::max();
-  return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, stream);
+  return cudaMemcpyBatchAsync(dsts, srcs, sizes, count, attr, stream);
 #else
   return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, fail_idx,
                               stream);

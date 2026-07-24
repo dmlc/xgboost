@@ -22,7 +22,8 @@
 
 namespace xgboost {
 namespace tree::cuda_impl {
-void CopyBatch(Context const* ctx, common::Span<void*> dsts, common::Span<void const*> srcs,
+template <typename T>
+void CopyBatch(Context const* ctx, common::Span<T*> dsts, common::Span<T const*> srcs,
                common::Span<std::size_t const> sizes);
 void ApplyLearningRate(Context const* ctx, common::Span<float> weights, float eta);
 }  // namespace tree::cuda_impl
@@ -46,15 +47,15 @@ void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T
     (void)out->DeviceSpan();
     out->Resize(size);
     auto dst = out->DeviceSpan();
-    std::vector<void*> dsts(copies.size());
-    std::vector<void const*> srcs(copies.size());
+    std::vector<T*> dsts(copies.size());
+    std::vector<T const*> srcs(copies.size());
     std::vector<std::size_t> sizes(copies.size());
     for (std::size_t i = 0; i < copies.size(); ++i) {
       dsts[i] = dst.data() + copies[i].dst_offset;
       srcs[i] = copies[i].src.data();
       sizes[i] = copies[i].src.size_bytes();
     }
-    tree::cuda_impl::CopyBatch(ctx, dsts, srcs, sizes);
+    tree::cuda_impl::CopyBatch(ctx, common::Span{dsts}, common::Span{srcs}, sizes);
     return;
   }
 #endif  // defined(XGBOOST_USE_CUDA)
