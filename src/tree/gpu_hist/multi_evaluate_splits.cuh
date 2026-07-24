@@ -147,12 +147,9 @@ class MultiHistEvaluator {
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
   }
-  [[nodiscard]] std::vector<CatST> GetHostNodeCats(bst_node_t nidx) const {
-    std::vector<CatST> out(this->node_cat_storage_size_);
-    auto cats = dh::ToSpan(this->split_cats_)
-                    .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
-    dh::CopyDeviceSpanToVector(&out, cats);
-    return out;
+  [[nodiscard]] common::Span<CatST const> GetNodeCats(bst_node_t nidx) const {
+    return dh::ToSpan(this->split_cats_)
+        .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
   /**
    * @brief Copy weights for a node from device to host vectors.

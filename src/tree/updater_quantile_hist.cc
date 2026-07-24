@@ -275,8 +275,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<MultiExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     std::vector<BoundedHistCollection const *> hists;
     // Use histogram builder's number of targets (may differ from tree for reduced gradient)
@@ -286,7 +285,7 @@ class MultiTargetHistBuilder {
     }
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, best_splits);
+      evaluator_->EvaluateSplits(hists, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);
@@ -492,13 +491,12 @@ class HistUpdater {
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<CPUExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<CPUExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     auto const &histograms = histogram_builder_->Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, best_splits);
+      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);
@@ -553,8 +551,7 @@ class HistUpdater {
       monitor_->Start("EvaluateSplits");
       auto ft = p_fmat->Info().feature_types.ConstHostSpan();
       for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-        evaluator_->EvaluateSplits(histogram_builder_->Histogram(0), gmat.cut, ft, *p_tree,
-                                   &entries);
+        evaluator_->EvaluateSplits(histogram_builder_->Histogram(0), gmat.cut, ft, &entries);
         break;
       }
       monitor_->Stop("EvaluateSplits");

@@ -386,8 +386,7 @@ struct GPUHistMakerDevice {
     // Prepare for build hist
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    auto const& tree = p_tree->HostScView();
-    cuda_impl::AssignNodes(tree, candidates, build_nidx, subtraction_nidx,
+    cuda_impl::AssignNodes(*p_tree, candidates, build_nidx, subtraction_nidx,
                            [&](GPUExpandEntry const& e) {
                              auto const& q = (*this->quantiser)[0];
                              auto left_sum = q.ToFloatingPoint(e.split.left_sum);

@@ -266,15 +266,14 @@ class HistEvaluator {
 
  public:
   void EvaluateSplits(const BoundedHistCollection &hist, common::HistogramCuts const &cut,
-                      common::Span<FeatureType const> feature_types, const RegTree &tree,
+                      common::Span<FeatureType const> feature_types,
                       std::vector<CPUExpandEntry> *p_entries) {
     auto n_threads = ctx_->Threads();
     auto &entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-      auto nidx = entries[nidx_in_set].nid;
-      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(nidx));
+      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, entries[nidx_in_set].depth);
     }
     CHECK(!features.empty());
     const size_t grain_size = std::max<size_t>(1, features.front()->Size() / n_threads);
@@ -608,7 +607,7 @@ class HistMultiEvaluator {
   }
 
  public:
-  void EvaluateSplits(RegTree const &tree, common::Span<const BoundedHistCollection *> hist,
+  void EvaluateSplits(common::Span<const BoundedHistCollection *> hist,
                       common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types,
                       std::vector<MultiExpandEntry> *p_entries) {
@@ -618,8 +617,7 @@ class HistMultiEvaluator {
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-      auto nidx = entries[nidx_in_set].nid;
-      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(nidx));
+      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, entries[nidx_in_set].depth);
     }
     CHECK(!features.empty());
 
@@ -759,16 +757,6 @@ class HistMultiEvaluator {
     evaluator.CalcSplitWeights(*param_, candidate.nid, candidate.split.SplitIndex(), left_sum,
                                right_sum, left_weight, right_weight);
 
-    auto leaf_weight = linalg::Empty<float>(ctx_, 2, n_split_targets);
-    auto left_leaf_weight = leaf_weight.Slice(0, linalg::All());
-    auto right_leaf_weight = leaf_weight.Slice(1, linalg::All());
-    std::transform(linalg::cbegin(left_weight), linalg::cend(left_weight),
-                   linalg::begin(left_leaf_weight),
-                   [&](float w) { return w * param_->learning_rate; });
-    std::transform(linalg::cbegin(right_weight), linalg::cend(right_weight),
-                   linalg::begin(right_leaf_weight),
-                   [&](float w) { return w * param_->learning_rate; });
-
     // Compute the loss_chg and sum hessians for parent and children
     float loss_chg = candidate.split.loss_chg;
     // Sum hessians across all targets for each child
@@ -777,24 +765,24 @@ class HistMultiEvaluator {
       left_sum_hess += candidate.split.left_sum[t].GetHess();
       right_sum_hess += candidate.split.right_sum[t].GetHess();
     }
-    double sum_hess = left_sum_hess + right_sum_hess;
 
+    common::Span<CatWordT const> cat_bits;
     if (candidate.split.is_cat) {
-      p_tree->ExpandCategorical(candidate.nid, candidate.split.SplitIndex(),
-                                candidate.split.cat_bits, candidate.split.DefaultLeft(),
-                                base_weight, left_leaf_weight, right_leaf_weight, loss_chg,
-                                sum_hess, left_sum_hess, right_sum_hess);
-    } else {
-      p_tree->ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                         candidate.split.DefaultLeft(), base_weight, left_leaf_weight,
-                         right_leaf_weight, loss_chg, sum_hess, left_sum_hess, right_sum_hess);
+      cat_bits = candidate.split.cat_bits;
     }
+    auto as_span = [](linalg::VectorView<float const> weight) {
+      return weight.Values().subspan(0, weight.Size());
+    };
+    ExpandBatch batch{ctx_->Device(), param_->learning_rate};
+    batch.Push(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
+               candidate.split.DefaultLeft(), as_span(base_weight), as_span(left_weight),
+               as_span(right_weight), loss_chg, left_sum_hess, right_sum_hess, cat_bits);
+    p_tree->Expand(batch);
 
     CHECK(p_tree->IsMultiTarget());
-    auto mt_tree = p_tree->HostMtView();
-    auto left_child = mt_tree.LeftChild(candidate.nid);
+    auto left_child = p_tree->LeftChild(candidate.nid);
     CHECK_GT(left_child, candidate.nid);
-    auto right_child = mt_tree.RightChild(candidate.nid);
+    auto right_child = p_tree->RightChild(candidate.nid);
     CHECK_GT(right_child, candidate.nid);
 
     tree_evaluator_.AddSplit(candidate.nid, left_child, right_child, candidate.split.SplitIndex(),
@@ -803,7 +791,7 @@ class HistMultiEvaluator {
     interaction_constraints_.Split(candidate.nid, candidate.split.SplitIndex(), left_child,
                                    right_child);
 
-    std::size_t n_nodes = mt_tree.Size();
+    std::size_t n_nodes = p_tree->Size();
     gain_.resize(n_nodes);
     gain_[left_child] = evaluator.CalcGainGivenWeight(*param_, left_sum, left_weight);
     gain_[right_child] = evaluator.CalcGainGivenWeight(*param_, right_sum, right_weight);

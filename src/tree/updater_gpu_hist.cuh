@@ -283,8 +283,7 @@ class MultiTargetHistMaker {
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     common::Span<bst_feature_t const> feature_set =
         interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
-    MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
-                                   feature_set, node_hist};
+    MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
@@ -567,7 +566,7 @@ class MultiTargetHistMaker {
     histogram_.AllocateHistograms(this->ctx_, build_nidx, subtraction_nidx);
 
     // Pull to device (stats not needed for partitioning)
-    mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
+    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
 
     std::int32_t k{0};
     for (auto const& page :
@@ -603,7 +602,6 @@ class MultiTargetHistMaker {
     dh::device_vector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
     dh::device_vector<MultiExpandEntry> outputs(2 * candidates.size());
 
-    auto mt_tree = tree.HostMtView();
     std::vector<MultiEvaluateSplitInputs> h_node_inputs(candidates.size() * 2);
 
     // Store the feature set ptrs so they don't go out of scope before the kernel is called

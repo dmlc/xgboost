@@ -758,11 +758,10 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   CHECK(!h_candidates.empty());
   CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
 
-  auto h_tree = p_tree->HostMtView();
   auto weights = this->GetNodeWeights(n_targets);
   for (auto const &candidate : h_candidates) {
-    auto left = h_tree.LeftChild(candidate.nidx);
-    auto right = h_tree.RightChild(candidate.nidx);
+    auto left = p_tree->LeftChild(candidate.nidx);
+    auto right = p_tree->RightChild(candidate.nidx);
     common::Span<float const> left_weight = weights.Left(candidate.nidx);
     common::Span<float const> right_weight = weights.Right(candidate.nidx);
     this->tree_evaluator_->AddSplit(candidate.nidx, left, right, candidate.split.findex,

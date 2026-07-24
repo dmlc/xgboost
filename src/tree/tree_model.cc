@@ -14,9 +14,10 @@
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v
 
-#include "../common/categorical.h"  // for GetNodeCats
-#include "../common/common.h"       // for EscapeU8
-#include "io_utils.h"               // for GetElem
+#include "../common/categorical.h"      // for GetNodeCats
+#include "../common/common.h"           // for EscapeU8
+#include "io_utils.h"                   // for GetElem
+#include "multi_target_tree_model.cuh"  // for CopyBatch
 #include "param.h"
 #include "tree_view.h"
 #include "xgboost/base.h"

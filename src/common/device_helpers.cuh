@@ -20,6 +20,7 @@
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
+#include <limits>             // for numeric_limits
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
 
@@ -735,8 +736,9 @@ template <cudaMemcpyKind kind, typename T, typename U>
                                            std::size_t count, std::size_t *fail_idx,
                                            cudaStream_t stream) {
 #if CUDART_VERSION >= 12080
-  static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice,
-                "Not implemented.");
+  static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice ||
+                    kind == cudaMemcpyDeviceToDevice,
+                "Unsupported copy direction.");
   cudaMemcpyAttributes attr;
   attr.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
   attr.flags = cudaMemcpyFlagPreferOverlapWithCompute;
@@ -752,15 +754,32 @@ template <cudaMemcpyKind kind, typename T, typename U>
   if constexpr (kind == cudaMemcpyDeviceToHost) {
     assign_device(&attr.srcLocHint);
     assign_host(&attr.dstLocHint);
-  } else {
+  } else if constexpr (kind == cudaMemcpyHostToDevice) {
     assign_host(&attr.srcLocHint);
     assign_device(&attr.dstLocHint);
+  } else {
+    assign_device(&attr.srcLocHint);
+    assign_device(&attr.dstLocHint);
   }
+#if CUDART_VERSION >= 13000
+  // CUDA 13 no longer exposes the per-copy failure index in this overload.
+  *fail_idx = std::numeric_limits<std::size_t>::max();
+  return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, stream);
+#else
   return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, fail_idx,
                               stream);
+#endif  // CUDART_VERSION >= 13000
 #else
-  LOG(FATAL) << "CUDA >= 12.8 is required.";
-  return cudaErrorInvalidValue;
+  // Keep callers compatible with CUDA toolkits predating the native batch API.
+  for (std::size_t i = 0; i < count; ++i) {
+    auto status = cudaMemcpyAsync(dsts[i], srcs[i], sizes[i], kind, stream);
+    if (status != cudaSuccess) {
+      *fail_idx = i;
+      return status;
+    }
+  }
+  *fail_idx = std::numeric_limits<std::size_t>::max();
+  return cudaSuccess;
 #endif  // CUDART_VERSION >= 12080
 }
 

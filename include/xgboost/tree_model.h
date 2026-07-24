@@ -302,22 +302,15 @@ class RegTree : public Model {
                   bst_float loss_change, float sum_hess, float left_sum, float right_sum,
                   bst_node_t leaf_right_child = kInvalidNodeId);
   /**
-   * @brief Expands a leaf node into two additional leaf nodes for a multi-target tree.
+   * @brief Expand multiple leaves in a multi-target tree.
    *
-   * @param gain      The gain (loss change) from this split.
-   * @param sum_hess  The sum of hessians for the parent node (coverage).
-   * @param left_sum  The sum of hessians for the left child (coverage).
-   * @param right_sum The sum of hessians for the right child (coverage).
+   * A non-empty category span marks a categorical split; an empty span marks a numerical split.
    */
-  void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
-                  linalg::VectorView<float const> base_weight,
-                  linalg::VectorView<float const> left_weight,
-                  linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
-                  float left_sum, float right_sum);
+  void Expand(tree::ExpandBatch const& batch);
   /**
    * @brief Set all leaf weights for a multi-target tree.
    *
-   * The leaf weight can be different from the internal weight stored by @ref ExpandNode
+   * The leaf weight can be different from the internal weight stored by @ref Expand.
    * This function is used to set the leaf at the end of tree construction.
    *
    * @param leaves  The node indices for all leaves. This must contain all the leaves in this tree.
@@ -346,15 +339,6 @@ class RegTree : public Model {
                          bst_float base_weight, bst_float left_leaf_weight,
                          bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                          float left_sum, float right_sum);
-  /**
-   * @brief Expands a leaf node with categories for a multi-target tree.
-   */
-  void ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
-                         common::Span<tree::CatWordT const> split_cat, bool default_left,
-                         linalg::VectorView<float const> base_weight,
-                         linalg::VectorView<float const> left_weight,
-                         linalg::VectorView<float const> right_weight, float loss_chg,
-                         float sum_hess, float left_sum, float right_sum);
   /**
    * @brief Whether this tree has categorical split.
    */
