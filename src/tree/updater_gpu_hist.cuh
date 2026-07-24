@@ -42,8 +42,7 @@ template <typename GoLeftOp>
 struct GoLeftWrapperOp {
   GoLeftOp go_left;
   template <typename NodeSplitData>
-  __device__ bool operator()(RowIndexT ridx, int /*nidx_in_batch*/,
-                             const NodeSplitData& data) const {
+  __device__ bool operator()(RowIndexT ridx, const NodeSplitData& data) const {
     return go_left(ridx, data);
   }
 };
@@ -284,8 +283,7 @@ class MultiTargetHistMaker {
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     common::Span<bst_feature_t const> feature_set =
         interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
-    MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
-                                   feature_set, node_hist};
+    MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
@@ -309,54 +307,41 @@ class MultiTargetHistMaker {
 
     CHECK(!h_candidates.empty());
     auto n_targets = this->split_gpair_.Shape(1);
+    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
 
-    // Get weights by node ID from the evaluator's buffer.
-    //
-    // TODO(jiamingy):
-    // - Avoid device to host copies.
-    // - Apply expand in batches
+    // Candidate spans can become stale while entries wait in the loss-guide queue, so
+    // look up the persistent weight storage by node ID.
+    auto weights = this->evaluator_.GetNodeWeights(n_targets);
+
+    ExpandBatch batch{this->param_.learning_rate};
+
     for (auto const& candidate : h_candidates) {
-      std::vector<float> h_base_weight, h_left_weight, h_right_weight;
-      this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
-                                             &h_left_weight, &h_right_weight);
-      auto h_left_leaf = h_left_weight;
-      auto h_right_leaf = h_right_weight;
-      auto eta = this->param_.learning_rate;
-      std::transform(h_left_leaf.cbegin(), h_left_leaf.cend(), h_left_leaf.begin(),
-                     [=](float w) { return w * eta; });
-      std::transform(h_right_leaf.cbegin(), h_right_leaf.cend(), h_right_leaf.begin(),
-                     [=](float w) { return w * eta; });
-      // Get loss_chg from the split, and sum hessians for parent and children
-      auto loss_chg = candidate.split.loss_chg;
-      double sum_hess = candidate.left_sum + candidate.right_sum;
-      bool default_left = candidate.split.dir == kLeftDir;
+      auto base_weight = weights.Base(candidate.nidx);
+      auto left_weight = weights.Left(candidate.nidx);
+      auto right_weight = weights.Right(candidate.nidx);
+
+      common::Span<CatWordT const> cat_bits;
       if (candidate.split.is_cat) {
         auto fidx = candidate.split.findex;
-        auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
+        auto node_cats = this->evaluator_.GetNodeCats(candidate.nidx);
         auto n_bins_feature = this->cuts_->FeatureBins(fidx);
         auto n_words = common::CatBitField::ComputeStorageSize(n_bins_feature);
-        CHECK_LE(n_words, cat_bits.size());
-        cat_bits.resize(n_words);
-        p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
-                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_leaf),
-                                  linalg::MakeVec(h_right_leaf), loss_chg, sum_hess,
-                                  candidate.left_sum, candidate.right_sum);
-      } else {
-        p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                           default_left, linalg::MakeVec(h_base_weight),
-                           linalg::MakeVec(h_left_leaf), linalg::MakeVec(h_right_leaf), loss_chg,
-                           sum_hess, candidate.left_sum, candidate.right_sum);
+        CHECK_LE(n_words, node_cats.size());
+        cat_bits = node_cats.subspan(0, n_words);
       }
+      batch.Push(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
+                 candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
+                 candidate.split.loss_chg, candidate.left_sum, candidate.right_sum, cat_bits);
     }
 
-    auto mt_tree = p_tree->HostMtView();
+    p_tree->Expand(this->ctx_, batch);
+
     for (auto const& candidate : h_candidates) {
       interaction_constraints_->Split(this->ctx_, candidate.nidx, candidate.split.findex,
-                                      mt_tree.LeftChild(candidate.nidx),
-                                      mt_tree.RightChild(candidate.nidx));
+                                      p_tree->LeftChild(candidate.nidx),
+                                      p_tree->RightChild(candidate.nidx));
     }
 
-    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
                                     common::Span<MultiExpandEntry const>{h_candidates},
                                     dh::ToSpan(candidates), n_targets);
@@ -441,17 +426,15 @@ class MultiTargetHistMaker {
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
                                       std::vector<MultiExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
-    auto tree = p_tree->HostMtView();
-    // TODO(jiamingy) Avoid pulling the host tree.
+    auto split_types = p_tree->GetSplitTypes(DeviceOrd::CPU());
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
-      auto split_type = tree.SplitType(e.nidx);
       nodes.nidx.at(i) = e.nidx;
-      nodes.left_nidx[i] = tree.LeftChild(e.nidx);
-      nodes.right_nidx[i] = tree.RightChild(e.nidx);
+      nodes.left_nidx[i] = p_tree->LeftChild(e.nidx);
+      nodes.right_nidx[i] = p_tree->RightChild(e.nidx);
       nodes.split_data[i] = NodeSplitData{e.nidx};
 
-      CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
+      CHECK_EQ(split_types[e.nidx] == FeatureType::kCategorical, e.split.is_cat);
     }
     return nodes;
   }
@@ -532,8 +515,7 @@ class MultiTargetHistMaker {
 
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    auto mt_tree = p_tree->HostMtView();
-    AssignNodes(mt_tree, candidates, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
+    AssignNodes(*p_tree, candidates, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
       bool fewer_right = e.right_sum < e.left_sum;
       return fewer_right;
     });
@@ -544,7 +526,7 @@ class MultiTargetHistMaker {
     histogram_.AllocateHistograms(this->ctx_, build_nidx, subtraction_nidx);
 
     // Pull to device (stats not needed for partitioning)
-    mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
+    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
 
     std::int32_t k{0};
     for (auto const& page :
@@ -580,7 +562,6 @@ class MultiTargetHistMaker {
     dh::device_vector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
     dh::device_vector<MultiExpandEntry> outputs(2 * candidates.size());
 
-    auto mt_tree = tree.HostMtView();
     std::vector<MultiEvaluateSplitInputs> h_node_inputs(candidates.size() * 2);
 
     // Store the feature set ptrs so they don't go out of scope before the kernel is called
@@ -593,15 +574,16 @@ class MultiTargetHistMaker {
 
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
-      bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
-      bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
+      bst_node_t left_nidx = tree.LeftChild(candidate.nidx);
+      bst_node_t right_nidx = tree.RightChild(candidate.nidx);
 
-      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
+      auto child_depth = candidate.depth + 1;
+      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(left_sampled_features);
       common::Span<bst_feature_t const> left_feature_set =
           interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
 
-      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
+      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t const> right_feature_set =
           interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);

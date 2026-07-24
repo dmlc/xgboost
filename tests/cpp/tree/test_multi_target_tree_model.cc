@@ -15,6 +15,20 @@
 #include "../../../src/tree/tree_view.h"
 
 namespace xgboost {
+namespace {
+void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bool dft_left,
+            linalg::VectorView<float const> base_weight,
+            linalg::VectorView<float const> left_weight,
+            linalg::VectorView<float const> right_weight, float loss_chg, double left_sum,
+            double right_sum, float eta = 1.0f, common::Span<tree::CatWordT const> cat_bits = {}) {
+  Context ctx;
+  tree::ExpandBatch batch{eta};
+  batch.Push(nidx, fidx, cond, dft_left, base_weight.Values(), left_weight.Values(),
+             right_weight.Values(), loss_chg, left_sum, right_sum, cat_bits);
+  p_tree->Expand(&ctx, batch);
+}
+}  // namespace
+
 std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
   bst_feature_t n_features{4};
   std::unique_ptr<RegTree> tree{std::make_unique<RegTree>(n_targets, n_features)};
@@ -43,9 +57,9 @@ std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
     iota_weights(3.0f, data, shape);
   });
 
-  tree->ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
-                   left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
-                   /*sum_hess=*/1.0f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
+  Expand(tree.get(), RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
+         left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
+         /*left_sum=*/0.6f, /*right_sum=*/0.4f);
   tree->GetMultiTargetTree()->SetLeaves();
   return tree;
 }
@@ -113,9 +127,9 @@ void TestTreeDump(std::string format, std::string leaf_key) {
     RegTree tree{n_targets, n_features};
     linalg::Vector<float> weight{{1.0f, 2.0f, 3.0f, 4.0f}, {4ul}, DeviceOrd::CPU()};
     tree.SetRoot(weight.HostView(), /*sum_hess=*/1.0f);
-    tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(),
-                    weight.HostView(), weight.HostView(), /*loss_chg=*/0.5f, /*sum_hess=*/1.0f,
-                    /*left_sum=*/0.6f, /*right_sum=*/0.4f);
+    Expand(&tree, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(), weight.HostView(),
+           weight.HostView(), /*loss_chg=*/0.5f,
+           /*left_sum=*/0.6f, /*right_sum=*/0.4f);
     tree.GetMultiTargetTree()->SetLeaves();
     auto str = tree.DumpModel(fmap, false, format);
     if (format != "json") {
@@ -154,9 +168,9 @@ TEST(MultiTargetTree, SetLeaves) {
 
   linalg::Vector<float> left_weight{{2.0f, 3.0f}, {2ul}, DeviceOrd::CPU()};
   linalg::Vector<float> right_weight{{3.0f, 4.0f}, {2ul}, DeviceOrd::CPU()};
-  tree->ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
-                   left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
-                   /*sum_hess=*/1.0f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
+  Expand(tree.get(), RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
+         left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
+         /*left_sum=*/0.6f, /*right_sum=*/0.4f);
 
   std::vector<float> leaf_weights(n_targets * 2);
   std::iota(leaf_weights.begin(), leaf_weights.end(), 0);

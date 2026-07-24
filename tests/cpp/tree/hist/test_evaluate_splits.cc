@@ -131,13 +131,12 @@ void TestEvaluateSplits(bool force_read_by_column) {
     total_gpair += GradientPairPrecise(e);
   }
 
-  RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
   entries.front().nid = 0;
   entries.front().depth = 0;
 
   evaluator.InitRoot(GradStats{total_gpair});
-  evaluator.EvaluateSplits(hist, gmat.cut, {}, tree, &entries);
+  evaluator.EvaluateSplits(hist, gmat.cut, {}, &entries);
 
   auto best_loss_chg = evaluator.Evaluator().CalcSplitGain(
                            param, 0, entries.front().split.SplitIndex(),
@@ -198,14 +197,7 @@ TEST(HistMultiEvaluator, Evaluate) {
     root_sum(t) += node_hist[1];
   }
 
-  RegTree tree{n_targets, n_features};
   auto weight = evaluator.InitRoot(root_sum.HostView());
-  // Compute root sum_hess by summing hessians across all targets
-  float root_sum_hess = 0.0f;
-  for (bst_target_t t{0}; t < n_targets; ++t) {
-    root_sum_hess += static_cast<float>(root_sum.HostView()(t).GetHess());
-  }
-  tree.SetRoot(weight.HostView(), root_sum_hess);
   auto w = weight.HostView();
   ASSERT_EQ(w.Size(), n_targets);
   ASSERT_EQ(w(0), -1.5);
@@ -221,7 +213,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   std::transform(histogram.cbegin(), histogram.cend(), std::back_inserter(ptrs),
                  [](auto const &h) { return std::addressof(h); });
 
-  evaluator.EvaluateSplits(tree, ptrs, cuts, {}, &entries);
+  evaluator.EvaluateSplits(ptrs, cuts, {}, &entries);
 
   ASSERT_EQ(entries.front().split.loss_chg, 12.5);
   ASSERT_EQ(entries.front().split.split_value, 0.5);
@@ -269,9 +261,8 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   auto sampler = std::make_shared<common::ColumnSampler>();
   HistEvaluator evaluator{&ctx, &param_, info_, sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
-  RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
-  evaluator.EvaluateSplits(hist_, cuts_, {ft}, tree, &entries);
+  evaluator.EvaluateSplits(hist_, cuts_, {ft}, &entries);
   ASSERT_NEAR(entries[0].split.loss_chg, best_score_, 1e-16);
 }
 
@@ -319,9 +310,8 @@ auto CompareOneHotAndPartition(bool onehot) {
       node_hist[i] = {static_cast<double>(node_hist.size() - i), 1.0};
       total_gpair += node_hist[i];
     }
-    RegTree tree;
     evaluator.InitRoot(GradStats{total_gpair});
-    evaluator.EvaluateSplits(hist, gmat.cut, ft, tree, &entries);
+    evaluator.EvaluateSplits(hist, gmat.cut, ft, &entries);
   }
   return entries.front();
 }
@@ -352,8 +342,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   auto evaluator = HistEvaluator{&ctx, &param_, info, sampler};
   evaluator.InitRoot(GradStats{parent_sum_});
   std::vector<CPUExpandEntry> entries(1);
-  RegTree tree;
-  evaluator.EvaluateSplits(hist, cuts_, info.feature_types.ConstHostSpan(), tree, &entries);
+  evaluator.EvaluateSplits(hist, cuts_, info.feature_types.ConstHostSpan(), &entries);
   auto const &split = entries.front().split;
 
   this->CheckResult(split.loss_chg, split.SplitIndex(), split.split_value, split.is_cat,
@@ -434,7 +423,7 @@ class TestHistMultiEvaluator : public ::testing::Test {
     }
     tree_.SetRoot(weight.HostView(), root_sum_hess);
 
-    evaluator_->EvaluateSplits(tree_, histogram_ptrs_, cuts_, info_.feature_types.ConstHostSpan(),
+    evaluator_->EvaluateSplits(histogram_ptrs_, cuts_, info_.feature_types.ConstHostSpan(),
                                &entries_);
   }
 

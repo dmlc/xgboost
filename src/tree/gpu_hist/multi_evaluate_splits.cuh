@@ -147,31 +147,9 @@ class MultiHistEvaluator {
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
   }
-  [[nodiscard]] std::vector<CatST> GetHostNodeCats(bst_node_t nidx) const {
-    std::vector<CatST> out(this->node_cat_storage_size_);
-    auto cats = dh::ToSpan(this->split_cats_)
-                    .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
-    dh::CopyDeviceSpanToVector(&out, cats);
-    return out;
-  }
-  /**
-   * @brief Copy weights for a node from device to host vectors.
-   *
-   * Uses the split targets count stored during allocation, which may differ from tree targets
-   * when using reduced gradient.
-   *
-   * TODO(jiamingy): Remove this method and use device-only buffer.
-   */
-  void CopyNodeWeightsToHost(bst_node_t nidx, bst_target_t n_targets,
-                             std::vector<float> *base_weight, std::vector<float> *left_weight,
-                             std::vector<float> *right_weight) {
-    auto weights = this->GetNodeWeights(n_targets);
-    base_weight->resize(n_targets);
-    left_weight->resize(n_targets);
-    right_weight->resize(n_targets);
-    dh::CopyDeviceSpanToVector(base_weight, weights.Base(nidx));
-    dh::CopyDeviceSpanToVector(left_weight, weights.Left(nidx));
-    dh::CopyDeviceSpanToVector(right_weight, weights.Right(nidx));
+  [[nodiscard]] common::Span<CatST const> GetNodeCats(bst_node_t nidx) const {
+    return dh::ToSpan(this->split_cats_)
+        .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
 
   // Update the tree evaluator state and track child gradient sums.

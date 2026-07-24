@@ -10,6 +10,7 @@
 
 #include "../../src/collective/allreduce.h"
 #include "../../src/tree/common_row_partitioner.h"
+#include "../../src/tree/driver.h"
 #include "../common/hist_util.h"
 #include "xgboost/linalg.h"
 
@@ -260,7 +261,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
     const ExpandEntry candidate = qexpand_loss_guided_->top();
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
-    if (!candidate.IsValid(param_, num_leaves)) {
+    if (!::xgboost::tree::IsValidExpandEntry(candidate, param_, num_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
     } else {
       auto evaluator = tree_evaluator_.GetEvaluator();

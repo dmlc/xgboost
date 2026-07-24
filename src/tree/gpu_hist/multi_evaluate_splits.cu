@@ -17,6 +17,7 @@
 #include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
+#include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../tree_view.h"             // for MultiTargetTreeView
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -678,7 +679,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     if (best_split.child_sum.empty()) {
       // Invalid split
-      out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
+      out_splits[nidx_in_set] = {nidx, input.depth, best_split};
       out_splits[nidx_in_set].UpdateHessian(parent_hess, 0.0);
       return;
     }
@@ -743,8 +744,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       right_hess += rg.GetHess();
     }
 
-    // Set up the output entry with spans pointing to persistent weight storage
-    out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
+    // Set up the output entry after persisting its weights and split sum by node ID.
+    out_splits[nidx_in_set] = {nidx, input.depth, best_split};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
   });
@@ -754,15 +755,15 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                                         common::Span<MultiExpandEntry const> h_candidates,
                                         common::Span<MultiExpandEntry const> d_candidates,
                                         bst_target_t n_targets) {
+  xgboost_NVTX_FN_RANGE();
   CHECK_EQ(h_candidates.size(), d_candidates.size());
   CHECK(!h_candidates.empty());
   CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
 
-  auto h_tree = p_tree->HostMtView();
   auto weights = this->GetNodeWeights(n_targets);
   for (auto const &candidate : h_candidates) {
-    auto left = h_tree.LeftChild(candidate.nidx);
-    auto right = h_tree.RightChild(candidate.nidx);
+    auto left = p_tree->LeftChild(candidate.nidx);
+    auto right = p_tree->RightChild(candidate.nidx);
     common::Span<float const> left_weight = weights.Left(candidate.nidx);
     common::Span<float const> right_weight = weights.Right(candidate.nidx);
     this->tree_evaluator_->AddSplit(candidate.nidx, left, right, candidate.split.findex,

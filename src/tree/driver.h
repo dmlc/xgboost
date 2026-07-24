@@ -1,23 +1,25 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_TREE_DRIVER_H_
-#define XGBOOST_TREE_DRIVER_H_
+#pragma once
+
 #include <xgboost/span.h>
-#include <queue>
-#include <vector>
-#include "./param.h"
 
-namespace xgboost {
-namespace tree {
+#include <cstddef>     // for size_t
+#include <functional>  // for function
+#include <queue>       // for priority_queue
+#include <vector>      // for vector
 
+#include "./param.h"  // for TrainParam
+
+namespace xgboost::tree {
 template <typename ExpandEntryT>
-inline bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
-inline bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   if (lhs.GetLossChange() == rhs.GetLossChange()) {
     return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
   } else {
@@ -25,12 +27,30 @@ inline bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   }
 }
 
+template <typename ExpandEntryT>
+[[nodiscard]] bool IsValidExpandEntry(ExpandEntryT const& entry, TrainParam const& param,
+                                      bst_node_t num_leaves) {
+  auto loss_chg = entry.GetLossChange();
+  if (loss_chg <= kRtEps) {
+    return false;
+  }
+  if (loss_chg < param.min_split_loss) {
+    return false;
+  }
+  if (param.max_depth > 0 && entry.depth == param.max_depth) {
+    return false;
+  }
+  if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
+    return false;
+  }
+  return true;
+}
+
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
-  using ExpandQueue =
-      std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
-                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
+  using ExpandQueue = std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
+                                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
 
  public:
   explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
@@ -42,19 +62,17 @@ class Driver {
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntryT& e = *it;
-      if (e.split.loss_chg > kRtEps) {
+      if (e.GetLossChange() > kRtEps) {
         queue_.push(e);
       }
     }
   }
-  void Push(const std::vector<ExpandEntryT> &entries) {
+  void Push(const std::vector<ExpandEntryT>& entries) {
     this->Push(entries.begin(), entries.end());
   }
   void Push(ExpandEntryT const& e) { queue_.push(e); }
 
-  bool IsEmpty() {
-    return queue_.empty();
-  }
+  bool IsEmpty() { return queue_.empty(); }
 
   // Can a child of this entry still be expanded?
   // can be used to avoid extra work
@@ -74,7 +92,7 @@ class Driver {
       ExpandEntryT e = queue_.top();
       queue_.pop();
 
-      if (e.IsValid(param_, num_leaves_)) {
+      if (IsValidExpandEntry(e, param_, num_leaves_)) {
         num_leaves_++;
         return {e};
       } else {
@@ -87,7 +105,7 @@ class Driver {
     int level = e.depth;
     while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
       queue_.pop();
-      if (e.IsValid(param_, num_leaves_)) {
+      if (IsValidExpandEntry(e, param_, num_leaves_)) {
         num_leaves_++;
         result.emplace_back(e);
       }
@@ -105,7 +123,4 @@ class Driver {
   std::size_t max_node_batch_size_;
   ExpandQueue queue_;
 };
-}  // namespace tree
-}  // namespace xgboost
-
-#endif  // XGBOOST_TREE_DRIVER_H_
+}  // namespace xgboost::tree
