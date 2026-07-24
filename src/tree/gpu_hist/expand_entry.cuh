@@ -51,7 +51,6 @@ struct MultiExpandEntry {
   bst_node_t depth{0};
   MultiSplitCandidate split;
 
-  common::Span<float> base_weight;
   // Sum of hessians across all targets for left/right children.
   double left_sum{0};
   double right_sum{0};

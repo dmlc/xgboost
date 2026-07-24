@@ -678,7 +678,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     if (best_split.child_sum.empty()) {
       // Invalid split
-      out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
+      out_splits[nidx_in_set] = {nidx, input.depth, best_split};
       out_splits[nidx_in_set].UpdateHessian(parent_hess, 0.0);
       return;
     }
@@ -743,8 +743,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       right_hess += rg.GetHess();
     }
 
-    // Set up the output entry with spans pointing to persistent weight storage
-    out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
+    // Set up the output entry after persisting its weights and split sum by node ID.
+    out_splits[nidx_in_set] = {nidx, input.depth, best_split};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
   });

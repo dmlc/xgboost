@@ -101,6 +101,19 @@ void AssertDeviceVecEq(common::Span<T> span, std::vector<V> const& exp) {
   dh::CopyDeviceSpanToVector(&h_vec, span);
   AssertVecEq(h_vec, exp);
 }
+
+void AssertNodeWeightsEq(MultiHistEvaluator& evaluator, bst_node_t nidx,
+                         std::vector<float> const& exp_base,
+                         std::vector<float> const& exp_left,
+                         std::vector<float> const& exp_right) {
+  ASSERT_EQ(exp_base.size(), exp_left.size());
+  ASSERT_EQ(exp_base.size(), exp_right.size());
+  auto n_targets = static_cast<bst_target_t>(exp_base.size());
+  auto weights = evaluator.GetNodeWeights(n_targets);
+  AssertDeviceVecEq(weights.Base(nidx), exp_base);
+  AssertDeviceVecEq(weights.Left(nidx), exp_left);
+  AssertDeviceVecEq(weights.Right(nidx), exp_right);
+}
 }  // namespace
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
@@ -121,12 +134,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
 
-    std::vector<float> base, left, right;
-    evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
-                                    &right);
-    AssertVecEq(base, exp_base_weight);
-    AssertVecEq(left, exp_left_weight);
-    AssertVecEq(right, exp_right_weight);
+    AssertNodeWeightsEq(evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
+                        exp_right_weight);
 
     std::stringstream ss;
     ss << candidate;
@@ -181,16 +190,12 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   std::vector<GradientPairInt64> exp_child_sum{{36, 24}, {57, 87}};
   AssertDeviceVecEq(candidate.split.child_sum, exp_child_sum);
 
-  std::vector<float> base, left, right;
-  evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
-                                  &right);
   // Left child = other categories {36,24},{57,87}; right child = category 3 {20,16},{39,41}.
   std::vector<float> exp_base_weight{-1.4, -0.75};
   std::vector<float> exp_left_weight{-1.5, -0.655172};
   std::vector<float> exp_right_weight{-1.25, -0.951219};
-  AssertVecEq(base, exp_base_weight);
-  AssertVecEq(left, exp_left_weight);
-  AssertVecEq(right, exp_right_weight);
+  AssertNodeWeightsEq(evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
+                      exp_right_weight);
 }
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
@@ -237,12 +242,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   std::vector<GradientPairInt64> exp_child_sum{{-2, 2}, {-2, 2}};
   AssertDeviceVecEq(candidate.split.child_sum, exp_child_sum);
 
-  std::vector<float> base, left, right;
-  evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
-                                  &right);
-  AssertVecEq(base, std::vector<float>{2.25f, 1.75f});
-  AssertVecEq(left, std::vector<float>{3.5f, 2.5f});
-  AssertVecEq(right, std::vector<float>{1.0f, 1.0f});
+  AssertNodeWeightsEq(evaluator, candidate.nidx, std::vector<float>{2.25f, 1.75f},
+                      std::vector<float>{3.5f, 2.5f}, std::vector<float>{1.0f, 1.0f});
   ASSERT_EQ(candidate.left_sum, 4.0);
   ASSERT_EQ(candidate.right_sum, 4.0);
 
@@ -259,7 +260,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
 
   ASSERT_TRUE(no_split.split.child_sum.empty());
   ASSERT_FALSE(IsValidExpandEntry(no_split, no_split_param, 100));
-  AssertDeviceVecEq(no_split.base_weight, std::vector<float>{2.25f, 1.75f});
+  auto no_split_weights = no_split_evaluator.GetNodeWeights(shared.Targets());
+  AssertDeviceVecEq(no_split_weights.Base(no_split.nidx), std::vector<float>{2.25f, 1.75f});
   ASSERT_EQ(no_split.left_sum, 8.0);
   ASSERT_EQ(no_split.right_sum, 0.0);
 }

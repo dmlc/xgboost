@@ -12,10 +12,7 @@
 #include <memory>   // for unique_ptr
 #include <numeric>  // for iota
 
-#include "../../../src/common/categorical.h"  // for CatBitField, GetNodeCats
-#include "../../../src/tree/io_utils.h"       // for DftBadValue
 #include "../../../src/tree/tree_view.h"
-#include "../helpers.h"  // for AssertVecEq
 
 namespace xgboost {
 namespace {

@@ -151,25 +151,6 @@ class MultiHistEvaluator {
     return dh::ToSpan(this->split_cats_)
         .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
-  /**
-   * @brief Copy weights for a node from device to host vectors.
-   *
-   * Uses the split targets count stored during allocation, which may differ from tree targets
-   * when using reduced gradient.
-   *
-   * TODO(jiamingy): Remove this method and use device-only buffer.
-   */
-  void CopyNodeWeightsToHost(bst_node_t nidx, bst_target_t n_targets,
-                             std::vector<float> *base_weight, std::vector<float> *left_weight,
-                             std::vector<float> *right_weight) {
-    auto weights = this->GetNodeWeights(n_targets);
-    base_weight->resize(n_targets);
-    left_weight->resize(n_targets);
-    right_weight->resize(n_targets);
-    dh::CopyDeviceSpanToVector(base_weight, weights.Base(nidx));
-    dh::CopyDeviceSpanToVector(left_weight, weights.Left(nidx));
-    dh::CopyDeviceSpanToVector(right_weight, weights.Right(nidx));
-  }
 
   // Update the tree evaluator state and track child gradient sums.
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
