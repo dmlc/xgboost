@@ -245,7 +245,7 @@ def to_graphviz(
         if kwargs.get("graph_attrs", None) is not None:
             kwargs["graph_attrs"][key] = value
         else:
-            kwargs["graph_attrs"] = {}
+            kwargs["graph_attrs"] = {key: value}
         del kwargs[key]
 
     if yes_color is not None or no_color is not None:
