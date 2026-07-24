@@ -34,8 +34,6 @@ struct GPUExpandEntry {
 
   [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
 
-  [[nodiscard]] bst_node_t GetDepth() const { return depth; }
-
   friend std::ostream& operator<<(std::ostream& os, const GPUExpandEntry& e) {
     os << "GPUExpandEntry: \n";
     os << "nidx: " << e.nidx << "\n";
@@ -63,8 +61,6 @@ struct MultiExpandEntry {
   [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
 
   [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
-
-  [[nodiscard]] bst_node_t GetDepth() const { return depth; }
 
   /**
    * @brief Update hessian statistics.
