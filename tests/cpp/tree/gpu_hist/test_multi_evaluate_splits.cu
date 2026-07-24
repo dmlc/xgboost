@@ -102,13 +102,13 @@ void AssertDeviceVecEq(common::Span<T> span, std::vector<V> const& exp) {
   AssertVecEq(h_vec, exp);
 }
 
-void AssertNodeWeightsEq(MultiHistEvaluator& evaluator, bst_node_t nidx,
+void AssertNodeWeightsEq(MultiHistEvaluator* evaluator, bst_node_t nidx,
                          std::vector<float> const& exp_base, std::vector<float> const& exp_left,
                          std::vector<float> const& exp_right) {
   ASSERT_EQ(exp_base.size(), exp_left.size());
   ASSERT_EQ(exp_base.size(), exp_right.size());
   auto n_targets = static_cast<bst_target_t>(exp_base.size());
-  auto weights = evaluator.GetNodeWeights(n_targets);
+  auto weights = evaluator->GetNodeWeights(n_targets);
   AssertDeviceVecEq(weights.Base(nidx), exp_base);
   AssertDeviceVecEq(weights.Left(nidx), exp_left);
   AssertDeviceVecEq(weights.Right(nidx), exp_right);
@@ -133,7 +133,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
 
-    AssertNodeWeightsEq(evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
+    AssertNodeWeightsEq(&evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
                         exp_right_weight);
 
     std::stringstream ss;
@@ -193,7 +193,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   std::vector<float> exp_base_weight{-1.4, -0.75};
   std::vector<float> exp_left_weight{-1.5, -0.655172};
   std::vector<float> exp_right_weight{-1.25, -0.951219};
-  AssertNodeWeightsEq(evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
+  AssertNodeWeightsEq(&evaluator, candidate.nidx, exp_base_weight, exp_left_weight,
                       exp_right_weight);
 }
 
@@ -241,7 +241,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   std::vector<GradientPairInt64> exp_child_sum{{-2, 2}, {-2, 2}};
   AssertDeviceVecEq(candidate.split.child_sum, exp_child_sum);
 
-  AssertNodeWeightsEq(evaluator, candidate.nidx, std::vector<float>{2.25f, 1.75f},
+  AssertNodeWeightsEq(&evaluator, candidate.nidx, std::vector<float>{2.25f, 1.75f},
                       std::vector<float>{3.5f, 2.5f}, std::vector<float>{1.0f, 1.0f});
   ASSERT_EQ(candidate.left_sum, 4.0);
   ASSERT_EQ(candidate.right_sum, 4.0);

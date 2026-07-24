@@ -1,8 +1,8 @@
 /**
- * Copyright 2021-2026 by XGBoost contributors.
+ * Copyright 2021-2026, XGBoost contributors.
  */
-#ifndef XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#define XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
+#pragma once
+
 #include <xgboost/context.h>     // for Context
 #include <xgboost/linalg.h>      // for Constant, Vector
 #include <xgboost/logging.h>     // for CHECK
@@ -46,4 +46,3 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   tree->GetMultiTargetTree()->SetLeaves();
 }
 }  // namespace xgboost::tree
-#endif  // XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
