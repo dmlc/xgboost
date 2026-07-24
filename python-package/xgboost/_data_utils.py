@@ -461,14 +461,21 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
             else:
                 strarr = np.asarray(strarr, dtype=object)
 
-        lenarr = np.vectorize(len)
-        offsets = np.cumsum(
-            np.concatenate([np.array([0], dtype=np.int64), lenarr(strarr)])
-        )
         if strarr.dtype.kind == "S":
             str_list = [s.decode("utf-8") for s in strarr.tolist()]
         else:
             str_list = [str(s) for s in strarr.tolist()]
+
+        # Offsets must be computed in UTF-8 *byte* length, matching the encoded
+        # buffer produced below. Using `len()` (character count) here would
+        # corrupt the offsets -- and the final buffer shape -- for any category
+        # name containing multi-byte UTF-8 characters (e.g. accented letters or
+        # non-Latin scripts), since Python's `str` length counts code points,
+        # not encoded bytes.
+        byte_lenarr = np.array([len(s.encode("utf-8")) for s in str_list], dtype=np.int64)
+        offsets = np.cumsum(
+            np.concatenate([np.array([0], dtype=np.int64), byte_lenarr])
+        )
         values = "".join(str_list)
         if "\0" in values:
             warnings.warn(
@@ -492,7 +499,7 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
     jvalues: ArrayInf = {
         "data": (ptr, True),
         "typestr": "|i1",
-        "shape": (len(name_values),),
+        "shape": (len(bvalues),),
         "strides": None,
         "version": 3,
         "mask": None,
