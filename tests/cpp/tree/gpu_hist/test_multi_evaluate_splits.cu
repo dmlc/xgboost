@@ -171,7 +171,9 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   // is the non-missing "other categories" (left child), so dir is kRightDir.
   ASSERT_EQ(candidate.split.dir, kRightDir);
   ASSERT_EQ(static_cast<bst_cat_t>(candidate.split.fvalue), 3);
-  auto h_cats = evaluator.GetHostNodeCats(candidate.nidx);
+  auto d_cats = evaluator.GetNodeCats(candidate.nidx);
+  std::vector<std::uint32_t> h_cats(d_cats.size());
+  dh::CopyDeviceSpanToVector(&h_cats, d_cats);
   common::KCatBitField cats{h_cats};
   ASSERT_TRUE(cats.Check(3));
 
@@ -221,7 +223,9 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   ASSERT_EQ(candidate.split.findex, 0);
   ASSERT_TRUE(std::isnan(candidate.split.fvalue));
   ASSERT_EQ(candidate.split.thresh, 1);
-  auto h_cats = evaluator.GetHostNodeCats(candidate.nidx);
+  auto d_cats = evaluator.GetNodeCats(candidate.nidx);
+  std::vector<std::uint32_t> h_cats(d_cats.size());
+  dh::CopyDeviceSpanToVector(&h_cats, d_cats);
   common::KCatBitField cats{h_cats};
   ASSERT_FALSE(cats.Check(0));
   ASSERT_FALSE(cats.Check(1));

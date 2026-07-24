@@ -24,10 +24,11 @@ void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bo
             linalg::VectorView<float const> left_weight,
             linalg::VectorView<float const> right_weight, float loss_chg, double left_sum,
             double right_sum, float eta = 1.0f, common::Span<tree::CatWordT const> cat_bits = {}) {
-  tree::ExpandBatch batch{base_weight.Device(), eta};
+  Context ctx;
+  tree::ExpandBatch batch{eta};
   batch.Push(nidx, fidx, cond, dft_left, base_weight.Values(), left_weight.Values(),
              right_weight.Values(), loss_chg, left_sum, right_sum, cat_bits);
-  p_tree->Expand(batch);
+  p_tree->Expand(&ctx, batch);
 }
 }  // namespace
 
