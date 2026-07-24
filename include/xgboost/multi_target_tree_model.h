@@ -47,18 +47,20 @@ struct ExpandBatch {
             common::Span<float const> base_weight, common::Span<float const> left_weight,
             common::Span<float const> right_weight, float loss_chg, double left_sum,
             double right_sum, common::Span<CatWordT const> cats = {}) {
-    nidxs.push_back(nidx);
-    fidxs.push_back(fidx);
-    conds.push_back(cond);
-    dft_lefts.push_back(dft_left);
-    base_weight_batch.emplace_back(base_weight);
-    left_weight_batch.emplace_back(left_weight);
-    right_weight_batch.emplace_back(right_weight);
-    loss_chgs.push_back(loss_chg);
-    left_sums.push_back(left_sum);
-    right_sums.push_back(right_sum);
-    cat_bits.emplace_back(cats);
-    n_cat_words += cats.size();
+    this->nidxs.push_back(nidx);
+    this->fidxs.push_back(fidx);
+    this->conds.push_back(cond);
+    this->dft_lefts.push_back(dft_left);
+    this->base_weight_batch.emplace_back(base_weight);
+    this->left_weight_batch.emplace_back(left_weight);
+    this->right_weight_batch.emplace_back(right_weight);
+    this->loss_chgs.push_back(loss_chg);
+    this->left_sums.push_back(left_sum);
+    this->right_sums.push_back(right_sum);
+    this->cat_bits.emplace_back(cats);
+    this->n_cat_words += cats.size();
+    CHECK_EQ(left_weight.size(), base_weight.size());
+    CHECK_EQ(right_weight.size(), base_weight.size());
   }
 };
 }  // namespace tree

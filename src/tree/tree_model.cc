@@ -12,7 +12,7 @@
 #include <iomanip>
 #include <limits>  // for numeric_limits
 #include <sstream>
-#include <type_traits>  // for is_floating_point_v
+#include <type_traits>  // for is_floating_point_v, add_const_t
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
@@ -922,12 +922,12 @@ void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const
 }
 
 void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
-                                common::Span<common::KCatBitField::value_type> split_cat,
-                                bool default_left, bst_float base_weight,
-                                bst_float left_leaf_weight, bst_float right_leaf_weight,
-                                bst_float loss_change, float sum_hess, float left_sum,
-                                float right_sum) {
-  CHECK(!IsMultiTarget());
+                                common::Span<tree::CatWordT const> split_cat, bool default_left,
+                                bst_float base_weight, bst_float left_leaf_weight,
+                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
+                                float left_sum, float right_sum) {
+  static_assert(std::is_same_v<common::KCatBitField::value_type, std::add_const_t<tree::CatWordT>>);
+  CHECK(!this->IsMultiTarget());
   this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
                    right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
 
