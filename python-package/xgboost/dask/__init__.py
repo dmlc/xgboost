@@ -1169,7 +1169,7 @@ async def _predict_async(
             )
             return predt
 
-    all_parts = []
+    all_parts: List[Future] = []
     all_orders = []
     all_shapes = []
     all_workers: List[str] = []
