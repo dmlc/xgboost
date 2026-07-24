@@ -1,14 +1,16 @@
 /**
  * Copyright 2026, XGBoost Contributors
  */
-#include <xgboost/context.h>  // for Context
-#include <xgboost/span.h>     // for Span
+#include <thrust/transform.h>  // for transform
+#include <xgboost/context.h>   // for Context
+#include <xgboost/span.h>      // for Span
 
-#include <cstddef>  // for size_t
-#include <limits>   // for numeric_limits
+#include <cstddef>          // for size_t
+#include <cuda/functional>  // for proclaim_copyable_arguments
+#include <limits>           // for numeric_limits
 
 #include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/device_helpers.cuh"  // for LaunchN, MemcpyBatchAsync
+#include "../common/device_helpers.cuh"  // for MemcpyBatchAsync
 
 namespace xgboost::tree::cuda_impl {
 void CopyBatch(Context const* ctx, common::Span<void*> dsts, common::Span<void const*> srcs,
@@ -23,7 +25,8 @@ void CopyBatch(Context const* ctx, common::Span<void*> dsts, common::Span<void c
 }
 
 void ApplyLearningRate(Context const* ctx, common::Span<float> weights, float eta) {
-  dh::LaunchN(weights.size(), ctx->CUDACtx()->Stream(),
-              [=] XGBOOST_DEVICE(std::size_t i) mutable { weights[i] *= eta; });
+  thrust::transform(
+      ctx->CUDACtx()->CTP(), dh::tcbegin(weights), dh::tcend(weights), dh::tbegin(weights),
+      cuda::proclaim_copyable_arguments([=] XGBOOST_DEVICE(float w) { return w * eta; }));
 }
 }  // namespace xgboost::tree::cuda_impl
