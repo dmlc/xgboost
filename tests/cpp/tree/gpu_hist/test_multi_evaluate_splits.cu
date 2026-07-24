@@ -103,8 +103,7 @@ void AssertDeviceVecEq(common::Span<T> span, std::vector<V> const& exp) {
 }
 
 void AssertNodeWeightsEq(MultiHistEvaluator& evaluator, bst_node_t nidx,
-                         std::vector<float> const& exp_base,
-                         std::vector<float> const& exp_left,
+                         std::vector<float> const& exp_base, std::vector<float> const& exp_left,
                          std::vector<float> const& exp_right) {
   ASSERT_EQ(exp_base.size(), exp_left.size());
   ASSERT_EQ(exp_base.size(), exp_right.size());
