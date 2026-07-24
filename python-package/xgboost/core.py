@@ -176,7 +176,7 @@ def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also,
     please note that build time dependency is not the same as runtime dependency. For
     instance, it's possible to build XGBoost with older CUDA version but run it with the
-    lastest one.
+    latest one.
 
       .. versionadded:: 1.6.0
 
@@ -431,7 +431,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             #
             # To construct the QDM, one needs 4 iterations on CPU, or 2 iterations on
             # GPU. If the QDM has only one batch of input (most of the cases), we can
-            # avoid transforming the data repeatly.
+            # avoid transforming the data repeatedly.
             try:
                 ref = weakref.ref(data)
             except TypeError:
