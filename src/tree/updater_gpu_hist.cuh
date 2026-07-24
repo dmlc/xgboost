@@ -42,8 +42,7 @@ template <typename GoLeftOp>
 struct GoLeftWrapperOp {
   GoLeftOp go_left;
   template <typename NodeSplitData>
-  __device__ bool operator()(RowIndexT ridx, int /*nidx_in_batch*/,
-                             const NodeSplitData& data) const {
+  __device__ bool operator()(RowIndexT ridx, const NodeSplitData& data) const {
     return go_left(ridx, data);
   }
 };

@@ -13,7 +13,6 @@
 #include <utility>          // for move
 #include <vector>           // for vector
 
-#include "../../src/collective/comm.h"  // for Op
 #include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/categorical.h"           // for KCatBitField
