@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include "cache_manager.h"
 
@@ -9,6 +9,13 @@
 #include <fstream>  // for ifstream
 #include <string>   // for string, getline, stoll
 #endif              // !defined(__x86_64__) && defined(__linux__)
+
+#if !defined(__x86_64__) && !defined(__linux__) && defined(__APPLE__)
+#include <sys/sysctl.h>  // for sysctlbyname
+
+#include <cstddef>  // for size_t
+#include <string>   // for string, to_string
+#endif  // !defined(__x86_64__) && !defined(__linux__) && defined(__APPLE__)
 
 #if defined(__x86_64__)
 
@@ -169,18 +176,75 @@ void DetectDataCachesSysfs(int64_t* cache_sizes) {
 
 }  // namespace
 
+#elif defined(__APPLE__)  // non-x86_64 macOS (Apple silicon): read cache sizes via sysctl
+
+namespace {
+
+// Read a positive int64 sysctl value, or -1 (kUninitCache) when unavailable.
+int64_t ReadSysctlInt64(char const* name) {
+  int64_t value = 0;
+  std::size_t size = sizeof(value);
+  if (::sysctlbyname(name, &value, &size, nullptr, 0) != 0 || value <= 0) {
+    return -1;
+  }
+  return value;
+}
+
+// Smallest positive reading of hw.perflevel<N>.<suffix> across core types,
+// falling back to the plain hw.<suffix> name. Apple silicon exposes per-core-
+// type ("performance level") cache sizes; every worker thread shares one
+// block-sizing decision, and the consumers of these sizes treat
+// overestimation as worse than underestimation, so on heterogeneous (P/E
+// core) machines size for the smallest core type.
+int64_t MinCacheSizeOverPerfLevels(char const* suffix) {
+  int64_t n_levels = ReadSysctlInt64("hw.nperflevels");
+  int64_t result = -1;
+  for (int64_t l = 0; l < n_levels; ++l) {
+    std::string name = "hw.perflevel" + std::to_string(l) + "." + suffix;
+    int64_t v = ReadSysctlInt64(name.c_str());
+    if (v > 0 && (result < 0 || v < result)) {
+      result = v;
+    }
+  }
+  if (result < 0) {
+    result = ReadSysctlInt64((std::string{"hw."} + suffix).c_str());
+  }
+  return result;
+}
+
+// Read data cache sizes via sysctl: L1 -> [0], L2 -> [1]. Apple silicon does
+// not expose an L3/SLC size, so slot [2] stays at its kUninitCache default
+// and the accessor falls back to the compiled default.
+template <std::int32_t kMaxCacheSize>
+void DetectDataCachesSysctl(int64_t* cache_sizes) {
+  static_assert(kMaxCacheSize >= 2);
+  int64_t l1d = MinCacheSizeOverPerfLevels("l1dcachesize");
+  if (l1d > 0) {
+    cache_sizes[0] = l1d;
+  }
+  int64_t l2 = MinCacheSizeOverPerfLevels("l2cachesize");
+  if (l2 > 0) {
+    cache_sizes[1] = l2;
+  }
+}
+
+}  // namespace
+
 #endif  // defined(__x86_64__)
 
 namespace xgboost::common {
 
 /* Detect CPU cache sizes at runtime: CPUID on x86_64, sysfs on non-x86_64 Linux,
- * and compiled L1/L2/L3 defaults otherwise (or for any size detection leaves unset).
+ * sysctl on non-x86_64 macOS (Apple silicon), and compiled L1/L2/L3 defaults
+ * otherwise (or for any size detection leaves unset).
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   DetectDataCaches<kMaxCacheSize>(cache_size_.data());
 #elif defined(__linux__)
   DetectDataCachesSysfs<kMaxCacheSize>(cache_size_.data());
+#elif defined(__APPLE__)
+  DetectDataCachesSysctl<kMaxCacheSize>(cache_size_.data());
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)
