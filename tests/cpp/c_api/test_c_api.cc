@@ -694,4 +694,95 @@ TEST(CAPI, PredictReuseProxy) {
   ASSERT_EQ(XGBoosterFree(booster_hdl), 0);
   ASSERT_EQ(XGDMatrixFree(proxy_hdl), 0);
 }
+
+TEST(CAPI, InterpretShapValues) {
+  Json fmat_cfg{Object{}};
+  fmat_cfg["missing"] = std::numeric_limits<float>::quiet_NaN();
+  auto sfmat_cfg = Json::Dump(fmat_cfg);
+
+  HostDeviceVector<float> storage;
+  bst_idx_t n_samples = 16;
+  bst_idx_t n_features = 4;
+  auto inf = RandomDataGenerator{n_samples, n_features, 0.0}.GenerateArrayInterface(&storage);
+  HostDeviceVector<float> storage_y;
+  auto y_inf = RandomDataGenerator{n_samples, 1, 0.0}.GenerateArrayInterface(&storage_y);
+
+  DMatrixHandle fmat_hdl{nullptr};
+  ASSERT_EQ(XGDMatrixCreateFromDense(inf.c_str(), sfmat_cfg.c_str(), &fmat_hdl), 0);
+  ASSERT_EQ(XGDMatrixSetInfoFromInterface(fmat_hdl, "label", y_inf.c_str()), 0);
+
+  std::array<DMatrixHandle, 1> mats{fmat_hdl};
+  BoosterHandle booster_hdl{nullptr};
+  ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster_hdl), 0);
+  ASSERT_EQ(XGBoosterSetParam(booster_hdl, "tree_method", "hist"), 0);
+
+  for (std::int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, fmat_hdl), 0);
+  }
+
+  Json shap_config{Object{}};
+  shap_config["algorithm"] = String{"auto"};
+  shap_config["iteration_begin"] = Integer{0};
+  shap_config["iteration_end"] = Integer{0};
+  auto sshap_config = Json::Dump(shap_config);
+
+  char const *values{nullptr};
+  char const *bias{nullptr};
+  ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, nullptr, sshap_config.c_str(),
+                                         &values, &bias),
+            0);
+  ArrayInterface<3, false> values_interface{StringView{values}};
+  ASSERT_EQ(values_interface.type, ArrayInterfaceHandler::kF4);
+  ASSERT_EQ(values_interface.Shape<0>(), n_samples);
+  ASSERT_EQ(values_interface.Shape<1>(), n_features);
+  ASSERT_EQ(values_interface.Shape<2>(), 1);
+  auto values_data = static_cast<float const *>(values_interface.data);
+  ASSERT_TRUE(values_data);
+
+  ArrayInterface<2, false> bias_interface{StringView{bias}};
+  ASSERT_EQ(bias_interface.type, ArrayInterfaceHandler::kF4);
+  ASSERT_EQ(bias_interface.Shape<0>(), n_samples);
+  ASSERT_EQ(bias_interface.Shape<1>(), 1);
+  auto bias_data = static_cast<float const *>(bias_interface.data);
+  ASSERT_TRUE(bias_data);
+
+  Json pred_config{Object{}};
+  pred_config["type"] = Integer{2};
+  pred_config["iteration_begin"] = Integer{0};
+  pred_config["iteration_end"] = Integer{0};
+  pred_config["strict_shape"] = Boolean{false};
+  pred_config["training"] = Boolean{false};
+  auto spred_config = Json::Dump(pred_config);
+
+  bst_ulong const *contribs_shape{nullptr};
+  bst_ulong contribs_dim{0};
+  float const *contribs{nullptr};
+  ASSERT_EQ(XGBoosterPredictFromDMatrix(booster_hdl, fmat_hdl, spred_config.c_str(),
+                                        &contribs_shape, &contribs_dim, &contribs),
+            0);
+  ASSERT_EQ(contribs_dim, 2);
+  ASSERT_EQ(contribs_shape[0], n_samples);
+  ASSERT_EQ(contribs_shape[1], n_features + 1);
+
+  for (bst_idx_t row = 0; row < n_samples; ++row) {
+    for (bst_idx_t feature = 0; feature < n_features; ++feature) {
+      ASSERT_EQ(values_data[row * n_features + feature],
+                contribs[row * (n_features + 1) + feature]);
+    }
+    ASSERT_EQ(bias_data[row], contribs[row * (n_features + 1) + n_features]);
+  }
+
+  ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, fmat_hdl, sshap_config.c_str(),
+                                         &values, &bias),
+            -1);
+
+  shap_config["algorithm"] = String{"interventional"};
+  sshap_config = Json::Dump(shap_config);
+  ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, nullptr, sshap_config.c_str(),
+                                         &values, &bias),
+            -1);
+
+  ASSERT_EQ(XGDMatrixFree(fmat_hdl), 0);
+  ASSERT_EQ(XGBoosterFree(booster_hdl), 0);
+}
 }  // namespace xgboost
