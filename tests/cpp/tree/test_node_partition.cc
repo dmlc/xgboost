@@ -20,6 +20,15 @@ TEST(Updater, HasNodePosition) {
   up.reset(TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task));
   ASSERT_TRUE(up->HasNodePosition());
 
+  up.reset(TreeUpdater::Create("grow_colmaker", &ctx, &task));
+  ASSERT_TRUE(up->HasNodePosition());
+
+  up.reset(TreeUpdater::Create("prune", &ctx, &task));
+  ASSERT_TRUE(up->HasNodePosition());
+
+  up.reset(TreeUpdater::Create("refresh", &ctx, &task));
+  ASSERT_TRUE(up->HasNodePosition());
+
 #if defined(XGBOOST_USE_CUDA)
   ctx = MakeCUDACtx(0);
   up.reset(TreeUpdater::Create("grow_gpu_hist", &ctx, &task));

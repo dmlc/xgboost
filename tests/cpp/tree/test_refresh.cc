@@ -51,7 +51,7 @@ TEST(Updater, Refresh) {
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;
 
-  std::vector<HostDeviceVector<bst_node_t>> position;
+  std::vector<HostDeviceVector<bst_node_t>> position(trees.size());
   tree::TrainParam param;
   param.UpdateAllowUnknown(cfg);
 
