@@ -190,7 +190,7 @@ xgb.get.handle <- function(object) {
 #' values (Lundberg 2017) that sum to the difference between the expected output
 #' of the model and the current prediction (where the hessian weights are used to compute the expectations).
 #' Setting `approxcontrib = TRUE` approximates these values following the idea explained
-#' in \url{http://blog.datadive.net/interpreting-random-forests/}.
+#' in \url{https://blog.datadive.net/interpreting-random-forests/}.
 #'
 #' With `predinteraction = TRUE`, SHAP values of contributions of interaction of each pair of features
 #' are computed. Note that this operation might be rather expensive in terms of compute and memory.
