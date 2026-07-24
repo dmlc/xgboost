@@ -14,10 +14,9 @@
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v
 
-#include "../common/categorical.h"      // for GetNodeCats
-#include "../common/common.h"           // for EscapeU8
-#include "io_utils.h"                   // for GetElem
-#include "multi_target_tree_model.cuh"  // for CopyBatch
+#include "../common/categorical.h"  // for GetNodeCats
+#include "../common/common.h"       // for EscapeU8
+#include "io_utils.h"               // for GetElem
 #include "param.h"
 #include "tree_view.h"
 #include "xgboost/base.h"
@@ -27,8 +26,11 @@
 
 namespace xgboost {
 namespace tree {
+void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch const& batch,
+                         HostDeviceVector<CatWordT>* out);
+
 DMLC_REGISTER_PARAMETER(TrainParam);
-}
+}  // namespace tree
 
 namespace {
 constexpr auto NoTruncate() { return std::numeric_limits<bst_target_t>::max(); }
@@ -878,24 +880,37 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   this->split_types_.HostVector().at(nid) = FeatureType::kNumerical;
 }
 
-void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond,
-                         bool default_left, linalg::VectorView<float const> base_weight,
-                         linalg::VectorView<float const> left_weight,
-                         linalg::VectorView<float const> right_weight, float loss_chg,
-                         float sum_hess, float left_sum, float right_sum) {
+void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   CHECK(IsMultiTarget());
-  CHECK_LT(split_index, this->param_.num_feature);
-  CHECK(this->p_mt_tree_);
-  CHECK_GT(param_.size_leaf_vector, 1);
 
-  this->p_mt_tree_->Expand(nidx, split_index, split_cond, default_left, base_weight, left_weight,
-                           right_weight, loss_chg, sum_hess, left_sum, right_sum);
+  auto const categories_begin = split_categories_.Size();
+  this->p_mt_tree_->Expand(ctx, batch);
 
-  split_types_.HostVector().resize(this->Size(), FeatureType::kNumerical);
-  split_categories_segments_.HostVector().resize(this->Size());
-  this->split_types_.HostVector().at(nidx) = FeatureType::kNumerical;
+  auto const n_nodes = this->p_mt_tree_->Size();
+  auto& h_split_types = split_types_.HostVector();
+  h_split_types.resize(n_nodes, FeatureType::kNumerical);
+  auto& h_segments = split_categories_segments_.HostVector();
+  h_segments.resize(n_nodes);
 
-  this->param_.num_nodes = this->p_mt_tree_->Size();
+  if (batch.n_cat_words != 0) {
+    tree::CopyCategoryStorage(ctx, categories_begin, batch, &split_categories_);
+  }
+
+  std::size_t category_offset = categories_begin;
+  for (std::size_t i = 0; i < batch.Size(); ++i) {
+    auto nidx = batch.nidxs[i];
+    auto cats = batch.cat_bits[i];
+    if (cats.empty()) {
+      h_split_types[nidx] = FeatureType::kNumerical;
+      h_segments[nidx] = {};
+    } else {
+      h_split_types[nidx] = FeatureType::kCategorical;
+      h_segments[nidx] = CategoricalSplitMatrix::Segment{category_offset, cats.size()};
+      category_offset += cats.size();
+    }
+  }
+
+  this->param_.num_nodes = n_nodes;
 }
 
 void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
@@ -912,29 +927,6 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   CHECK(!IsMultiTarget());
   this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
                    right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
-
-  auto& h_split_categories = split_categories_.HostVector();
-  std::size_t orig_size = h_split_categories.size();
-  h_split_categories.resize(orig_size + split_cat.size());
-  std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
-            h_split_categories.begin() + orig_size);
-
-  this->split_types_.HostVector().at(nidx) = FeatureType::kCategorical;
-
-  auto& h_split_categories_segments = this->split_categories_segments_.HostVector();
-  h_split_categories_segments.at(nidx).beg = orig_size;
-  h_split_categories_segments.at(nidx).size = split_cat.size();
-}
-
-void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
-                                common::Span<common::KCatBitField::value_type> split_cat,
-                                bool default_left, linalg::VectorView<float const> base_weight,
-                                linalg::VectorView<float const> left_weight,
-                                linalg::VectorView<float const> right_weight, float loss_chg,
-                                float sum_hess, float left_sum, float right_sum) {
-  CHECK(IsMultiTarget());
-  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_weight,
-                   right_weight, loss_chg, sum_hess, left_sum, right_sum);
 
   auto& h_split_categories = split_categories_.HostVector();
   std::size_t orig_size = h_split_categories.size();

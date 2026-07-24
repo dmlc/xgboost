@@ -20,6 +20,81 @@
 #include "xgboost/tree_model.h"  // for TreeParam
 
 namespace xgboost {
+namespace tree::cuda_impl {
+void CopyBatch(Context const* ctx, common::Span<void*> dsts, common::Span<void const*> srcs,
+               common::Span<std::size_t const> sizes);
+void ApplyLearningRate(Context const* ctx, common::Span<float> weights, float eta);
+}  // namespace tree::cuda_impl
+
+namespace {
+template <typename T>
+struct CopyBatchItem {
+  std::size_t dst_offset;
+  common::Span<T const> src;
+
+  CopyBatchItem(std::size_t dst_offset, common::Span<T const> src)
+      : dst_offset{dst_offset}, src{src} {}
+};
+
+template <typename T>
+void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T>> const& copies,
+               HostDeviceVector<T>* out) {
+  out->SetDevice(ctx->Device());
+#if defined(XGBOOST_USE_CUDA)
+  if (ctx->IsCUDA()) {
+    (void)out->DeviceSpan();
+    out->Resize(size);
+    auto dst = out->DeviceSpan();
+    std::vector<void*> dsts(copies.size());
+    std::vector<void const*> srcs(copies.size());
+    std::vector<std::size_t> sizes(copies.size());
+    for (std::size_t i = 0; i < copies.size(); ++i) {
+      dsts[i] = dst.data() + copies[i].dst_offset;
+      srcs[i] = copies[i].src.data();
+      sizes[i] = copies[i].src.size_bytes();
+    }
+    tree::cuda_impl::CopyBatch(ctx, dsts, srcs, sizes);
+    return;
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+
+  out->Resize(size);
+  auto dst = out->HostSpan();
+  for (auto const& copy : copies) {
+    std::copy(copy.src.cbegin(), copy.src.cend(), dst.begin() + copy.dst_offset);
+  }
+}
+
+void ApplyLearningRate(Context const* ctx, std::size_t offset, std::size_t size, float eta,
+                       HostDeviceVector<float>* values) {
+  values->SetDevice(ctx->Device());
+#if defined(XGBOOST_USE_CUDA)
+  if (ctx->IsCUDA()) {
+    tree::cuda_impl::ApplyLearningRate(ctx, values->DeviceSpan().subspan(offset, size), eta);
+    return;
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+
+  auto out = values->HostSpan().subspan(offset, size);
+  std::transform(out.cbegin(), out.cend(), out.begin(),
+                 [eta](float weight) { return weight * eta; });
+}
+}  // namespace
+
+namespace tree {
+void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch const& batch,
+                         HostDeviceVector<CatWordT>* out) {
+  std::vector<CopyBatchItem<CatWordT>> copies;
+  for (auto cats : batch.cat_bits) {
+    if (!cats.empty()) {
+      copies.emplace_back(offset, cats);
+      offset += cats.size();
+    }
+  }
+  CopyBatch(ctx, offset, copies, out);
+}
+}  // namespace tree
+
 MultiTargetTree::MultiTargetTree(TreeParam const* param)
     : param_{param},
       left_(1ul, InvalidNodeId()),
@@ -88,74 +163,57 @@ void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_
   CHECK_EQ(this->NumSplitTargets(), weight.Size());
 }
 
-void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond,
-                             bool default_left, linalg::VectorView<float const> base_weight,
-                             linalg::VectorView<float const> left_weight,
-                             linalg::VectorView<float const> right_weight, float loss_chg,
-                             float sum_hess, float left_sum, float right_sum) {
-  CHECK(this->IsLeaf(nidx));
-  CHECK_GE(parent_.Size(), 1);
-  CHECK_EQ(parent_.Size(), left_.Size());
-  CHECK_EQ(left_.Size(), right_.Size());
-  auto n_split_targets = this->NumSplitTargets();
-  CHECK_EQ(base_weight.Size(), n_split_targets);
+void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
+  auto const batch_size = batch.Size();
+  auto const n_split_targets = this->NumSplitTargets();
+  auto const old_n_nodes = this->Size();
+  auto const n_nodes = old_n_nodes + batch_size * 2;
+  left_.Resize(n_nodes, InvalidNodeId());
+  right_.Resize(n_nodes, InvalidNodeId());
+  parent_.Resize(n_nodes, InvalidNodeId());
+  split_index_.Resize(n_nodes);
+  split_conds_.Resize(n_nodes, DftBadValue());
+  default_left_.Resize(n_nodes);
 
-  std::size_t n = param_->num_nodes + 2;
-  CHECK_LT(split_idx, this->param_->num_feature);
-  left_.Resize(n, InvalidNodeId());
-  right_.Resize(n, InvalidNodeId());
-  parent_.Resize(n, InvalidNodeId());
-
-  auto left_child = parent_.Size() - 2;
-  auto right_child = parent_.Size() - 1;
-
-  CHECK_NE(left_child, nidx);
-  left_.HostVector()[nidx] = left_child;
-  right_.HostVector()[nidx] = right_child;
-
-  auto& h_parent = parent_.HostVector();
-  if (nidx != 0) {
-    CHECK_NE(h_parent[nidx], InvalidNodeId());
+  auto h_left = left_.HostSpan();
+  auto h_right = right_.HostSpan();
+  auto h_parent = parent_.HostSpan();
+  auto h_split_index = split_index_.HostSpan();
+  auto h_split_conds = split_conds_.HostSpan();
+  auto h_default_left = default_left_.HostSpan();
+  for (std::size_t i = 0; i < batch_size; ++i) {
+    auto const nidx = batch.nidxs[i];
+    h_left[nidx] = static_cast<bst_node_t>(old_n_nodes + i * 2);
+    h_right[nidx] = h_left[nidx] + 1;
+    h_parent[h_left[nidx]] = nidx;
+    h_parent[h_right[nidx]] = nidx;
+    h_split_index[nidx] = batch.fidxs[i];
+    h_split_conds[nidx] = batch.cat_bits[i].empty() ? batch.conds[i] : DftBadValue();
+    h_default_left[nidx] = batch.dft_lefts[i];
   }
 
-  h_parent[left_child] = nidx;
-  h_parent[right_child] = nidx;
-
-  split_index_.Resize(n);
-  split_index_.HostVector()[nidx] = split_idx;
-
-  split_conds_.Resize(n, DftBadValue());
-  split_conds_.HostVector()[nidx] = split_cond;
-
-  default_left_.Resize(n);
-  default_left_.HostVector()[nidx] = static_cast<std::uint8_t>(default_left);
-
-  // Set weights
-  weights_.Resize(n * base_weight.Size());
-  auto p_weight = this->NodeWeight(nidx, n_split_targets);
-  CHECK_GE(p_weight.Size(), base_weight.Size());
-  auto l_weight = this->NodeWeight(left_child, n_split_targets);
-  CHECK_GE(l_weight.Size(), left_weight.Size());
-  auto r_weight = this->NodeWeight(right_child, n_split_targets);
-  CHECK_GE(r_weight.Size(), right_weight.Size());
-
-  CHECK_EQ(base_weight.Size(), left_weight.Size());
-  CHECK_EQ(base_weight.Size(), right_weight.Size());
-
-  for (std::size_t i = 0, n = base_weight.Size(); i < n; ++i) {
-    p_weight(i) = base_weight(i);
-    l_weight(i) = left_weight(i);
-    r_weight(i) = right_weight(i);
+  std::vector<CopyBatchItem<float>> weight_copies;
+  for (std::size_t i = 0; i < batch_size; ++i) {
+    auto const nidx = batch.nidxs[i];
+    weight_copies.emplace_back(nidx * n_split_targets, batch.base_weight_batch[i]);
+    weight_copies.emplace_back(h_left[nidx] * n_split_targets, batch.left_weight_batch[i]);
+    weight_copies.emplace_back(h_right[nidx] * n_split_targets, batch.right_weight_batch[i]);
   }
+  CopyBatch(ctx, n_nodes * n_split_targets, weight_copies, &weights_);
+  auto const n_child_weights = batch_size * 2 * n_split_targets;
+  ApplyLearningRate(ctx, old_n_nodes * n_split_targets, n_child_weights, batch.eta, &weights_);
 
-  loss_chg_.Resize(n, 0.0f);
-  loss_chg_.HostVector()[nidx] = loss_chg;
-
-  sum_hess_.Resize(n, 0.0f);
-  auto& h_hess = sum_hess_.HostVector();
-  h_hess[nidx] = sum_hess;
-  h_hess[left_child] = left_sum;
-  h_hess[right_child] = right_sum;
+  loss_chg_.Resize(n_nodes, 0.0f);
+  sum_hess_.Resize(n_nodes, 0.0f);
+  auto h_loss_chg = loss_chg_.HostSpan();
+  auto h_sum_hess = sum_hess_.HostSpan();
+  for (std::size_t i = 0; i < batch_size; ++i) {
+    auto const nidx = batch.nidxs[i];
+    h_loss_chg[nidx] = batch.loss_chgs[i];
+    h_sum_hess[nidx] = batch.left_sums[i] + batch.right_sums[i];
+    h_sum_hess[h_left[nidx]] = batch.left_sums[i];
+    h_sum_hess[h_right[nidx]] = batch.right_sums[i];
+  }
 }
 
 void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {

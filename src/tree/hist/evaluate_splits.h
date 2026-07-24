@@ -771,6 +771,7 @@ class HistMultiEvaluator {
       cat_bits = candidate.split.cat_bits;
     }
     auto as_span = [](linalg::VectorView<float const> weight) {
+      // sliced weight might have larger span as the underlying data
       return weight.Values().subspan(0, weight.Size());
     };
     ExpandBatch batch{param_->learning_rate};
