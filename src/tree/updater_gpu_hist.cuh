@@ -6,10 +6,11 @@
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <algorithm>  // for copy_if, max, transform
-#include <memory>  // for unique_ptr
-#include <vector>  // for vector
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
+#include "../collective/communicator-inl.h"    // for IsDistributed
 #include "../common/categorical.h"             // for CatBitField
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
@@ -181,7 +182,7 @@ class MultiTargetHistMaker {
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
     common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
-    GPUTrainingParam d_param{this->param_};
+    EvalParam d_param{this->param_};
     std::size_t cat_storage_size = 0;
     if (this->cuts_->HasCategorical()) {
       cat_storage_size =
@@ -218,7 +219,7 @@ class MultiTargetHistMaker {
      * Evaluator
      */
     this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
-                           this->param_);
+                           this->param_, gpair_all->Shape(1));
 
     /**
      * Initialize the gradient matrix
@@ -226,8 +227,7 @@ class MultiTargetHistMaker {
     auto in_gpair = gpair_all->View(ctx_->Device());
     CHECK(in_gpair.CContiguous());
 
-    this->split_quantizer_ =
-        std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair, p_fmat->Info());
+    this->split_quantizer_ = std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair);
     CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->DeviceSpan(),
                         &this->split_gpair_);
 
@@ -235,8 +235,8 @@ class MultiTargetHistMaker {
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
                           this->split_quantizer_->DeviceSpan());
     if (!this->value_gpair_.Empty()) {
-      this->value_quantizer_ = std::make_unique<GradientQuantiserGroup>(
-          this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
+      this->value_quantizer_ =
+          std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_->Device()));
       this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
     }
 
@@ -263,8 +263,8 @@ class MultiTargetHistMaker {
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                    linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
+    auto rc =
+        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
                                                     d_root_sum.size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
@@ -277,7 +277,7 @@ class MultiTargetHistMaker {
       this->BuildHist(page, k, RegTree::kRoot);
       ++k;
     }
-    this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), RegTree::kRoot, 1);
+    this->histogram_.AllReduceHist(ctx_, RegTree::kRoot, 1);
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
@@ -292,8 +292,14 @@ class MultiTargetHistMaker {
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)),
-                    root_sum_hess);
+    auto root_weight = linalg::Empty<float>(this->ctx_, n_targets);
+    auto d_root_weight = root_weight.View(this->ctx_->Device());
+    auto base_weight = weights.Base(RegTree::kRoot);
+    auto eta = this->param_.learning_rate;
+    dh::LaunchN(
+        n_targets, this->ctx_->CUDACtx()->Stream(),
+        [=] XGBOOST_DEVICE(std::size_t t) mutable { d_root_weight(t) = base_weight[t] * eta; });
+    p_tree->SetRoot(d_root_weight, root_sum_hess);
 
     return entry;
   }
@@ -306,16 +312,23 @@ class MultiTargetHistMaker {
 
     // Get weights by node ID from the evaluator's buffer.
     //
-    // TODO(jiamingy): Avoid device to host copies.
+    // TODO(jiamingy):
+    // - Avoid device to host copies.
+    // - Apply expand in batches
     for (auto const& candidate : h_candidates) {
       std::vector<float> h_base_weight, h_left_weight, h_right_weight;
       this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
                                              &h_left_weight, &h_right_weight);
+      auto h_left_leaf = h_left_weight;
+      auto h_right_leaf = h_right_weight;
+      auto eta = this->param_.learning_rate;
+      std::transform(h_left_leaf.cbegin(), h_left_leaf.cend(), h_left_leaf.begin(),
+                     [=](float w) { return w * eta; });
+      std::transform(h_right_leaf.cbegin(), h_right_leaf.cend(), h_right_leaf.begin(),
+                     [=](float w) { return w * eta; });
       // Get loss_chg from the split, and sum hessians for parent and children
-      float loss_chg = candidate.split.loss_chg;
-      float left_sum = static_cast<float>(candidate.left_sum);
-      float right_sum = static_cast<float>(candidate.right_sum);
-      float sum_hess = left_sum + right_sum;
+      auto loss_chg = candidate.split.loss_chg;
+      double sum_hess = candidate.left_sum + candidate.right_sum;
       bool default_left = candidate.split.dir == kLeftDir;
       if (candidate.split.is_cat) {
         auto fidx = candidate.split.findex;
@@ -325,14 +338,14 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, cat_bits.size());
         cat_bits.resize(n_words);
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
-                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
-                                  linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,
-                                  right_sum);
+                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_leaf),
+                                  linalg::MakeVec(h_right_leaf), loss_chg, sum_hess,
+                                  candidate.left_sum, candidate.right_sum);
       } else {
         p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                            default_left, linalg::MakeVec(h_base_weight),
-                           linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight),
-                           loss_chg, sum_hess, left_sum, right_sum);
+                           linalg::MakeVec(h_left_leaf), linalg::MakeVec(h_right_leaf), loss_chg,
+                           sum_hess, candidate.left_sum, candidate.right_sum);
       }
     }
 
@@ -344,7 +357,9 @@ class MultiTargetHistMaker {
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
+                                    common::Span<MultiExpandEntry const>{h_candidates},
+                                    dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.
@@ -353,7 +368,7 @@ class MultiTargetHistMaker {
    * split gradient. This function replaces those weights with new weights calculated from
    * value gradient.
    */
-  void ExpandTreeLeaf(DMatrix* p_fmat, RegTree* p_tree) const {
+  void ExpandTreeLeaf(RegTree* p_tree) const {
     CHECK(!this->value_gpair_.Empty());
     CHECK(this->value_quantizer_);
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
@@ -391,17 +406,17 @@ class MultiTargetHistMaker {
       ++batch_idx;
     }
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc =
-        collective::GlobalSum(ctx_, p_fmat->Info(),
-                              linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
-                                              d_out_sum.Size() * 2, ctx_->Device()));
+    auto rc = collective::GlobalSum(
+        ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
+                              d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
-    auto param = GPUTrainingParam{this->param_};
+    auto param = EvalParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
-    // Use full value gradient for leaf values.
-    LeafWeight(this->ctx_, param, this->value_quantizer_->DeviceSpan(),
-               out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
+    dh::device_vector<bst_node_t> d_leaves{leaves_idx};
+    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
+               this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
+               out_weight.View(this->ctx_->Device()));
 
     p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
   }
@@ -479,7 +494,7 @@ class MultiTargetHistMaker {
     xgboost_NVTX_FN_RANGE();
 
     if (!build_nidx.empty()) {
-      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.front(), build_nidx.size());
+      this->histogram_.AllReduceHist(ctx_, build_nidx.front(), build_nidx.size());
     }
 
     // Perform subtraction for sibling nodes
@@ -495,7 +510,7 @@ class MultiTargetHistMaker {
       ++k;
     }
     for (auto nidx : need_build) {
-      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), nidx, 1);
+      this->histogram_.AllReduceHist(ctx_, nidx, 1);
     }
   }
 
@@ -664,10 +679,6 @@ class MultiTargetHistMaker {
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    if (!param_.monotone_constraints.empty()) {
-      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-    }
-
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
@@ -679,7 +690,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(p_fmat, p_tree);
+      this->ExpandTreeLeaf(p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }

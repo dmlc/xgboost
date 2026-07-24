@@ -8,7 +8,6 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -201,11 +200,9 @@ class MultiTargetHistBuilder {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
-                                     p_fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
-                                  p_fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }
@@ -214,10 +211,10 @@ class MultiTargetHistBuilder {
     bst_target_t n_targets = gpair.Shape(1);
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
-                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                              hist_param_);
+                              collective::IsDistributed(), hist_param_);
 
-    evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
+    evaluator_ =
+        std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
@@ -235,9 +232,8 @@ class MultiTargetHistBuilder {
     auto h_root_sum = root_sum.HostView();
     CHECK(h_root_sum.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_fmat->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                        h_root_sum.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                              h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
@@ -368,20 +364,23 @@ class MultiTargetHistBuilder {
     auto h_leaf_sums = leaf_sums.HostView();
     CHECK(h_leaf_sums.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_last_fmat_->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
-                        h_leaf_sums.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
+                              h_leaf_sums.Size() * 2));
     collective::SafeColl(rc);
 
     // Calculate weights for each leaf
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
     auto eta = this->param_->learning_rate;
+    auto evaluator = this->evaluator_->Evaluator();
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
       auto weight = h_weights.Slice(leaf_idx, linalg::All());
-      CalcWeight(*param_, grad_sum, eta, weight);
+      evaluator.CalcWeight(leaves_idx[leaf_idx], *param_, grad_sum, weight);
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        weight(t) *= eta;
+      }
     });
 
     // Set leaf weights
@@ -479,17 +478,15 @@ class HistUpdater {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid,
-                                     fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                  fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }
     partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), hist_param_);
+                              hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
@@ -542,8 +539,8 @@ class HistUpdater {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                        linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
+        auto rc =
+            collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
         collective::SafeColl(rc);
       }
 
@@ -631,9 +628,6 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      if (!param->monotone_constraints.empty()) {
-        LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-      }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);

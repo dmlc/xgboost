@@ -122,7 +122,6 @@ void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
 
   CHECK(!position.empty());
   std::vector<float> quantiles(n_leaves * n_alphas, 0.0f);
-  std::vector<bst_node_t> n_valids(n_leaves, 0);
 
   auto h_quantiles = linalg::MakeTensorView(ctx, common::Span{quantiles}, n_leaves, n_alphas);
   CHECK_LE(nptr.back(), info.num_row_);
@@ -133,47 +132,44 @@ void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
   }
   std::int32_t n_threads = AllocThreads(ctx, nptr);
 
-  collective::ApplyWithLabels(
-      ctx, info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
-        // Loop over each leaf
-        common::ParallelFor(n_leaves, n_threads, [&](auto k) {
-          CHECK_LT(k + 1, nptr.size());
-          size_t n = nptr[k + 1] - nptr[k];
-          auto h_row_set = common::Span<size_t const>{ridx}.subspan(nptr[k], n);
+  // Loop over each leaf
+  common::ParallelFor(n_leaves, n_threads, [&](auto k) {
+    CHECK_LT(k + 1, nptr.size());
+    size_t n = nptr[k + 1] - nptr[k];
+    auto h_row_set = common::Span<size_t const>{ridx}.subspan(nptr[k], n);
 
-          linalg::MatrixView<float const> h_labels = info.labels.HostView();
-          auto h_weights = linalg::MakeVec(&info.weights_);
-          // Loop over each target (quantile).
-          for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
-            // If it's vector-leaf, group_idx is 0, alpha_idx is used. Otherwise,
-            // alpha_idx is 0, the group idx is used.
-            auto predt_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
-            // label is a single column for quantile regression, but it's a matrix for MAE.
-            auto y_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
-            y_idx = std::min(y_idx, h_labels.Shape(1) - 1);
-            auto iter = common::MakeIndexTransformIter([&](std::size_t i) -> float {
-              auto row_idx = h_row_set[i];
-              return h_labels(row_idx, y_idx) - h_predt(row_idx, predt_idx);
-            });
-            auto w_it = common::MakeIndexTransformIter([&](std::size_t i) -> float {
-              auto row_idx = h_row_set[i];
-              return h_weights(row_idx);
-            });
-            auto alpha = alphas[alpha_idx];
-
-            float q{0};
-            if (info.weights_.Empty()) {
-              q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
-            } else {
-              q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
-            }
-            if (std::isnan(q)) {
-              CHECK(h_row_set.empty());
-            }
-            h_quantiles(k, alpha_idx) = q;
-          }
-        });
+    linalg::MatrixView<float const> h_labels = info.labels.HostView();
+    auto h_weights = linalg::MakeVec(&info.weights_);
+    // Loop over each target (quantile).
+    for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
+      // If it's vector-leaf, group_idx is 0, alpha_idx is used. Otherwise,
+      // alpha_idx is 0, the group idx is used.
+      auto predt_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+      // label is a single column for quantile regression, but it's a matrix for MAE.
+      auto y_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+      y_idx = std::min(y_idx, h_labels.Shape(1) - 1);
+      auto iter = common::MakeIndexTransformIter([&](std::size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_labels(row_idx, y_idx) - h_predt(row_idx, predt_idx);
       });
+      auto w_it = common::MakeIndexTransformIter([&](std::size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_weights(row_idx);
+      });
+      auto alpha = alphas[alpha_idx];
+
+      float q{0};
+      if (info.weights_.Empty()) {
+        q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
+      } else {
+        q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
+      }
+      if (std::isnan(q)) {
+        CHECK(h_row_set.empty());
+      }
+      h_quantiles(k, alpha_idx) = q;
+    }
+  });
 
   detail::UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  *
  * @brief Utilities for estimating initial score.
  */
@@ -19,8 +19,8 @@
 #include "xgboost/span.h"     // span
 
 namespace xgboost::tree::cuda_impl {
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::TensorView<GradientPair const, 2> gpair, linalg::VectorView<float> out) {
+void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpair,
+              linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
   linalg::Vector<GradientPairPrecise> sum = linalg::Constant(ctx, GradientPairPrecise{}, n_targets);
@@ -43,9 +43,9 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + gpair.Size(), grad_it,
                         thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
-  auto rc = collective::GlobalSum(ctx, info,
-                                  linalg::MakeVec(reinterpret_cast<double*>(d_sum.Values().data()),
-                                                  d_sum.Size() * 2, ctx->Device()));
+  auto rc =
+      collective::GlobalSum(ctx, linalg::MakeVec(reinterpret_cast<double*>(d_sum.Values().data()),
+                                                 d_sum.Size() * 2, ctx->Device()));
   SafeColl(rc);
 
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_targets,

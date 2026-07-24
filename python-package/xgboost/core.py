@@ -67,7 +67,6 @@ from ._typing import (
     CNumericPtr,
     CStrPtr,
     CTypeT,
-    DataSplitMode,
     DataType,
     FeatureInfo,
     FeatureNames,
@@ -155,15 +154,30 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
         )
 
 
+def _validate_data_split_mode(data_split_mode: int) -> None:
+    try:
+        mode = int(data_split_mode)
+    except (TypeError, ValueError) as e:
+        raise ValueError(
+            "Only row-wise data split is supported. "
+            "Column-wise data split has been removed."
+        ) from e
+    if mode != 0:
+        raise ValueError(
+            "Column-wise data split has been removed. "
+            "Please use row-wise data split instead."
+        )
+
+
 def _validate_feature_info(
-    feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
+    feature_info: Sequence[str], n_features: int, name: str
 ) -> List[str]:
     if not isinstance(feature_info, (str, Sequence, Categories)):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
     feature_info = list(feature_info)
-    if len(feature_info) != n_features and n_features != 0 and not is_column_split:
+    if len(feature_info) != n_features and n_features != 0:
         msg = (
             f"{name} must have the same length as the number of data columns, "
             f"expected {n_features}, got {len(feature_info)}",
@@ -176,7 +190,7 @@ def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also,
     please note that build time dependency is not the same as runtime dependency. For
     instance, it's possible to build XGBoost with older CUDA version but run it with the
-    lastest one.
+    latest one.
 
       .. versionadded:: 1.6.0
 
@@ -431,7 +445,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             #
             # To construct the QDM, one needs 4 iterations on CPU, or 2 iterations on
             # GPU. If the QDM has only one batch of input (most of the cases), we can
-            # avoid transforming the data repeatly.
+            # avoid transforming the data repeatedly.
             try:
                 ref = weakref.ref(data)
             except TypeError:
@@ -677,7 +691,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = True,
-        data_split_mode: DataSplitMode = DataSplitMode.ROW,
+        data_split_mode: int = 0,
     ) -> None:
         """Parameters
         ----------
@@ -779,6 +793,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             XGBoost can remember the encoding of categories when the input is a
             dataframe.
 
+        data_split_mode :
+
+            .. deprecated:: 3.3.0
+
+            Only row-wise split is supported. Column-wise split has been removed
+            and is rejected during DMatrix construction.
+
         """
         if group is not None and qid is not None:
             raise ValueError("Either one of `group` or `qid` should be None.")
@@ -791,6 +812,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             # Used for constructing DMatrix slice.
             self.handle = data
             return
+
+        _validate_data_split_mode(data_split_mode)
 
         from .data import dispatch_data_backend
 
@@ -806,7 +829,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            data_split_mode=data_split_mode,
         )
         assert handle is not None
         self.handle = handle
@@ -1193,16 +1215,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
-    def data_split_mode(self) -> DataSplitMode:
-        """Get the data split mode of the DMatrix.
-
-        .. versionadded:: 2.1.0
-
-        """
-        ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatrixDataSplitMode(self.handle, ctypes.byref(ret)))
-        return DataSplitMode(ret.value)
-
     def slice(
         self, rindex: Union[List[int], np.ndarray], allow_groups: bool = False
     ) -> "DMatrix":
@@ -1272,7 +1284,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_names = _validate_feature_info(
             feature_names,
             self.num_col(),
-            self.data_split_mode() == DataSplitMode.COL,
             "feature names",
         )
         if len(feature_names) != len(set(feature_names)):
@@ -1348,7 +1359,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_types = _validate_feature_info(
             feature_types,
             self.num_col(),
-            self.data_split_mode() == DataSplitMode.COL,
             "feature types",
         )
 
@@ -1474,6 +1484,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
 
         .. deprecated:: 3.3.0
 
+    data_split_mode :
+        Deprecated. Only row-wise split is supported. Column-wise split has been
+        removed and is rejected during DMatrix construction.
+
+        .. deprecated:: 3.3.0
+
     """
 
     @_deprecate_positional_args
@@ -1498,7 +1514,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
-        data_split_mode: DataSplitMode = DataSplitMode.ROW,
+        data_split_mode: int = 0,
     ) -> None:
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
@@ -1508,6 +1524,8 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         if isinstance(data, ctypes.c_void_p):
             self.handle = data
             return
+
+        _validate_data_split_mode(data_split_mode)
 
         if qid is not None and group is not None:
             raise ValueError(

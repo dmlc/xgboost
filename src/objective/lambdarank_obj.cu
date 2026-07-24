@@ -301,7 +301,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
  * @brief Handles boilerplate code like getting device spans.
  */
 template <bool norm_by_diff, typename Delta>
-void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const& preds,
+void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> const& preds,
             const MetaInfo& info, std::shared_ptr<ltr::RankingCache> p_cache, Delta delta,
             linalg::VectorView<double const> ti_plus,   // input bias ratio
             linalg::VectorView<double const> tj_minus,  // input bias ratio
@@ -341,7 +341,7 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
 
   KernelInputs args{ti_plus,        tj_minus, li,     lj,     d_gptr,     d_threads_group_ptr,
                     rank_idx,       label,    predts, gpairs, d_rounding, d_cost_rounding.data(),
-                    d_y_sorted_idx, iter};
+                    d_y_sorted_idx, seed};
 
   // dispatch based on unbiased and truncation
   if (p_cache->Param().HasTruncation()) {
@@ -382,7 +382,7 @@ common::Span<std::size_t const> SortY(Context const* ctx, MetaInfo const& info,
   return d_y_sorted_idx;
 }
 
-void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
                                const HostDeviceVector<float>& preds, const MetaInfo& info,
                                std::shared_ptr<ltr::NDCGCache> p_cache,
                                linalg::VectorView<double const> ti_plus,   // input bias ratio
@@ -405,9 +405,9 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
                     : DeltaNDCG<false>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount);
   };
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
   } else {
-    Launch<false>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj,
+    Launch<false>(ctx, seed, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj,
                   out_gpair);
   }
 }
@@ -456,7 +456,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
   }
 }
 
-void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientMAP(Context const* ctx, std::uint32_t seed,
                               HostDeviceVector<float> const& predt, const MetaInfo& info,
                               std::shared_ptr<ltr::MAPCache> p_cache,
                               linalg::VectorView<double const> ti_plus,   // input bias ratio
@@ -492,13 +492,13 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
     return d;
   };
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
   } else {
-    Launch<false>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<false>(ctx, seed, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
   }
 }
 
-void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientPairwise(Context const* ctx, std::uint32_t seed,
                                    HostDeviceVector<float> const& predt, const MetaInfo& info,
                                    std::shared_ptr<ltr::RankingCache> p_cache,
                                    linalg::VectorView<double const> ti_plus,   // input bias ratio
@@ -516,9 +516,9 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
   };
 
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
   } else {
-    Launch<false>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<false>(ctx, seed, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
   }
 }
 

@@ -74,7 +74,7 @@ class SketchContainer {
   Span<SketchEntry> Column(bst_feature_t i) {
     auto data = dh::ToSpan(this->entries_);
     auto h_ptr = columns_ptr_.ConstHostSpan();
-    auto c = data.subspan(h_ptr[i], h_ptr[i+1] - h_ptr[i]);
+    auto c = data.subspan(h_ptr[i], h_ptr[i + 1] - h_ptr[i]);
     return c;
   }
 
@@ -115,9 +115,9 @@ class SketchContainer {
    */
   [[nodiscard]] std::size_t MemCapacityBytes() const {
     auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
-    auto n_bytes =
-        (this->entries_.capacity() + this->entries_tmp_.capacity() + this->prune_buffer_.capacity()) *
-        kE;
+    auto n_bytes = (this->entries_.capacity() + this->entries_tmp_.capacity() +
+                    this->prune_buffer_.capacity()) *
+                   kE;
     n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 
@@ -175,9 +175,9 @@ class SketchContainer {
   }
 
   /* \brief Merge quantiles from other GPU workers. */
-  void AllReduce(Context const* ctx, bool is_column_split);
+  void AllReduce(Context const* ctx);
   /* \brief Create the final histogram cut values. */
-  [[nodiscard]] HistogramCuts MakeCuts(Context const* ctx, bool is_column_split);
+  [[nodiscard]] HistogramCuts MakeCuts(Context const* ctx);
 
   Span<SketchEntry const> Data() const { return {entries_.data().get(), entries_.size()}; }
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }
@@ -188,7 +188,6 @@ class SketchContainer {
 
   SketchContainer(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&) = delete;
-
 };
 }  // namespace xgboost::common
 

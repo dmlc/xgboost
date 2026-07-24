@@ -4,17 +4,17 @@
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
 
-#include <algorithm>   // for max
-#include <cstddef>     // for size_t
-#include <cstdint>     // for int32_t
-#include <utility>     // for move
-#include <vector>      // for vector
+#include <algorithm>  // for max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../collective/allreduce.h"    // for Allreduce
+#include "../../common/cache_manager.h"    // for CacheManager
 #include "../../common/hist_util.h"        // for GHistRow, ParallelGHi...
 #include "../../common/row_set.h"          // for RowSetCollection
 #include "../../common/threading_utils.h"  // for ParallelFor2d, Range1d, BlockedSpace2d
-#include "../../common/cache_manager.h"    // for CacheManager
 #include "../../data/gradient_index.h"     // for GHistIndexMatrix
 #include "expand_entry.h"                  // for MultiExpandEntry, CPUExpandEntry
 #include "hist_cache.h"                    // for BoundedHistCollection
@@ -50,7 +50,6 @@ class HistogramBuilder {
   std::int32_t n_threads_{-1};
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
-  bool is_col_split_{false};
 
  public:
   /**
@@ -61,13 +60,12 @@ class HistogramBuilder {
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,
-             bool is_col_split, HistMakerTrainParam const *param) {
+             HistMakerTrainParam const *param) {
     n_threads_ = ctx->Threads();
     param_ = p;
     hist_.Reset(total_bins, param->MaxCachedHistNodes(ctx->Device()));
     buffer_.Init(total_bins);
     is_distributed_ = is_distributed;
-    is_col_split_ = is_col_split;
   }
 
   template <bool any_missing>
@@ -79,7 +77,7 @@ class HistogramBuilder {
     common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
       const auto tid = static_cast<unsigned>(omp_get_thread_num());
       bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto const& elem = row_set_collection[nidx];
+      auto const &elem = row_set_collection[nidx];
       auto start_of_row_set = std::min(r.begin(), elem.Size());
       auto end_of_row_set = std::min(r.end(), elem.Size());
       auto rid_set = common::Span<bst_idx_t const>{elem.begin() + start_of_row_set,
@@ -186,7 +184,7 @@ class HistogramBuilder {
       // Merging histograms from each thread.
       this->buffer_.ReduceHist(node, r.begin(), r.end());
     });
-    if (is_distributed_ && !is_col_split_) {
+    if (is_distributed_) {
       // The cache is contiguous, we can perform allreduce for all nodes in one go.
       CHECK(!nodes_to_build.empty());
       auto first_nidx = nodes_to_build.front();
@@ -227,9 +225,8 @@ class HistogramBuilder {
 template <typename Partitioner>
 common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
                                           std::vector<bst_node_t> const &nodes_to_build,
-                                          const GHistIndexMatrix &gidx,
-                                          std::size_t l1_size, bst_bin_t max_bin,
-                                          bool read_by_column) {
+                                          const GHistIndexMatrix &gidx, std::size_t l1_size,
+                                          bst_bin_t max_bin, bool read_by_column) {
   // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
   // partition size for the buffer, which might not be efficient if partition sizes
   // has significant variance.
@@ -255,7 +252,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
 
   std::size_t space_in_l1_for_rows;
   if (read_by_column) {
-   /* In this case, an accurate block_size estimate is performance-critical.
+    /* In this case, an accurate block_size estimate is performance-critical.
     * For column-wise histogram construction, each column is processed over the
     * same block of rows. If the block fits in L1, the row data are loaded once
     * and reused across all columns; otherwise, the cache must be refilled for
@@ -306,10 +303,9 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   constexpr std::size_t kMinBlockSize = kCacheLineSize / sizeof(GradientPair);
   block_size = std::max<std::size_t>(kMinBlockSize, block_size);
 
-  common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](size_t nidx_in_set) {
-                                return partition_size[nidx_in_set];
-                              }, block_size};
+  common::BlockedSpace2d space{nodes_to_build.size(),
+                               [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; },
+                               block_size};
   return space;
 }
 
@@ -328,7 +324,7 @@ class MultiHistogramBuilder {
     size_t hist_size = 2 * sizeof(double) * nbins;
 
     double l3_per_thread = static_cast<double>(cache_manager_.L3Size()) / ctx_->Threads();
-    double usable_cache_size =  0.8 * (cache_manager_.L2Size() + l3_per_thread);
+    double usable_cache_size = 0.8 * (cache_manager_.L2Size() + l3_per_thread);
     const bool hist_fit_to_l2 = usable_cache_size > hist_size;
 
     /* In row-wise histogram construction, each iteration of the outer (row-wise) loop
@@ -368,8 +364,8 @@ class MultiHistogramBuilder {
     for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, param)) {
       bool read_by_column = ReadByColumn(gidx, force_read_by_column);
 
-      auto space = ConstructHistSpace(partitioners, nodes, gidx,
-                                      cache_manager_.L1Size(), param.max_bin, read_by_column);
+      auto space = ConstructHistSpace(partitioners, nodes, gidx, cache_manager_.L1Size(),
+                                      param.max_bin, read_by_column);
       for (bst_target_t t{0}; t < n_targets; ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         this->target_builders_[t].BuildHist(page_idx, space, gidx,
@@ -410,8 +406,8 @@ class MultiHistogramBuilder {
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, param)) {
       bool read_by_column = ReadByColumn(page, force_read_by_column);
 
-      auto space = ConstructHistSpace(partitioners, nodes_to_build, page,
-                                      cache_manager_.L1Size(), param.max_bin, read_by_column);
+      auto space = ConstructHistSpace(partitioners, nodes_to_build, page, cache_manager_.L1Size(),
+                                      param.max_bin, read_by_column);
 
       auto n_targets = gpair.Shape(1);
       for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -438,12 +434,12 @@ class MultiHistogramBuilder {
   [[nodiscard]] bst_target_t NumTargets() const { return target_builders_.size(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, HistMakerTrainParam const *param) {
+             bool is_distributed, HistMakerTrainParam const *param) {
     ctx_ = ctx;
     target_builders_.resize(n_targets);
     CHECK_GE(n_targets, 1);
     for (auto &v : target_builders_) {
-      v.Reset(ctx, total_bins, p, is_distributed, is_col_split, param);
+      v.Reset(ctx, total_bins, p, is_distributed, param);
     }
   }
 };

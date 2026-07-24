@@ -117,6 +117,7 @@ from ..sklearn import (
     _check_rf_callback,
     _cls_predict_proba,
     _objective_decorator,
+    _warn_rf_deprecated,
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
@@ -2104,6 +2105,11 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
 
     .. versionadded:: 1.4.0
 
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
 """,
     ["model", "objective"],
     extra_parameters="""
@@ -2123,6 +2129,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
+        _warn_rf_deprecated("DaskXGBRFRegressor")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -2166,6 +2173,11 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
 
     .. versionadded:: 1.4.0
 
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
 """,
     ["model", "objective"],
     extra_parameters="""
@@ -2185,6 +2197,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
+        _warn_rf_deprecated("DaskXGBRFClassifier")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,

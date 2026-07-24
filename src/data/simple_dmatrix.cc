@@ -56,49 +56,6 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   return out;
 }
 
-DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
-  if (this->Cats()->HasCategorical()) {
-    LOG(FATAL) << "Slicing column is not supported for DataFrames with categorical columns.";
-  }
-  auto out = new SimpleDMatrix;
-  SparsePage& out_page = *out->sparse_page_;
-  auto const slice_size = info_.num_col_ / num_slices;
-  auto const slice_start = slice_size * slice_id;
-  auto const slice_end = (slice_id == num_slices - 1) ? info_.num_col_ : slice_start + slice_size;
-  for (auto const& page : this->GetBatches<SparsePage>()) {
-    auto batch = page.GetView();
-    auto& h_data = out_page.data.HostVector();
-    auto& h_offset = out_page.offset.HostVector();
-    size_t rptr{0};
-    for (bst_idx_t i = 0; i < this->Info().num_row_; i++) {
-      auto inst = batch[i];
-      auto prev_size = h_data.size();
-      std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data),
-                   [&](Entry e) { return e.index >= slice_start && e.index < slice_end; });
-      rptr += h_data.size() - prev_size;
-      h_offset.emplace_back(rptr);
-    }
-    out->Info() = this->Info().Copy();
-    out->Info().num_nonzero_ = h_offset.back();
-  }
-  out->Info().data_split_mode = DataSplitMode::kCol;
-  return out;
-}
-
-void SimpleDMatrix::ReindexFeatures(Context const* ctx, DataSplitMode split_mode) {
-  if (split_mode == DataSplitMode::kCol && collective::GetWorldSize() > 1) {
-    std::vector<std::uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = this->info_.num_col_;
-    auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
-    SafeColl(rc);
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
-    if (offset == 0) {
-      return;
-    }
-    sparse_page_->Reindex(offset, ctx->Threads());
-  }
-}
-
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter =
@@ -225,8 +182,7 @@ BatchSet<ExtSparsePage> SimpleDMatrix::GetExtBatches(Context const*, BatchParam 
 }
 
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
-                             DataSplitMode data_split_mode) {
+SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}});
   std::vector<uint64_t> qids;
@@ -309,8 +265,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   // Must called before sync column
-  this->ReindexFeatures(&ctx, data_split_mode);
-  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =
@@ -366,9 +321,8 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
   fo->Write(sparse_page_->data.HostVector());
 }
 
-#define INSTANTIATE_SDCTOR(__ADAPTER_T)                                                            \
-  template SimpleDMatrix::SimpleDMatrix(__ADAPTER_T* adapter, float missing, std::int32_t nthread, \
-                                        DataSplitMode data_split_mode);
+#define INSTANTIATE_SDCTOR(__ADAPTER_T) \
+  template SimpleDMatrix::SimpleDMatrix(__ADAPTER_T* adapter, float missing, std::int32_t nthread);
 
 INSTANTIATE_SDCTOR(DenseAdapter)
 INSTANTIATE_SDCTOR(ArrayAdapter)

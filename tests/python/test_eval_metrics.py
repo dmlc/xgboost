@@ -201,16 +201,51 @@ class TestEvalMetrics:
         run_roc_auc_binary("hist", n_samples, "cpu")
 
     @pytest.mark.parametrize(
-        "n_samples,weighted", [(4, False), (100, False), (1000, False), (10000, True)]
+        "n_samples,weighted,multi_label,multi_strategy",
+        [
+            (4, False, False, "one_output_per_tree"),
+            (100, False, False, "one_output_per_tree"),
+            (1000, False, False, "one_output_per_tree"),
+            (10000, True, False, "one_output_per_tree"),
+            (100, False, False, "multi_output_tree"),
+            (100, False, True, "multi_output_tree"),
+            (1000, True, True, "multi_output_tree"),
+        ],
     )
-    def test_roc_auc_multi(self, n_samples: int, weighted: bool) -> None:
-        run_roc_auc_multi("hist", n_samples, weighted, "cpu")
+    def test_roc_auc_multi(
+        self,
+        n_samples: int,
+        weighted: bool,
+        multi_label: bool,
+        multi_strategy: str,
+    ) -> None:
+        run_roc_auc_multi(
+            "hist",
+            n_samples,
+            weighted,
+            "cpu",
+            multi_label=multi_label,
+            multi_strategy=multi_strategy,
+        )
 
     def test_pr_auc_binary(self) -> None:
         run_pr_auc_binary("hist", "cpu")
 
-    def test_pr_auc_multi(self) -> None:
-        run_pr_auc_multi("hist", "cpu")
+    @pytest.mark.parametrize(
+        "multi_label,multi_strategy",
+        [
+            (False, "one_output_per_tree"),
+            (False, "multi_output_tree"),
+            (True, "multi_output_tree"),
+        ],
+    )
+    def test_pr_auc_multi(self, multi_label: bool, multi_strategy: str) -> None:
+        run_pr_auc_multi(
+            "hist",
+            "cpu",
+            multi_label=multi_label,
+            multi_strategy=multi_strategy,
+        )
 
     def test_pr_auc_ltr(self) -> None:
         run_pr_auc_ltr("hist", "cpu")

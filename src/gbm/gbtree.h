@@ -238,7 +238,7 @@ class GBTree : public GradientBooster {
     auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
       for (auto idx : trees) {
-        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        CHECK_LT(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
         tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
           if (!tree.IsLeaf(nidx)) {
@@ -339,7 +339,7 @@ class GBTree : public GradientBooster {
 
  protected:
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
-  std::size_t NormalizeTrees(std::size_t size_new_trees);
+  [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,

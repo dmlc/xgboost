@@ -116,6 +116,7 @@ Parameters for Tree Booster
 * ``min_child_weight`` [default=1]
 
   - Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than ``min_child_weight``, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger ``min_child_weight`` is, the more conservative the algorithm will be.
+  - With vector leaf, the mean Hessian across targets is used to compare against the ``min_child_weight``.
   - range: [0,∞]
 
 * ``max_delta_step`` [default=0]
@@ -465,6 +466,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       - When used with binary classification, the objective should be ``binary:logistic`` or similar functions that work on probability.
       - When used with multi-class classification, objective should be ``multi:softprob`` instead of ``multi:softmax``, as the latter doesn't output probability.  Also the AUC is calculated by 1-vs-rest with reference class weighted by class prevalence.
+      - When used with multi-label classification, AUC is calculated independently for each target and averaged with the macro method.
       - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
       - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
       - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.

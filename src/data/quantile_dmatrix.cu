@@ -29,7 +29,7 @@ namespace cuda_impl {
 void MakeSketches(Context const* ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter,
                   DMatrixProxy* proxy, std::shared_ptr<DMatrix> ref, BatchParam const& p,
-                  float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const& info,
+                  float missing, std::shared_ptr<common::HistogramCuts> cuts,
                   ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
   // Lazy because we need the `n_features`.
@@ -111,7 +111,7 @@ void MakeSketches(Context const* ctx,
       sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
                                                          ext_info.n_features, dh::GetDevice(ctx));
     }
-    *cuts = sketch->MakeCuts(ctx, info.IsColumnSplit());
+    *cuts = sketch->MakeCuts(ctx);
     sketch.reset();
   } else {
     GetCutsFromRef(ctx, ref, ext_info.n_features, p, cuts.get());

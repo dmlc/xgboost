@@ -97,6 +97,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -118,6 +119,7 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -292,7 +294,7 @@ class LsObj2(LsObj0):
         return sgrad, shess
 
 
-def run_reduced_grad(device: Device) -> None:
+def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     """Basic test for using reduced gradient for tree splits."""
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
@@ -335,6 +337,22 @@ def run_reduced_grad(device: Device) -> None:
     run_test(LsObj2(device, False))
     with pytest.raises(AssertionError):
         run_test(LsObj2(device, True))
+
+    with pytest.raises(
+        ValueError,
+        match="Monotonic constraints are not supported with reduced gradients",
+    ):
+        train(
+            {
+                "device": device,
+                "tree_method": "hist",
+                "multi_strategy": "multi_output_tree",
+                "monotone_constraints": (1,),
+            },
+            Xy,
+            num_boost_round=1,
+            obj=LsObj2(device, False),
+        )
 
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
@@ -421,6 +439,35 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         evals_result_0["Train"]["rmse"], evals_result_2["Train"]["rmse"]
     )
     assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
+
+    # Distinct target scales make a wrong-row mask diverge loudly.
+    ys_adaptive = [y_i * nda.asarray([1.0, 20.0, 100.0]) for y_i in ys]
+    adaptive_params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "objective": "reg:absoluteerror",
+        "subsample": 0.5,
+        "seed": 2026,
+        "debug_synchronize": True,
+    }
+    it = IteratorForTest(
+        Xs,
+        ys_adaptive,
+        None,
+        cache="cache",
+        on_host=True,
+        min_cache_page_bytes=0,  # disables page concatenation
+    )
+    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
+    booster_ext = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    it = IteratorForTest(Xs, ys_adaptive, None, cache=None)
+    Xy = QuantileDMatrix(it)
+    booster_in = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    assert_allclose(
+        device, booster_ext.inplace_predict(X), booster_in.inplace_predict(X)
+    )
 
 
 def run_eta(device: Device) -> None:
@@ -518,6 +565,7 @@ def run_column_sampling(device: Device) -> None:
         importance_type="weight",
         device=device,
         colsample_bynode=0.2,
+        min_child_weight=0.0,
     )
     clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
     fi = clf.feature_importances_
@@ -546,23 +594,26 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
     assert non_increasing(evals_result["train"]["rmse"])
 
 
-def run_mixed_strategy(device: Device) -> None:
+def run_mixed_strategy(device: Device, use_dart: bool) -> None:
     """Test mixed multi_strategy with ResetStrategy callback."""
     X, y = make_classification(
         n_samples=1024, n_informative=8, n_classes=3, random_state=1994
     )
     Xy = DMatrix(data=X, label=y)
 
+    params: Dict[str, Any] = {
+        "num_parallel_tree": 4,
+        "num_class": 3,
+        "objective": "multi:softprob",
+        "multi_strategy": "multi_output_tree",
+        "device": device,
+        "debug_synchronize": True,
+        "base_score": 0,
+    }
+    if use_dart:
+        params.update({"rate_drop": 0.5, "one_drop": True})
     booster = train(
-        {
-            "num_parallel_tree": 4,
-            "num_class": 3,
-            "objective": "multi:softprob",
-            "multi_strategy": "multi_output_tree",
-            "device": device,
-            "debug_synchronize": True,
-            "base_score": 0,
-        },
+        params,
         num_boost_round=16,
         dtrain=Xy,
         callbacks=[ResetStrategy()],

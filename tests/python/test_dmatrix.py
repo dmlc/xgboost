@@ -10,8 +10,7 @@ import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 from xgboost import testing as tm
-from xgboost.core import DataSplitMode
-from xgboost.testing.data import np_dtypes, run_base_margin_info
+from xgboost.testing.data import IteratorForTest, np_dtypes, run_base_margin_info
 from xgboost.testing.utils import predictor_equal
 
 dpath = "demo/data/"
@@ -396,122 +395,30 @@ class TestDMatrix:
             assert predictor_equal(m0, m1)
 
 
-@pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
-class TestDMatrixColumnSplit:
-    def test_numpy(self):
-        def verify_numpy():
-            data = np.random.randn(5, 5)
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
-            assert dm.feature_names is None
-            assert dm.feature_types is None
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_numpy)
-
-    def test_numpy_feature_names(self):
-        def verify_numpy_feature_names():
-            world_size = xgb.collective.get_world_size()
-            data = np.random.randn(5, 5)
-            feature_names = [f"feature{x}" for x in range(5)]
-            feature_types = ["float"] * 5
-            dm = xgb.DMatrix(
-                data,
-                feature_names=feature_names,
-                feature_types=feature_types,
-                data_split_mode=DataSplitMode.COL,
-            )
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * world_size
-            assert len(dm.feature_names) == 5 * world_size
-            assert dm.feature_names == tm.column_split_feature_names(
-                feature_names, world_size
-            )
-            assert len(dm.feature_types) == 5 * world_size
-            assert dm.feature_types == ["float"] * 5 * world_size
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_numpy_feature_names)
-
-    def test_csr(self):
-        def verify_csr():
-            indptr = np.array([0, 2, 3, 6])
-            indices = np.array([0, 2, 2, 0, 1, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.csr_matrix((data, indices, indptr), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_csr)
-
-    def test_csc(self):
-        def verify_csc():
-            row = np.array([0, 2, 2, 0, 1, 2])
-            col = np.array([0, 0, 1, 2, 2, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.csc_matrix((data, (row, col)), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_csc)
-
-    def test_coo(self):
-        def verify_coo():
-            row = np.array([0, 2, 2, 0, 1, 2])
-            col = np.array([0, 0, 1, 2, 2, 2])
-            data = np.array([1, 2, 3, 4, 5, 6])
-            X = scipy.sparse.coo_matrix((data, (row, col)), shape=(3, 3))
-            dtrain = xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-            assert dtrain.num_row() == 3
-            assert dtrain.num_col() == 3 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_coo)
+class TestDMatrixColumnSplitRemoved:
+    def test_numpy(self) -> None:
+        data = np.random.randn(5, 5)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(data, data_split_mode=1)
 
     def test_uri(self, tmp_path: Path) -> None:
-        def verify_uri():
-            rank = xgb.collective.get_rank()
-            filename = tmp_path / f"test_data_{rank}.csv"
+        filename = tmp_path / "test_data.csv"
+        data = np.random.rand(5, 5)
+        with open(filename, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerows(data)
 
-            data = np.random.rand(5, 5)
-            with open(filename, mode="w", newline="") as file:
-                writer = csv.writer(file)
-                for row in data:
-                    writer.writerow(row)
-            dtrain = xgb.DMatrix(
-                f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
-            )
-            assert dtrain.num_row() == 5
-            assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(f"{filename}?format=csv", data_split_mode=1)
 
-        tm.run_with_rabit(world_size=3, test_fn=verify_uri)
+    def test_quantile_dmatrix(self) -> None:
+        data = np.random.randn(5, 5)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.QuantileDMatrix(data, data_split_mode=1)
 
-    def test_list(self):
-        def verify_list():
-            data = [
-                [1, 2, 3, 4, 5],
-                [6, 7, 8, 9, 10],
-                [11, 12, 13, 14, 15],
-                [16, 17, 18, 19, 20],
-                [21, 22, 23, 24, 25],
-            ]
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_list)
-
-    def test_tuple(self):
-        def verify_tuple():
-            data = (
-                (1, 2, 3, 4, 5),
-                (6, 7, 8, 9, 10),
-                (11, 12, 13, 14, 15),
-                (16, 17, 18, 19, 20),
-                (21, 22, 23, 24, 25),
-            )
-            dm = xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
-            assert dm.num_row() == 5
-            assert dm.num_col() == 5 * xgb.collective.get_world_size()
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_tuple)
+    def test_iterator(self) -> None:
+        X = [np.random.randn(5, 5)]
+        y = [np.random.randn(5)]
+        it = IteratorForTest(X, y, None, cache=None)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(it, data_split_mode=1)

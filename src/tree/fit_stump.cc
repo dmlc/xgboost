@@ -47,8 +47,8 @@ void SumGradients(Context const* ctx, linalg::MatrixView<GradientPair const> gpa
   }
 }
 
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::MatrixView<GradientPair const> gpair, linalg::VectorView<float> out) {
+void FitStump(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
+              linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
   auto sum = linalg::Empty<GradientPairPrecise>(ctx, n_targets);
@@ -58,7 +58,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   auto as_double = linalg::MakeTensorView(
       ctx, common::Span{reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2},
       h_sum.Size() * 2);
-  auto rc = collective::GlobalSum(ctx, info, as_double);
+  auto rc = collective::GlobalSum(ctx, as_double);
   collective::SafeColl(rc);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {
@@ -68,25 +68,25 @@ void FitStump(Context const* ctx, MetaInfo const& info,
 }  // namespace cpu_impl
 
 namespace cuda_impl {
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::TensorView<GradientPair const, 2> gpair, linalg::VectorView<float> out);
+void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpair,
+              linalg::VectorView<float> out);
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void FitStump(Context const*, MetaInfo const&, linalg::TensorView<GradientPair const, 2>,
+inline void FitStump(Context const*, linalg::TensorView<GradientPair const, 2>,
                      linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
-void FitStump(Context const* ctx, MetaInfo const& info, linalg::Matrix<GradientPair> const& gpair,
-              bst_target_t n_targets, linalg::Vector<float>* out) {
+void FitStump(Context const* ctx, linalg::Matrix<GradientPair> const& gpair, bst_target_t n_targets,
+              linalg::Vector<float>* out) {
   out->SetDevice(ctx->Device());
   out->Reshape(n_targets);
 
   gpair.SetDevice(ctx->Device());
   auto gpair_t = gpair.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
-  ctx->IsCUDA() ? cuda_impl::FitStump(ctx, info, gpair_t, out->View(ctx->Device()))
-                : cpu_impl::FitStump(ctx, info, gpair_t, out->HostView());
+  ctx->IsCUDA() ? cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->Device()))
+                : cpu_impl::FitStump(ctx, gpair_t, out->HostView());
 }
 }  // namespace xgboost::tree

@@ -59,10 +59,6 @@ Training with Vector Leaf
 
 .. versionadded:: 2.0.0
 
-.. note::
-
-   This is still working-in-progress, and most features are missing.
-
 XGBoost can optionally build multi-output trees with the size of leaf equals to the number
 of targets when the tree method `hist` is used. The behavior can be controlled by the
 ``multi_strategy`` training parameter, which can take the value `one_output_per_tree` (the
@@ -85,8 +81,8 @@ Using Reduced Gradient (Sketch Boost)
 
 .. note::
 
-   This is still working-in-progress, and most features are missing. It is documented here
-   for early testers to provide feedback. Related interface might change without notice.
+   This is experimental. It is documented here for early testers to provide feedback. Related
+   interface might change without notice.
 
 When the number of targets is large, training a gradient boosting tree model using the
 full gradient matrix becomes challenging. The training procedure may run out of memory for
@@ -136,40 +132,6 @@ implement the ``split_grad`` method.
 
 See :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py` for a complete worked
 example. The feature supports only the ``multi_strategy=multi_output_tree``.
-
-***********************************
-Partitioning for categorical splits
-***********************************
-
-.. versionadded:: 3.4.0
-
-For scalar leaves, XGBoost uses :doc:`optimal partitioning </tutorials/categorical>` to
-avoid enumerating all :math:`2^{k-1} - 1` binary partitions of :math:`k` categories.
-
-For vector leaves, each category has a weight vector and there is no canonical ordering of
-vectors. XGBoost induces an ordering by projecting each category weight onto the parent's
-Newton update direction:
-
-.. math::
-
-  u_p &= \frac{w_p}{\lVert w_p \rVert_2} \\
-  s_c &= u_p^T w_c
-
-where :math:`w_p` is the parent leaf weight and :math:`w_c` is the category-level leaf
-weight. The score measures how strongly category :math:`c` follows the parent update
-direction.
-
-The projection has some nice consistency properties. For one output, it agrees with the
-standard scalar ordering up to reversal. For parent-aligned vector effects,
-
-.. math::
-
-   w_c = \alpha_c w_p
-
-we have :math:`s_c = \alpha_c \lVert w_p \rVert_2`, so ordering the projected scores is
-equivalent to ordering the scalar coefficients :math:`\alpha_c`. In general, however, it
-is an approximation: category contrasts orthogonal to the parent update can be missed,
-and a weak parent update provides little ordering signal.
 
 
 **********

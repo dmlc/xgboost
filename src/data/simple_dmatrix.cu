@@ -19,10 +19,7 @@ namespace xgboost::data {
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthread,
-                             DataSplitMode data_split_mode) {
-  CHECK(data_split_mode != DataSplitMode::kCol)
-      << "Column-wise data split is currently not supported by the GPU.";
+SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthread) {
   auto device = (!adapter->Device().IsCUDA() || adapter->NumRows() == 0)
                     ? DeviceOrd::CUDA(curt::CurrentDevice())
                     : adapter->Device();
@@ -54,13 +51,11 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
       info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->Cats(), false));
     }
   }
-  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx);
 
   this->fmat_ctx_ = ctx;
 }
 
-template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing, std::int32_t nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing, std::int32_t nthread,
-                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing, std::int32_t nthread);
+template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing, std::int32_t nthread);
 }  // namespace xgboost::data
