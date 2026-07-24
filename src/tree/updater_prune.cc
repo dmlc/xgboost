@@ -10,14 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include "../collective/broadcast.h"         // for Broadcast
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
 #include "../common/timer.h"
+#include "./model_utils.h"  // for BroadcastTreeModel
 #include "./param.h"
 #include "xgboost/base.h"
 #include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
-#include "xgboost/linalg.h"  // for MakeVec
 
 namespace xgboost::tree {
 DMLC_REGISTRY_FILE_TAG(updater_prune);
@@ -91,27 +90,18 @@ class TreePruner : public TreeUpdater {
     }
 
     auto rank = collective::GetRank();
-    std::vector<char> serialized;
+    Json model{Array{}};
     if (rank == 0) {
-      Json model{Array{}};
       auto& tree_models = get<Array>(model);
       for (auto tree : trees) {
         Json tree_model{Object{}};
         tree->SaveModel(&tree_model);
         tree_models.emplace_back(std::move(tree_model));
       }
-      Json::Dump(model, &serialized, std::ios::binary);
     }
 
-    std::size_t size = serialized.size();
-    auto rc = collective::Broadcast(ctx_, linalg::MakeVec(&size, 1), 0);
-    SafeColl(rc);
-    serialized.resize(size);
-    rc = collective::Broadcast(ctx_, linalg::MakeVec(serialized.data(), serialized.size()), 0);
-    SafeColl(rc);
-
+    model = BroadcastTreeModel(ctx_, model);
     if (rank != 0) {
-      auto model = Json::Load(StringView{serialized.data(), serialized.size()}, std::ios::binary);
       auto const& tree_models = get<Array const>(model);
       CHECK_EQ(tree_models.size(), trees.size());
       for (std::size_t i = 0; i < trees.size(); ++i) {
