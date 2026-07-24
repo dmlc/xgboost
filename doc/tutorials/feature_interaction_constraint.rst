@@ -63,6 +63,19 @@ Potential benefits include:
   want to exclude some interactions even if they perform well due to regulatory
   constraints.
 
+.. note:: What the constraints apply to
+
+  XGBoost enforces interaction constraints **one split at a time along each
+  decision path**, rather than restricting the global set of features that may
+  appear together in a tree. When a node splits on a feature, its descendants
+  may only split on features that share a constraint set with **every** feature
+  already used on the path from the root to that node. As a consequence, a
+  feature that belongs to more than one constraint set can act as a bridge
+  between those sets within a single path. This behaviour differs from software
+  that forbids two features from ever co-occurring in the same tree, so a
+  constraint that looks restrictive can still permit longer interaction chains.
+  See :ref:`the advanced topic below <fic-advanced-topic>` for worked examples.
+
 ****************
 A Simple Example
 ****************
@@ -183,6 +196,8 @@ specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]
 feature interaction constraint can be specified as ``[["f0", "f2"]]`` (Python) or
 ``list(c("f0", "f2"))`` (R, when passing them to function ``xgboost()``).
 
+.. _fic-advanced-topic:
+
 **************
 Advanced topic
 **************
@@ -282,3 +297,29 @@ still comply with the interaction constraints of its ascendants.
    :figwidth: 80 %
 
    ``{0, 1, 3, 4}`` represents the sets of legitimate split features.
+
+**********************************
+Forbidden and allowed interactions
+**********************************
+
+To make the effect concrete, the following summarizes which interactions the
+constraint ``[[0, 1], [1, 3, 4]]`` forbids and which it still allows. Recall
+that constraints are checked per split along a path, so feature ``1`` -- which
+appears in both sets -- can bridge them.
+
+* **Allowed:** ``0`` with ``1`` (both are in ``[0, 1]``); ``1`` with ``3``,
+  ``1`` with ``4``, and ``3`` with ``4`` (all in ``[1, 3, 4]``).
+* **Allowed along a path through the bridge feature:** a path
+  ``0`` :math:`\rightarrow` ``1`` :math:`\rightarrow` ``3``. Even though ``0``
+  and ``3`` never share a constraint set, the split on ``1`` is legitimate under
+  ``[0, 1]``, and once ``1`` is on the path the set ``[1, 3, 4]`` also applies,
+  so ``3`` becomes a legitimate candidate below it.
+* **Forbidden:** any split that places ``0`` and ``3`` (or ``0`` and ``4``) in a
+  direct parent-child relationship *without* ``1`` between them, and any
+  interaction with a feature -- say ``2`` -- that is absent from every
+  constraint set.
+
+The distinction is that XGBoost restricts the split candidates at each step of a
+path, rather than forbidding a global pair of features from appearing anywhere in
+the same tree. This is why an interaction that involves a shared feature can
+still be reached through a longer path.
