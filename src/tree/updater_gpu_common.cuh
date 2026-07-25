@@ -69,8 +69,6 @@ struct DeviceSplitCandidate {
     }
   }
 
-  [[nodiscard]] XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
-
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
     os << "loss_chg:" << c.loss_chg << ", "
        << "dir: " << c.dir << ", "
@@ -128,8 +126,6 @@ struct MultiSplitCandidate {
       findex = findex_in;
     }
   }
-
-  [[nodiscard]] XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 };
 
 namespace cuda_impl {

@@ -122,7 +122,7 @@ class GlobalApproxBuilder {
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &nodes);
+    evaluator_.EvaluateSplits(histograms, feature_values_, ft, &nodes);
     monitor_->Stop(__func__);
 
     return nodes.front();
@@ -230,7 +230,7 @@ class GlobalApproxBuilder {
         auto const &histograms = histogram_builder_.Histogram(0);
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();
         monitor_->Start("EvaluateSplits");
-        evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &best_splits);
+        evaluator_.EvaluateSplits(histograms, feature_values_, ft, &best_splits);
         monitor_->Stop("EvaluateSplits");
       }
       driver.Push(best_splits.begin(), best_splits.end());

@@ -13,7 +13,6 @@
 #include <utility>          // for move
 #include <vector>           // for vector
 
-#include "../../src/collective/comm.h"  // for Op
 #include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/categorical.h"           // for KCatBitField
@@ -23,6 +22,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
+#include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
 #include "../common/random.h"           // for ColumnSampler
 #include "../common/timer.h"
 #include "../data/batch_utils.h"     // for StaticBatch
@@ -387,8 +387,7 @@ struct GPUHistMakerDevice {
     // Prepare for build hist
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    auto const& tree = p_tree->HostScView();
-    cuda_impl::AssignNodes(tree, candidates, build_nidx, subtraction_nidx,
+    cuda_impl::AssignNodes(*p_tree, candidates, build_nidx, subtraction_nidx,
                            [&](GPUExpandEntry const& e) {
                              auto const& q = (*this->quantiser)[0];
                              auto left_sum = q.ToFloatingPoint(e.split.left_sum);
