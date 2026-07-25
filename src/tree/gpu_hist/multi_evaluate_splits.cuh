@@ -12,8 +12,6 @@
 namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
-  using CatST = common::CatBitField::value_type;
-
  public:
   template <typename GradT>
   static XGBOOST_DEVICE common::Span<GradT> GetNodeSumImpl(common::Span<GradT> node_sums,
@@ -83,7 +81,7 @@ class MultiHistEvaluator {
   NodeSumBuffer split_sums_;
   // Category bit fields for evaluated nodes, indexed by node id. They must remain valid
   // while candidates are waiting in the loss-guide queue.
-  dh::DeviceUVector<CatST> split_cats_;
+  dh::DeviceUVector<CatWordT> split_cats_;
   std::size_t node_cat_storage_size_{0};
   // Whether any categorical feature requires partition-based evaluation.
   bool need_sort_histogram_{false};
@@ -147,7 +145,7 @@ class MultiHistEvaluator {
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
   }
-  [[nodiscard]] common::Span<CatST const> GetNodeCats(bst_node_t nidx) const {
+  [[nodiscard]] common::Span<CatWordT const> GetNodeCats(bst_node_t nidx) const {
     return dh::ToSpan(this->split_cats_)
         .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
