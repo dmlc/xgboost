@@ -55,9 +55,9 @@ from .compat import (
 from .config import config_context
 from .core import (
     Booster,
+    CustomObj,
     DMatrix,
     Metric,
-    PlainObj,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -71,6 +71,7 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
+from .objective import Objective
 from .training import train
 
 
@@ -123,10 +124,13 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
+SklObjectiveCallable = Union[_SklObjWProto, _SklObjProto]
+SklObjective = Optional[Union[str, Objective, SklObjectiveCallable]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
+def _objective_decorator(
+    func: Union[Objective, SklObjectiveCallable],
+) -> CustomObj:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -156,6 +160,9 @@ def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
     """
+
+    if isinstance(func, Objective):
+        return func
 
     parameters = signature(func).parameters
     supports_sw = "sample_weight" in parameters
@@ -1375,7 +1382,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1781,7 +1788,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:

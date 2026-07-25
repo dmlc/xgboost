@@ -582,12 +582,12 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   this->scan_buffer_.resize(total_hist_size * 2);
 
   // Create spans for each node's scan results
-  std::vector<common::Span<GradientPairInt64>> h_scans(n_nodes);
-  for (decltype(n_nodes) nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-    h_scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
-                               .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
-  }
-  dh::device_vector<common::Span<GradientPairInt64>> scans(h_scans);
+  dh::DeviceUVector<common::Span<GradientPairInt64>> scans(n_nodes);
+  auto in_scans = dh::ToSpan(this->scan_buffer_);
+  auto d_scans = dh::ToSpan(scans);
+  dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t nidx_in_set) {
+    d_scans[nidx_in_set] = in_scans.subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
+  });
 
   if (shared_inputs.cat_storage_size > 0) {
     this->AllocNodeCats(max_nidx, shared_inputs.cat_storage_size);
@@ -606,9 +606,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
     auto n_warps = n_nodes * n_targets * n_features;
     auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
-    dh::LaunchKernel{n_blocks, kBlockThreads}(  // NOLINT
-        ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, d_sorted_idx,
-        dh::ToSpan(scans));
+    dh::LaunchKernel{n_blocks, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
+        ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, d_sorted_idx, d_scans);
   }
 
   // Launch split evaluation kernel

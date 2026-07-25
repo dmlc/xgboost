@@ -1728,6 +1728,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
 
 
 PlainObj = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+CustomObj = Union[PlainObj, Objective]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
@@ -2195,7 +2196,7 @@ class Booster:
         self,
         dtrain: DMatrix,
         iteration: int,
-        fobj: Optional[PlainObj] = None,
+        fobj: Optional[CustomObj] = None,
     ) -> None:
         """Update for one iteration, with objective function calculated
         internally.
@@ -2240,7 +2241,7 @@ class Booster:
         *,
         grad: Optional[NumpyOrCupy] = None,
         hess: Optional[NumpyOrCupy] = None,
-        fobj: Optional[PlainObj] = None,
+        fobj: Optional[CustomObj] = None,
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
 

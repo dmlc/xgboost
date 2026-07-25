@@ -35,7 +35,7 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost.core import ArrayLike
-from xgboost.sklearn import SklObjective
+from xgboost.sklearn import SklObjectiveCallable
 
 from .._typing import PathLike
 from .data import (
@@ -545,7 +545,7 @@ def softmax(x: np.ndarray) -> np.ndarray:
 
 def softprob_obj(
     classes: int, use_cupy: bool = False, order: str = "C", gdtype: str = "float32"
-) -> SklObjective:
+) -> SklObjectiveCallable:
     """Custom softprob objective for testing.
 
     Parameters

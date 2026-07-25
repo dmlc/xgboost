@@ -298,6 +298,7 @@ class TestDistributedGPU:
         )
 
     @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_gpu_hist_multi_absolute_error(self, local_cuda_client: Client) -> None:
         check_multi_output_tree(local_cuda_client, "cuda")
 
