@@ -2,6 +2,7 @@
  * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/fill.h>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
@@ -235,6 +236,246 @@ void DoMGPURowSplitProperty(quantile_test::ContainerCase const& c) {
   quantile_test::ValidateContainerCuts(c, cuts, full_m.get(), columns);
 }
 
+}  // anonymous namespace
+
+TEST(GPUQuantileProperty, Invariants) {
+  for (auto const& c : quantile_test::ContainerAnchorCases()) {
+    SCOPED_TRACE(c.name);
+    DoGPUContainerProperty(c);
+  }
+}
+
+TEST(GPUQuantileProperty, RowSplit) {
+#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+  auto n_gpus = curt::AllVisibleGPUs();
+#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+  for (auto const& c : quantile_test::ContainerAnchorCases()) {
+#if defined(XGBOOST_USE_FEDERATED)
+    collective::TestFederatedGlobal(n_gpus, [&] {
+      SCOPED_TRACE(c.name);
+      DoMGPURowSplitProperty(c);
+    });
+#endif  // defined(XGBOOST_USE_FEDERATED)
+#if defined(XGBOOST_USE_NCCL)
+    collective::TestDistributedGlobal(
+        n_gpus,
+        [&] {
+          SCOPED_TRACE(c.name);
+          DoMGPURowSplitProperty(c);
+        },
+        false);
+#endif  // defined(XGBOOST_USE_NCCL)
+  }
+}
+
+TEST(GPUQuantile, EmptyPush) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr size_t kCols = 100, kBins = 256;
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, kBins, kCols, ctx.Device());
+  dh::caching_device_vector<Entry> entries;
+  dh::device_vector<bst_idx_t> cuts_ptr(kCols + 1);
+  thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
+  // Push empty
+  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), 0);
+  ASSERT_EQ(sketch.Data().size(), 0);
+}
+
+TEST(GPUQuantile, Prune) {
+  constexpr size_t kRows = 64, kCols = 3;
+  for (auto n_bins : {8, 16, 80}) {
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+    auto batch = MakeSyntheticBatch(kRows, kCols, 0, false, true, 0);
+    sketch.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), kRows, {});
+
+    sketch.Prune(&ctx, n_bins);
+    ASSERT_LE(sketch.Data().size(), static_cast<std::size_t>(n_bins) * kCols);
+    auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
+  }
+}
+
+TEST(GPUQuantile, MergeEmpty) {
+  constexpr size_t kRows = 1000, kCols = 100;
+  size_t n_bins = 10;
+  auto ctx = MakeCUDACtx(0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+  auto batch = MakeSyntheticBatch(kRows, kCols, 0, false, false);
+  sketch_0.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), batch.rows, {});
+
+  auto before = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  thrust::device_vector<size_t> columns_ptr(kCols + 1);
+  // Merge an empty sketch
+  sketch_0.Merge(&ctx, dh::ToSpan(columns_ptr), Span<SketchEntry>{});
+
+  auto after = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  ASSERT_EQ(before.columns_ptr, after.columns_ptr);
+  ASSERT_EQ(before.data.size(), after.data.size());
+  for (size_t i = 0; i < before.data.size(); ++i) {
+    EXPECT_FLOAT_EQ(before.data[i].value, after.data[i].value);
+    EXPECT_FLOAT_EQ(before.data[i].rmin, after.data[i].rmin);
+    EXPECT_FLOAT_EQ(before.data[i].rmax, after.data[i].rmax);
+    EXPECT_FLOAT_EQ(before.data[i].wmin, after.data[i].wmin);
+  }
+}
+
+TEST(GPUQuantile, MergeBasic) {
+  constexpr size_t kRows = 1000, kCols = 100;
+  for (auto n_bins : {bst_bin_t{2}, bst_bin_t{16}, static_cast<bst_bin_t>(kRows + 160)}) {
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<FeatureType> ft;
+
+    SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+    auto unweighted_0 = MakeSyntheticBatch(kRows, kCols, 7, false, false, 0);
+    auto weighted_0 = MakeSyntheticBatch(kRows, kCols, 11, true, false, 1);
+    sketch_0.Push(&ctx, dh::ToSpan(unweighted_0.entries), dh::ToSpan(unweighted_0.columns_ptr),
+                  unweighted_0.rows, dh::ToSpan(unweighted_0.weights_scan));
+    sketch_0.Push(&ctx, dh::ToSpan(weighted_0.entries), dh::ToSpan(weighted_0.columns_ptr),
+                  weighted_0.rows, dh::ToSpan(weighted_0.weights_scan));
+
+    SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+    auto unweighted_1 = MakeSyntheticBatch(kRows, kCols, 13, false, false, 2);
+    auto weighted_1 = MakeSyntheticBatch(kRows, kCols, 17, true, false, 3);
+    sketch_1.Push(&ctx, dh::ToSpan(unweighted_1.entries), dh::ToSpan(unweighted_1.columns_ptr),
+                  unweighted_1.rows, dh::ToSpan(unweighted_1.weights_scan));
+    sketch_1.Push(&ctx, dh::ToSpan(weighted_1.entries), dh::ToSpan(weighted_1.columns_ptr),
+                  weighted_1.rows, dh::ToSpan(weighted_1.weights_scan));
+
+    size_t size_before_merge = sketch_0.Data().size();
+    size_t rhs_size = sketch_1.Data().size();
+    sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+    auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
+    ASSERT_LE(h_sketch.data.size(), rhs_size + size_before_merge);
+  }
+}
+
+TEST(GPUQuantile, MergeDuplicated) {
+  size_t n_bins = 256;
+  constexpr size_t kRows = 1000, kCols = 100;
+  for (float frac = 0.5; frac < 2.5; frac += 0.5) {
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+    auto batch_0 = MakeSyntheticBatch(kRows, kCols, 0, false, false);
+    sketch_0.Push(&ctx, dh::ToSpan(batch_0.entries), dh::ToSpan(batch_0.columns_ptr), batch_0.rows,
+                  {});
+
+    size_t f_rows = kRows * frac;
+    SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+    auto batch_1 = MakeSyntheticBatch(f_rows, kCols, 0, false, true);
+    sketch_1.Push(&ctx, dh::ToSpan(batch_1.entries), dh::ToSpan(batch_1.columns_ptr), batch_1.rows,
+                  {});
+
+    size_t size_before_merge = sketch_0.Data().size();
+    size_t rhs_size = sketch_1.Data().size();
+    sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+    auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
+    ASSERT_LE(h_sketch.data.size(), rhs_size + size_before_merge);
+  }
+}
+
+TEST(GPUQuantile, MergeCategorical) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 2;
+  bst_bin_t n_bins = 16;
+
+  HostDeviceVector<FeatureType> ft;
+  ft.HostVector() = {FeatureType::kCategorical, FeatureType::kNumerical};
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+  SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+
+  auto batch_0 = MakeEntryBatch({{0.0f, 0.0f, 1.0f, 2.0f, 2.0f}, {0.1f, 0.2f, 0.4f}});
+  auto batch_1 = MakeEntryBatch({{1.0f, 1.0f, 2.0f, 3.0f, 3.0f}, {0.15f, 0.25f, 0.5f}});
+
+  sketch_0.Push(&ctx, dh::ToSpan(batch_0.entries), dh::ToSpan(batch_0.columns_ptr), batch_0.rows,
+                {});
+  sketch_1.Push(&ctx, dh::ToSpan(batch_1.entries), dh::ToSpan(batch_1.columns_ptr), batch_1.rows,
+                {});
+
+  sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+  auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  ValidateSketchInvariants(h_sketch);
+
+  auto cat_column = Span<SketchEntry const>{h_sketch.data}.subspan(h_sketch.columns_ptr[0],
+                                                                   h_sketch.columns_ptr[1]);
+  ASSERT_EQ(cat_column.size(), 4);
+  EXPECT_FLOAT_EQ(cat_column[0].value, 0.0f);
+  EXPECT_FLOAT_EQ(cat_column[1].value, 1.0f);
+  EXPECT_FLOAT_EQ(cat_column[2].value, 2.0f);
+  EXPECT_FLOAT_EQ(cat_column[3].value, 3.0f);
+}
+
+TEST(GPUQuantile, MergeSameValue) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 1;
+  bst_bin_t n_bins = 16;
+
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+  SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+
+  auto batch = MakeEntryBatch({{0.5f}});
+  sketch_0.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), batch.rows, {});
+  sketch_1.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), batch.rows, {});
+
+  sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+
+  auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  ValidateSketchInvariants(h_sketch);
+  ASSERT_EQ(h_sketch.columns_ptr, (std::vector<bst_idx_t>{0, 1}));
+  ASSERT_EQ(h_sketch.data.size(), 1);
+  EXPECT_FLOAT_EQ(h_sketch.data.front().value, 0.5f);
+  EXPECT_FLOAT_EQ(h_sketch.data.front().rmin, 0.0f);
+  EXPECT_FLOAT_EQ(h_sketch.data.front().wmin, 2.0f);
+  EXPECT_FLOAT_EQ(h_sketch.data.front().rmax, 2.0f);
+}
+
+TEST(GPUQuantile, MergeMatchesCpuCombine) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 1;
+  bst_bin_t n_bins = 16;
+
+  auto lhs = MakeHostSummary({{0.1f, 1.0f}, {0.3f, 2.0f}, {0.5f, 1.0f}});
+  auto rhs = MakeHostSummary({{0.3f, 1.5f}, {0.4f, 1.0f}, {0.5f, 0.5f}});
+
+  common::WQSummaryContainer expected;
+  expected.Reserve(lhs.Size() + rhs.Size());
+  expected.CopyFrom(lhs);
+  expected.SetCombine(rhs);
+
+  auto lhs_entries = CopySummaryEntries(lhs);
+  auto rhs_entries = CopySummaryEntries(rhs);
+
+  dh::device_vector<SketchEntry> d_lhs{lhs_entries};
+  dh::device_vector<SketchEntry> d_rhs{rhs_entries};
+  dh::device_vector<size_t> lhs_ptr{0, lhs.Size()};
+  dh::device_vector<size_t> rhs_ptr{0, rhs.Size()};
+
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+  sketch.Merge(&ctx, dh::ToSpan(lhs_ptr), dh::ToSpan(d_lhs));
+  sketch.Merge(&ctx, dh::ToSpan(rhs_ptr), dh::ToSpan(d_rhs));
+
+  auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
+  ValidateSketchInvariants(h_sketch);
+  ASSERT_EQ(h_sketch.columns_ptr,
+            (std::vector<bst_idx_t>{0, static_cast<bst_idx_t>(expected.Size())}));
+  auto expected_entries = expected.Entries();
+  ASSERT_EQ(h_sketch.data.size(), expected_entries.size());
+  for (std::size_t i = 0; i < h_sketch.data.size(); ++i) {
+    EXPECT_FLOAT_EQ(h_sketch.data[i].value, expected_entries[i].value);
+    EXPECT_FLOAT_EQ(h_sketch.data[i].rmin, expected_entries[i].rmin);
+    EXPECT_FLOAT_EQ(h_sketch.data[i].rmax, expected_entries[i].rmax);
+    EXPECT_FLOAT_EQ(h_sketch.data[i].wmin, expected_entries[i].wmin);
+  }
+}
+
+namespace {
 void TestSameOnAllWorkers() {
   constexpr size_t kRows = 1000, kCols = 100;
   for (auto n_bins : {bst_bin_t{2}, bst_bin_t{16}, static_cast<bst_bin_t>(kRows + 160)}) {
