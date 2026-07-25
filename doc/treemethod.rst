@@ -5,7 +5,7 @@ Tree Methods
 For training boosted tree models, there are 2 parameters used for choosing algorithms,
 namely ``updater`` and ``tree_method``.  XGBoost has 3 builtin tree methods, namely
 ``exact``, ``approx`` and ``hist``.  Along with these tree methods, there are also some
-free standing updaters including ``refresh``, ``prune`` and ``sync``.  The parameter
+free standing updaters including ``refresh`` and ``prune``.  The parameter
 ``updater`` is more primitive than ``tree_method`` as the latter is just a
 pre-configuration of the former.  The difference is mostly due to historical reasons that
 each updater requires some specific configurations and might have missing features.  As we
