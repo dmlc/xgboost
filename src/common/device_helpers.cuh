@@ -83,9 +83,9 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
-          std::enable_if_t<std::is_same_v<size_t, T> && !std::is_same_v<size_t, unsigned long long>>
-              * =  // NOLINT
-          nullptr>
+          std::enable_if_t<std::is_same_v<size_t, T> &&
+                           !std::is_same_v<size_t, unsigned long long>>  // NOLINT
+              * = nullptr>
 XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
@@ -511,8 +511,8 @@ XGBOOST_DEVICE auto trend(xgboost::common::Span<T> &span) {  // NOLINT
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(
-    xgboost::common::Span<T> const &span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(  // NOLINT
+    xgboost::common::Span<T> const &span) {
   return thrust::device_ptr<T const>(span.data());
 }
 
