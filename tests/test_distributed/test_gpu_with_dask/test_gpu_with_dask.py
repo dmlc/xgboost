@@ -12,7 +12,6 @@ import pytest
 import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
-from packaging.version import parse as parse_version
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
@@ -51,7 +50,8 @@ from dask_cuda import LocalCUDACluster
 from xgboost import dask as dxgb
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree,
+    check_multi_output_tree_mae,
+    check_multi_output_tree_shap,
     check_uneven_nan,
 )
 
@@ -299,8 +299,12 @@ class TestDistributedGPU:
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask_cudf())
-    def test_gpu_hist_multi_absolute_error(self, local_cuda_client: Client) -> None:
-        check_multi_output_tree(local_cuda_client, "cuda")
+    def test_gpu_hist_multi_mae(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_mae(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi_shap(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_shap(local_cuda_client, "cuda")
 
     @given(
         params=hist_parameter_strategy,
