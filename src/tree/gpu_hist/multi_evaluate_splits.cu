@@ -1,9 +1,11 @@
 /**
  * Copyright 2025-2026, XGBoost contributors
  */
-#include <thrust/logical.h>  // for any_of
-#include <thrust/reduce.h>   // for reduce_by_key, reduce
-#include <thrust/sort.h>     // for stable_sort_by_key
+#include <thrust/iterator/counting_iterator.h>   // for make_counting_iterator
+#include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
+#include <thrust/logical.h>                      // for any_of
+#include <thrust/reduce.h>                       // for reduce_by_key, reduce
+#include <thrust/sort.h>                         // for stable_sort_by_key
 
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
@@ -123,11 +125,10 @@ struct ScanHistogramAgent {
 
 // The scan kernel reads from target-major histogram layout and writes the bin-major scan
 // buffer. This helps us keep a reference to the bin in the split candidate.
-template <std::int32_t kBlockThreads>
+template <std::int32_t kBlockThreads, typename OutputBinScans>
 __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
-    common::Span<std::size_t const> sorted_idx,
-    common::Span<common::Span<GradientPairInt64>> outputs) {
+    common::Span<std::size_t const> sorted_idx, OutputBinScans outputs) {
   static_assert(kBlockThreads % dh::WarpThreads() == 0);
 
   constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
@@ -383,11 +384,10 @@ struct EvaluateSplitAgent {
 // Find the best split based on the scan result
 //
 // The scan buffer has a bin-major layout.
-template <std::int32_t kBlockThreads>
+template <std::int32_t kBlockThreads, typename BinScans>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
-    common::Span<common::Span<GradientPairInt64>> bin_scans,
-    TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
+    BinScans bin_scans, TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
     common::Span<MultiSplitCandidate> out_candidates) {
   static_assert(kBlockThreads % dh::WarpThreads() == 0);
 
@@ -581,13 +581,14 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   this->scan_buffer_.resize(total_hist_size * 2);
 
   // Create spans for each node's scan results
-  dh::DeviceUVector<common::Span<GradientPairInt64>> scans(n_nodes);
   auto in_scans = dh::ToSpan(this->scan_buffer_);
-  auto d_scans = dh::ToSpan(scans);
-  dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t nidx_in_set) {
-    d_scans[nidx_in_set] = in_scans.subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
-  });
-
+  auto d_scans = common::IterSpan{
+      thrust::make_transform_iterator(
+          thrust::make_counting_iterator(0ul),
+          [=] XGBOOST_DEVICE(std::size_t nidx_in_set) -> common::Span<GradientPairInt64> {
+            return in_scans.subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
+          }),
+      n_nodes};
   if (shared_inputs.cat_storage_size > 0) {
     this->AllocNodeCats(max_nidx, shared_inputs.cat_storage_size);
   }
@@ -606,7 +607,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto n_warps = n_nodes * n_targets * n_features;
     auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
     dh::LaunchKernel{n_blocks, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
-        ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, d_sorted_idx, d_scans);
+        ScanHistogramKernel<kBlockThreads, decltype(d_scans)>, d_inputs, shared_inputs,
+        d_sorted_idx, d_scans);
   }
 
   // Launch split evaluation kernel
@@ -617,8 +619,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto n_warps = n_nodes * n_features;
     auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
     dh::LaunchKernel{n_blocks, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
-        EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans), evaluator,
-        dh::ToSpan(d_splits));
+        EvaluateSplitsKernel<kBlockThreads, decltype(d_scans)>, d_inputs, shared_inputs, d_scans,
+        evaluator, dh::ToSpan(d_splits));
   }
 
   // Find best split for each node
