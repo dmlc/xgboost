@@ -95,7 +95,7 @@ from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
-from ..compat import _is_cudf_df, _is_cupy_alike
+from ..compat import _is_cudf_df, _is_cudf_ser, _is_cupy_alike
 from ..core import (
     Booster,
     CustomObj,
@@ -1722,29 +1722,40 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         )
 
         # pylint: disable=attribute-defined-outside-init
-        if isinstance(y, da.Array):
-            labels = y
+        if isinstance(y, dd.Series) or (
+            isinstance(y, dd.DataFrame) and len(y.columns) == 1
+        ):
+            labels_series = y if isinstance(y, dd.Series) else y[y.columns[0]]
+            # The result is collected on the client, so avoid a distributed shuffle
+            # using only 1 output partition.
+            classes = labels_series.drop_duplicates(split_out=1)
         else:
-            labels = y.to_dask_array()
-        if labels.ndim == 2:
-            n_columns = labels.shape[1]
-            assert isinstance(n_columns, int)
-            row_chunks = tuple(chunk * n_columns for chunk in labels.chunks[0])
+            labels = y if isinstance(y, da.Array) else y.to_dask_array()
+            if labels.ndim == 2:
+                n_columns = labels.shape[1]
+                assert isinstance(n_columns, int)
+                row_chunks = tuple(chunk * n_columns for chunk in labels.chunks[0])
 
-            def flatten(block: Any) -> Any:
-                return block.reshape(-1)
+                def flatten(block: Any) -> Any:
+                    return block.reshape(-1)
 
-            labels = da.map_blocks(
-                flatten,
-                labels,
-                chunks=(row_chunks,),
-                drop_axis=1,
-                dtype=labels.dtype,
-            )
-        self.classes_ = await self.client.compute(da.unique(labels))
+                # Use map_blocks to keep the computation lazy, we that we don't go
+                # through the data twice (shape and unique).
+                labels = da.map_blocks(
+                    flatten,
+                    labels,
+                    chunks=(row_chunks,),
+                    drop_axis=1,
+                    dtype=labels.dtype,
+                )
+            classes = da.unique(labels)
+        self.classes_ = await self.client.compute(classes)
+
+        if _is_cudf_ser(self.classes_):
+            self.classes_ = self.classes_.to_cupy()
         if _is_cupy_alike(self.classes_):
             self.classes_ = self.classes_.get()
-        self.classes_ = numpy.array(self.classes_)
+        self.classes_ = numpy.unique(numpy.asarray(self.classes_))
         self.n_classes_ = len(self.classes_)
 
         if self.n_classes_ > 2:
