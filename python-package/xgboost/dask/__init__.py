@@ -109,11 +109,11 @@ from ..core import (
 )
 from ..sklearn import (
     XGBClassifier,
-    XGBClassifierBase,
+    XGBClassifierMixIn,
     XGBModel,
     XGBRanker,
     XGBRankerMixIn,
-    XGBRegressorBase,
+    XGBRegressorMixIn,
     _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
@@ -1585,7 +1585,7 @@ class DaskScikitLearnBase(XGBModel):
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost.""", ["estimators", "model"]
 )
-class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
+class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
     """dummy doc string to workaround pylint, replaced by the decorator."""
 
     async def _fit_async(
@@ -1679,7 +1679,7 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
+class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
@@ -1750,14 +1750,14 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
                     dtype=labels.dtype,
                 )
             classes = da.unique(labels)
-        self.classes_ = await self.client.compute(classes)
+        classes = await self.client.compute(classes)
 
-        if _is_cudf_ser(self.classes_):
-            self.classes_ = self.classes_.to_cupy()
-        if _is_cupy_alike(self.classes_):
-            self.classes_ = self.classes_.get()
-        self.classes_ = numpy.unique(numpy.asarray(self.classes_))
-        self.n_classes_ = len(self.classes_)
+        if _is_cudf_ser(classes):
+            classes = classes.to_cupy()
+        if _is_cupy_alike(classes):
+            classes = classes.get()
+        classes = numpy.unique(numpy.asarray(classes))
+        self.n_classes_ = len(classes)
 
         if self.n_classes_ > 2:
             params["objective"] = "multi:softprob"

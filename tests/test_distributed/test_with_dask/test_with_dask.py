@@ -1958,6 +1958,7 @@ class TestWithDask:
         cls = dxgb.DaskXGBClassifier()
         cls.load_model(path)
         assert cls.n_classes_ == 10
+        np.testing.assert_array_equal(cls.classes_, np.arange(cls.n_classes_))
         predt_2 = cls.predict(X)
         proba_2 = cls.predict_proba(X)
 

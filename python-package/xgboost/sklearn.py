@@ -84,6 +84,45 @@ class XGBRankerMixIn:
     _estimator_type = "ranker"
 
 
+class XGBClassifierMixIn(XGBClassifierBase):
+    """Metadata shared by the single-node and Dask classifier estimators."""
+
+    n_classes_: int
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multilabel"] = True
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.classifier_tags.multi_label = tags_dict["multilabel"]
+        return tags
+
+    @property
+    def classes_(self) -> np.ndarray:
+        """Classes represented by this estimator."""
+        return np.arange(self.n_classes_)
+
+
+class XGBRegressorMixIn(XGBRegressorBase):
+    """Metadata shared by the single-node and Dask regressor estimators."""
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multioutput"] = True
+        tags["multioutput_only"] = False
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.target_tags.multi_output = tags_dict["multioutput"]
+        tags.target_tags.single_output = not tags_dict["multioutput_only"]
+        return tags
+
+
 def _check_rf_callback(
     early_stopping_rounds: Optional[int],
     callbacks: Optional[Sequence[TrainingCallback]],
@@ -1713,7 +1752,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBClassifierBase, XGBModel):
+class XGBClassifier(XGBClassifierMixIn, XGBModel):
     # pylint: disable=missing-docstring,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1723,17 +1762,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         **kwargs: Any,
     ) -> None:
         super().__init__(objective=objective, **kwargs)
-
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multilabel"] = True
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.classifier_tags.multi_label = tags_dict["multilabel"]
-        return tags
 
     @_deprecate_positional_args
     def fit(
@@ -1945,10 +1973,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         )
         return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
 
-    @property
-    def classes_(self) -> np.ndarray:
-        return np.arange(self.n_classes_)
-
 
 @xgboost_model_doc(
     """scikit-learn API for XGBoost random forest classification.
@@ -2021,26 +2045,13 @@ class XGBRFClassifier(XGBClassifier):
     "Implementation of the scikit-learn API for XGBoost regression.",
     ["estimators", "model", "objective"],
 )
-class XGBRegressor(XGBRegressorBase, XGBModel):
+class XGBRegressor(XGBRegressorMixIn, XGBModel):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
         self, *, objective: SklObjective = "reg:squarederror", **kwargs: Any
     ) -> None:
         super().__init__(objective=objective, **kwargs)
-
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multioutput"] = True
-        tags["multioutput_only"] = False
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.target_tags.multi_output = tags_dict["multioutput"]
-        tags.target_tags.single_output = not tags_dict["multioutput_only"]
-        return tags
 
 
 @xgboost_model_doc(
