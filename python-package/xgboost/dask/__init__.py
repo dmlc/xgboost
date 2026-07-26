@@ -69,6 +69,7 @@ from typing import (
     List,
     Optional,
     ParamSpec,
+    Self,
     Sequence,
     Set,
     Tuple,
@@ -1600,7 +1601,7 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-    ) -> _DaskCollection:
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights
@@ -1693,7 +1694,7 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-    ) -> "DaskXGBClassifier":
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights
@@ -1739,7 +1740,7 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
                 def flatten(block: Any) -> Any:
                     return block.reshape(-1)
 
-                # Use map_blocks to keep the computation lazy, we that we don't go
+                # Use map_blocks to keep the computation lazy, so that we don't go
                 # through the data twice (shape and unique).
                 labels = da.map_blocks(
                     flatten,
@@ -1950,7 +1951,7 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[XGBModel, Booster]],
         feature_weights: Optional[_DaskCollection],
-    ) -> "DaskXGBRanker":
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights

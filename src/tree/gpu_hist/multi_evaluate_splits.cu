@@ -14,7 +14,6 @@
 #include <limits>                    // for numeric_limits
 #include <memory>                    // for make_unique
 #include <type_traits>               // for is_trivially_copyable_v
-#include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
