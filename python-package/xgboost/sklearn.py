@@ -103,6 +103,9 @@ class XGBClassifierMixIn(XGBClassifierBase):
     @property
     def classes_(self) -> np.ndarray:
         """Classes represented by this estimator."""
+        from sklearn.utils.validation import check_is_fitted
+
+        check_is_fitted(self, "n_classes_")
         return np.arange(self.n_classes_)
 
 
