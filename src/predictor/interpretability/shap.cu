@@ -7,13 +7,10 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdlib>
 #include <cuda/std/utility>  // for swap
 #include <cuda/std/variant>  // for variant
 #include <limits>
-#include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -25,7 +22,6 @@
 #include "../../common/device_helpers.cuh"
 #include "../../common/math.h"
 #include "../../common/nvtx_utils.h"
-#include "../../common/optional_weight.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
 #include "../../data/cat_container.cuh"  // for EncPolicy, MakeCatAccessor
 #include "../../data/cat_container.h"    // for NoOpAccessor
@@ -369,12 +365,6 @@ XGBOOST_DEVICE inline float ExtractQuadratureInteractionDeltaLocal(float quad_no
   return alpha_partner * edge_delta_local / (1.0f + alpha_partner * quad_node);
 }
 
-template <typename Loader>
-struct IsSparsePageLoaderNoShared : std::false_type {};
-
-template <typename EncAccessor>
-struct IsSparsePageLoaderNoShared<SparsePageLoaderNoShared<EncAccessor>> : std::true_type {};
-
 // Encapsulate the tail-tile versus full-tile differences so the traversal code can focus on
 // probability updates instead of mask plumbing.
 template <bool kHasRowMask>
@@ -447,7 +437,7 @@ struct SubgroupOps {
 
 // Wrap the shared-memory layout in semantic accessors so the task runner talks in terms of path
 // state instead of raw multidimensional indexing.
-template <int DepthCap, bool kUseQPrevCache>
+template <int DepthCap>
 struct QuadratureSharedState {
   bst_node_t nodes[kGpuQuadratureWarpsPerBlock][DepthCap];
   std::uint8_t stages[kGpuQuadratureWarpsPerBlock][DepthCap];
@@ -457,8 +447,6 @@ struct QuadratureSharedState {
   // G_d(t): multiplicative basis carried down the path before the leaf value is applied.
   float basis[kGpuQuadratureWarpsPerBlock][kGpuQuadratureRowsPerWarp][DepthCap]
              [kGpuQuadraturePoints];
-  float q_prev_cache[kUseQPrevCache ? kGpuQuadratureWarpsPerBlock : 1]
-                    [kUseQPrevCache ? kGpuQuadratureRowsPerWarp : 1][kUseQPrevCache ? DepthCap : 1];
 
   [[nodiscard]] XGBOOST_DEV_INLINE bst_node_t& Node(int warp, int depth) {
     return nodes[warp][depth];
@@ -494,22 +482,6 @@ struct QuadratureSharedState {
 
   [[nodiscard]] XGBOOST_DEV_INLINE float& Basis(int warp, int row_slot, int depth, int point) {
     return basis[warp][row_slot][depth][point];
-  }
-
-  [[nodiscard]] XGBOOST_DEV_INLINE float LoadQPrev(int warp, int row_slot, int depth,
-                                                   std::uint8_t prev_same_offset_plus1) const {
-    if constexpr (kUseQPrevCache) {
-      return q_prev_cache[warp][row_slot][depth];
-    } else {
-      return PreviousPathProbability(prev_same_offset_plus1, depth,
-                                     this->PathProbabilityRow(warp, row_slot));
-    }
-  }
-
-  XGBOOST_DEV_INLINE void StoreQPrev(int warp, int row_slot, int depth, float q_prev) {
-    if constexpr (kUseQPrevCache) {
-      q_prev_cache[warp][row_slot][depth] = q_prev;
-    }
   }
 };
 
@@ -579,7 +551,8 @@ struct QuadratureShapTaskRunner {
     float q_prev = 1.0f;
     if (subgroup.is_leader && subgroup.RowActive()) {
       p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = shared.LoadQPrev(warp, subgroup.row_slot, parent_depth, node.prev_same_offset_plus1);
+      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
     }
     p_enter = subgroup.Broadcast(p_enter);
     q_prev = subgroup.Broadcast(q_prev);
@@ -672,7 +645,6 @@ struct QuadratureShapTaskRunner {
         q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
       }
-      shared.StoreQPrev(warp, subgroup.row_slot, depth, q_prev);
     }
     q_prev = subgroup.Broadcast(q_prev);
 
@@ -841,7 +813,8 @@ struct QuadratureShapInteractionTaskRunner {
     float q_prev = 1.0f;
     if (subgroup.is_leader && subgroup.RowActive()) {
       p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = shared.LoadQPrev(warp, subgroup.row_slot, parent_depth, node.prev_same_offset_plus1);
+      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
     }
     p_enter = subgroup.Broadcast(p_enter);
     q_prev = subgroup.Broadcast(q_prev);
@@ -935,7 +908,6 @@ struct QuadratureShapInteractionTaskRunner {
         q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
       }
-      shared.StoreQPrev(warp, subgroup.row_slot, depth, q_prev);
     }
     q_prev = subgroup.Broadcast(q_prev);
 
@@ -1011,8 +983,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap>;
 
   __shared__ SharedT shared;
 
@@ -1112,8 +1083,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap>;
 
   __shared__ SharedT shared;
 
