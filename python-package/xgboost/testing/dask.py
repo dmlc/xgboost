@@ -263,9 +263,10 @@ def check_multi_output_tree(  # pylint: disable=too-many-locals,too-many-stateme
 
     y_ind = (y > 0.0).astype(np.int32)
     check_classifier(y_ind)
+    y_df = dd.from_dask_array(y_ind)
     if device == "cuda":
-        y_df = dd.from_dask_array(y_ind).to_backend("cudf")
-        check_classifier(y_df)
+        y_df = y_df.to_backend("cudf")
+    check_classifier(y_df)
 
 
 def check_external_memory(  # pylint: disable=too-many-locals

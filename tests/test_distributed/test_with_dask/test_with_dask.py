@@ -81,17 +81,20 @@ def generate_array(
     return X, y, None
 
 
-@pytest.mark.parametrize("to_frame", [True, False])
-def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client") -> None:
+@pytest.mark.parametrize("label_type", ["array", "series", "dataframe"])
+def test_xgbclassifier_classes_type_and_value(
+    label_type: Literal["array", "series", "dataframe"], client: "Client"
+) -> None:
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
-    if to_frame:
+    if label_type != "array":
         import pandas as pd
 
         feats = [f"var_{i}" for i in range(4)]
         df = pd.DataFrame(X, columns=feats)
         df["target"] = y
         df = dd.from_pandas(df, npartitions=1)
-        X, y = df[feats], df["target"]
+        X = df[feats]
+        y = df[["target"]] if label_type == "dataframe" else df["target"]
     else:
         X = da.from_array(X)
         y = da.from_array(y)

@@ -124,22 +124,18 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjectiveCallable = Union[_SklObjWProto, _SklObjProto]
-SklObjective = Optional[Union[str, Objective, SklObjectiveCallable]]
+SklObjectiveCallable = Union[Objective, _SklObjWProto, _SklObjProto]
+SklObjective = Optional[Union[str, SklObjectiveCallable]]
 
 
-def _objective_decorator(
-    func: Union[Objective, SklObjectiveCallable],
-) -> CustomObj:
-    """Decorate an objective function
-
-    Converts an objective function using the typical sklearn metrics
-    signature so that it is usable with ``xgboost.training.train``
+def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
+    """Decorate or forward a custom objective.
 
     Parameters
     ----------
     func:
-        Expects a callable with signature ``func(y_true, y_pred)``:
+        An :py:class:`Objective` instance or a callable with signature
+        ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
             The target values
@@ -151,14 +147,15 @@ def _objective_decorator(
     Returns
     -------
     new_func:
-        The new objective function as expected by ``xgboost.training.train``.
-        The signature is ``new_func(preds, dmatrix)``:
+        The original :py:class:`Objective` or a function with the signature
+        ``new_func(preds, dmatrix)``:
 
         preds: array_like, shape [n_samples]
             The predicted values
         dmatrix: ``DMatrix``
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
+
     """
 
     if isinstance(func, Objective):
@@ -285,7 +282,7 @@ __model_doc = f"""
     objective : {SklObjective}
 
         Specify the learning task and the corresponding learning objective or a custom
-        objective function to be used.
+        objective to be used.
 
         For custom objective, see :doc:`/tutorials/custom_metric_obj` and
         :ref:`custom-obj-metric` for more information, along with the end note for
