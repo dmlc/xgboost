@@ -612,7 +612,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Launch split evaluation kernel
-  dh::device_vector<MultiSplitCandidate> d_splits(n_nodes * n_features);
+  dh::DeviceUVector<MultiSplitCandidate> d_splits(n_nodes * n_features, MultiSplitCandidate{},
+                                                  ctx->CUDACtx()->Stream());
   {
     std::uint32_t constexpr kBlockThreads = 512;
     constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
@@ -636,7 +637,9 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     // Returns nidx_in_set
     return i / n_features;
   });
-  dh::device_vector<MultiSplitCandidate> best_splits(out_splits.size());
+  dh::DeviceUVector<MultiSplitCandidate> best_splits(out_splits.size(), MultiSplitCandidate{},
+                                                     ctx->CUDACtx()->Stream());
+
   thrust::reduce_by_key(
       ctx->CUDACtx()->CTP(), key_it, key_it + s_d_splits.size(), dh::tcbegin(s_d_splits),
       thrust::make_discard_iterator(), best_splits.begin(), std::equal_to{},

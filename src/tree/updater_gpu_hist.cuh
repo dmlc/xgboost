@@ -559,10 +559,10 @@ class MultiTargetHistMaker {
     }
     xgboost_NVTX_FN_RANGE();
 
-    dh::device_vector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
-    dh::device_vector<MultiExpandEntry> outputs(2 * candidates.size());
+    dh::DeviceUVector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
+    dh::DeviceUVector<MultiExpandEntry> outputs(2 * candidates.size());
 
-    std::vector<MultiEvaluateSplitInputs> h_node_inputs(candidates.size() * 2);
+    std::vector<MultiEvaluateSplitInputs> h_node_inputs(inputs.size());
 
     // Store the feature set ptrs so they don't go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
@@ -603,14 +603,14 @@ class MultiTargetHistMaker {
                                      static_cast<std::size_t>(max_active_feature)});
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
-    dh::safe_cuda(cudaMemcpyAsync(inputs.data().get(), h_node_inputs.data(),
+    dh::safe_cuda(cudaMemcpyAsync(inputs.data(), h_node_inputs.data(),
                                   common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
                                   cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
 
     auto shared_inputs = MakeSharedInputs(max_active_feature);
     this->evaluator_.EvaluateSplits(this->ctx_, dh::ToSpan(inputs), shared_inputs, max_nidx,
                                     dh::ToSpan(outputs));
-    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data().get(),
+    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data(),
                                   pinned_candidates_out.size_bytes(), cudaMemcpyDefault,
                                   ctx_->CUDACtx()->Stream()));
   }
