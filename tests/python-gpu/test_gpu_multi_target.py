@@ -1,6 +1,7 @@
 """Tests for the CUDA implementation of multi-target."""
 
 # pylint: disable=too-many-positional-arguments,missing-function-docstring
+import sys
 from typing import Any, Callable, Dict, Optional
 
 import numpy as np
@@ -112,7 +113,7 @@ def test_reduced_grad() -> None:
 
 
 def test_with_iter() -> None:
-    if build_info().get("USE_RMM", False) is True:
+    if build_info().get("USE_RMM", False) is True or sys.platform.startswith("win"):
         with config_context(use_rmm=True):
             run_with_iter("cuda")
     else:
