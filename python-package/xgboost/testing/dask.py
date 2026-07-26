@@ -148,10 +148,8 @@ def _train_multi_output_tree(
     return X, y, Xy, result
 
 
-def check_multi_output_tree_mae(  # pylint: disable=too-many-locals,too-many-statements
-    client: Client, device: Device
-) -> None:
-    """Test Dask vector-leaf MAE with train and sklearn-style APIs."""
+def check_multi_output_tree_regressor(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf regression with train and sklearn-style APIs."""
     tolerance = 1e-3
     X, y, Xy, result = _train_multi_output_tree(client, device)
     n_targets = y.shape[1]
@@ -201,6 +199,12 @@ def check_multi_output_tree_mae(  # pylint: disable=too-many-locals,too-many-sta
         predt = _as_numpy(reg.predict(X).compute())
         assert predt.shape == (X.shape[0], n_targets)
         assert np.isfinite(predt).all()
+
+
+def check_multi_output_tree_classifier(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf classification with array and dataframe labels."""
+    n_targets = 3
+    X, y = make_multi_output_regression(device, n_targets=n_targets)
 
     def check_classifier(labels: Union[da.Array, dd.DataFrame]) -> None:
         clf = dxgb.DaskXGBClassifier(

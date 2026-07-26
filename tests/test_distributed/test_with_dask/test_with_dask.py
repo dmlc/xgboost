@@ -33,7 +33,8 @@ from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree_mae,
+    check_multi_output_tree_classifier,
+    check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
     check_uneven_nan,
     get_rabit_args,
@@ -1487,8 +1488,11 @@ class TestWithDask:
         params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
-    def test_hist_multi_mae(self, client: "Client") -> None:
-        check_multi_output_tree_mae(client, "cpu")
+    def test_hist_multi_regressor(self, client: "Client") -> None:
+        check_multi_output_tree_regressor(client, "cpu")
+
+    def test_hist_multi_classifier(self, client: "Client") -> None:
+        check_multi_output_tree_classifier(client, "cpu")
 
     def test_hist_multi_shap(self, client: "Client") -> None:
         check_multi_output_tree_shap(client, "cpu")

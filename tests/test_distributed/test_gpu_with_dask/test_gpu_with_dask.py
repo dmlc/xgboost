@@ -50,7 +50,8 @@ from dask_cuda import LocalCUDACluster
 from xgboost import dask as dxgb
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree_mae,
+    check_multi_output_tree_classifier,
+    check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
     check_uneven_nan,
 )
@@ -298,9 +299,13 @@ class TestDistributedGPU:
         )
 
     @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi_regressor(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_regressor(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask_cudf())
-    def test_gpu_hist_multi_mae(self, local_cuda_client: Client) -> None:
-        check_multi_output_tree_mae(local_cuda_client, "cuda")
+    def test_gpu_hist_multi_classifier(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_classifier(local_cuda_client, "cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_multi_shap(self, local_cuda_client: Client) -> None:
