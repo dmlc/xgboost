@@ -113,6 +113,28 @@ def run_cat_container(device: Device) -> None:
         comp_booster(device, Xy, "gbtree")
         comp_booster(device, Xy, "dart")
 
+        # Regression test: category names containing multi-byte UTF-8
+        # characters used to have their offsets computed using Python `str`
+        # character length instead of UTF-8 byte length, corrupting the
+        # Arrow string buffer for any category name that isn't pure ASCII.
+        utf8_cats = ["café", "naïve", "日本語", "plain", "😀emoji"]
+        df = Df({"c": utf8_cats}, dtype="category")
+        categories = df.c.cat.categories
+
+        Xy = DMatrixT(df, enable_categorical=True)
+        results = Xy.get_categories(export_to_arrow=True).to_arrow()
+        assert results is not None
+        results_di = dict(results)
+        assert len(results_di["c"]) == len(categories)
+        for i in range(len(results_di["c"])):
+            assert str(results_di["c"][i]) == str(categories[i]), (
+                results_di["c"][i],
+                categories[i],
+            )
+
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
+
         with pytest.raises(ValueError, match="export_to_arrow"):
             Xy.get_categories(export_to_arrow=False).to_arrow()
 
