@@ -1,8 +1,10 @@
+from typing import cast
+
 import numpy as np
 import pytest
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost._data_utils import from_array_interface, pd_cat_inf
+from xgboost._data_utils import ArrayInf, from_array_interface, pd_cat_inf
 from xgboost.testing.ordinal import (
     run_cat_container,
     run_cat_container_iter,
@@ -46,8 +48,10 @@ def test_pd_cat_nullable_integer(dtype: str, values: list[int]) -> None:
     converted = temporary[0]
     assert converted.dtype == expected_dtype
     assert converted.flags.c_contiguous and converted.flags.aligned
-    assert names["typestr"] == expected_dtype.str
-    np.testing.assert_array_equal(from_array_interface(names), values)
+    assert "typestr" in names
+    numeric_names = cast(ArrayInf, names)
+    assert numeric_names["typestr"] == expected_dtype.str
+    np.testing.assert_array_equal(from_array_interface(numeric_names), values)
     code_values = np.asarray(from_array_interface(codes))
     assert code_values[0] == 0 and np.isnan(code_values[1]) and code_values[2] == 1
 
