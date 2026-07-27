@@ -400,8 +400,9 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``reg:absoluteerror``: Regression with L1 error. The objective uses an automatically scaled
     smooth majorization of absolute error for gradient-based tree construction. The automatic
-    scale is internal and does not require a user parameter. The initial ``base_score`` remains
-    the weighted median of the labels.
+    scale is internal and does not require a user parameter. The initial ``base_score`` is
+    estimated from the global weighted mean followed by one unregularized intercept update using
+    the same smooth majorization.
 
     .. versionadded:: 1.7.0
 

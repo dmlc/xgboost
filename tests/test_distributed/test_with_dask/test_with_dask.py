@@ -1590,7 +1590,14 @@ class TestWithDask:
                 )
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
-                assert base_score == [250.0]
+                mean = 250.0
+                residuals = np.array([mean, mean, mean, mean - 1000.0])
+                delta = np.mean(np.sqrt(np.abs(residuals))) ** 2
+                curvature = delta / np.hypot(delta, residuals)
+                expected_base_score = mean - np.sum(residuals * curvature) / np.sum(
+                    curvature
+                )
+                np.testing.assert_allclose(base_score, [expected_base_score], rtol=1e-5)
 
                 # The smooth approximation scale must be global. Worker 0 has only zero
                 # residuals while worker 1 has one residual of -1000. A local scale would

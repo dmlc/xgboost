@@ -9,6 +9,7 @@
 #include <algorithm>  // for all_of
 #include <cmath>
 #include <cstdint>  // for int32_t
+#include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
 #include "../collective/aggregator.h"
@@ -934,9 +935,11 @@ class MeanAbsoluteError : public ObjFunction {
                               });
   }
 
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     CheckInitInputs(info);
-    base_score->Reshape(this->Targets(info));
+    auto const n_targets = this->Targets(info);
+    base_score->SetDevice(ctx_->Device());
+    base_score->Reshape(n_targets);
 
     double sum_weight{0.0};
     if (info.weights_.Empty()) {
@@ -944,20 +947,9 @@ class MeanAbsoluteError : public ObjFunction {
     } else {
       sum_weight = common::Reduce(ctx_, info.weights_);
     }
-
-    if (info.num_row_ == 0) {
-      auto out = base_score->HostView();
-      std::fill(linalg::begin(out), linalg::end(out), 0.0f);
-    } else {
-      common::Median(ctx_, info.labels, info.weights_, base_score);
-    }
-
-    auto intercept = base_score->View(this->ctx_->Device());
-    // weighted avg
-    linalg::VecScaMul(this->ctx_, intercept, sum_weight);
-    auto rc = collective::GlobalSum(ctx_, intercept, &sum_weight);
-    collective::SafeColl(rc);
-
+    auto cpu_ctx = ctx_->MakeCPU();
+    collective::SafeColl(
+        collective::GlobalSum(&cpu_ctx, linalg::MakeVec(&sum_weight, std::size_t{1})));
     if (common::CloseTo(sum_weight, 0.0)) {
       // Mostly for handling empty dataset test.
       LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
@@ -965,7 +957,38 @@ class MeanAbsoluteError : public ObjFunction {
       return;
     }
 
-    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+    linalg::Vector<float> mean;
+    if (info.weights_.Empty()) {
+      common::SampleMean(ctx_, info.labels, &mean);
+    } else {
+      common::WeightedSampleMean(ctx_, info.labels, info.weights_, &mean);
+    }
+    CHECK_EQ(mean.Size(), n_targets);
+
+    HostDeviceVector<float> predt(info.labels.Size(), 0.0f, ctx_->Device());
+    auto predt_view = linalg::MakeTensorView(ctx_, &predt, info.num_row_, n_targets);
+    mean.SetDevice(ctx_->Device());
+    auto mean_view = mean.View(ctx_->Device());
+    linalg::ElementWiseKernel(ctx_, predt_view,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                predt_view(i, j) = mean_view(j);
+                              });
+
+    Json config{Object{}};
+    this->SaveConfig(&config);
+    std::unique_ptr<ObjFunction> new_obj{
+        ObjFunction::Create(get<String const>(config["name"]), ctx_)};
+    new_obj->LoadConfig(config);
+
+    linalg::Matrix<GradientPair> gpair;
+    new_obj->GetGradient(predt, info, 0, &gpair);
+    tree::FitStump(ctx_, gpair, n_targets, base_score);
+
+    auto h_mean = mean.HostView();
+    auto out = base_score->HostView();
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      out(target) += h_mean(target);
+    }
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mae"; }
