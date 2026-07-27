@@ -431,16 +431,16 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf:
     return cast(ArrayInf, ainf)
 
 
-def _arrow_string_offsets(lengths: List[int]) -> np.ndarray:
+def _arrow_string_offsets(lengths: np.ndarray) -> np.ndarray:
     """Build 32-bit Arrow string offsets from encoded byte lengths."""
-    if sum(lengths) > np.iinfo(np.int32).max:
+    offsets = np.empty(lengths.size + 1, dtype=np.int64)
+    offsets[0] = 0
+    np.cumsum(lengths, dtype=np.int64, out=offsets[1:])
+    if offsets[-1] > np.iinfo(np.int32).max:
         raise ValueError(
             "The encoded categories exceed the maximum size of the 32-bit "
             "offsets used by Arrow string arrays."
         )
-    offsets = np.empty(len(lengths) + 1, dtype=np.int64)
-    offsets[0] = 0
-    np.cumsum(lengths, dtype=np.int64, out=offsets[1:])
     return offsets.astype(np.int32)
 
 
@@ -475,17 +475,33 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
             else:
                 strarr = np.asarray(strarr, dtype=object)
 
-        encoded: List[bytes]
         if strarr.size == 0:
-            encoded = []
+            lengths = np.empty(0, dtype=np.int64)
+            offsets = _arrow_string_offsets(lengths)
+            values = b""
         else:
             inferred = infer_dtype(strarr, skipna=False)
             if inferred == "string":
-                encoded = [s.encode("utf-8") for s in strarr.tolist()]
+                lengths = np.fromiter(
+                    (len(value.encode("utf-8")) for value in strarr),
+                    dtype=np.int64,
+                    count=strarr.size,
+                )
+                offsets = _arrow_string_offsets(lengths)
+                values = "".join(strarr.tolist()).encode("utf-8")
             elif inferred == "bytes":
-                encoded = strarr.tolist()
-                for value in encoded:
+
+                def validated_len(value: bytes) -> int:
                     value.decode("utf-8")
+                    return len(value)
+
+                lengths = np.fromiter(
+                    (validated_len(value) for value in strarr),
+                    dtype=np.int64,
+                    count=strarr.size,
+                )
+                offsets = _arrow_string_offsets(lengths)
+                values = b"".join(strarr.tolist())
             else:
                 raise TypeError(
                     "Category index must contain only values of the same type, "
@@ -493,8 +509,6 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
                     f"Got values of type `{inferred}`."
                 )
 
-        offsets = _arrow_string_offsets([len(value) for value in encoded])
-        values = b"".join(encoded)
         if b"\0" in values:
             warnings.warn(
                 (
