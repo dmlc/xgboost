@@ -31,7 +31,6 @@ class TreeRefresher : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "refresh"; }
   [[nodiscard]] bool CanModifyTree() const override { return true; }
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
   // Update the tree, do pruning
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,

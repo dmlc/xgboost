@@ -783,7 +783,6 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   [[nodiscard]] char const* Name() const override { return "grow_gpu_hist"; }
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 
  private:
   bool initialised_{false};
@@ -917,7 +916,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   }
 
   [[nodiscard]] char const* Name() const override { return "grow_gpu_approx"; }
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 
  private:
   bool initialised_{false};

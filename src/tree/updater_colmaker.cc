@@ -73,7 +73,6 @@ class ColMaker : public TreeUpdater {
   }
 
   char const *Name() const override { return "grow_colmaker"; }
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 
   void LazyGetColumnDensity(DMatrix *dmat) {
     // Finds densities if we don't already have them

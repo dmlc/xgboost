@@ -55,11 +55,6 @@ class TreeUpdater : public Configurable {
    */
   [[nodiscard]] virtual bool CanModifyTree() const { return false; }
   /**
-   * @brief Whether the out_position in `Update` is valid. This determines whether adaptive
-   *        tree can be used.
-   */
-  [[nodiscard]] virtual bool HasNodePosition() const { return false; }
-  /**
    * @brief perform update to the tree models
    *
    * @param param  Hyper-parameter for constructing trees.

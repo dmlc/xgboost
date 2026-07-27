@@ -322,7 +322,6 @@ class GlobalApproxUpdater : public TreeUpdater {
     return true;
   }
 
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 };
 
 DMLC_REGISTRY_FILE_TAG(grow_histmaker);
