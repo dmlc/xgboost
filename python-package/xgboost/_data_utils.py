@@ -445,9 +445,9 @@ def _arrow_string_offsets(lengths: List[int]) -> np.ndarray:
 
 
 def pd_cat_inf(  # pylint: disable=too-many-locals
-    cats: DfCatAccessor, codes: "pd.Series"
+    cats: "pd.Index", codes: "pd.Series"
 ) -> Tuple[Union[StringArray, ArrayInf], ArrayInf, Tuple]:
-    """Get the array interface representation of pandas category accessor."""
+    """Get the array interface representation of a pandas category index."""
     from pandas.api.types import infer_dtype, is_float_dtype, is_integer_dtype
 
     # pandas uses -1 to represent missing values for categorical features
@@ -455,14 +455,15 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
 
     if is_integer_dtype(cats.dtype) or is_float_dtype(cats.dtype):
         # Numeric index type
-        np_dtype = getattr(cats.dtype, "numpy_dtype", cats.dtype)
+        cat_dtype: Any = cats.dtype
+        np_dtype = np.dtype(getattr(cat_dtype, "numpy_dtype", cat_dtype))
         if hasattr(cats, "to_numpy"):
             name_values_num = cats.to_numpy(dtype=np_dtype)
         else:
             name_values_num = np.asarray(cats.values, dtype=np_dtype)
         name_values_num = np.require(name_values_num, requirements=["A", "C"])
         jarr_values = array_interface_dict(name_values_num)
-        code_values = codes.values
+        code_values = cast(np.ndarray, codes.values)
         jarr_codes = array_interface_dict(code_values)
         return jarr_values, jarr_codes, (name_values_num, code_values)
 
@@ -511,7 +512,7 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
     jvalues = array_interface_dict(name_values_np)
     jnames: StringArray = {"offsets": joffsets, "values": jvalues}
 
-    code_values = codes.values
+    code_values = cast(np.ndarray, codes.values)
     jcodes = array_interface_dict(code_values)
 
     buf = (
