@@ -234,17 +234,15 @@ void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_id
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix, DataSplitMode data_split_mode) {
+                         const std::string& cache_prefix) {
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(data::CudfAdapter* adapter, float missing,
-                                                     int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int nthread, const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CupyAdapter>(data::CupyAdapter* adapter, float missing,
-                                                     int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int nthread, const std::string& cache_prefix);
 }  // namespace xgboost

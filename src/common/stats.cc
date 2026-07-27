@@ -24,6 +24,7 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
     auto t_v = t.View(ctx->Device());
     cuda_impl::Median(ctx, t_v, opt_weights, out);
+    return;
   }
 
   auto opt_weights = OptionalWeights(weights.ConstHostSpan());
@@ -64,14 +65,13 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
   }
 }
 
-void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
-                linalg::Vector<float>* out) {
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out) {
   *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
   if (!ctx->IsCUDA()) {
     auto h_v = v.HostView();
     CHECK(h_v.CContiguous());
     std::int64_t n_samples = v.Shape(0);
-    SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&n_samples, 1)));
+    SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(&n_samples, 1)));
     auto n_columns = v.Shape(1);
     auto h_out = out->HostView();
 
@@ -83,15 +83,15 @@ void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> 
       auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
       h_out(j) = mean;
     }
-    SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
+    SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
     auto d_v = v.View(ctx->Device());
     auto d_out = out->View(ctx->Device());
-    cuda_impl::SampleMean(ctx, is_column_split, d_v, d_out);
+    cuda_impl::SampleMean(ctx, d_v, d_out);
   }
 }
 
-void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
+void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
                         HostDeviceVector<float> const& w, linalg::Vector<float>* out) {
   *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
   CHECK_EQ(v.Shape(0), w.Size());
@@ -99,7 +99,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix
     auto h_v = v.HostView();
     auto h_w = w.ConstHostSpan();
     auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0);
-    SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&sum_w, 1)));
+    SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(&sum_w, 1)));
     CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
     auto h_out = out->HostView();
     for (std::size_t j = 0; j < v.Shape(1); ++j) {
@@ -109,13 +109,13 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix
       auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
       h_out(j) = mean;
     }
-    SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
+    SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
     auto d_v = v.View(ctx->Device());
     w.SetDevice(ctx->Device());
     auto d_w = w.ConstDeviceSpan();
     auto d_out = out->View(ctx->Device());
-    cuda_impl::WeightedSampleMean(ctx, is_column_split, d_v, d_w, d_out);
+    cuda_impl::WeightedSampleMean(ctx, d_v, d_w, d_out);
   }
 }
 }  // namespace xgboost::common

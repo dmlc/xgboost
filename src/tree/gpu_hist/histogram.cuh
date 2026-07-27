@@ -47,7 +47,7 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
   uint32_t* y_low = reinterpret_cast<uint32_t*>(dst);
   uint32_t* y_high = y_low + 1;
 
-  auto cast_src = reinterpret_cast<uint64_t *>(&src);
+  auto cast_src = reinterpret_cast<uint64_t*>(&src);
 
   uint32_t const x_low = static_cast<uint32_t>(src);
   uint32_t const x_high = (*cast_src) >> 32;
@@ -197,8 +197,7 @@ class DeviceHistogramBuilder {
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 
   // num histograms is the number of contiguous histograms in memory to reduce over
-  void AllReduceHist(Context const* ctx, MetaInfo const& info, bst_node_t nidx,
-                     std::size_t num_histograms);
+  void AllReduceHist(Context const* ctx, bst_node_t nidx, std::size_t num_histograms);
 
   [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
     return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);

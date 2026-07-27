@@ -7,12 +7,15 @@
 #include <xgboost/logging.h>
 #include <xgboost/predictor.h>
 
+#include <limits>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree_model.h"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal, BaseMGPUTest
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
 #include "test_shap.h"
@@ -65,68 +68,6 @@ TEST(GPUPredictor, BatchPredictionWithWeights) {
 TEST(GPUPredictor, InplacePredictionWithWeights) {
   auto ctx = MakeCUDACtx(0);
   TestInplacePredictionWithWeights(&ctx);
-}
-
-namespace {
-void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_result) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
-  predictor->Configure({});
-
-  for (size_t i = 1; i < 33; i *= 2) {
-    size_t n_row = i, n_col = i;
-    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
-    std::unique_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
-
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
-    std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
-    auto const& model = *p_model;
-
-    // Test predict batch
-    PredictionCacheEntry out_predictions;
-
-    predictor->InitOutPredictions(sliced->Info(), &out_predictions.predictions, model);
-    predictor->PredictBatch(sliced.get(), &out_predictions, model, 0);
-
-    std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-    EXPECT_EQ(out_predictions_h, expected_result[i - 1]);
-  }
-}
-}  // anonymous namespace
-
-class MGPUPredictorTest : public collective::BaseMGPUTest {};
-
-TEST_F(MGPUPredictorTest, BasicColumnSplit) {
-  auto ctx = MakeCUDACtx(0);
-  std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
-  predictor->Configure({});
-
-  std::array<std::vector<float>, 32> result{};
-  for (size_t i = 1; i < 33; i *= 2) {
-    size_t n_row = i, n_col = i;
-    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
-
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
-    std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
-    auto const& model = *p_model;
-
-    // Test predict batch
-    PredictionCacheEntry out_predictions;
-
-    predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-    predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-
-    std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-    result[i - 1] = out_predictions_h;
-  }
-
-  this->DoTest([&] { VerifyBasicColumnSplit(result); }, true);
-  this->DoTest([&] { VerifyBasicColumnSplit(result); }, false);
 }
 
 TEST(GPUPredictor, EllpackBasic) {
@@ -239,45 +180,16 @@ TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
-TEST_F(MGPUPredictorTest, LesserFeaturesColumnSplit) {
-  this->DoTest([] { TestPredictionWithLesserFeaturesColumnSplit(true); }, true);
-  this->DoTest([] { TestPredictionWithLesserFeaturesColumnSplit(true); }, false);
-}
-
 TEST(GPUPredictor, IterationRange) {
   auto ctx = MakeCUDACtx(0);
   TestIterationRange(&ctx);
 }
 
-TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
-  TestIterationRangeColumnSplit(curt::AllVisibleGPUs(), true);
-}
-
-TEST(GPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(true, false); }
-
-TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
-  this->DoTest([] { TestCategoricalPrediction(true, true); }, true);
-  this->DoTest([] { TestCategoricalPrediction(true, true); }, false);
-}
+TEST(GPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(true); }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
   auto ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
-  TestCategoricalPredictLeaf(&ctx, false);
-}
-
-TEST_F(MGPUPredictorTest, CategoricalPredictionLeafColumnSplit) {
-  this->DoTest(
-      [&] {
-        auto ctx = MakeCUDACtx(collective::GetRank());
-        TestCategoricalPredictLeaf(&ctx, true);
-      },
-      true);
-  this->DoTest(
-      [&] {
-        auto ctx = MakeCUDACtx(collective::GetRank());
-        TestCategoricalPredictLeaf(&ctx, true);
-      },
-      false);
+  TestCategoricalPredictLeaf(&ctx);
 }
 
 TEST(GPUPredictor, PredictLeafBasic) {
@@ -312,8 +224,4 @@ TEST(GPUPredictor, Sparse) {
   TestSparsePrediction(&ctx, 0.8);
 }
 
-TEST_F(MGPUPredictorTest, SparseColumnSplit) {
-  TestSparsePredictionColumnSplit(curt::AllVisibleGPUs(), true, 0.2);
-  TestSparsePredictionColumnSplit(curt::AllVisibleGPUs(), true, 0.8);
-}
 }  // namespace xgboost::predictor

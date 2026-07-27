@@ -91,8 +91,41 @@ group the categories that output similar leaf values. During split finding, we f
 the gradient histogram to prepare the contiguous partitions then enumerate the splits
 according to these sorted values. One of the related parameters for XGBoost is
 ``max_cat_to_onehot``, which controls whether one-hot encoding or partitioning should be
-used for each feature, see :ref:`cat-param` for details. See :doc:`/tutorials/multioutput`
-for the vector-leaf variant.
+used for each feature, see :ref:`cat-param` for details.
+
+===========
+Vector Leaf
+===========
+
+.. versionadded:: 3.4.0
+
+For scalar leaves, the optimal partitioning method described above avoids enumerating all
+:math:`2^{k-1} - 1` binary partitions of :math:`k` categories.
+
+For vector leaves, each category has a weight vector and there is no canonical ordering of
+vectors. XGBoost induces an ordering by projecting each category weight onto the parent's
+Newton update direction:
+
+.. math::
+
+  u_p &= \frac{w_p}{\lVert w_p \rVert_2} \\
+  s_c &= u_p^T w_c
+
+where :math:`w_p` is the parent leaf weight and :math:`w_c` is the category-level leaf
+weight. The score measures how strongly category :math:`c` follows the parent update
+direction.
+
+The projection has some nice consistency properties. For one output, it agrees with the
+standard scalar ordering up to reversal. For parent-aligned vector effects,
+
+.. math::
+
+   w_c = \alpha_c w_p
+
+we have :math:`s_c = \alpha_c \lVert w_p \rVert_2`, so ordering the projected scores is
+equivalent to ordering the scalar coefficients :math:`\alpha_c`. In general, however, it
+is an approximation: category contrasts orthogonal to the parent update can be missed,
+and a weak parent update provides little ordering signal.
 
 
 **********************

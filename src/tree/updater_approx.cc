@@ -87,14 +87,12 @@ class GlobalApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                p_fmat->Info().IsColumnSplit());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       n_batches_++;
     }
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
-                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                             hist_param_);
+                             collective::IsDistributed(), hist_param_);
     monitor_->Stop(__func__);
   }
 
@@ -108,8 +106,8 @@ class GlobalApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                    linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
+    auto rc =
+        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
     collective::SafeColl(rc);
 
     std::vector<CPUExpandEntry> nodes{best};
@@ -124,7 +122,7 @@ class GlobalApproxBuilder {
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &nodes);
+    evaluator_.EvaluateSplits(histograms, feature_values_, ft, &nodes);
     monitor_->Stop(__func__);
 
     return nodes.front();
@@ -177,6 +175,7 @@ class GlobalApproxBuilder {
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
                   RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
+    CHECK(!p_tree->IsMultiTarget()) << "approx" << MTNotImplemented();
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, p_tree, hess);
 
@@ -231,7 +230,7 @@ class GlobalApproxBuilder {
         auto const &histograms = histogram_builder_.Histogram(0);
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();
         monitor_->Start("EvaluateSplits");
-        evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &best_splits);
+        evaluator_.EvaluateSplits(histograms, feature_values_, ft, &best_splits);
         monitor_->Stop("EvaluateSplits");
       }
       driver.Push(best_splits.begin(), best_splits.end());

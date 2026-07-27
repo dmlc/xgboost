@@ -20,7 +20,50 @@
 namespace xgboost {
 namespace tree {
 struct MultiTargetTreeView;
-}
+using CatWordT = std::uint32_t;
+
+/** @brief Inputs for expanding multiple leaves in a multi-target tree. */
+struct ExpandBatch {
+  std::vector<bst_node_t> nidxs;
+  std::vector<bst_feature_t> fidxs;
+  std::vector<float> conds;
+  std::vector<std::uint8_t> dft_lefts;
+  std::vector<common::Span<float const>> base_weight_batch;
+  std::vector<common::Span<float const>> left_weight_batch;
+  std::vector<common::Span<float const>> right_weight_batch;
+  std::vector<float> loss_chgs;
+  std::vector<double> left_sums;
+  std::vector<double> right_sums;
+  std::vector<common::Span<CatWordT const>> cat_bits;
+  // Total number of CatWordT storage elements in cat_bits.
+  std::size_t n_cat_words{0};
+  float eta;
+
+  explicit ExpandBatch(float eta) : eta{eta} {}
+
+  [[nodiscard]] std::size_t Size() const { return nidxs.size(); }
+
+  void Push(bst_node_t nidx, bst_feature_t fidx, float cond, bool dft_left,
+            common::Span<float const> base_weight, common::Span<float const> left_weight,
+            common::Span<float const> right_weight, float loss_chg, double left_sum,
+            double right_sum, common::Span<CatWordT const> cats = {}) {
+    this->nidxs.push_back(nidx);
+    this->fidxs.push_back(fidx);
+    this->conds.push_back(cond);
+    this->dft_lefts.push_back(dft_left);
+    this->base_weight_batch.emplace_back(base_weight);
+    this->left_weight_batch.emplace_back(left_weight);
+    this->right_weight_batch.emplace_back(right_weight);
+    this->loss_chgs.push_back(loss_chg);
+    this->left_sums.push_back(left_sum);
+    this->right_sums.push_back(right_sum);
+    this->cat_bits.emplace_back(cats);
+    this->n_cat_words += cats.size();
+    CHECK_EQ(left_weight.size(), base_weight.size());
+    CHECK_EQ(right_weight.size(), base_weight.size());
+  }
+};
+}  // namespace tree
 struct TreeParam;
 
 /**
@@ -68,13 +111,6 @@ class MultiTargetTree : public Model {
     auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumSplitTargets());
     return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
-  // Unlike the const version, `NumSplitTargets` is not reliable if the tree can change.
-  [[nodiscard]] linalg::VectorView<float> NodeWeight(bst_node_t nidx,
-                                                     bst_target_t n_split_targets) {
-    auto beg = nidx * n_split_targets;
-    auto v = this->weights_.HostSpan().subspan(beg, n_split_targets);
-    return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
-  }
   [[nodiscard]] bst_node_t LeafIdx(bst_node_t nidx) const { return this->RightChild(nidx); }
 
  public:
@@ -92,13 +128,12 @@ class MultiTargetTree : public Model {
    */
   void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
   /**
-   * @brief Expand a leaf into split node.
+   * @brief Expand a batch of leaves and apply learning rate to child weights.
+   *
+   * Base weights are stored unchanged. Left and right child weights are multiplied by
+   * `batch.eta`.
    */
-  void Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond, bool default_left,
-              linalg::VectorView<float const> base_weight,
-              linalg::VectorView<float const> left_weight,
-              linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
-              float left_sum, float right_sum);
+  void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
   /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */

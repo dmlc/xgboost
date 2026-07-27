@@ -8,7 +8,6 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -40,7 +39,6 @@
 #include "xgboost/linalg.h"                  // for MatrixView, TensorView, All, Matrix, Empty
 #include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_GE
 #include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
-#include "xgboost/string_view.h"             // for operator<<
 #include "xgboost/task.h"                    // for ObjInfo
 #include "xgboost/tree_model.h"              // for RegTree, MTNotImplemented, RTreeNodeStat
 #include "xgboost/tree_updater.h"            // for TreeUpdater, TreeUpdaterReg, XGBOOST_REGISTE...
@@ -134,12 +132,13 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
       for (auto const &candidate : valid_candidates) {
         auto left_child_nidx = tree.LeftChild(candidate.nid);
         auto right_child_nidx = tree.RightChild(candidate.nid);
-        ExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
-        ExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
+        auto child_depth = candidate.depth + 1;
+        ExpandEntry l_best{left_child_nidx, child_depth};
+        ExpandEntry r_best{right_child_nidx, child_depth};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }
-      updater->EvaluateSplits(p_fmat, p_tree, &best_splits);
+      updater->EvaluateSplits(p_fmat, &best_splits);
     }
     driver.Push(best_splits.begin(), best_splits.end());
     expand_set = driver.Pop();
@@ -201,11 +200,9 @@ class MultiTargetHistBuilder {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
-                                     p_fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
-                                  p_fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }
@@ -214,10 +211,10 @@ class MultiTargetHistBuilder {
     bst_target_t n_targets = gpair.Shape(1);
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
-                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                              hist_param_);
+                              collective::IsDistributed(), hist_param_);
 
-    evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
+    evaluator_ =
+        std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
@@ -235,9 +232,8 @@ class MultiTargetHistBuilder {
     auto h_root_sum = root_sum.HostView();
     CHECK(h_root_sum.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_fmat->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                        h_root_sum.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                              h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
@@ -262,7 +258,7 @@ class MultiTargetHistBuilder {
     }
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, &nodes);
+      evaluator_->EvaluateSplits(hists, gmat.cut, ft, &nodes);
       break;
     }
     monitor_->Stop(__func__);
@@ -279,8 +275,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<MultiExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     std::vector<BoundedHistCollection const *> hists;
     // Use histogram builder's number of targets (may differ from tree for reduced gradient)
@@ -290,7 +285,7 @@ class MultiTargetHistBuilder {
     }
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, best_splits);
+      evaluator_->EvaluateSplits(hists, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);
@@ -368,20 +363,23 @@ class MultiTargetHistBuilder {
     auto h_leaf_sums = leaf_sums.HostView();
     CHECK(h_leaf_sums.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_last_fmat_->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
-                        h_leaf_sums.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
+                              h_leaf_sums.Size() * 2));
     collective::SafeColl(rc);
 
     // Calculate weights for each leaf
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
     auto eta = this->param_->learning_rate;
+    auto evaluator = this->evaluator_->Evaluator();
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
       auto weight = h_weights.Slice(leaf_idx, linalg::All());
-      CalcWeight(*param_, grad_sum, eta, weight);
+      evaluator.CalcWeight(leaves_idx[leaf_idx], *param_, grad_sum, weight);
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        weight(t) *= eta;
+      }
     });
 
     // Set leaf weights
@@ -479,29 +477,26 @@ class HistUpdater {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid,
-                                     fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                  fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }
     partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), hist_param_);
+                              hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<CPUExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<CPUExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     auto const &histograms = histogram_builder_->Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, best_splits);
+      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);
@@ -542,8 +537,8 @@ class HistUpdater {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                        linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
+        auto rc =
+            collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
         collective::SafeColl(rc);
       }
 
@@ -556,8 +551,7 @@ class HistUpdater {
       monitor_->Start("EvaluateSplits");
       auto ft = p_fmat->Info().feature_types.ConstHostSpan();
       for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-        evaluator_->EvaluateSplits(histogram_builder_->Histogram(0), gmat.cut, ft, *p_tree,
-                                   &entries);
+        evaluator_->EvaluateSplits(histogram_builder_->Histogram(0), gmat.cut, ft, &entries);
         break;
       }
       monitor_->Stop("EvaluateSplits");
@@ -631,9 +625,6 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      if (!param->monotone_constraints.empty()) {
-        LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-      }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);
