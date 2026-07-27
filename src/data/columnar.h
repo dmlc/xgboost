@@ -8,6 +8,7 @@
 #include <algorithm>    // for max
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
+#include <limits>       // for numeric_limits
 #include <type_traits>  // for is_floating_point_v
 #include <vector>       // for vector
 
@@ -27,6 +28,13 @@
 namespace xgboost::data {
 inline void CheckNonEmptyCategory(std::size_t n_categories) {
   CHECK_GT(n_categories, 0) << "Categorical feature must have at least one category.";
+}
+
+inline std::size_t AddCatCount(std::size_t n_categories, std::size_t n_total_categories) {
+  constexpr auto kMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
+  CHECK_LE(n_total_categories, kMax) << "Maximum number of categories exceeded.";
+  CHECK_LE(n_categories, kMax - n_total_categories) << "Maximum number of categories exceeded.";
+  return n_total_categories + n_categories;
 }
 
 /**
