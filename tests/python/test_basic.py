@@ -106,45 +106,52 @@ class TestBasic:
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
-    def test_dump(self):
-        data = np.random.randn(100, 2)
-        target = np.array([0, 1] * 50)
+    @staticmethod
+    def _check_dump(booster: xgb.Booster, vector_leaf: bool) -> None:
+        text = booster.get_dump()
+        assert len(text) == 1
+        assert len(text[0].splitlines()) == 3
+        assert "gain=" not in text[0]
+        assert "cover=" not in text[0]
+
+        text_stats = booster.get_dump(with_stats=True)
+        assert len(text_stats[0].splitlines()) == 3
+        assert "gain=" in text_stats[0]
+        assert text_stats[0].count("cover=") == 3
+
+        j_tree = json.loads(booster.get_dump(dump_format="json")[0])
+        assert j_tree["nodeid"] == 0
+
+        j_tree = json.loads(booster.get_dump(dump_format="json", with_stats=True)[0])
+        assert isinstance(j_tree["gain"], (int, float))
+        assert isinstance(j_tree["cover"], (int, float))
+        for child in j_tree["children"]:
+            assert isinstance(child["cover"], (int, float))
+            assert isinstance(child["leaf"], list) == vector_leaf
+
+        dot = booster.get_dump(dump_format="dot", with_stats=True)[0]
+        assert "gain=" in dot
+        assert dot.count("cover=") == 3
+
+    def test_dump(self) -> None:
+        data = np.arange(64, dtype=np.float32).reshape(32, 2)
+        target = data[:, 0]
         features = ["Feature1", "Feature2"]
 
         dm = xgb.DMatrix(data, label=target, feature_names=features)
-        params = {
-            "objective": "binary:logistic",
-            "eval_metric": "logloss",
-            "eta": 0.3,
-            "max_depth": 1,
-        }
+        params = {"eta": 0.3, "max_depth": 1, "tree_method": "hist"}
 
-        bst = xgb.train(params, dm, num_boost_round=1)
+        booster = xgb.train(params, dm, num_boost_round=1)
+        self._check_dump(booster, vector_leaf=False)
 
-        # number of feature importances should == number of features
-        dump1 = bst.get_dump()
-        assert len(dump1) == 1, "Expected only 1 tree to be dumped."
-        assert len(dump1[0].splitlines()) == 3, (
-            "Expected 1 root and 2 leaves - 3 lines in dump."
-        )
-
-        dump2 = bst.get_dump(with_stats=True)
-        assert dump2[0].count("\n") == 3, (
-            "Expected 1 root and 2 leaves - 3 lines in dump."
-        )
-        msg = "Expected more info when with_stats=True is given."
-        assert dump2[0].find("\n") > dump1[0].find("\n"), msg
-
-        dump3 = bst.get_dump(dump_format="json")
-        dump3j = json.loads(dump3[0])
-        assert dump3j["nodeid"] == 0, "Expected the root node on top."
-
-        dump4 = bst.get_dump(dump_format="json", with_stats=True)
-        dump4j = json.loads(dump4[0])
-        assert "gain" in dump4j, "Expected 'gain' to be dumped in JSON."
+        y = np.column_stack((target, -target))
+        dm = xgb.DMatrix(data, label=y, feature_names=features)
+        params["multi_strategy"] = "multi_output_tree"
+        vector_booster = xgb.train(params, dm, num_boost_round=1)
+        self._check_dump(vector_booster, vector_leaf=True)
 
         with pytest.raises(ValueError):
-            bst.get_dump(fmap="foo")
+            booster.get_dump(fmap="foo")
 
     def test_feature_score(self):
         rng = np.random.RandomState(0)

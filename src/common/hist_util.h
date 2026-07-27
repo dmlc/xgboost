@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -8,7 +8,7 @@
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
 #include <algorithm>
-#include <cmath>
+#include <cmath>    // for nextafter
 #include <cstdint>  // for uint32_t
 #include <limits>
 #include <map>

@@ -393,7 +393,7 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
 
     obj->UpdateTreeLeaf(position, info, lr, predt, t, &tree);
     ASSERT_EQ(tree[3].LeafValue(), -5.0f * lr);
-    ASSERT_EQ(tree[4].LeafValue(), empty_leaf * lr);
+    ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
     ASSERT_EQ(tree[5].LeafValue(), -10.0f * lr);
     ASSERT_EQ(tree[6].LeafValue(), -14.0f * lr);
   }

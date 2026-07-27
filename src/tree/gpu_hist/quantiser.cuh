@@ -9,7 +9,6 @@
 #include "../../common/device_vector.cuh"   // for device_vector, DeviceUVector
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
 #include "xgboost/context.h"                // for Context
-#include "xgboost/data.h"                   // for MetaInfo
 #include "xgboost/linalg.h"                 // for VectorView, MatrixView
 
 namespace xgboost::tree {
@@ -57,21 +56,29 @@ class GradientQuantiser {
   /* Convert fixed point representation back to floating point. */
   GradientPairPrecise to_floating_point_;
 
+  template <typename GradientPairT>
+  [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
+  ToFixedPointImpl(GradientPairT const& gpair) const {
+    auto grad = static_cast<GradientPairInt64::ValueT>(gpair.GetGrad() * to_fixed_point_.GetGrad());
+    auto hess = static_cast<GradientPairInt64::ValueT>(gpair.GetHess() * to_fixed_point_.GetHess());
+    // Preserve positive curvature through fixed-point truncation.
+    if (gpair.GetHess() > 0.0 && hess == 0) {
+      hess = 1;
+    }
+    return {grad, hess};
+  }
+
  public:
   GradientQuantiser() = default;
   // Used for test
   GradientQuantiser(GradientPairPrecise to_fixed, GradientPairPrecise to_float)
       : to_fixed_point_{to_fixed}, to_floating_point_{to_float} {}
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
-    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                                      gpair.GetHess() * to_fixed_point_.GetHess());
-    return adjusted;
+    return this->ToFixedPointImpl(gpair);
   }
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
   ToFixedPoint(GradientPairPrecise const& gpair) const {
-    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                                      gpair.GetHess() * to_fixed_point_.GetHess());
-    return adjusted;
+    return this->ToFixedPointImpl(gpair);
   }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise
   ToFloatingPoint(const GradientPairInt64& gpair) const {
@@ -91,11 +98,9 @@ class GradientQuantiserGroup {
 
  public:
   /** @brief Construct from a gradient matrix (n_samples x n_targets). */
-  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
-                         MetaInfo const& info);
+  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair);
   /** @brief Convenience constructor from a vector (single-target). */
-  GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair,
-                         MetaInfo const& info);
+  GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair);
 
   [[nodiscard]] common::Span<GradientQuantiser const> DeviceSpan() const {
     return dh::ToSpan(this->d_quantizers_);

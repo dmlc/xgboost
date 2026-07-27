@@ -3,13 +3,12 @@
  */
 #include <thrust/sort.h>
 
-#include <cub/cub.cuh>         // NOLINT
+#include <cub/cub.cuh>  // NOLINT
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
-#include "../common/linalg_op.h"  // for VecScaMul
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
 #include "../tree/tree_view.h"        // for WalkTree
@@ -158,6 +157,7 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   if (nptr.Empty()) {
     std::vector<float> quantiles;
     detail::UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
+    return;
   }
 
   predt.SetDevice(ctx->Device());
@@ -175,41 +175,33 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   auto seg_end = seg_beg + nptr.Size();
   CHECK_EQ(nidx.Size() + 1, nptr.Size());
 
-  collective::ApplyWithLabels(ctx, info, &quantiles, [&] {
-    auto d_labels = info.labels.View(ctx->Device());
+  auto d_labels = info.labels.View(ctx->Device());
 
-    auto values = [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) {
-      // If it's vector-leaf, group_idx is 0, j is used. Otherwise, j is 0, group idx is used.
-      auto p_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
-      auto p = d_predt(d_row_index[i], p_idx);
-      // label is a single column for quantile regression, but it's a matrix for MAE.
-      auto y_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
-      y_idx = cuda::std::min(y_idx, d_labels.Shape(1) - 1);
-      auto y = d_labels(d_row_index[i], y_idx);
-      return y - p;
-    };
-    CHECK_EQ(d_labels.Shape(0), position.size());
+  auto values = [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) {
+    // If it's vector-leaf, group_idx is 0, j is used. Otherwise, j is 0, group idx is used.
+    auto p_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+    auto p = d_predt(d_row_index[i], p_idx);
+    // label is a single column for quantile regression, but it's a matrix for MAE.
+    auto y_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+    y_idx = cuda::std::min(y_idx, d_labels.Shape(1) - 1);
+    auto y = d_labels(d_row_index[i], y_idx);
+    return y - p;
+  };
+  CHECK_EQ(d_labels.Shape(0), position.size());
 
-    if (info.weights_.Empty()) {
-      common::SegmentedQuantile(ctx, h_alphas, seg_beg, seg_end, values, info.num_row_, &quantiles);
-    } else {
-      info.weights_.SetDevice(ctx->Device());
-      auto d_weights = info.weights_.ConstDeviceSpan();
-      CHECK_EQ(d_weights.size(), d_row_index.size());
-      auto w_it =
-          thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
-      common::SegmentedWeightedQuantile(ctx, h_alphas, seg_beg, seg_end, values, w_it,
-                                        w_it + d_weights.size(), &quantiles);
-    }
-  });
-
-  if (p_tree->IsMultiTarget()) {
-    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), quantiles.DeviceSpan()), learning_rate);
-    p_tree->SetLeaves(nidx.ConstHostVector(), quantiles.ConstHostSpan());
+  if (info.weights_.Empty()) {
+    common::SegmentedQuantile(ctx, h_alphas, seg_beg, seg_end, values, info.num_row_, &quantiles);
   } else {
-    detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
-                             learning_rate, p_tree);
+    info.weights_.SetDevice(ctx->Device());
+    auto d_weights = info.weights_.ConstDeviceSpan();
+    CHECK_EQ(d_weights.size(), d_row_index.size());
+    auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
+    common::SegmentedWeightedQuantile(ctx, h_alphas, seg_beg, seg_end, values, w_it,
+                                      w_it + d_weights.size(), &quantiles);
   }
+
+  detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
+                           learning_rate, p_tree);
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::obj

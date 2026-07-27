@@ -8,6 +8,7 @@
 #include "algorithm.cuh"     // for ArgSort
 #include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
+#include "random.cuh"  // for DefaultRng, UniformRealDistribution
 #include "random.h"
 #include "xgboost/base.h"                // for bst_feature_t
 #include "xgboost/context.h"             // for Context
@@ -30,10 +31,9 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
   constexpr auto kEps = kRtEps;  // avoid CUDA compilation error
   thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), array.size(),
                      [=] XGBOOST_DEVICE(std::size_t i) {
-                       thrust::default_random_engine rng;
-                       rng.seed(seed);
+                       DefaultRng rng{seed};
                        rng.discard(i);
-                       thrust::uniform_real_distribution<float> dist;
+                       UniformRealDistribution<float> dist;
 
                        auto w = std::max(weights[i], kEps);
                        auto u = dist(rng);

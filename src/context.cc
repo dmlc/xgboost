@@ -103,6 +103,12 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 }
 
 [[nodiscard]] DeviceOrd MakeDeviceOrd(std::string const& input, bool fail_on_invalid_gpu_id) {
+  // Fast path for the most common case. `device=cpu` is re-parsed on hot paths
+  // (e.g. DMatrixProxy::SetArray during inplace prediction), and the general
+  // path below costs two regex constructions plus string copies per call.
+  if (input == DeviceSym::CPU()) {
+    return DeviceOrd::CPU();
+  }
   StringView msg{R"(Invalid argument for `device`. Expected to be one of the following:
 - cpu
 - cuda
@@ -133,12 +139,14 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   // mingw hangs on regex using rtools 430. Basic checks only.
   bool is_sycl = (substr == "syc");
 #else
-  bool is_sycl = std::regex_match(input, std::regex("sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"));
+  thread_local static std::regex sycl_pattern{"sycl(:cpu|:gpu)?(:-1|:[0-9]+)?"};
+  bool is_sycl = std::regex_match(input, sycl_pattern);
 #endif  // defined(__MINGW32__)
 
   std::string s_device = input;
   if (!is_sycl) {
-    s_device = std::regex_replace(s_device, std::regex{"gpu"}, DeviceSym::CUDA());
+    thread_local static std::regex gpu_pattern{"gpu"};
+    s_device = std::regex_replace(s_device, gpu_pattern, DeviceSym::CUDA());
   }
 
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');

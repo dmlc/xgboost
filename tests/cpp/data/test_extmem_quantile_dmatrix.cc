@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include "test_extmem_quantile_dmatrix.h"  // for TestExtMemQdmBasic
 
@@ -7,6 +7,7 @@
 #include <xgboost/data.h>  // for BatchParam
 
 #include <algorithm>  // for equal
+#include <vector>     // for vector
 
 #include "../../../src/common/column_matrix.h"  // for ColumnMatrix
 #include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix

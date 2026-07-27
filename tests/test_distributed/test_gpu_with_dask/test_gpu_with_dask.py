@@ -12,11 +12,13 @@ import pytest
 import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
-from packaging.version import parse as parse_version
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
-from xgboost.testing.params import hist_parameter_strategy
+from xgboost.testing.params import (
+    hist_multi_parameter_strategy,
+    hist_parameter_strategy,
+)
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
@@ -42,15 +44,16 @@ pytestmark = [
 import cudf
 import dask
 import dask.dataframe as dd
-from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 from xgboost import dask as dxgb
-from xgboost.testing.dask import check_init_estimation, check_uneven_nan
-
-dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
-    "2024.11.0"
+from xgboost.testing.dask import (
+    check_init_estimation,
+    check_multi_output_tree_classifier,
+    check_multi_output_tree_regressor,
+    check_multi_output_tree_shap,
+    check_uneven_nan,
 )
 
 
@@ -272,6 +275,43 @@ class TestDistributedGPU:
         run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
 
     @given(
+        params=hist_multi_parameter_strategy,
+        num_rounds=strategies.integers(1, 3),
+        dataset=tm.multi_dataset_strategy,
+    )
+    @settings(
+        deadline=duration(seconds=120),
+        max_examples=10,
+        suppress_health_check=suppress,
+        print_blob=True,
+    )
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi(
+        self,
+        params: Dict,
+        num_rounds: int,
+        dataset: tm.TestDataset,
+        local_cuda_client: Client,
+    ) -> None:
+        params["tree_method"] = "hist"
+        run_gpu_hist(
+            params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client
+        )
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi_regressor(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_regressor(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skipif(**tm.no_dask_cudf())
+    def test_gpu_hist_multi_classifier(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_classifier(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi_shap(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_shap(local_cuda_client, "cuda")
+
+    @given(
         params=hist_parameter_strategy,
         num_rounds=strategies.integers(1, 20),
         dataset=tm.make_dataset_strategy(),
@@ -366,9 +406,6 @@ class TestDistributedGPU:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    @pytest.mark.xfail(
-        dask_version_ge110, reason="Test cannot pass with Dask 2024.11.0+"
-    )
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:

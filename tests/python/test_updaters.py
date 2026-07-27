@@ -12,6 +12,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_bitfield_boundaries,
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
@@ -231,36 +232,27 @@ class TestTreeMethod:
         strategies.integers(3, 8),
         strategies.integers(1, 2),
         strategies.integers(4, 7),
+        strategies.sampled_from([("approx", False), ("hist", False), ("hist", True)]),
     )
     @settings(deadline=None, print_blob=True, max_examples=10)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int
+        self,
+        rows: int,
+        cols: int,
+        rounds: int,
+        cats: int,
+        config: tuple[str, bool],
     ) -> None:
+        tree_method, multi_target = config
         check_categorical_ohe(
             rows=rows,
             cols=cols,
             rounds=rounds,
             cats=cats,
             device="cpu",
-            tree_method="approx",
-        )
-        check_categorical_ohe(
-            rows=rows,
-            cols=cols,
-            rounds=rounds,
-            cats=cats,
-            device="cpu",
-            tree_method="hist",
-        )
-        check_categorical_ohe(
-            rows=rows,
-            cols=cols,
-            rounds=rounds,
-            cats=cats,
-            device="cpu",
-            tree_method="hist",
-            multi_target=True,
+            tree_method=tree_method,
+            multi_target=multi_target,
         )
 
     @given(
@@ -323,6 +315,13 @@ class TestTreeMethod:
         check_categorical_missing(
             rows, cols, cats, device="cpu", tree_method="hist", extmem=False
         )
+
+    @pytest.mark.parametrize("cats", [32, 64])
+    @pytest.mark.parametrize("multi_target", [False, True])
+    def test_categorical_bitfield_boundaries(
+        self, cats: int, multi_target: bool
+    ) -> None:
+        check_categorical_bitfield_boundaries("cpu", cats, multi_target)
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:

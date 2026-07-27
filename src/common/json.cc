@@ -36,7 +36,9 @@ void JsonWriter::Visit(F32Array const* arr) {
   this->WriteArray(arr, [](float v) { return Json{v}; });
 }
 namespace {
-auto to_i64 = [](auto v) { return Json{static_cast<int64_t>(v)}; };
+auto to_i64 = [](auto v) {
+  return Json{static_cast<int64_t>(v)};
+};
 }  // anonymous namespace
 void JsonWriter::Visit(I8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(U8Array const* arr) { this->WriteArray(arr, to_i64); }
@@ -58,7 +60,7 @@ void JsonWriter::Visit(JsonObject const* obj) {
     stream_->emplace_back(':');
     this->Save(value.second);
 
-    if (i != size-1) {
+    if (i != size - 1) {
       stream_->emplace_back(',');
     }
     i++;
@@ -89,26 +91,26 @@ void JsonWriter::Visit(JsonInteger const* num) {
   std::memcpy(stream_->data() + ori_size, i2s_buffer_.data(), digits);
 }
 
-void JsonWriter::Visit(JsonNull const* ) {
-    auto s = stream_->size();
-    stream_->resize(s + 4);
-    auto& buf = (*stream_);
-    buf[s + 0] = 'n';
-    buf[s + 1] = 'u';
-    buf[s + 2] = 'l';
-    buf[s + 3] = 'l';
+void JsonWriter::Visit(JsonNull const*) {
+  auto s = stream_->size();
+  stream_->resize(s + 4);
+  auto& buf = (*stream_);
+  buf[s + 0] = 'n';
+  buf[s + 1] = 'u';
+  buf[s + 2] = 'l';
+  buf[s + 3] = 'l';
 }
 
 void JsonWriter::Visit(JsonString const* str) {
-    std::string buffer;
-    buffer += '"';
-    auto const& string = str->GetString();
-    common::EscapeU8(string, &buffer);
-    buffer += '"';
+  std::string buffer;
+  buffer += '"';
+  auto const& string = str->GetString();
+  common::EscapeU8(string, &buffer);
+  buffer += '"';
 
-    auto s = stream_->size();
-    stream_->resize(s + buffer.size());
-    std::memcpy(stream_->data() + s, buffer.data(), buffer.size());
+  auto s = stream_->size();
+  stream_->resize(s + buffer.size());
+  std::memcpy(stream_->data() + s, buffer.data(), buffer.size());
 }
 
 void JsonWriter::Visit(JsonBoolean const* boolean) {
@@ -209,7 +211,9 @@ void JsonObject::Save(JsonWriter* writer) const { writer->Visit(this); }
 
 // Json String
 bool JsonString::operator==(Value const& rhs) const {
-  if (!IsA<JsonString>(&rhs)) { return false; }
+  if (!IsA<JsonString>(&rhs)) {
+    return false;
+  }
   return Cast<JsonString const>(&rhs)->GetString() == str_;
 }
 
@@ -293,7 +297,9 @@ template class JsonTypedArray<std::uint64_t, Value::ValueKind::kU64Array>;
 
 // Json Number
 bool JsonNumber::operator==(Value const& rhs) const {
-  if (!IsA<JsonNumber>(&rhs)) { return false; }
+  if (!IsA<JsonNumber>(&rhs)) {
+    return false;
+  }
   auto r_num = Cast<JsonNumber const>(&rhs)->GetNumber();
   if (std::isinf(number_)) {
     return std::isinf(r_num);
@@ -308,7 +314,9 @@ void JsonNumber::Save(JsonWriter* writer) const { writer->Visit(this); }
 
 // Json Integer
 bool JsonInteger::operator==(Value const& rhs) const {
-  if (!IsA<JsonInteger>(&rhs)) { return false; }
+  if (!IsA<JsonInteger>(&rhs)) {
+    return false;
+  }
   return integer_ == Cast<JsonInteger const>(&rhs)->GetInteger();
 }
 
@@ -316,7 +324,9 @@ void JsonInteger::Save(JsonWriter* writer) const { writer->Visit(this); }
 
 // Json Null
 bool JsonNull::operator==(Value const& rhs) const {
-  if (!IsA<JsonNull>(&rhs)) { return false; }
+  if (!IsA<JsonNull>(&rhs)) {
+    return false;
+  }
   return true;
 }
 
@@ -324,7 +334,9 @@ void JsonNull::Save(JsonWriter* writer) const { writer->Visit(this); }
 
 // Json Boolean
 bool JsonBoolean::operator==(Value const& rhs) const {
-  if (!IsA<JsonBoolean>(&rhs)) { return false; }
+  if (!IsA<JsonBoolean>(&rhs)) {
+    return false;
+  }
   return boolean_ == Cast<JsonBoolean const>(&rhs)->GetBoolean();
 }
 
@@ -336,19 +348,20 @@ Json JsonReader::Parse() {
   while (true) {
     SkipSpaces();
     auto c = PeekNextChar();
-    if (c == -1) { break; }
+    if (c == -1) {
+      break;
+    }
 
     if (c == '{') {
       return ParseObject();
-    } else if ( c == '[' ) {
+    } else if (c == '[') {
       return ParseArray();
-    } else if ( c == '-' || std::isdigit(c) ||
-                c == 'N' || c == 'I') {
+    } else if (c == '-' || std::isdigit(c) || c == 'N' || c == 'I') {
       // For now we only accept `NaN`, not `nan` as the later violates LR(1) with `null`.
       return ParseNumber();
-    } else if ( c == '\"' ) {
+    } else if (c == '\"') {
       return ParseString();
-    } else if ( c == 't' || c == 'f' ) {
+    } else if (c == 't' || c == 'f') {
       return ParseBoolean();
     } else if (c == 'n') {
       return ParseNull();
@@ -377,10 +390,10 @@ void JsonReader::Error(std::string msg) const {
   }
 
   constexpr size_t kExtend = 8;
-  auto beg = static_cast<int64_t>(cursor_.Pos()) -
-             static_cast<int64_t>(kExtend) < 0 ? 0 : cursor_.Pos() - kExtend;
-  auto end = cursor_.Pos() + kExtend >= raw_str_.size() ?
-             raw_str_.size() : cursor_.Pos() + kExtend;
+  auto beg = static_cast<int64_t>(cursor_.Pos()) - static_cast<int64_t>(kExtend) < 0
+                 ? 0
+                 : cursor_.Pos() - kExtend;
+  auto end = cursor_.Pos() + kExtend >= raw_str_.size() ? raw_str_.size() : cursor_.Pos() + kExtend;
 
   auto raw_portion = raw_str_.substr(beg, end - beg);
   std::string portion;
@@ -428,7 +441,7 @@ void JsonReader::SkipSpaces() {
 void ParseStr(std::string const& str) {
   size_t end = 0;
   for (size_t i = 0; i < str.size(); ++i) {
-    if (str[i] == '"' && i > 0 && str[i-1] != '\\') {
+    if (str[i] == '"' && i > 0 && str[i - 1] != '\\') {
       end = i;
       break;
     }
@@ -437,24 +450,59 @@ void ParseStr(std::string const& str) {
   result.resize(end);
 }
 
-Json JsonReader::ParseString() {
-  Char ch { GetConsecutiveChar('\"') };  // NOLINT
+std::string JsonReader::ParseStringLiteral() {
+  Char ch{GetConsecutiveChar('\"')};  // NOLINT
+
+  // Fast path: scan ahead for the closing quote. When the literal contains no
+  // escape sequence (the overwhelmingly common case), construct the string in
+  // one piece instead of character by character.
+  char const* data = raw_str_.c_str();
+  std::size_t const size = raw_str_.size();
+  std::size_t const begin = cursor_.Pos();
+  std::size_t pos = begin;
+  while (pos < size) {
+    char c = data[pos];
+    if (c == '\"') {
+      std::string str{data + begin, pos - begin};
+      cursor_.Forward(static_cast<uint32_t>(pos - begin + 1));  // literal + closing quote
+      return str;
+    }
+    if (c == '\\' || c == '\r' || c == '\n') {
+      break;  // escape sequence or malformed literal: handled by the loop below
+    }
+    ++pos;
+  }
+
+  // Slow path: handles escape sequences and reports malformed literals. The
+  // cursor was not advanced by the scan above, so this parses the whole
+  // literal exactly as the previous implementation did.
   std::string str;
   while (true) {
     ch = GetNextChar();
     if (ch == '\\') {
       Char next{GetNextChar()};
       switch (next) {
-        case 'r':  str += u8"\r"; break;
-        case 'n':  str += u8"\n"; break;
-        case '\\': str += u8"\\"; break;
-        case 't':  str += u8"\t"; break;
-        case '\"': str += u8"\""; break;
+        case 'r':
+          str += u8"\r";
+          break;
+        case 'n':
+          str += u8"\n";
+          break;
+        case '\\':
+          str += u8"\\";
+          break;
+        case 't':
+          str += u8"\t";
+          break;
+        case '\"':
+          str += u8"\"";
+          break;
         case 'u':
           str += ch;
           str += 'u';
           break;
-        default: Error("Unknown escape");
+        default:
+          Error("Unknown escape");
       }
     } else {
       if (ch == '\"') break;
@@ -464,6 +512,11 @@ Json JsonReader::ParseString() {
       Expect('\"', ch);
     }
   }
+  return str;
+}
+
+Json JsonReader::ParseString() {
+  std::string str = this->ParseStringLiteral();
   return Json(std::move(str));
 }
 
@@ -482,14 +535,15 @@ Json JsonReader::ParseNull() {
 Json JsonReader::ParseArray() {
   std::vector<Json> data;
 
-  Char ch { GetConsecutiveChar('[') };  // NOLINT
+  Char ch{GetConsecutiveChar('[')};  // NOLINT
   while (true) {
     if (PeekNextChar() == ']') {
       GetConsecutiveChar(']');
       return Json(std::move(data));
     }
-    auto obj = Parse();
-    data.emplace_back(obj);
+    // Move the parsed element in directly; the previous lvalue copy cost a
+    // reference-count round trip per element.
+    data.emplace_back(Parse());
     ch = GetNextNonSpaceChar();
     if (ch == ']') break;
     if (ch != ',') {
@@ -520,7 +574,11 @@ Json JsonReader::ParseObject() {
     if (ch != '"') {
       Expect('"', ch);
     }
-    Json key = ParseString();
+    // Parse the key as a plain string: wrapping it in a Json (as ParseString
+    // does) costs a heap-allocated value that is immediately unwrapped, and
+    // `data[key] = ...` would then copy the key and default-construct the
+    // mapped value. insert_or_assign preserves last-duplicate-wins semantics.
+    std::string key = this->ParseStringLiteral();
 
     ch = GetNextNonSpaceChar();
 
@@ -528,9 +586,9 @@ Json JsonReader::ParseObject() {
       Expect(':', ch);
     }
 
-    Json value { Parse() };
+    Json value{Parse()};
 
-    data[get<String>(key)] = std::move(value);
+    data.insert_or_assign(std::move(key), std::move(value));
 
     ch = GetNextNonSpaceChar();
 
@@ -558,19 +616,19 @@ Json JsonReader::ParseNumber() {
 
   bool negative = false;
   switch (*p) {
-  case '-': {
-    negative = true;
-    ++p;
-    break;
-  }
-  case '+': {
-    negative = false;
-    ++p;
-    break;
-  }
-  default: {
-    break;
-  }
+    case '-': {
+      negative = true;
+      ++p;
+      break;
+    }
+    case '+': {
+      negative = false;
+      ++p;
+      break;
+    }
+    default: {
+      break;
+    }
   }
 
   if (XGBOOST_EXPECT(*p == 'I', false)) {
@@ -614,13 +672,13 @@ Json JsonReader::ParseNumber() {
     p++;
 
     switch (*p) {
-    case '-':
-    case '+': {
-      p++;
-      break;
-    }
-    default:
-      break;
+      case '-':
+      case '+': {
+        p++;
+        break;
+      }
+      default:
+        break;
     }
 
     if (XGBOOST_EXPECT(*p >= '0' && *p <= '9', true)) {
@@ -708,9 +766,7 @@ void Json::Dump(Json json, std::vector<char>* str, std::ios::openmode mode) {
   }
 }
 
-void Json::Dump(Json json, JsonWriter* writer) {
-  writer->Save(json);
-}
+void Json::Dump(Json json, JsonWriter* writer) { writer->Save(json); }
 
 static_assert(std::is_nothrow_move_constructible_v<Json>);
 static_assert(std::is_nothrow_move_constructible_v<Object>);

@@ -135,26 +135,14 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
 /**
  * @brief load a data matrix
  *
- * @deprecated since 2.0.0
- * @see XGDMatrixCreateFromURI()
- * @param fname the name of the file
- * @param silent whether print messages during loading
- * @param out a loaded data matrix
- *
- * @return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out);
-
-/**
- * @brief load a data matrix
- *
  * @param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - uri: The URI of the input file. The URI parameter `format` is required when loading text data.
  *          @verbatim embed:rst:leading-asterisk
  *            See :doc:`/tutorials/input_format` for more info.
  *          @endverbatim
  *   - silent (optional): Whether to print message during loading. Default to true.
- *   - data_split_mode (optional): Whether the file was split by row or column beforehand for distributed computing. Default to row.
+ *   - data_split_mode (optional, deprecated): Data split mode. Only row-wise split is
+ *     supported; column-wise split has been removed and is rejected. Default to row.
  * @param out a loaded data matrix
  * @return 0 when success, -1 when failure happens
  */
@@ -243,7 +231,8 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
  * @param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
+ *   - data_split_mode (optional, deprecated): Data split mode. Only row-wise split is
+ *     supported; column-wise split has been removed and is rejected. Default to row.
  * @param out The created DMatrix
  *
  * @return 0 when success, -1 when failure happens
@@ -310,7 +299,8 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *config
  * @param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
+ *   - data_split_mode (optional, deprecated): Data split mode. Only row-wise split is
+ *     supported; column-wise split has been removed and is rejected. Default to row.
  * @param out created dmatrix
  * @return 0 when success, -1 when failure happens
  */

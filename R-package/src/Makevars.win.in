@@ -11,11 +11,6 @@ XGB_RFLAGS = \
     -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) \
     -DDMLC_DISABLE_STDIN=1 \
     -DDMLC_LOG_CUSTOMIZE=1
-
-# disable the use of thread_local for 32 bit windows:
-ifeq ($(R_OSTYPE)$(WIN),windows)
-    XGB_RFLAGS += -DDMLC_CXX11_THREAD_LOCAL=0
-endif
 $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 
 PKG_CPPFLAGS = \
@@ -97,7 +92,6 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_prune.o \
     $(PKGROOT)/src/tree/updater_quantile_hist.o \
     $(PKGROOT)/src/tree/updater_refresh.o \
-    $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/hist_param.o \
     $(PKGROOT)/src/tree/hist/histogram.o \
     $(PKGROOT)/src/tree/hist/sampler.o \

@@ -40,18 +40,29 @@ WHEEL_TAG=manylinux_2_28_${arch}
 set -x
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
+raw_wheels=(python-package/dist/*.whl)
+raw_wheel="${raw_wheels[0]}"
+
+auditwheel repair --only-plat --plat ${WHEEL_TAG} "${raw_wheel}" --wheel-dir wheelhouse/
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
   wheelhouse/*.whl
+rm -v "${raw_wheel}"
 mv -v wheelhouse/*.whl python-package/dist/
 
-if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
+final_wheels=(python-package/dist/*.whl)
+if [[ ${#final_wheels[@]} -ne 1 || ! -f "${final_wheels[0]}" ]]; then
+  echo "error: expected exactly one final wheel in python-package/dist"
+  exit 1
+fi
+final_wheel="${final_wheels[0]}"
+
+if ! unzip -l "${final_wheel}" | grep libgomp > /dev/null; then
   echo "error: libgomp.so was not vendored in the wheel"
   exit -1
 fi
 
 # Check size of wheel
-pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
+pydistcheck --config python-package/pyproject.toml "${final_wheel}"
 
 # Generate meta.json only for the main CUDA variant (not cuda13)
 if [[ $cuda_variant == "cuda" && $arch == "x86_64" ]]
@@ -60,7 +71,7 @@ then
   # TODO(hcho3): Generate meta.json that contains both x86_64 and aarch64 wheels
   echo "--- Generate meta info"
   python3 ops/script/format_wheel_meta.py \
-    --wheel-path python-package/dist/*.whl  \
+    --wheel-path "${final_wheel}"  \
     --commit-hash ${GITHUB_SHA}  \
     --platform-tag ${WHEEL_TAG}  \
     --meta-path python-package/dist/
@@ -72,7 +83,7 @@ then
   python3 ops/pipeline/manage-artifacts.py upload \
     --s3-bucket xgboost-nightly-builds \
     --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-    python-package/dist/*.whl
+    "${final_wheel}"
 
   if [[ $cuda_variant == "cuda" && $arch == "x86_64" ]]
   then

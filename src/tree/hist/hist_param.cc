@@ -41,6 +41,6 @@ void HistMakerTrainParam::CheckTreesSynchronized(Context const* ctx,
   RegTree ref_tree{};  // rank 0 tree
   auto j_ref_tree = Json::Load(StringView{s_model}, std::ios::binary);
   ref_tree.LoadModel(j_ref_tree);
-  CHECK(*local_tree == ref_tree);
+  CHECK(local_tree->Equal(ref_tree));
 }
 }  // namespace xgboost::tree

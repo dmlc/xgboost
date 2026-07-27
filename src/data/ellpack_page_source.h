@@ -44,7 +44,7 @@ struct EllpackCacheInfo {
   bool allow_decomp_fallback{false};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
-  std::vector<bst_idx_t> buffer_rows;
+  std::vector<bst_idx_t> buffer_rows;   // The number of rows for each batch after concatenation.
 
   EllpackCacheInfo() = default;
   EllpackCacheInfo(BatchParam param, double h_ratio, float missing)

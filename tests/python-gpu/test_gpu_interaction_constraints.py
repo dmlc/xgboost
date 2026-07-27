@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 import xgboost as xgb
 from xgboost.testing.interaction_constraints import (
     run_interaction_constraints,
@@ -13,6 +12,9 @@ class TestGPUInteractionConstraints:
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_interaction_constraints(self, tree_method: str) -> None:
         run_interaction_constraints(tree_method=tree_method, device="cuda")
+
+    def test_hist_multi_interaction_constraints(self) -> None:
+        run_interaction_constraints(tree_method="hist", device="cuda", n_targets=3)
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_training_accuracy(self, tree_method: str) -> None:

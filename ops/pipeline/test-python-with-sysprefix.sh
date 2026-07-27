@@ -19,5 +19,5 @@ cd python-package
 pip install virtualenv
 virtualenv venv
 source venv/bin/activate && \
-  pip install -v . --config-settings use_system_libxgboost=True && \
+  pip install -v . --config-settings cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON && \
   python -c 'import xgboost'

@@ -5,18 +5,23 @@
 
 #include <cstdint>  // for uint64_t
 
+#if !defined(__x86_64__) && defined(__linux__)
+#include <fstream>  // for ifstream
+#include <string>   // for string, getline, stoll
+#endif              // !defined(__x86_64__) && defined(__linux__)
+
 #if defined(__x86_64__)
 
-void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
+void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (&abcd)[4]) {
 #if defined(_MSC_VER)
-    __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
+  __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
 #else
-    uint32_t ebx = 0, edx = 0;
-    __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
-    abcd[0] = eax;
-    abcd[1] = ebx;
-    abcd[2] = ecx;
-    abcd[3] = edx;
+  uint32_t ebx = 0, edx = 0;
+  __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
+  abcd[0] = eax;
+  abcd[1] = ebx;
+  abcd[2] = ecx;
+  abcd[3] = edx;
 #endif
 }
 
@@ -41,9 +46,9 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 #define _CPUID_VENDOR_ID_AMD 0x68747541
 
 // Run CPUID and collect raw output.
-void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
-                  int* line_size, int* partitions, int* ways) {
-// Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
+void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets, int* line_size,
+                  int* partitions, int* ways) {
+  // Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
   uint32_t vendor_reg[4];
   RunCpuid(0, 0, vendor_reg);
   bool is_amd = (vendor_reg[1] == _CPUID_VENDOR_ID_AMD);
@@ -56,12 +61,12 @@ void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
   const uint32_t ebx = abcd[1];
   const uint32_t ecx = abcd[2];
   // const uint32_t edx = abcd[3];  // Not used
-  *type              = _CPUID_GET_TYPE(eax);
-  *level             = _CPUID_GET_LEVEL(eax);
-  *sets              = _CPUID_GET_SETS(ecx);
-  *line_size         = _CPUID_GET_LINE_SIZE(ebx);
-  *partitions        = _CPUID_GET_PARTITIONS(ebx);
-  *ways              = _CPUID_GET_WAYS(ebx);
+  *type = _CPUID_GET_TYPE(eax);
+  *level = _CPUID_GET_LEVEL(eax);
+  *sets = _CPUID_GET_SETS(ecx);
+  *line_size = _CPUID_GET_LINE_SIZE(ebx);
+  *partitions = _CPUID_GET_PARTITIONS(ebx);
+  *ways = _CPUID_GET_WAYS(ebx);
 }
 
 constexpr int kCpuidTypeNull = 0;
@@ -69,7 +74,8 @@ constexpr int kCpuidTypeData = 1;  // NOLINT
 constexpr int kCpuidTypeInst = 2;
 constexpr int kCpuidTypeUnif = 3;  // NOLINT
 
-// Interpret the raw CPUID results and extract actual (or unified) cache parameters.
+// Interpret the raw CPUID results and extract actual (or unified) cache
+// parameters.
 template <std::int32_t kMaxCacheSize>
 void DetectDataCaches(int64_t* cache_sizes) {
   (void)kCpuidTypeData;
@@ -87,20 +93,94 @@ void DetectDataCaches(int64_t* cache_sizes) {
     cache_sizes[cache_sizes_idx++] = size;
   }
 }
+
+#elif defined(__linux__)  // non-x86_64 Linux (e.g. aarch64): read cache sizes from sysfs
+
+namespace {
+
+// Parse a sysfs cache "size" string like "64K", "2048K", "36864K", "2M".
+int64_t ParseCacheSize(const std::string& s) {
+  if (s.empty()) return -1;  // kUninitCache
+  int64_t mult = 1;
+  std::string num = s;
+  switch (num.back()) {
+    case 'K':
+    case 'k':
+      mult = 1024;
+      num.pop_back();
+      break;
+    case 'M':
+    case 'm':
+      mult = 1024 * 1024;
+      num.pop_back();
+      break;
+    case 'G':
+    case 'g':
+      mult = 1024 * 1024 * 1024;
+      num.pop_back();
+      break;
+    default:
+      break;
+  }
+  try {
+    return static_cast<int64_t>(std::stoll(num)) * mult;
+  } catch (...) {
+    return -1;  // kUninitCache
+  }
+}
+
+// Read data/unified cache sizes from sysfs, storing each at its level:
+// L1 -> [0], L2 -> [1], L3 -> [2]. Indexing by level is robust to sysfs ordering.
+template <std::int32_t kMaxCacheSize>
+void DetectDataCachesSysfs(int64_t* cache_sizes) {
+  const std::string base = "/sys/devices/system/cpu/cpu0/cache/index";
+
+  for (int i = 0; i < 16; ++i) {
+    const std::string dir = base + std::to_string(i);
+
+    std::ifstream type_f(dir + "/type");
+    if (!type_f) break;  // indices are contiguous; no more cache levels exposed
+
+    std::string type;
+    std::getline(type_f, type);
+
+    // Keep only data and unified caches (this also skips the instruction cache,
+    // as the x86 CPUID path does).
+    if (type != "Data" && type != "Unified") continue;
+
+    std::ifstream level_f(dir + "/level");
+    int level = 0;
+    level_f >> level;
+
+    // cache_sizes has kMaxCacheSize slots addressed by (level - 1); a missing or
+    // out-of-range level is skipped, leaving that slot at its kUninitCache default.
+    if (level <= 0 || level > kMaxCacheSize) continue;
+
+    std::ifstream size_f(dir + "/size");
+    std::string size_s;
+    std::getline(size_f, size_s);
+
+    const int64_t sz = ParseCacheSize(size_s);
+    if (sz > 0) {
+      cache_sizes[level - 1] = sz;
+    }
+  }
+}
+
+}  // namespace
+
 #endif  // defined(__x86_64__)
 
 namespace xgboost::common {
 
-/* Detect CPU cache sizes at runtime using CPUID.
- * CPUID cannot be used reliably on:
- * 1. non-x86_64 architectures
- * 2. some virtualized environments
- *
- * In these cases, fallback L1/L2/L3 defaults are used.
+/* Detect CPU cache sizes at runtime: CPUID on x86_64, sysfs on non-x86_64 Linux,
+ * and compiled L1/L2/L3 defaults otherwise (or for any size detection leaves unset).
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   DetectDataCaches<kMaxCacheSize>(cache_size_.data());
+#elif defined(__linux__)
+  DetectDataCachesSysfs<kMaxCacheSize>(cache_size_.data());
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)

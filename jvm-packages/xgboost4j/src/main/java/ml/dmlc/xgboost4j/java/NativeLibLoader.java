@@ -44,6 +44,7 @@ class NativeLibLoader {
     WINDOWS("windows"),
     MACOS("macos"),
     LINUX("linux"),
+    FREEBSD("freebsd"),
     SOLARIS("solaris");
 
     final String name;
@@ -66,6 +67,8 @@ class NativeLibLoader {
         return WINDOWS;
       } else if (os.contains("nux")) {
         return LINUX;
+      } else if (os.contains("freebsd")) {
+        return FREEBSD;
       } else if (os.contains("sunos")) {
         return SOLARIS;
       } else {
@@ -152,7 +155,7 @@ class NativeLibLoader {
    * <p>
    * Throws IllegalStateException if the architecture or OS is unsupported.
    * <ul>
-   *   <li>Supported OS: macOS, Windows, Linux, Solaris.</li>
+   *   <li>Supported OS: macOS, Windows, Linux, FreeBSD, Solaris.</li>
    *   <li>Supported Architectures: x86_64, aarch64, sparc.</li>
    * </ul>
    * Throws UnsatisfiedLinkError if the library failed to load its dependencies.
@@ -189,6 +192,10 @@ class NativeLibLoader {
               logger.error("Alternatively, if your Linux OS is musl-based, you should set " +
                       "the path for the native library " + libName + " " +
                       "via the system property " + getPropertyNameForLibrary(libName));
+              break;
+            case FREEBSD:
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libomp.so'");
               break;
             case SOLARIS:
               logger.error(failureMessageIncludingOpenMPHint);

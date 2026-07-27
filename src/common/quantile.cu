@@ -591,10 +591,10 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
+void SketchContainer::AllReduce(Context const *ctx) {
   curt::SetDevice(ctx->Ordinal());
   auto world = collective::GetWorldSize();
-  if (world == 1 || is_column_split) {
+  if (world == 1) {
     return;
   }
 
@@ -662,7 +662,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   pack_payload(&payload, stream);
   rc = collective::AllreduceV(
       ctx, &payload, &scratch,
-      [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
+      [&](dh::device_vector<std::int8_t> const &, dh::device_vector<std::int8_t> const &rhs,
           dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
         auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
         this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
@@ -678,13 +678,13 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   LOG(FATAL) << "Distributed GPU quantile sketch reduction requires NCCL support.";
 }
 
-HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split) {
+HistogramCuts SketchContainer::MakeCuts(Context const *ctx) {
   curt::SetDevice(ctx->Ordinal());
   HistogramCuts cuts{num_columns_};
   auto *p_cuts = &cuts;
 
   // Sync between workers.
-  this->AllReduce(ctx, is_column_split);
+  this->AllReduce(ctx);
 
   timer_.Start(__func__);
   auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();

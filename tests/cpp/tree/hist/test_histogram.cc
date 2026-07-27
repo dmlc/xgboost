@@ -70,8 +70,7 @@ void TestAddHistRows(bool is_distributed) {
 
   HistMakerTrainParam hist_param;
   HistogramBuilder histogram_builder;
-  histogram_builder.Reset(&ctx, gmat.cut.TotalBins(), {kMaxBins, 0.5}, is_distributed, false,
-                          &hist_param);
+  histogram_builder.Reset(&ctx, gmat.cut.TotalBins(), {kMaxBins, 0.5}, is_distributed, &hist_param);
   histogram_builder.AddHistRows(tree.HostScView(), &nodes_to_build, &nodes_to_sub, false);
 
   for (bst_node_t const &nidx : nodes_to_build) {
@@ -103,7 +102,7 @@ void TestSyncHist(bool is_distributed) {
   HistogramBuilder histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
   HistMakerTrainParam hist_param;
-  histogram.Reset(&ctx, total_bins, {kMaxBins, 0.5}, is_distributed, false, &hist_param);
+  histogram.Reset(&ctx, total_bins, {kMaxBins, 0.5}, is_distributed, &hist_param);
 
   common::RowSetCollection row_set_collection;
   {
@@ -227,15 +226,10 @@ TEST(CPUHistogram, SyncHist) {
   TestSyncHist(false);
 }
 
-void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read_by_column,
-                        bool is_col_split) {
+void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read_by_column) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
   auto p_fmat = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
-  if (is_col_split) {
-    p_fmat = std::shared_ptr<DMatrix>{
-        p_fmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  }
   auto const &gmat =
       *(p_fmat->GetBatches<GHistIndexMatrix>(ctx, BatchParam{kMaxBins, 0.5}).begin());
   uint32_t total_bins = gmat.cut.Ptrs().back();
@@ -248,7 +242,7 @@ void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read
   bst_node_t nid = 0;
   HistogramBuilder histogram;
   HistMakerTrainParam hist_param;
-  histogram.Reset(ctx, total_bins, {kMaxBins, 0.5}, is_distributed, is_col_split, &hist_param);
+  histogram.Reset(ctx, total_bins, {kMaxBins, 0.5}, is_distributed, &hist_param);
 
   RegTree tree;
 
@@ -297,20 +291,10 @@ void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read
 
 TEST(CPUHistogram, BuildHist) {
   Context ctx;
-  TestBuildHistogram(&ctx, true, false, false);
-  TestBuildHistogram(&ctx, false, false, false);
-  TestBuildHistogram(&ctx, true, true, false);
-  TestBuildHistogram(&ctx, false, true, false);
-}
-
-TEST(CPUHistogram, BuildHistColumnSplit) {
-  auto constexpr kWorkers = 4;
-  Context ctx;
-  std::int32_t n_total_threads = std::thread::hardware_concurrency();
-  auto n_threads = std::max(n_total_threads / kWorkers, 1);
-  ctx.UpdateAllowUnknown(Args{{"nthread", std::to_string(n_threads)}});
-  collective::TestDistributedGlobal(kWorkers, [&] { TestBuildHistogram(&ctx, true, true, true); });
-  collective::TestDistributedGlobal(kWorkers, [&] { TestBuildHistogram(&ctx, true, false, true); });
+  TestBuildHistogram(&ctx, true, false);
+  TestBuildHistogram(&ctx, false, false);
+  TestBuildHistogram(&ctx, true, true);
+  TestBuildHistogram(&ctx, false, true);
 }
 
 namespace {
@@ -368,7 +352,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   HistogramBuilder cat_hist;
   for (auto const &gidx : cat_m->GetBatches<GHistIndexMatrix>(&ctx, {kBins, 0.5})) {
     auto total_bins = gidx.cut.TotalBins();
-    cat_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, false, &hist_param);
+    cat_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, &hist_param);
     cat_hist.AddHistRows(tree.HostScView(), &nodes_to_build, &dummy_sub, false);
     cat_hist.BuildHist(0, space, gidx, row_set_collection, nodes_to_build,
                        linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
@@ -384,7 +368,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   HistogramBuilder onehot_hist;
   for (auto const &gidx : encode_m->GetBatches<GHistIndexMatrix>(&ctx, {kBins, 0.5})) {
     auto total_bins = gidx.cut.TotalBins();
-    onehot_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, false, &hist_param);
+    onehot_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, &hist_param);
     onehot_hist.AddHistRows(tree.HostScView(), &nodes_to_build, &dummy_sub, false);
     onehot_hist.BuildHist(0, space, gidx, row_set_collection, nodes_to_build,
                           linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
@@ -451,7 +435,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     }
     ASSERT_EQ(n_samples, m->Info().num_row_);
 
-    multi_build.Reset(ctx, total_bins, batch_param, false, false, &hist_param);
+    multi_build.Reset(ctx, total_bins, batch_param, false, &hist_param);
     multi_build.AddHistRows(tree.HostScView(), &nodes, &dummy_sub, false);
     std::size_t page_idx{0};
     for (auto const &page : m->GetBatches<GHistIndexMatrix>(ctx, batch_param)) {
@@ -474,7 +458,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     common::RowSetCollection row_set_collection;
     InitRowPartitionForTest(&row_set_collection, n_samples);
 
-    single_build.Reset(ctx, total_bins, batch_param, false, false, &hist_param);
+    single_build.Reset(ctx, total_bins, batch_param, false, &hist_param);
     SparsePage concat;
     std::vector<float> hess(m->Info().num_row_, 1.0f);
     for (auto const &page : m->GetBatches<SparsePage>()) {
@@ -517,10 +501,9 @@ TEST(CPUHistogram, ExternalMemory) {
 }
 
 namespace {
-class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
+class OverflowTest : public ::testing::TestWithParam<bool> {
  public:
-  std::vector<GradientPairPrecise> TestOverflow(bool limit, bool is_distributed,
-                                                bool is_col_split) {
+  std::vector<GradientPairPrecise> TestOverflow(bool limit, bool is_distributed) {
     bst_bin_t constexpr kBins = 256;
     Context ctx;
     HistMakerTrainParam hist_param;
@@ -528,13 +511,7 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
       hist_param.Init(Args{{"max_cached_hist_node", "1"}});
     }
 
-    std::shared_ptr<DMatrix> Xy =
-        is_col_split ? RandomDataGenerator{8192, 16, 0.5}.GenerateDMatrix(true)
-                     : RandomDataGenerator{8192, 16, 0.5}.Bins(kBins).GenerateQuantileDMatrix(true);
-    if (is_col_split) {
-      Xy =
-          std::shared_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-    }
+    auto Xy = RandomDataGenerator{8192, 16, 0.5}.Bins(kBins).GenerateQuantileDMatrix(true);
 
     double sparse_thresh{TrainParam::DftSparseThreshold()};
     auto batch = BatchParam{kBins, sparse_thresh};
@@ -548,14 +525,11 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
 
     RegTree tree;
     MultiHistogramBuilder hist_builder;
-    CHECK_EQ(Xy->Info().IsColumnSplit(), is_col_split);
 
-    hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed,
-                       Xy->Info().IsColumnSplit(), &hist_param);
+    hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed, &hist_param);
 
     std::vector<CommonRowPartitioner> partitioners;
-    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0,
-                              Xy->Info().IsColumnSplit());
+    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0);
 
     auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
 
@@ -599,21 +573,13 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
 
   void RunTest() {
     auto param = GetParam();
-    auto res0 = this->TestOverflow(false, std::get<0>(param), std::get<1>(param));
-    auto res1 = this->TestOverflow(true, std::get<0>(param), std::get<1>(param));
+    auto res0 = this->TestOverflow(false, param);
+    auto res1 = this->TestOverflow(true, param);
     ASSERT_EQ(res0, res1);
   }
 };
 
-auto MakeParamsForTest() {
-  std::vector<std::tuple<bool, bool>> configs;
-  for (auto i : {true, false}) {
-    for (auto j : {true, false}) {
-      configs.emplace_back(i, j);
-    }
-  }
-  return configs;
-}
+auto MakeParamsForTest() { return std::vector<bool>{true, false}; }
 }  // anonymous namespace
 
 TEST_P(OverflowTest, Overflow) { this->RunTest(); }

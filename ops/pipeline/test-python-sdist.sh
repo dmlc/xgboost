@@ -3,6 +3,11 @@
 
 set -euox pipefail
 
+# Stage the C++ source tree into python-package/cpp_src/ so the sdist is
+# self-contained (scikit-build-core's sdist cannot reach files above
+# python-package/ by itself).
+python3 ops/script/prepare_sdist.py
+
 cd python-package
 python --version
 python -m build --sdist

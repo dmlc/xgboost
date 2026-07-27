@@ -29,7 +29,9 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+@pytest.mark.parametrize(
+    "DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix, xgb.ExtMemQuantileDMatrix]
+)
 def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
     run_predict_leaf("cpu", DMatrixT)
 

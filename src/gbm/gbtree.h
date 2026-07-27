@@ -117,6 +117,10 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
         .set_default(0.0f)
         .describe("Probability of skipping the dropout during a boosting iteration.");
   }
+
+  [[nodiscard]] bool HasDropout() const {
+    return this->rate_drop != 0.0f || this->one_drop || this->skip_drop != 0.0f;
+  }
 };
 
 namespace detail {
@@ -208,7 +212,7 @@ class GBTree : public GradientBooster {
 
   void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                         bst_layer_t layer_begin, bst_layer_t layer_end,
-                        std::vector<float> const* tree_weights = nullptr) const;
+                        std::vector<float> const* tree_weights_override = nullptr) const;
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override;
@@ -234,7 +238,7 @@ class GBTree : public GradientBooster {
     auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
       for (auto idx : trees) {
-        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        CHECK_LT(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
         tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
           if (!tree.IsLeaf(nidx)) {
@@ -289,11 +293,22 @@ class GBTree : public GradientBooster {
 
   [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
 
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds, uint32_t layer_begin,
-                   uint32_t layer_end) override {
+  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
+                   bst_layer_t layer_end, bool strict_shape) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: [0, "
                                "n_iteration), use model slicing instead.";
+    auto it = this->model_.trees.cbegin();
+    // There's no good representation for vector leaf for now as the existing shape is:
+    // `(n_samples, n_iterations, n_classes, n_trees_in_forest)`. But with vector leaf, we
+    // can have mixed tree types and `n_classes` is invalid.
+    if (strict_shape &&
+        std::any_of(it + tree_begin, it + tree_end, [](std::unique_ptr<RegTree> const& p_tree) {
+          return p_tree->IsMultiTarget();
+        })) {
+      LOG(FATAL)
+          << "`strict_shape` with predict leaf is not supported when vector leaf trees are used.";
+    }
     this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
@@ -304,7 +319,7 @@ class GBTree : public GradientBooster {
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
     this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
-                                                   this->TreeWeights(), approximate);
+                                                   approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -313,8 +328,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(
-        p_fmat, out_contribs, model_, tree_end, this->TreeWeights(), approximate);
+    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
+                                                               tree_end, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -323,12 +338,8 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  [[nodiscard]] std::vector<float> const* TreeWeights() const {
-    return weight_drop_.empty() ? nullptr : &weight_drop_;
-  }
-
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
-  std::size_t NormalizeTrees(std::size_t size_new_trees);
+  [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
@@ -359,8 +370,6 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_SYCL)
   std::unique_ptr<Predictor> sycl_predictor_;
 #endif  // defined(XGBOOST_USE_SYCL)
-  /*! \brief per-tree dropout weights */
-  std::vector<bst_float> weight_drop_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
   common::Monitor monitor_;

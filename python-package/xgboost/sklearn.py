@@ -55,9 +55,9 @@ from .compat import (
 from .config import config_context
 from .core import (
     Booster,
+    CustomObj,
     DMatrix,
     Metric,
-    PlainObj,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -71,6 +71,7 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
+from .objective import Objective
 from .training import train
 
 
@@ -83,6 +84,48 @@ class XGBRankerMixIn:
     _estimator_type = "ranker"
 
 
+class XGBClassifierMixIn(XGBClassifierBase):
+    """Metadata shared by the single-node and Dask classifier estimators."""
+
+    n_classes_: int
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multilabel"] = True
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.classifier_tags.multi_label = tags_dict["multilabel"]
+        return tags
+
+    @property
+    def classes_(self) -> np.ndarray:
+        """Classes represented by this estimator."""
+        from sklearn.utils.validation import check_is_fitted
+
+        check_is_fitted(self, "n_classes_")
+        return np.arange(self.n_classes_)
+
+
+class XGBRegressorMixIn(XGBRegressorBase):
+    """Metadata shared by the single-node and Dask regressor estimators."""
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multioutput"] = True
+        tags["multioutput_only"] = False
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.target_tags.multi_output = tags_dict["multioutput"]
+        tags.target_tags.single_output = not tags_dict["multioutput_only"]
+        return tags
+
+
 def _check_rf_callback(
     early_stopping_rounds: Optional[int],
     callbacks: Optional[Sequence[TrainingCallback]],
@@ -92,6 +135,20 @@ def _check_rf_callback(
             "`early_stopping_rounds` and `callbacks` are not implemented for"
             " the sklearn random forest estimator interface."
         )
+
+
+def _warn_rf_deprecated(name: str) -> None:
+    """Emit the deprecation warning for the random forest estimators."""
+    warnings.warn(
+        f"`{name}` is deprecated and will be removed in a future release. The"
+        " estimator is a thin wrapper over the boosting interface and does not"
+        " implement a conventional random forest; features like early stopping are"
+        " unsupported. Set `num_parallel_tree` along with `n_estimators=1` on the"
+        " corresponding boosting estimator instead, or use a dedicated random forest"
+        " implementation like those in `sklearn.ensemble`.",
+        FutureWarning,
+        stacklevel=3,
+    )
 
 
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
@@ -109,19 +166,18 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
+SklObjectiveCallable = Union[Objective, _SklObjWProto, _SklObjProto]
+SklObjective = Optional[Union[str, SklObjectiveCallable]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
-    """Decorate an objective function
-
-    Converts an objective function using the typical sklearn metrics
-    signature so that it is usable with ``xgboost.training.train``
+def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
+    """Decorate or forward a custom objective.
 
     Parameters
     ----------
     func:
-        Expects a callable with signature ``func(y_true, y_pred)``:
+        An :py:class:`Objective` instance or a callable with signature
+        ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
             The target values
@@ -133,15 +189,19 @@ def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
     Returns
     -------
     new_func:
-        The new objective function as expected by ``xgboost.training.train``.
-        The signature is ``new_func(preds, dmatrix)``:
+        The original :py:class:`Objective` or a function with the signature
+        ``new_func(preds, dmatrix)``:
 
         preds: array_like, shape [n_samples]
             The predicted values
         dmatrix: ``DMatrix``
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
+
     """
+
+    if isinstance(func, Objective):
+        return func
 
     parameters = signature(func).parameters
     supports_sw = "sample_weight" in parameters
@@ -264,7 +324,7 @@ __model_doc = f"""
     objective : {SklObjective}
 
         Specify the learning task and the corresponding learning objective or a custom
-        objective function to be used.
+        objective to be used.
 
         For custom objective, see :doc:`/tutorials/custom_metric_obj` and
         :ref:`custom-obj-metric` for more information, along with the end note for
@@ -1361,7 +1421,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1695,7 +1755,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBClassifierBase, XGBModel):
+class XGBClassifier(XGBClassifierMixIn, XGBModel):
     # pylint: disable=missing-docstring,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1705,17 +1765,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         **kwargs: Any,
     ) -> None:
         super().__init__(objective=objective, **kwargs)
-
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multilabel"] = True
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.classifier_tags.multi_label = tags_dict["multilabel"]
-        return tags
 
     @_deprecate_positional_args
     def fit(
@@ -1767,7 +1816,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:
@@ -1927,13 +1976,16 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         )
         return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
 
-    @property
-    def classes_(self) -> np.ndarray:
-        return np.arange(self.n_classes_)
-
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest classification.",
+    """scikit-learn API for XGBoost random forest classification.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -1952,6 +2004,7 @@ class XGBRFClassifier(XGBClassifier):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ):
+        _warn_rf_deprecated("XGBRFClassifier")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -1995,7 +2048,7 @@ class XGBRFClassifier(XGBClassifier):
     "Implementation of the scikit-learn API for XGBoost regression.",
     ["estimators", "model", "objective"],
 )
-class XGBRegressor(XGBRegressorBase, XGBModel):
+class XGBRegressor(XGBRegressorMixIn, XGBModel):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -2003,22 +2056,16 @@ class XGBRegressor(XGBRegressorBase, XGBModel):
     ) -> None:
         super().__init__(objective=objective, **kwargs)
 
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multioutput"] = True
-        tags["multioutput_only"] = False
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.target_tags.multi_output = tags_dict["multioutput"]
-        tags.target_tags.single_output = not tags_dict["multioutput_only"]
-        return tags
-
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest regression.",
+    """scikit-learn API for XGBoost random forest regression.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -2037,6 +2084,7 @@ class XGBRFRegressor(XGBRegressor):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ) -> None:
+        _warn_rf_deprecated("XGBRFRegressor")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -2371,6 +2419,10 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
 
         """
         X, qid = _get_qid(X, None)
+        if qid is None:
+            raise ValueError(
+                "The special column `qid` is required in `X` for ranking task."
+            )
         # fixme(jiamingy): base margin and group weight is not yet supported. We might
         # need to make extra special fields in the dataframe.
         Xyq = DMatrix(

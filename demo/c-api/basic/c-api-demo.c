@@ -13,13 +13,14 @@
 #include <string.h>
 #include <xgboost/c_api.h>
 
-#define safe_xgboost(call) {                                            \
-int err = (call);                                                       \
-if (err != 0) {                                                         \
-  fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); \
-  exit(1);                                                              \
-}                                                                       \
-}
+#define safe_xgboost(call)                                                                       \
+  {                                                                                              \
+    int err = (call);                                                                            \
+    if (err != 0) {                                                                              \
+      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); \
+      exit(1);                                                                                   \
+    }                                                                                            \
+  }
 
 /* Make Json encoded array interface. */
 static void MakeArrayInterface(size_t data, size_t n, char const* typestr, size_t length,
@@ -35,6 +36,12 @@ static void MakeConfig(int n_threads, size_t length, char* out) {
   memset(out, '\0', length);
   sprintf(out, kTemplate, n_threads);
 }
+/* Make Json encoded DMatrix URI configuration. */
+static void MakeDMatrixConfig(char const* uri, int silent, size_t length, char* out) {
+  static char const kTemplate[] = "{\"uri\": \"%s\", \"silent\": %d}";
+  memset(out, '\0', length);
+  snprintf(out, length, kTemplate, uri, silent);
+}
 
 int main() {
   int silent = 0;
@@ -42,8 +49,13 @@ int main() {
 
   // load the data
   DMatrixHandle dtrain, dtest;
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train?format=libsvm", silent, &dtrain));
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test?format=libsvm", silent, &dtest));
+  char dmat_config[256];
+  MakeDMatrixConfig("../../data/agaricus.txt.train?format=libsvm", silent, sizeof(dmat_config),
+                    dmat_config);
+  safe_xgboost(XGDMatrixCreateFromURI(dmat_config, &dtrain));
+  MakeDMatrixConfig("../../data/agaricus.txt.test?format=libsvm", silent, sizeof(dmat_config),
+                    dmat_config);
+  safe_xgboost(XGDMatrixCreateFromURI(dmat_config, &dtest));
 
   // create the booster
   BoosterHandle booster;
@@ -109,12 +121,12 @@ int main() {
   {
     printf("Dense Matrix Example (XGDMatrixCreateFromMat): ");
 
-    const float values[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0,
-      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
-      1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
+    const float values[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+                            0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+                            1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
 
     DMatrixHandle dmat;
     safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));

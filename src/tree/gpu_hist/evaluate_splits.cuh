@@ -3,16 +3,18 @@
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
-#include <cuda/std/tuple>  // for tuple
-
 #include <xgboost/span.h>
+
+#include <cuda/std/tuple>  // for tuple
 
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
-#include "../../common/cuda_stream.h"  // for Stream
+#include "../../common/cuda_stream.h"       // for Stream
+#include "../../common/device_helpers.cuh"  // for WarpThreads
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
+#include "quantiser.cuh"  // for GradientQuantiser
 
 namespace xgboost {
 namespace common {
@@ -20,6 +22,16 @@ class HistogramCuts;
 }
 
 namespace tree {
+// Butterfly all-reduce within a warp. Every lane receives the full sum.
+XGBOOST_DEV_INLINE
+GradientPairInt64 WarpSum(GradientPairInt64 v) {
+  for (std::int32_t offset = dh::WarpThreads() / 2; offset > 0; offset >>= 1) {
+    auto g = __shfl_xor_sync(dh::WarpFullMask(), v.GetQuantisedGrad(), offset);
+    auto h = __shfl_xor_sync(dh::WarpFullMask(), v.GetQuantisedHess(), offset);
+    v += GradientPairInt64{g, h};
+  }
+  return v;
+}
 
 // Inputs specific to each node
 struct EvaluateSplitInputs {
@@ -32,7 +44,7 @@ struct EvaluateSplitInputs {
 
 // Inputs necessary for all nodes
 struct EvaluateSplitSharedInputs {
-  GPUTrainingParam param;
+  EvalParam param;
   GradientQuantiser rounding;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
@@ -84,8 +96,6 @@ class GPUHistEvaluator {
   // Number of elements of categorical storage type
   // needed to hold categoricals for a single mode
   std::size_t node_categorical_storage_size_ = 0;
-  // Is the data split column-wise?
-  bool is_column_split_ = false;
   DeviceOrd device_;
 
   // Copy the categories from device to host asynchronously.
@@ -135,13 +145,12 @@ class GPUHistEvaluator {
 
  public:
   GPUHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
-      : tree_evaluator_{param, n_features, device}, param_{param} {}
+      : tree_evaluator_{param, n_features, device, 1u}, param_{param} {}
   /**
    * \brief Reset the evaluator, should be called before any use.
    */
   void Reset(Context const *ctx, common::HistogramCuts const &cuts,
-             common::Span<FeatureType const> ft, bst_feature_t n_features, TrainParam const &param,
-             bool is_column_split);
+             common::Span<FeatureType const> ft, bst_feature_t n_features, TrainParam const &param);
 
   /**
    * \brief Get host category storage for nidx.  Different from the internal version, this
@@ -176,20 +185,20 @@ class GPUHistEvaluator {
                              candidate.right_weight);
   }
 
-  auto GetEvaluator() { return tree_evaluator_.GetEvaluator<GPUTrainingParam>(); }
+  auto GetEvaluator() { return tree_evaluator_.GetEvaluator<EvalParam>(); }
   /**
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(
       Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
       EvaluateSplitSharedInputs shared_inputs,
-      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
+      TreeEvaluator::SplitEvaluator<EvalParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
   void LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
                             common::Span<const EvaluateSplitInputs> d_inputs,
                             EvaluateSplitSharedInputs shared_inputs,
-                            TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                            TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                             common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
@@ -223,10 +232,13 @@ struct MultiEvaluateSplitSharedInputs {
   common::Span<std::uint32_t const> feature_segments;
   // cut values
   float const *feature_values;
-  // Number of bins for one feature and one target
-  bst_bin_t n_bins_per_feat_tar;
+  common::Span<FeatureType const> feature_types;
+  // Number of bit-field storage elements required for one categorical split.
+  std::size_t cat_storage_size{0};
+  // Number of histogram bins for one target, across all features.
+  bst_bin_t n_total_bins_per_tar;
   bst_feature_t max_active_feature;
-  GPUTrainingParam param;
+  EvalParam param;
 
   // Used for testing
   enum OnePass {
@@ -238,6 +250,9 @@ struct MultiEvaluateSplitSharedInputs {
   [[nodiscard]] XGBOOST_DEVICE bst_target_t Targets() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE bst_feature_t Features() const {
     return this->feature_segments.size() - 1;
+  }
+  [[nodiscard]] XGBOOST_DEVICE bool IsCategorical(bst_feature_t fidx) const {
+    return common::IsCat(this->feature_types, fidx);
   }
 };
 }  // namespace tree

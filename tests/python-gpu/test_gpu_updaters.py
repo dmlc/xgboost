@@ -2,9 +2,8 @@ from typing import Any, Dict
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, note, settings, strategies
-
 import xgboost as xgb
+from hypothesis import assume, given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,
@@ -13,6 +12,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_bitfield_boundaries,
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
@@ -118,20 +118,31 @@ class TestGPUUpdaters:
         strategies.integers(3, 8),
         strategies.integers(1, 2),
         strategies.integers(4, 7),
+        strategies.integers(5, 16),
+        strategies.sampled_from([("approx", False), ("hist", False), ("hist", True)]),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int
+        self,
+        rows: int,
+        cols: int,
+        rounds: int,
+        cats: int,
+        max_bin: int,
+        config: tuple[str, bool],
     ) -> None:
+        tree_method, multi_target = config
         check_categorical_ohe(
             rows=rows,
             cols=cols,
             rounds=rounds,
             cats=cats,
             device="cuda",
-            tree_method="hist",
+            tree_method=tree_method,
             extmem=False,
+            multi_target=multi_target,
+            max_bin=max_bin,
         )
 
     @given(
@@ -217,18 +228,12 @@ class TestGPUUpdaters:
     def test_max_cat(self, tree_method: str) -> None:
         run_max_cat(tree_method, "cuda")
 
-    def test_categorical_32_cat(self) -> None:
-        """32 hits the bound of integer bitset, so special test"""
-        rows = 1000
-        check_categorical_ohe(
-            rows=rows,
-            cols=10,
-            rounds=4,
-            cats=32,
-            device="cuda",
-            tree_method="hist",
-            extmem=False,
-        )
+    @pytest.mark.parametrize("cats", [32, 64])
+    @pytest.mark.parametrize("multi_target", [False, True])
+    def test_categorical_bitfield_boundaries(
+        self, cats: int, multi_target: bool
+    ) -> None:
+        check_categorical_bitfield_boundaries("cuda", cats, multi_target)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])

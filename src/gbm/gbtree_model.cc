@@ -44,12 +44,14 @@ void Validate(GBTreeModel const& model) {
   CHECK_EQ(model.tree_info.Size(), model.param.num_trees);
   // True even if the model is empty since we should always have 0 as the first element.
   CHECK_EQ(model.iteration_indptr.back(), model.param.num_trees);
+  CHECK_LE(model.weight_drop.size(), model.trees.size());
 }
 }  // namespace
 
 void GBTreeModel::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
+  CHECK_LE(weight_drop.size(), trees.size());
   out["gbtree_model_param"] = ToJson(param);
   std::vector<Json> trees_json(trees.size());
 
@@ -74,6 +76,13 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   std::transform(iteration_indptr.cbegin(), iteration_indptr.cend(), jiteration_indptr.begin(),
                  [](bst_tree_t i) { return Integer{i}; });
   out["iteration_indptr"] = Array{std::move(jiteration_indptr)};
+
+  if (!weight_drop.empty()) {
+    std::vector<Json> j_weight_drop(weight_drop.size());
+    std::transform(weight_drop.cbegin(), weight_drop.cend(), j_weight_drop.begin(),
+                   [](bst_float weight) { return Number{weight}; });
+    out["weight_drop"] = Array{std::move(j_weight_drop)};
+  }
 
   this->Cats()->Save(&out["cats"]);
 }
@@ -115,6 +124,15 @@ void GBTreeModel::LoadModel(Json const& in) {
                    [](Json const& v) { return get<Integer const>(v); });
   } else {
     MakeIndptr(this);
+  }
+
+  weight_drop.clear();
+  auto weight_it = jmodel.find("weight_drop");
+  if (weight_it != jmodel.cend()) {
+    auto const& j_weight_drop = get<Array const>(weight_it->second);
+    weight_drop.resize(j_weight_drop.size());
+    std::transform(j_weight_drop.cbegin(), j_weight_drop.cend(), weight_drop.begin(),
+                   [](Json const& weight) { return get<Number const>(weight); });
   }
 
   auto p_cats = std::make_shared<CatContainer>();

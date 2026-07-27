@@ -1,11 +1,13 @@
 /**
  * Copyright 2023-2026, XGBoost contributors
  */
-#include <array>                            // std::array
-#include <cstddef>                          // std::size_t
-#include <cstdint>                          // std::int32_t
-#include <vector>                           // std::vector
+#include <array>    // std::array
+#include <cstddef>  // std::size_t
+#include <cstdint>  // std::int32_t
+#include <vector>   // std::vector
 
+#include "../collective/aggregator.h"
+#include "../collective/communicator-inl.h"
 #include "../common/linalg_op.h"            // ElementWiseKernel,cbegin,cend
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/stats.h"                // Quantile,WeightedQuantile
@@ -20,9 +22,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/stats.cuh"      // SegmentedQuantile
+#include "../common/stats.cuh"  // SegmentedQuantile
 
-#endif                              // defined(XGBOOST_USE_CUDA)
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {
@@ -32,10 +34,7 @@ class QuantileRegression : public ObjFunction {
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    if (info.ShouldHaveLabels()) {
-      CHECK_EQ(info.labels.Shape(1), 1)
-          << "Multi-target is not yet supported by the quantile loss.";
-    }
+    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the quantile loss.";
     CHECK(!alpha.empty());
     // We have some placeholders for multi-target in the quantile loss. But it's not
     // supported as the gbtree doesn't know how to slice the gradient and there's no 3-dim
@@ -155,8 +154,8 @@ class QuantileRegression : public ObjFunction {
     // with weighted quantiles. The proper way to do this might be using an approximated
     // quantile algorithm with stream inputs, but it's also much more expensive.
     auto intercept = base_score->View(this->ctx_->Device());
-    collective::SafeColl(collective::GlobalSum(ctx_, info, intercept));
-    double n_workers = info.IsColumnSplit() ? 1.0 : collective::GetWorldSize();
+    collective::SafeColl(collective::GlobalSum(ctx_, intercept));
+    double n_workers = collective::GetWorldSize();
     linalg::VecScaDiv(ctx_, intercept, n_workers);
   }
 

@@ -65,7 +65,11 @@ function(compute_cmake_cuda_archs archs)
   elseif(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
     set(CUDA_VERSION "${CMAKE_MATCH_1}")
   endif()
-  list(SORT archs)
+  # NATURAL sort is needed so that 3-digit archs (100, 120) sort *after*
+  # 2-digit ones (70, 90). With the default STRING sort, "100" precedes "70"
+  # alphabetically, which caused the -virtual (PTX) entry below — applied to
+  # the AT -1 position — to land on the wrong architecture.
+  list(SORT archs COMPARE NATURAL)
   unset(CMAKE_CUDA_ARCHITECTURES CACHE)
   set(CMAKE_CUDA_ARCHITECTURES ${archs})
 
@@ -213,15 +217,11 @@ function(xgboost_link_nccl target)
   endif()
 
   if(BUILD_STATIC_LIB)
-    target_include_directories(${target} PUBLIC ${NCCL_INCLUDE_DIR})
     target_compile_definitions(${target} PUBLIC ${xgboost_nccl_flags})
-    target_link_libraries(${target} PUBLIC ${NCCL_LIBRARY})
+    target_link_libraries(${target} PUBLIC nccl::nccl)
   else()
-    target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
     target_compile_definitions(${target} PRIVATE ${xgboost_nccl_flags})
-    if(NOT USE_DLOPEN_NCCL)
-      target_link_libraries(${target} PRIVATE ${NCCL_LIBRARY})
-    endif()
+    target_link_libraries(${target} PRIVATE nccl::nccl)
   endif()
 endfunction()
 

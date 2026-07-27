@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 from xgboost.testing.interaction_constraints import (
     run_interaction_constraints,
@@ -16,6 +15,9 @@ class TestInteractionConstraints:
 
     def test_approx_interaction_constraints(self) -> None:
         run_interaction_constraints(tree_method="approx", device="cpu")
+
+    def test_hist_multi_interaction_constraints(self) -> None:
+        run_interaction_constraints(tree_method="hist", device="cpu", n_targets=3)
 
     def test_interaction_constraints_feature_names(self) -> None:
         with pytest.raises(ValueError):

@@ -52,7 +52,7 @@ public class XGBoostJNI {
 
   public final static native String XGBGetLastError();
 
-  public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
+  public final static native int XGDMatrixCreateFromURI(String uri, int silent, long[] out);
 
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
       String cache_info, float missing, long[] out);
@@ -89,7 +89,7 @@ public class XGBoostJNI {
 
   /**
    * Set the feature information
-   * 
+   *
    * @param handle the DMatrix native address
    * @param field  "feature_names" or "feature_types"
    * @param values an array of string

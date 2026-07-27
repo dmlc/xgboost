@@ -2,6 +2,7 @@
  * Copyright 2025-2026, XGBoost contributors
  */
 #pragma once
+#include <memory>  // for unique_ptr
 
 #include "../../common/device_vector.cuh"  // for device_vector
 #include "evaluate_splits.cuh"             // for MultiEvaluateSplitSharedInputs
@@ -66,6 +67,7 @@ class MultiHistEvaluator {
   };
 
  private:
+  std::unique_ptr<TreeEvaluator> tree_evaluator_{nullptr};
   // Persistent buffer for node weights, indexed by node id.
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
@@ -77,8 +79,33 @@ class MultiHistEvaluator {
   // buffer is needed because we don't have the child node index during evaluation, which
   // is only available after applying split to the tree.
   NodeSumBuffer split_sums_;
+  // Category bit fields for evaluated nodes, indexed by node id. They must remain valid
+  // while candidates are waiting in the loss-guide queue.
+  dh::DeviceUVector<CatWordT> split_cats_;
+  std::size_t node_cat_storage_size_{0};
+  // Whether any categorical feature requires partition-based evaluation.
+  bool need_sort_histogram_{false};
+
+  void AllocNodeCats(bst_node_t nidx, std::size_t storage_size) {
+    if (this->node_cat_storage_size_ == 0) {
+      this->node_cat_storage_size_ = storage_size;
+    }
+    CHECK_EQ(this->node_cat_storage_size_, storage_size);
+    auto required = (nidx + 1) * storage_size;
+    if (this->split_cats_.size() < required) {
+      this->split_cats_.resize(required);
+    }
+  }
 
  public:
+  void Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
+             common::Span<FeatureType const> feature_types, TrainParam const &param,
+             bst_target_t n_targets);
+
+  [[nodiscard]] auto GetEvaluator() const {
+    return tree_evaluator_->GetEvaluator<EvalParam>();
+  }
+
   /**
    * @brief Run evaluation for the root node.
    */
@@ -118,28 +145,14 @@ class MultiHistEvaluator {
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
   }
-  /**
-   * @brief Copy weights for a node from device to host vectors.
-   *
-   * Uses the split targets count stored during allocation, which may differ from tree targets
-   * when using reduced gradient.
-   *
-   * TODO(jiamingy): Remove this method and use device-only buffer.
-   */
-  void CopyNodeWeightsToHost(bst_node_t nidx, bst_target_t n_targets,
-                             std::vector<float> *base_weight, std::vector<float> *left_weight,
-                             std::vector<float> *right_weight) {
-    auto weights = this->GetNodeWeights(n_targets);
-    base_weight->resize(n_targets);
-    left_weight->resize(n_targets);
-    right_weight->resize(n_targets);
-    dh::CopyDeviceSpanToVector(base_weight, weights.Base(nidx));
-    dh::CopyDeviceSpanToVector(left_weight, weights.Left(nidx));
-    dh::CopyDeviceSpanToVector(right_weight, weights.Right(nidx));
+  [[nodiscard]] common::Span<CatWordT const> GetNodeCats(bst_node_t nidx) const {
+    return dh::ToSpan(this->split_cats_)
+        .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
 
-  // Track the child gradient sum.
+  // Update the tree evaluator state and track child gradient sums.
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
+                      common::Span<MultiExpandEntry const> h_candidates,
                       common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
 };
 }  // namespace xgboost::tree::cuda_impl

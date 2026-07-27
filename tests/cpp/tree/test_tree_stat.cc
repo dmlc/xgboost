@@ -95,6 +95,144 @@ void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
 }
 }  // namespace
 
+class TestMinChildWeight : public ::testing::Test {
+  static constexpr bst_target_t kTargets{2};
+  std::shared_ptr<DMatrix> p_fmat_;
+
+ public:
+  void SetUp() override { p_fmat_ = GetDMatrixFromData({0.0f, 1.0f, 2.0f, 3.0f}, 4, 1); }
+
+  void Build(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
+             std::string const& updater, char const* min_child_weight, RegTree* tree) {
+    Args args{{"max_depth", "1"},
+              {"min_child_weight", min_child_weight},
+              {"reg_alpha", "0"},
+              {"reg_lambda", "0"},
+              {"learning_rate", "1"}};
+    BuildTree(ctx, p_fmat, grad, updater, args, tree);
+  }
+
+  void RunScalarTree(Context const* ctx, std::string const& updater) {
+    Context cpu_ctx;
+    auto grad = GenerateRandomGradients(&cpu_ctx, 4, 1);
+    {
+      auto h_grad = grad.gpair.HostView();
+      h_grad(0, 0) = GradientPair{10.0f, 0.2f};
+      h_grad(1, 0) = GradientPair{-9.0f, 0.8f};
+      h_grad(2, 0) = GradientPair{-1.0f, 1.0f};
+      h_grad(3, 0) = GradientPair{0.0f, 1.0f};
+    }
+
+    RegTree tree{1u, 1u};
+    Build(ctx, p_fmat_.get(), &grad, updater, "1", &tree);
+
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    ASSERT_FALSE(tree[RegTree::kRoot].IsLeaf());
+    EXPECT_EQ(tree[RegTree::kRoot].SplitIndex(), 0);
+    auto cond = updater == "grow_colmaker" ? 1.5f : 2.0f;  // exact uses mid point.
+    EXPECT_FLOAT_EQ(tree[RegTree::kRoot].SplitCond(), cond);
+
+    auto left = tree[RegTree::kRoot].LeftChild();
+    auto right = tree[RegTree::kRoot].RightChild();
+    EXPECT_NEAR(tree.Stat(RegTree::kRoot).sum_hess, 3.0f, kRtEps);
+    EXPECT_NEAR(tree.Stat(left).sum_hess, 1.0f, kRtEps);
+    EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
+  }
+
+  GradientContainer MakeVectorGradients() {
+    Context cpu_ctx;
+    auto grad = GenerateRandomGradients(&cpu_ctx, 2, kTargets);
+    auto h_grad = grad.gpair.HostView();
+    h_grad(0, 0) = {-1.0f, 1.0f};
+    h_grad(0, 1) = {-3.0f, 3.0f};
+    h_grad(1, 0) = {4.0f, 1.0f};
+    h_grad(1, 1) = {12.0f, 3.0f};
+    return grad;
+  }
+
+  void CheckVectorSplit(RegTree const& tree) {
+    ASSERT_TRUE(tree.IsMultiTarget());
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    auto view = tree.HostMtView();
+    ASSERT_FALSE(view.IsLeaf(RegTree::kRoot));
+    EXPECT_EQ(view.SplitIndex(RegTree::kRoot), 0);
+    EXPECT_FLOAT_EQ(view.SplitCond(RegTree::kRoot), 1.0f);
+
+    auto left = view.LeftChild(RegTree::kRoot);
+    auto right = view.RightChild(RegTree::kRoot);
+    EXPECT_NEAR(view.SumHess(RegTree::kRoot), 8.0f, kRtEps);
+    EXPECT_NEAR(view.LossChg(RegTree::kRoot), 50.0f, kRtEps);
+    EXPECT_NEAR(view.SumHess(left), 4.0f, kRtEps);
+    EXPECT_NEAR(view.SumHess(right), 4.0f, kRtEps);
+
+    auto left_weight = view.LeafValue(left);
+    auto right_weight = view.LeafValue(right);
+    ASSERT_EQ(left_weight.Size(), kTargets);
+    ASSERT_EQ(right_weight.Size(), kTargets);
+    EXPECT_FLOAT_EQ(left_weight(0), 1.0f);
+    EXPECT_FLOAT_EQ(left_weight(1), 1.0f);
+    EXPECT_FLOAT_EQ(right_weight(0), -4.0f);
+    EXPECT_FLOAT_EQ(right_weight(1), -4.0f);
+  }
+
+  void RunVectorTree(Context const* ctx, std::string const& updater) {
+    auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+    auto grad = MakeVectorGradients();
+
+    // Each child has a Hessian (1, 3), giving normalized coverage of 2.
+    RegTree accepted{kTargets, 1u};
+    Build(ctx, p_fmat.get(), &grad, updater, "2", &accepted);
+    CheckVectorSplit(accepted);
+
+    RegTree rejected{kTargets, 1u};
+    Build(ctx, p_fmat.get(), &grad, updater, "3", &rejected);
+    ASSERT_TRUE(rejected.IsMultiTarget());
+    ASSERT_EQ(rejected.NumExtraNodes(), 0);
+    auto rejected_view = rejected.HostMtView();
+    ASSERT_TRUE(rejected_view.IsLeaf(RegTree::kRoot));
+    auto root_weight = rejected_view.LeafValue(RegTree::kRoot);
+    EXPECT_FLOAT_EQ(root_weight(0), -1.5f);
+    EXPECT_FLOAT_EQ(root_weight(1), -1.5f);
+  }
+};
+
+TEST_F(TestMinChildWeight, Hist) {
+  Context ctx;
+  RunScalarTree(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMinChildWeight, MultiHist) {
+  Context ctx;
+  RunVectorTree(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMinChildWeight, Approx) {
+  Context ctx;
+  RunScalarTree(&ctx, "grow_histmaker");
+}
+
+TEST_F(TestMinChildWeight, Exact) {
+  Context ctx;
+  RunScalarTree(&ctx, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMinChildWeight, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  RunScalarTree(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMinChildWeight, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  RunVectorTree(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMinChildWeight, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunScalarTree(&ctx, "grow_gpu_approx");
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
 /**
  * @brief Test changing learning rate doesn't change internal splits.
  */
@@ -216,7 +354,7 @@ class TestMinSplitLoss : public ::testing::Test {
     p_fmat_ =
         RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).Targets(n_targets).GenerateDMatrix();
     Context ctx;
-    gpair_ = GenerateRandomGradients(&ctx, kRows, n_targets);
+    gpair_ = GenerateRandomGradients(&ctx, kRows, n_targets, 0.1f, 1.0f);
   }
 
   bst_node_t Update(Context const* ctx, std::string updater, float gamma) {
@@ -415,7 +553,8 @@ class TestMaxDeltaStep : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
+              &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);
   }
 };
@@ -449,6 +588,73 @@ TEST_F(TestMaxDeltaStep, GpuMultiHist) {
 TEST_F(TestMaxDeltaStep, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
   this->RunTest(&ctx, "grow_gpu_approx", 1u);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+/**
+ * @brief The split gain must include the L1 (reg_alpha) penalty even when the leaf weight
+ *        is clipped by max_delta_step.
+ */
+class TestMaxDeltaStepGain : public ::testing::Test {
+  std::shared_ptr<DMatrix> p_fmat_;
+
+ public:
+  void SetUp() override { p_fmat_ = GetDMatrixFromData({0.0f, 1.0f}, 2, 1); }
+
+  void RunTest(Context const* ctx, std::string const& updater) {
+    Context cpu_ctx;
+    auto grad = GenerateRandomGradients(&cpu_ctx, 2, 1);
+
+    auto h_grad = grad.gpair.HostView();
+    h_grad(0, 0) = GradientPair{4.0f, 1.0f};
+    h_grad(1, 0) = GradientPair{-4.0f, 1.0f};
+
+    // With reg_alpha=reg_lambda=1, the unclipped child weights are -/+1.5, so both are
+    // clipped to -/+ max_delta_step (0.5).
+    Args args{{"max_depth", "1"},  {"min_child_weight", "0"}, {"reg_alpha", "1"},
+              {"reg_lambda", "1"}, {"max_delta_step", "0.5"}, {"learning_rate", "1"}};
+    RegTree tree{1u, 1u};
+    BuildTree(ctx, p_fmat_.get(), &grad, updater, args, &tree);
+
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    ASSERT_FALSE(tree[RegTree::kRoot].IsLeaf());
+
+    auto left = tree[RegTree::kRoot].LeftChild();
+    auto right = tree[RegTree::kRoot].RightChild();
+    // Confirm the max_delta_step clip is binding for both children.
+    EXPECT_FLOAT_EQ(tree[left].LeafValue(), -0.5f);
+    EXPECT_FLOAT_EQ(tree[right].LeafValue(), 0.5f);
+
+    // Gain at the clipped weight is 2.5 for each child and 0 for the root, so the split
+    // gain is 5.0.
+    EXPECT_NEAR(tree.Stat(RegTree::kRoot).loss_chg, 5.0f, kRtEps);
+  }
+};
+
+TEST_F(TestMaxDeltaStepGain, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMaxDeltaStepGain, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker");
+}
+
+TEST_F(TestMaxDeltaStepGain, Exact) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMaxDeltaStepGain, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMaxDeltaStepGain, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx");
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
