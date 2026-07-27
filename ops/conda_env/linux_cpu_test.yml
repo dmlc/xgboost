@@ -2,7 +2,7 @@ name: linux_cpu_test
 channels:
 - conda-forge
 dependencies:
-- python=3.12
+- python=3.11
 - cmake>=3.26.4
 - c-compiler
 - cxx-compiler

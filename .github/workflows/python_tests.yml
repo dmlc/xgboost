@@ -62,8 +62,8 @@ jobs:
       - uses: actions/checkout@v6.0.3
         with:
           submodules: 'true'
-      - name: Set up Python 3.12
+      - name: Set up Python 3.11
         uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.12"
+          python-version: "3.11"
       - run: bash ops/pipeline/test-python-with-sysprefix.sh
