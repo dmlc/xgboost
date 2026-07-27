@@ -3,6 +3,8 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
+#include <cstdint>
+#include <vector>
 #include "../../../src/data/adapter.h"
 #include "../helpers.h"
 #include <thrust/device_vector.h>
@@ -50,6 +52,19 @@ void TestCudfAdapter()
 
 TEST(DeviceAdapter, CudfAdapter) {
   TestCudfAdapter();
+}
+
+TEST(DeviceAdapter, EmptyCategories) {
+  thrust::device_vector<std::int32_t> names;
+  thrust::device_vector<std::int8_t> codes;
+  auto j_names = GenerateDenseColumn<std::int32_t>("<i4", 0, &names);
+  auto j_codes = GenerateDenseColumn<std::int8_t>("<i1", 1, &codes);
+
+  Json column{Array(std::vector<Json>{j_names, j_codes})};
+  Json dataframe{Array(std::vector<Json>{column})};
+  auto str = Json::Dump(dataframe);
+  EXPECT_THAT([&] { data::CudfAdapter{str}; },
+              GMockThrow("Categorical feature must have at least one category."));
 }
 
 namespace xgboost::data {

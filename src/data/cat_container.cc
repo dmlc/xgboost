@@ -43,12 +43,6 @@ CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatCon
                      using T =
                          typename cpu_impl::ViewToStorageImpl<std::decay_t<decltype(values)>>::Type;
                      this->cpu_impl_->columns.emplace_back();
-                     using ElemT = typename T::value_type;
-
-                     if constexpr (std::is_floating_point_v<ElemT>) {
-                       LOG(FATAL) << error::NoFloatCat();
-                     }
-
                      this->cpu_impl_->columns.back().emplace<T>();
                      auto& v = std::get<T>(this->cpu_impl_->columns.back());
                      v.resize(values.size());
@@ -104,14 +98,6 @@ struct PrimToUbj<std::int32_t> {
 template <>
 struct PrimToUbj<std::int64_t> {
   using Type = I64Array;
-};
-template <>
-struct PrimToUbj<float> {
-  using Type = F32Array;
-};
-template <>
-struct PrimToUbj<double> {
-  using Type = F64Array;
 };
 }  // anonymous namespace
 
@@ -240,12 +226,9 @@ void CatContainer::Load(Json const& in) {
           LoadJson<std::uint64_t>(jvalues, &columns.back());
           break;
         }
-        case T::kF32Array: {
-          LoadJson<float>(jvalues, &columns.back());
-          break;
-        }
+        case T::kF32Array:
         case T::kF64Array: {
-          LoadJson<double>(jvalues, &columns.back());
+          LOG(FATAL) << error::NoFloatCat();
           break;
         }
         default: {

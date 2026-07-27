@@ -4,8 +4,10 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <cstdint>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
@@ -171,5 +173,30 @@ TEST(Adapter, IteratorAdapter) {
     ++num_batch;
   }
   ASSERT_EQ(num_batch, 1);
+}
+
+TEST(Adapter, EmptyCategories) {
+  HostDeviceVector<std::int8_t> codes{-1};
+  auto j_codes = GetArrayInterface(&codes, codes.Size(), 1);
+
+  {
+    HostDeviceVector<std::int32_t> offsets{0};
+    HostDeviceVector<std::int8_t> values;
+    Json names{Object{}};
+    names["offsets"] = GetArrayInterface(&offsets, offsets.Size(), 1);
+    names["values"] = GetArrayInterface(&values, values.Size(), 1);
+
+    Json column{Array(std::vector<Json>{names, j_codes})};
+    Json dataframe{Array(std::vector<Json>{column})};
+    EXPECT_THAT([&] { data::ColumnarAdapter{Json::Dump(dataframe)}; },
+                GMockThrow("Categorical feature must have at least one category."));
+  }
+  {
+    HostDeviceVector<std::int32_t> names;
+    Json column{Array(std::vector<Json>{GetArrayInterface(&names, names.Size(), 1), j_codes})};
+    Json dataframe{Array(std::vector<Json>{column})};
+    EXPECT_THAT([&] { data::ColumnarAdapter{Json::Dump(dataframe)}; },
+                GMockThrow("Categorical feature must have at least one category."));
+  }
 }
 }  // namespace xgboost

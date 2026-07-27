@@ -49,6 +49,7 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
         if (device == -1) {
           auto const& first = get<Object const>(jcol[0]);
           auto names = ArrayInterface<1>{first};
+          CheckNonEmptyCategory(names.n);
           device = dh::CudaGetPointerDevice(names.data);
         }
         n_cats = GetArrowNumericIndex(DeviceOrd::CUDA(device), jcol, &cats_, &columns, &n_bytes_,
