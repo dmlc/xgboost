@@ -189,6 +189,14 @@ def get_client_workers(client: Client) -> List[str]:
     return list(workers.keys())
 
 
+async def get_client_workers_async(client: Client) -> List[str]:
+    "Get workers from a dask client (async)."
+    kwargs = {"n_workers": -1} if _DASK_VERSION() >= parse_version("2025.4.0") else {}
+    info = await client.scheduler.identity(**kwargs)
+    workers = info["workers"]
+    return list(workers.keys())
+
+
 def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     client: Client,
     n_samples: int,

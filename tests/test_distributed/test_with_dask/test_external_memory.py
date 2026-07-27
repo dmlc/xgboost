@@ -3,7 +3,6 @@
 import pytest
 from distributed import Client, Scheduler, Worker
 from distributed.utils_test import gen_cluster
-
 from xgboost import testing as tm
 from xgboost.testing.dask import check_external_memory, get_rabit_args
 
@@ -13,7 +12,7 @@ from xgboost.testing.dask import check_external_memory, get_rabit_args
 async def test_external_memory(
     client: Client, s: Scheduler, a: Worker, b: Worker, is_qdm: bool
 ) -> None:
-    workers = tm.dask.get_client_workers(client)
+    workers = await tm.dask.get_client_workers_async(client)
     n_workers = len(workers)
     args = await get_rabit_args(client, n_workers)
 
