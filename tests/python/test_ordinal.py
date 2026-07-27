@@ -34,7 +34,9 @@ def test_cat_container() -> None:
     "dtype, values",
     [
         ("Int64", [-2, 1]),
-        ("UInt64", [1, np.iinfo(np.int64).max + 1]),
+        ("UInt16", [1, np.iinfo(np.uint16).max]),
+        ("UInt32", [1, np.iinfo(np.uint32).max]),
+        ("UInt64", [1, np.iinfo(np.int64).max]),
     ],
 )
 def test_pd_cat_nullable_integer(dtype: str, values: list[int]) -> None:

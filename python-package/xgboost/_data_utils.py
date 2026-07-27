@@ -462,6 +462,12 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
         else:
             name_values_num = np.asarray(cats.values, dtype=np_dtype)
         name_values_num = np.require(name_values_num, requirements=["A", "C"])
+        if np_dtype == np.dtype(np.uint64) and np.any(
+            name_values_num > np.iinfo(np.int64).max
+        ):
+            raise ValueError(
+                "Category value is outside the signed 64-bit integer range."
+            )
         jarr_values = array_interface_dict(name_values_num)
         code_values = cast(np.ndarray, codes.values)
         jarr_codes = array_interface_dict(code_values)
