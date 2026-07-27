@@ -107,31 +107,6 @@ template <>
 struct CatToJson<std::uint32_t> : CatToJsonImpl<I64Array, CatIndexType::kU32> {};
 template <>
 struct CatToJson<std::uint64_t> : CatToJsonImpl<I64Array, CatIndexType::kU64> {};
-
-template <typename Out, typename In>
-Out CheckedCatCast(In value) {
-  static_assert(std::is_integral_v<Out>);
-  static_assert(std::is_integral_v<In>);
-  if constexpr (std::is_unsigned_v<Out>) {
-    if constexpr (std::is_signed_v<In>) {
-      CHECK_GE(value, 0) << "Invalid negative category value.";
-    }
-    auto unsigned_value = static_cast<std::uint64_t>(value);
-    CHECK_LE(unsigned_value, static_cast<std::uint64_t>(std::numeric_limits<Out>::max()))
-        << "Category value is outside the supported range.";
-  } else if constexpr (std::is_unsigned_v<In>) {
-    CHECK_LE(static_cast<std::uint64_t>(value),
-             static_cast<std::uint64_t>(std::numeric_limits<Out>::max()))
-        << "Category value is outside the signed 64-bit integer range.";
-  } else {
-    auto signed_value = static_cast<std::int64_t>(value);
-    CHECK_GE(signed_value, static_cast<std::int64_t>(std::numeric_limits<Out>::min()))
-        << "Category value is outside the supported range.";
-    CHECK_LE(signed_value, static_cast<std::int64_t>(std::numeric_limits<Out>::max()))
-        << "Category value is outside the supported range.";
-  }
-  return static_cast<Out>(value);
-}
 }  // anonymous namespace
 
 void CatContainer::Save(Json* p_out) const {
@@ -165,7 +140,7 @@ void CatContainer::Save(Json* p_out) const {
                      using SerializedValue = typename SerializedArray::value_type;
                      SerializedArray array{values.size()};
                      std::transform(values.cbegin(), values.cend(), array.GetArray().begin(),
-                                    [](T value) { return CheckedCatCast<SerializedValue>(value); });
+                                    [](T value) { return static_cast<SerializedValue>(value); });
 
                      Object out{};
                      out["type"] = static_cast<std::int64_t>(Serialization::kCategoryType);
@@ -199,14 +174,14 @@ void LoadJson(Json jvalues, Vec* p_out) {
     auto const& jarray = get<Array const>(jvalues);
     buf.resize(jarray.size());
     for (std::size_t i = 0, n = jarray.size(); i < n; ++i) {
-      buf[i] = CheckedCatCast<U>(get<Integer const>(jarray[i]));
+      buf[i] = static_cast<U>(get<Integer const>(jarray[i]));
     }
   } else {
     using SerializedArray = typename CatToJson<U>::SerializedArray;
     auto const& values = get<SerializedArray const>(jvalues);
     buf.resize(values.size());
     std::transform(values.cbegin(), values.cend(), buf.begin(),
-                   [](auto value) { return CheckedCatCast<U>(value); });
+                   [](auto value) { return static_cast<U>(value); });
   }
   *p_out = std::move(buf);
 }

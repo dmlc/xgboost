@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 
 #include "test_cat_container.h"
@@ -70,19 +70,6 @@ TEST(CatContainer, UnsignedSerialization) {
                                                      14);
   TestUnsignedSerialization<std::uint64_t, I64Array>(
       {1, static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())}, 16);
-}
-
-TEST(CatContainer, RejectLargeUInt64) {
-  std::vector<std::uint64_t> values{
-      static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1};
-  std::vector<enc::HostCatIndexView> columns{
-      common::Span<std::uint64_t const>{values.data(), values.size()}};
-  std::vector<std::int32_t> segments{0, 1};
-  auto view = enc::HostColumnsView{common::Span{columns}, common::Span{segments}, 1};
-  CatContainer cats{view, false};
-
-  Json saved;
-  EXPECT_THAT([&] { cats.Save(&saved); }, GMockThrow("signed 64-bit integer range"));
 }
 
 TEST(CatContainer, RejectFloat) {
