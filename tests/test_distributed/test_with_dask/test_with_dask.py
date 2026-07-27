@@ -1591,6 +1591,29 @@ class TestWithDask:
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
                 assert base_score == [250.0]
+
+                # The smooth approximation scale must be global. Worker 0 has only zero
+                # residuals while worker 1 has one residual of -1000. A local scale would
+                # therefore produce a different root update.
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:absoluteerror",
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                delta = ((np.sqrt(1000.0) / 4.0) ** 2)
+                outlier_curvature = delta / np.hypot(delta, 1000.0)
+                expected = (1000.0 * outlier_curvature) / (3.0 + outlier_curvature)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
                 return True
 
         workers = tm.dask.get_client_workers(client)

@@ -67,6 +67,30 @@ class TestTreeRegularization:
         # 0.7 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.7)
 
+    def test_absolute_error_lambda(self):
+        params = {
+            "tree_method": "exact",
+            "verbosity": 0,
+            "objective": "reg:absoluteerror",
+            "eta": 1,
+            "alpha": 0,
+            "base_score": 0.5,
+            "max_depth": 1,
+            "min_child_weight": 0,
+        }
+
+        unregularized = xgb.train({**params, "lambda": 0}, train_data, 1)
+        regularized = xgb.train({**params, "lambda": 1}, train_data, 1)
+        unregularized_pred = unregularized.predict(train_data)
+        regularized_pred = regularized.predict(train_data)
+
+        # The residual is -0.5, so the automatic scale is 0.5 and the MM curvature is
+        # 1 / sqrt(2). With no regularization, -sum_grad / sum_hess is 0.5.
+        assert_approx_equal(unregularized_pred[0], 1.0)
+        curvature = 1.0 / np.sqrt(2.0)
+        expected = 0.5 + (0.5 * curvature) / (curvature + 1.0)
+        assert_approx_equal(regularized_pred[0], expected)
+
     def test_unlimited_depth(self):
         x = np.array([[0], [1], [2], [3]])
         y = np.array([0, 1, 2, 3])
