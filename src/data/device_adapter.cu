@@ -1,6 +1,8 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
+#include <algorithm>  // for all_of
+
 #include "../common/cuda_rt_utils.h"  // for SetDevice, CurrentDevice
 #include "columnar.h"                 // for GetRefCats, GetArrowDictionary
 #include "device_adapter.cuh"
@@ -64,7 +66,6 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
       columns.push_back(col);
       this->cats_.emplace_back();
       this->num_rows_ = std::max(num_rows_, col.Shape<0>());
-      CHECK_EQ(num_rows_, col.Shape<0>()) << "All columns should have the same number of rows.";
       n_bytes_ += col.ElementSize() * col.Shape<0>();
     }
     cat_segments.emplace_back(n_cats);
@@ -74,6 +75,11 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
     CHECK_EQ(device, dh::CudaGetPointerDevice(columns.back().data))
         << "All columns should use the same device.";
   }
+  auto consistent = std::all_of(columns.cbegin(), columns.cend(), [this](auto const& column) {
+    return column.template Shape<0>() == this->num_rows_;
+  });
+  CHECK(consistent) << "All columns should have the same number of rows.";
+
   // Categories
   std::partial_sum(cat_segments.cbegin(), cat_segments.cend(), cat_segments.begin());
   this->n_total_cats_ = cat_segments.back();
