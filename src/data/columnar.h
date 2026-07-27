@@ -69,7 +69,7 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
     DispatchDType(offset.type, [&](auto t) {
       using T = decltype(t);
       if constexpr (std::is_same_v<T, std::int32_t>) {
-        auto back = offset(offset_last_idx);
+        T back = TypedIndex<T, 1>{offset}(offset_last_idx);
         CHECK_GE(back, 0) << "Invalid negative string offset from category index.";
         CHECK_LE(static_cast<std::size_t>(back), strbuf.n)
             << "String offset exceeds the category values buffer.";
