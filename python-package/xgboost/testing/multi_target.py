@@ -20,7 +20,7 @@ from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
 from ..objective import Objective, TreeObjective
-from ..sklearn import XGBClassifier
+from ..sklearn import XGBClassifier, XGBRegressor
 from ..training import train
 from .data import IteratorForTest
 from .updater import ResetStrategy, train_result
@@ -338,6 +338,39 @@ def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     with pytest.raises(AssertionError):
         run_test(LsObj2(device, True))
 
+    def run_reg(obj: Objective) -> None:
+        reg = XGBRegressor(
+            n_estimators=2,
+            device=device,
+            tree_method="hist",
+            multi_strategy="multi_output_tree",
+            objective=obj,
+        )
+        reg.fit(X, y)
+        predt = reg.predict(X)
+        assert predt.shape == y.shape
+        assert np.isfinite(predt).all()
+
+    run_reg(LsObj1(device))
+    run_reg(LsObj2(device, False))
+    with pytest.raises(AssertionError):
+        run_reg(LsObj2(device, True))
+
+    y_ind = (y > np.median(y, axis=0)).astype(np.int32)
+    clf = XGBClassifier(
+        n_estimators=2,
+        device=device,
+        tree_method="hist",
+        multi_strategy="multi_output_tree",
+        objective=LsObj2(device, False),
+    )
+    clf.fit(X, y_ind)
+    predt = clf.predict(X)
+    proba = clf.predict_proba(X)
+    assert predt.shape == y_ind.shape
+    assert proba.shape == y_ind.shape
+    np.testing.assert_array_equal(predt, (proba > 0.5).astype(np.int32))
+
     with pytest.raises(
         ValueError,
         match="Monotonic constraints are not supported with reduced gradients",
@@ -566,8 +599,9 @@ def run_column_sampling(device: Device) -> None:
         device=device,
         colsample_bynode=0.2,
         min_child_weight=0.0,
+        feature_weights=np.arange(0, X.shape[1]),
     )
-    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
+    clf.fit(X, y)
     fi = clf.feature_importances_
     assert fi[0] == 0.0
     assert fi[-1] > fi[1] * 5

@@ -33,7 +33,9 @@ from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree,
+    check_multi_output_tree_classifier,
+    check_multi_output_tree_regressor,
+    check_multi_output_tree_shap,
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
@@ -81,17 +83,20 @@ def generate_array(
     return X, y, None
 
 
-@pytest.mark.parametrize("to_frame", [True, False])
-def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client") -> None:
+@pytest.mark.parametrize("label_type", ["array", "series", "dataframe"])
+def test_xgbclassifier_classes_type_and_value(
+    label_type: Literal["array", "series", "dataframe"], client: "Client"
+) -> None:
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
-    if to_frame:
+    if label_type != "array":
         import pandas as pd
 
         feats = [f"var_{i}" for i in range(4)]
         df = pd.DataFrame(X, columns=feats)
         df["target"] = y
         df = dd.from_pandas(df, npartitions=1)
-        X, y = df[feats], df["target"]
+        X = df[feats]
+        y = df[["target"]] if label_type == "dataframe" else df["target"]
     else:
         X = da.from_array(X)
         y = da.from_array(y)
@@ -1483,8 +1488,14 @@ class TestWithDask:
         params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
-    def test_hist_multi_absolute_error(self, client: "Client") -> None:
-        check_multi_output_tree(client, "cpu")
+    def test_hist_multi_regressor(self, client: "Client") -> None:
+        check_multi_output_tree_regressor(client, "cpu")
+
+    def test_hist_multi_classifier(self, client: "Client") -> None:
+        check_multi_output_tree_classifier(client, "cpu")
+
+    def test_hist_multi_shap(self, client: "Client") -> None:
+        check_multi_output_tree_shap(client, "cpu")
 
     def test_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 3000, 30, 13)
@@ -1955,6 +1966,7 @@ class TestWithDask:
         cls = dxgb.DaskXGBClassifier()
         cls.load_model(path)
         assert cls.n_classes_ == 10
+        np.testing.assert_array_equal(cls.classes_, np.arange(cls.n_classes_))
         predt_2 = cls.predict(X)
         proba_2 = cls.predict_proba(X)
 
