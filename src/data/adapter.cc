@@ -4,8 +4,8 @@
 #include "adapter.h"
 
 #include <algorithm>  // for all_of
+#include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
-#include <numeric>    // for partial_sum
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -39,9 +39,10 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
   CHECK(IsA<Array>(jdf));
   auto const& array = get<Array const>(jdf);
   bst_idx_t n_samples{0};
+  std::size_t n_total_cats{0};
   std::vector<std::int32_t> cat_segments{0};
   for (auto const& jcol : array) {
-    std::int32_t n_cats{0};
+    std::size_t n_cats{0};
     if (IsA<Array>(jcol)) {
       // This is a dictionary type (categorical values).
       auto const& first = get<Object const>(jcol[0]);
@@ -61,11 +62,9 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
       this->n_bytes_ += columns_.back().ElementSize() * columns_.back().Shape<0>();
       n_samples = std::max(n_samples, static_cast<bst_idx_t>(columns_.back().Shape<0>()));
     }
-    cat_segments.push_back(n_cats);
+    n_total_cats = AddCatCount(n_cats, n_total_cats);
+    cat_segments.push_back(static_cast<std::int32_t>(n_total_cats));
   }
-  std::partial_sum(cat_segments.cbegin(), cat_segments.cend(), cat_segments.begin());
-  auto no_overflow = std::is_sorted(cat_segments.cbegin(), cat_segments.cend());
-  CHECK(no_overflow) << "Maximum number of categories exceeded.";
 
   // Check consistency.
   bool consistent = columns_.empty() || std::all_of(columns_.cbegin(), columns_.cend(),

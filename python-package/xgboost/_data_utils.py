@@ -431,29 +431,49 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf:
     return cast(ArrayInf, ainf)
 
 
+def _arrow_string_offsets(lengths: np.ndarray) -> np.ndarray:
+    """Build 32-bit Arrow string offsets from encoded byte lengths."""
+    offsets = np.empty(lengths.size + 1, dtype=np.int64)
+    offsets[0] = 0
+    np.cumsum(lengths, dtype=np.int64, out=offsets[1:])
+    if offsets[-1] > np.iinfo(np.int32).max:
+        raise ValueError(
+            "The encoded categories exceed the maximum size of the 32-bit "
+            "offsets used by Arrow string arrays."
+        )
+    return offsets.astype(np.int32)
+
+
 def pd_cat_inf(  # pylint: disable=too-many-locals
-    cats: DfCatAccessor, codes: "pd.Series"
+    cats: "pd.Index", codes: "pd.Series"
 ) -> Tuple[Union[StringArray, ArrayInf], ArrayInf, Tuple]:
-    """Get the array interface representation of pandas category accessor."""
+    """Get the array interface representation of a pandas category index."""
+    from pandas.api.types import infer_dtype, is_float_dtype, is_integer_dtype
+
     # pandas uses -1 to represent missing values for categorical features
     codes = codes.replace(-1, np.nan)
 
-    def is_prim() -> bool:
-        dtype = cats.dtype
-        try:
-            return np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.integer)
-        except TypeError:
-            return False
-
-    if is_prim():
+    if is_integer_dtype(cats.dtype) or is_float_dtype(cats.dtype):
         # Numeric index type
-        name_values_num = cats.values
+        cat_dtype: Any = cats.dtype
+        np_dtype = np.dtype(getattr(cat_dtype, "numpy_dtype", cat_dtype))
+        if hasattr(cats, "to_numpy"):
+            name_values_num = cats.to_numpy(dtype=np_dtype)
+        else:
+            name_values_num = np.asarray(cats.values, dtype=np_dtype)
+        name_values_num = np.require(name_values_num, requirements=["A", "C"])
+        if np_dtype == np.dtype(np.uint64) and np.any(
+            name_values_num > np.iinfo(np.int64).max
+        ):
+            raise ValueError(
+                "Category index values must not exceed the signed 64-bit range."
+            )
         jarr_values = array_interface_dict(name_values_num)
-        code_values = codes.values
+        code_values = cast(np.ndarray, codes.values)
         jarr_codes = array_interface_dict(code_values)
         return jarr_values, jarr_codes, (name_values_num, code_values)
 
-    def npstr_to_arrow_strarr(strarr: Any) -> Tuple[np.ndarray, str]:
+    def npstr_to_arrow_strarr(strarr: Any) -> Tuple[np.ndarray, bytes]:
         """Convert a string-like array to an arrow string array."""
         if not isinstance(strarr, np.ndarray):
             if hasattr(strarr, "to_numpy"):
@@ -461,16 +481,32 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
             else:
                 strarr = np.asarray(strarr, dtype=object)
 
-        lenarr = np.vectorize(len)
-        offsets = np.cumsum(
-            np.concatenate([np.array([0], dtype=np.int64), lenarr(strarr)])
-        )
-        if strarr.dtype.kind == "S":
-            str_list = [s.decode("utf-8") for s in strarr.tolist()]
+        if strarr.size == 0:
+            lengths = np.empty(0, dtype=np.int64)
+            offsets = _arrow_string_offsets(lengths)
+            values = b""
         else:
-            str_list = [str(s) for s in strarr.tolist()]
-        values = "".join(str_list)
-        if "\0" in values:
+            inferred = infer_dtype(strarr, skipna=False)
+            values_list = strarr.tolist()
+            if inferred == "string":
+                encoded = [value.encode("utf-8") for value in values_list]
+            elif inferred == "bytes":
+                encoded = values_list
+            else:
+                raise TypeError(
+                    "Category index must contain only values of the same type, "
+                    "either string or integer. "
+                    f"Got values of type `{inferred}`."
+                )
+            lengths = np.fromiter(
+                (len(value) for value in encoded),
+                dtype=np.int64,
+                count=strarr.size,
+            )
+            offsets = _arrow_string_offsets(lengths)
+            values = b"".join(encoded)
+
+        if b"\0" in values:
             warnings.warn(
                 (
                     "Found embedded NUL (\\0) characters in string categories. "
@@ -478,34 +514,22 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
                 ),
                 UserWarning,
             )
-        return offsets.astype(np.int32), values
+        return offsets, values
 
     # String index type
     name_offsets, name_values = npstr_to_arrow_strarr(cats.values)
-    name_offsets, _ = _ensure_np_dtype(name_offsets, np.int32)
     joffsets = array_interface_dict(name_offsets)
-    bvalues = name_values.encode("utf-8")
-
-    ptr = ctypes.c_void_p.from_buffer(ctypes.c_char_p(bvalues)).value
-    assert ptr is not None
-
-    jvalues: ArrayInf = {
-        "data": (ptr, True),
-        "typestr": "|i1",
-        "shape": (len(name_values),),
-        "strides": None,
-        "version": 3,
-        "mask": None,
-    }
+    name_values_np = np.frombuffer(name_values, dtype=np.int8)
+    jvalues = array_interface_dict(name_values_np)
     jnames: StringArray = {"offsets": joffsets, "values": jvalues}
 
-    code_values = codes.values
+    code_values = cast(np.ndarray, codes.values)
     jcodes = array_interface_dict(code_values)
 
     buf = (
         name_offsets,
         name_values,
-        bvalues,
+        name_values_np,
         code_values,
     )  # store temporary values
     return jnames, jcodes, buf
