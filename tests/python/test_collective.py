@@ -3,7 +3,6 @@ from dataclasses import asdict
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
 from xgboost import testing as tm
