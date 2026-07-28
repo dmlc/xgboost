@@ -84,9 +84,9 @@ enum class CatIndexType : std::int64_t {
 template <typename T>
 struct CatToJson;
 
-template <typename SerializedArrayT, CatIndexType category_type>
+template <typename JsonArrayT, CatIndexType category_type>
 struct CatToJsonImpl {
-  using SerializedArray = SerializedArrayT;
+  using JsonArray = JsonArrayT;
   static constexpr CatIndexType kCategoryType{category_type};
 };
 
@@ -100,13 +100,21 @@ template <>
 struct CatToJson<std::int32_t> : CatToJsonImpl<I32Array, CatIndexType::kI32> {};
 template <>
 struct CatToJson<std::int64_t> : CatToJsonImpl<I64Array, CatIndexType::kI64> {};
-// There's no unsigned type in ubjson
 template <>
-struct CatToJson<std::uint16_t> : CatToJsonImpl<I32Array, CatIndexType::kU16> {};
+struct CatToJson<std::uint16_t> : CatToJsonImpl<U16Array, CatIndexType::kU16> {};
 template <>
-struct CatToJson<std::uint32_t> : CatToJsonImpl<I64Array, CatIndexType::kU32> {};
+struct CatToJson<std::uint32_t> : CatToJsonImpl<U32Array, CatIndexType::kU32> {};
 template <>
-struct CatToJson<std::uint64_t> : CatToJsonImpl<I64Array, CatIndexType::kU64> {};
+struct CatToJson<std::uint64_t> : CatToJsonImpl<U64Array, CatIndexType::kU64> {};
+
+template <typename In, typename Out>
+void CopyBitPattern(std::vector<In> const& in, std::vector<Out>* out) {
+  static_assert(sizeof(In) == sizeof(Out));
+  out->resize(in.size());
+  if (!in.empty()) {
+    std::memcpy(out->data(), in.data(), in.size() * sizeof(In));
+  }
+}
 }  // anonymous namespace
 
 void CatContainer::Save(Json* p_out) const {
@@ -119,36 +127,42 @@ void CatContainer::Save(Json* p_out) const {
     auto& f_out = arr[fidx];
 
     auto const& col = columns[fidx];
-    std::visit(enc::Overloaded{
-                   [&f_out](cpu_impl::CatStrArray const& str) {
-                     f_out = Object{};
-                     I32Array joffsets{str.offsets.size()};
-                     auto const& f_offsets = str.offsets;
-                     std::copy(f_offsets.cbegin(), f_offsets.cend(), joffsets.GetArray().begin());
-                     f_out["offsets"] = std::move(joffsets);
+    std::visit(
+        enc::Overloaded{
+            [&f_out](cpu_impl::CatStrArray const& str) {
+              f_out = Object{};
+              I32Array joffsets{str.offsets.size()};
+              auto const& f_offsets = str.offsets;
+              std::copy(f_offsets.cbegin(), f_offsets.cend(), joffsets.GetArray().begin());
+              f_out["offsets"] = std::move(joffsets);
 
-                     I8Array jnames{str.values.size()};  // fixme: uint8
-                     auto const& f_names = str.values;
-                     std::copy(f_names.cbegin(), f_names.cend(), jnames.GetArray().begin());
-                     f_out["values"] = std::move(jnames);
-                   },
-                   [&f_out](auto&& values) {
-                     using T =
-                         std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
-                     using Serialization = CatToJson<T>;
-                     using SerializedArray = typename Serialization::SerializedArray;
-                     using SerializedValue = typename SerializedArray::value_type;
-                     SerializedArray array{values.size()};
-                     std::transform(values.cbegin(), values.cend(), array.GetArray().begin(),
-                                    [](T value) { return static_cast<SerializedValue>(value); });
+              I8Array jnames{str.values.size()};  // fixme: uint8
+              auto const& f_names = str.values;
+              std::copy(f_names.cbegin(), f_names.cend(), jnames.GetArray().begin());
+              f_out["values"] = std::move(jnames);
+            },
+            [&f_out](auto&& values) {
+              using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
+              using Serialization = CatToJson<T>;
+              if constexpr (std::is_same_v<T, std::uint64_t>) {
+                auto valid = std::all_of(values.cbegin(), values.cend(), [](T value) {
+                  return value <=
+                         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+                });
+                CHECK(valid) << "Category index values must not exceed the signed 64-bit range.";
+              }
+              using JsonArray = typename Serialization::JsonArray;
+              JsonArray array{values.size()};
+              auto& serialized = array.GetArray();
+              std::copy(values.cbegin(), values.cend(), serialized.begin());
 
-                     Object out{};
-                     out["type"] = static_cast<std::int64_t>(Serialization::kCategoryType);
-                     out["values"] = std::move(array);
+              Object out{};
+              out["type"] = static_cast<std::int64_t>(Serialization::kCategoryType);
+              out["values"] = std::move(array);
 
-                     f_out = std::move(out);
-                   }},
-               col);
+              f_out = std::move(out);
+            }},
+        col);
   }
 
   auto jf_segments = I32Array{this->feature_segments_.Size()};
@@ -166,22 +180,32 @@ void CatContainer::Save(Json* p_out) const {
 }
 
 namespace {
+// UBJSON only supports uint8; wider unsigned arrays use same-width signed storage.
+template <typename T>
+using UbjUnsignedStorageT =
+    std::conditional_t<(std::is_unsigned_v<T> && sizeof(T) > 1), std::make_signed_t<T>, T>;
+
 // Dispatch method for JSON and UBJSON
 template <typename U, typename Vec>
 void LoadJson(Json jvalues, Vec* p_out) {
   std::vector<U> buf;
-  if (IsA<Array>(jvalues)) {
+  if (IsA<Array>(jvalues)) {  // JSON
     auto const& jarray = get<Array const>(jvalues);
     buf.resize(jarray.size());
     for (std::size_t i = 0, n = jarray.size(); i < n; ++i) {
       buf[i] = static_cast<U>(get<Integer const>(jarray[i]));
     }
-  } else {
-    using SerializedArray = typename CatToJson<U>::SerializedArray;
-    auto const& values = get<SerializedArray const>(jvalues);
-    buf.resize(values.size());
-    std::transform(values.cbegin(), values.cend(), buf.begin(),
-                   [](auto value) { return static_cast<U>(value); });
+  } else {  // UBJSON
+    using JsonArray = typename CatToJson<U>::JsonArray;
+    if (IsA<JsonArray>(jvalues)) {  // Matches
+      auto const& values = get<JsonArray const>(jvalues);
+      buf.assign(values.cbegin(), values.cend());
+    } else {  // Unsigned, needs to bit cast
+      using UBJArray = typename CatToJson<UbjUnsignedStorageT<U>>::JsonArray;
+      CHECK((std::is_unsigned_v<U> && !std::is_same_v<U, std::uint8_t>));
+      auto const& values = get<UBJArray const>(jvalues);
+      CopyBitPattern(values, &buf);
+    }
   }
   *p_out = std::move(buf);
 }

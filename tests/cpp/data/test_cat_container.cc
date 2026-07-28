@@ -64,23 +64,40 @@ void TestUnsignedSerialization(std::vector<T> const& values, std::int64_t type) 
 }
 
 TEST(CatContainer, UnsignedSerialization) {
-  TestUnsignedSerialization<std::uint16_t, I32Array>({1, std::numeric_limits<std::uint16_t>::max()},
+  TestUnsignedSerialization<std::uint16_t, U16Array>({1, std::numeric_limits<std::uint16_t>::max()},
                                                      12);
-  TestUnsignedSerialization<std::uint32_t, I64Array>({1, std::numeric_limits<std::uint32_t>::max()},
+  TestUnsignedSerialization<std::uint32_t, U32Array>({1, std::numeric_limits<std::uint32_t>::max()},
                                                      14);
-  TestUnsignedSerialization<std::uint64_t, I64Array>(
-      {1, static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())}, 16);
+  constexpr auto kI64Max = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+  TestUnsignedSerialization<std::uint64_t, U64Array>({1, kI64Max}, 16);
 }
 
-TEST(CatContainer, RejectFloat) {
-  Json column{Object{}};
-  column["type"] = static_cast<std::int64_t>(Value::ValueKind::kF32Array);
-  column["values"] = F32Array{1};
+TEST(CatContainer, RejectInvalidValues) {
+  // Uint64
+  {
+    std::vector<std::uint64_t> values{
+        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1};
+    std::vector<enc::HostCatIndexView> columns{
+        common::Span<std::uint64_t const>{values.data(), values.size()}};
+    std::vector<std::int32_t> segments{0, 1};
+    auto view = enc::HostColumnsView{common::Span{columns}, common::Span{segments}, 1};
+    CatContainer cats{view, false};
 
-  Json in{Object{}};
-  in["enc"] = Array(std::vector<Json>{std::move(column)});
+    Json saved;
+    EXPECT_THAT([&] { cats.Save(&saved); }, GMockThrow("signed 64-bit range"));
+  }
 
-  CatContainer cats;
-  EXPECT_THAT([&] { cats.Load(in); }, GMockThrow("floating point dtype"));
+  // Floating points
+  {
+    Json column{Object{}};
+    column["type"] = static_cast<std::int64_t>(Value::ValueKind::kF32Array);
+    column["values"] = F32Array{1};
+
+    Json in{Object{}};
+    in["enc"] = Array(std::vector<Json>{std::move(column)});
+
+    CatContainer cats;
+    EXPECT_THAT([&] { cats.Load(in); }, GMockThrow("floating point dtype"));
+  }
 }
 }  // namespace xgboost

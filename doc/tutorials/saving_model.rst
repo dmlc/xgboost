@@ -298,7 +298,10 @@ As for numerical categories, the ``enc`` contains two keys: ``type`` and ``value
 ``type`` field is an integer ID that identifies the integer type of the categories, such
 as signed or unsigned 64-bit integers. Floating-point category index is not supported.
 The exact mapping between the type and the integer ID is internal but stable. The
-``values`` field is an array storing all categories in a feature.
+``values`` field is an array storing all categories in a feature. Since UBJSON only
+supports unsigned 8-bit integers, wider unsigned values are bit-copied into same-width
+signed storage and recovered according to the ``type`` field. Unsigned 64-bit category
+index (name) must not exceed the signed 64-bit range.
 
 *************
 Brief History
