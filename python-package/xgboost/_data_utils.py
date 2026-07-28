@@ -487,33 +487,24 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
             values = b""
         else:
             inferred = infer_dtype(strarr, skipna=False)
+            values_list = strarr.tolist()
             if inferred == "string":
-                lengths = np.fromiter(
-                    (len(value.encode("utf-8")) for value in strarr),
-                    dtype=np.int64,
-                    count=strarr.size,
-                )
-                offsets = _arrow_string_offsets(lengths)
-                values = "".join(strarr.tolist()).encode("utf-8")
+                encoded = [value.encode("utf-8") for value in values_list]
             elif inferred == "bytes":
-
-                def validated_len(value: bytes) -> int:
-                    value.decode("utf-8")
-                    return len(value)
-
-                lengths = np.fromiter(
-                    (validated_len(value) for value in strarr),
-                    dtype=np.int64,
-                    count=strarr.size,
-                )
-                offsets = _arrow_string_offsets(lengths)
-                values = b"".join(strarr.tolist())
+                encoded = values_list
             else:
                 raise TypeError(
                     "Category index must contain only values of the same type, "
                     "either string or integer. "
                     f"Got values of type `{inferred}`."
                 )
+            lengths = np.fromiter(
+                (len(value) for value in encoded),
+                dtype=np.int64,
+                count=strarr.size,
+            )
+            offsets = _arrow_string_offsets(lengths)
+            values = b"".join(encoded)
 
         if b"\0" in values:
             warnings.warn(
