@@ -1,11 +1,10 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #include "cat_container.h"
 
 #include <algorithm>    // for copy
 #include <cstddef>      // for size_t
-#include <limits>       // for numeric_limits
 #include <memory>       // for make_unique
 #include <type_traits>  // for is_integral_v
 #include <utility>      // for move
