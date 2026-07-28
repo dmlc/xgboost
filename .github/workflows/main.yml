@@ -72,6 +72,14 @@ jobs:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
       - name: Build and test
         run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
+      - name: Test federated learning on CPU
+        if: matrix.variant == 'default'
+        shell: bash -l {0}
+        run: |
+          source activate linux_cpu_test
+          conda install scikit-build-core -y
+          cd python-package && pip install -e . --no-deps --no-build-isolation && cd -
+          timeout 600s pytest -v -s -rxXs --durations=0 tests/test_distributed/test_federated
       - run: sccache --show-stats
 
   build-cuda:
@@ -92,26 +100,22 @@ jobs:
           runner: linux-arm64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8_aarch64
           use_rmm: 0
-          use_federated: 1
         - cuda_version: 12
           arch: x86_64
           runner: linux-amd64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8
           use_rmm: 0
-          use_federated: 1
         # CUDA 13
         - cuda_version: 13
           arch: aarch64
           runner: linux-arm64-cpu
           image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
           use_rmm: 0
-          use_federated: 0
         - cuda_version: 13
           arch: x86_64
           runner: linux-amd64-cpu
           image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
           use_rmm: 0
-          use_federated: 0
     container:
       image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
@@ -129,7 +133,6 @@ jobs:
           bash ops/pipeline/build-cuda.sh
           --cuda-version ${{ matrix.cuda_version }}
           --use-rmm ${{ matrix.use_rmm }}
-          --use-federated ${{ matrix.use_federated }}
       - run: sccache --show-stats
       - name: Stash files
         run: |
@@ -244,7 +247,6 @@ jobs:
           bash ops/pipeline/build-cuda.sh
           --cuda-version 12
           --use-rmm 1
-          --use-federated 1
       - run: sccache --show-stats
       - name: Stash files
         run: |

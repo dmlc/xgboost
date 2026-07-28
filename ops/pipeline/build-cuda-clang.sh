@@ -10,7 +10,6 @@ build_dir="build-clang-cuda"
 target="xgboost"
 configure_only=0
 jobs="${XGBOOST_BUILD_JOBS:-}"
-cmake_prefix_path="${XGBOOST_CMAKE_PREFIX_PATH:-/opt/grpc}"
 gpu_compute_ver="${XGBOOST_GPU_COMPUTE_VER:-75}"
 cuda_toolkit_root="${XGBOOST_CUDA_TOOLKIT_ROOT:-/usr/local/cuda}"
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -129,7 +128,6 @@ fi
 cmake_args=(
   -GNinja
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-  -DCMAKE_PREFIX_PATH="${cmake_prefix_path}"
   -DCMAKE_C_COMPILER="${clang_c}"
   -DCMAKE_CXX_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
@@ -141,7 +139,6 @@ cmake_args=(
   -DUSE_NCCL=OFF
   -DENABLE_ALL_WARNINGS=ON
   -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
-  -DPLUGIN_FEDERATED=OFF
   -DGPU_COMPUTE_VER="${gpu_compute_ver}"
 )
 cmake_args+=("${launcher_args[@]}")
