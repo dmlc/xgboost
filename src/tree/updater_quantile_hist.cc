@@ -701,8 +701,6 @@ class QuantileHistMaker : public TreeUpdater {
       return p_impl_->UpdatePredictionCache(p_fmat, position, out_preds);
     }
   }
-
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")

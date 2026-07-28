@@ -10,9 +10,10 @@
 
 #include <memory>  // for unique_ptr
 
-#include "../../../src/tree/io_utils.h"   // for DftBadValue
-#include "../../../src/tree/param.h"      // for TrainParam
-#include "../../../src/tree/tree_view.h"  // for WalkTree
+#include "../../../src/tree/io_utils.h"         // for DftBadValue
+#include "../../../src/tree/param.h"            // for TrainParam
+#include "../../../src/tree/sample_position.h"  // for SamplePosition
+#include "../../../src/tree/tree_view.h"        // for WalkTree
 #include "../helpers.h"
 
 namespace xgboost {
@@ -75,6 +76,32 @@ TEST_F(UpdaterTreeStatTest, Hist) {
 TEST_F(UpdaterTreeStatTest, Exact) {
   Context ctx;
   this->RunTest(&ctx, "grow_colmaker");
+}
+
+TEST(Updater, ColMakerExportsFinishedLeafPositions) {
+  Context ctx;
+  auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>{{{1.0f, 1.0f}, {-1.0f, 1.0f}}, {2, 1}, ctx.Device()};
+
+  tree::TrainParam param;
+  param.Init(Args{{"max_depth", "2"}, {"min_child_weight", "0"}, {"reg_lambda", "0"}});
+
+  ObjInfo task{ObjInfo::kRegression};
+  auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_colmaker", &ctx, &task)};
+  up->Configure({});
+
+  RegTree tree{1u, 1u};
+  std::vector<HostDeviceVector<bst_node_t>> position(1);
+  up->Update(&param, &gpair, p_fmat.get(), common::Span{position}, {&tree});
+
+  auto const& h_position = position.front().ConstHostVector();
+  ASSERT_EQ(h_position.size(), p_fmat->Info().num_row_);
+  for (auto pos : h_position) {
+    ASSERT_TRUE(tree::SamplePosition::IsValid(pos));
+    ASSERT_TRUE(tree[tree::SamplePosition::Decode(pos)].IsLeaf());
+  }
 }
 
 TEST_F(UpdaterTreeStatTest, Approx) {
