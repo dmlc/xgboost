@@ -5,8 +5,10 @@
 
 #include <algorithm>    // for copy
 #include <cstddef>      // for size_t
+#include <cstring>      // for memcpy
+#include <limits>       // for numeric_limits
 #include <memory>       // for make_unique
-#include <type_traits>  // for is_integral_v
+#include <type_traits>  // for is_same_v
 #include <utility>      // for move
 #include <vector>       // for vector
 
@@ -65,8 +67,7 @@ CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatCon
 }
 
 namespace {
-// These IDs are part of the serialized category schema and must remain stable. Unsigned
-// category values wider than uint8 are stored in the next larger signed UBJSON type.
+// These IDs are part of the serialized category schema and must remain stable.
 enum class CatIndexType : std::int64_t {
   kF32 = 7,
   kF64 = 8,

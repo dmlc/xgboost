@@ -466,7 +466,7 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
             name_values_num > np.iinfo(np.int64).max
         ):
             raise ValueError(
-                "Category value is outside the signed 64-bit integer range."
+                "Category index values must not exceed the signed 64-bit range."
             )
         jarr_values = array_interface_dict(name_values_num)
         code_values = cast(np.ndarray, codes.values)
