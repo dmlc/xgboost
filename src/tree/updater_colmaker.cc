@@ -211,7 +211,11 @@ class ColMaker : public TreeUpdater {
       CHECK(p_out_position);
       auto &h_position = p_out_position->HostVector();
       h_position.resize(position_.size());
-      std::copy(position_.cbegin(), position_.cend(), h_position.begin());
+      CHECK_EQ(row_is_valid_.size(), position_.size());
+      for (std::size_t i = 0; i < position_.size(); ++i) {
+        h_position[i] =
+            SamplePosition::Encode(SamplePosition::Decode(position_[i]), row_is_valid_[i]);
+      }
     }
 
    protected:
@@ -222,9 +226,13 @@ class ColMaker : public TreeUpdater {
         position_.resize(gpair.size());
         CHECK_EQ(fmat.Info().num_row_, position_.size());
         std::fill(position_.begin(), position_.end(), 0);
+        row_is_valid_.assign(position_.size(), true);
         // mark delete for the deleted datas
         for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-          if (gpair[ridx].GetHess() < 0.0f) position_[ridx] = ~position_[ridx];
+          if (gpair[ridx].GetHess() < 0.0f) {
+            position_[ridx] = ~position_[ridx];
+            row_is_valid_[ridx] = false;
+          }
         }
         // mark subsample
         if (param_.subsample < 1.0f) {
@@ -234,8 +242,13 @@ class ColMaker : public TreeUpdater {
           std::bernoulli_distribution coin_flip(param_.subsample);
           auto &rnd = ctx_->Rng();
           for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-            if (gpair[ridx].GetHess() < 0.0f) continue;
-            if (!coin_flip(rnd)) position_[ridx] = ~position_[ridx];
+            if (!row_is_valid_[ridx]) {
+              continue;
+            }
+            if (!coin_flip(rnd)) {
+              position_[ridx] = ~position_[ridx];
+              row_is_valid_[ridx] = false;
+            }
           }
         }
       }
@@ -597,6 +610,9 @@ class ColMaker : public TreeUpdater {
     std::shared_ptr<common::ColumnSampler> column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
+    // Whether the row participates in training.  `position_` can be marked invalid internally
+    // after reaching a finished leaf, but the exported node positions should still include it.
+    std::vector<char> row_is_valid_;
     // PerThread x PerTreeNode: statistics for per thread construction
     std::vector<std::vector<ThreadEntry>> stemp_;
     /*! \brief TreeNode Data: statistics for each constructed node */
