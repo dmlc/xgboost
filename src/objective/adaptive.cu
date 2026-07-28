@@ -144,7 +144,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
 namespace cuda_impl {
 void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
-                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    bst_target_t target_idx, MetaInfo const& info, float learning_rate,
                     HostDeviceVector<float> const& predt, std::vector<float> const& h_alphas,
                     RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
@@ -163,7 +163,7 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   predt.SetDevice(ctx->Device());
   auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), info.num_row_,
                                         predt.Size() / info.num_row_);
-  CHECK_LT(group_idx, d_predt.Shape(1));
+  CHECK_LT(target_idx, d_predt.Shape(1));
   if (p_tree->IsMultiTarget()) {
     CHECK_EQ(d_predt.Shape(1), h_alphas.size());
   }
@@ -178,11 +178,11 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   auto d_labels = info.labels.View(ctx->Device());
 
   auto values = [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) {
-    // If it's vector-leaf, group_idx is 0, j is used. Otherwise, j is 0, group idx is used.
-    auto p_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+    // If it's vector-leaf, target_idx is 0, j is used. Otherwise, j is 0, target idx is used.
+    auto p_idx = cuda::std::max(j, static_cast<std::size_t>(target_idx));
     auto p = d_predt(d_row_index[i], p_idx);
     // label is a single column for quantile regression, but it's a matrix for MAE.
-    auto y_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+    auto y_idx = cuda::std::max(j, static_cast<std::size_t>(target_idx));
     y_idx = cuda::std::min(y_idx, d_labels.Shape(1) - 1);
     auto y = d_labels(d_row_index[i], y_idx);
     return y - p;

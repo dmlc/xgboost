@@ -32,7 +32,7 @@ class GBTreeModelView {
   bst_tree_t const tree_begin;
   bst_tree_t const tree_end;
   common::Span<bst_target_t const> tree_groups;
-  bst_target_t const n_groups;
+  bst_target_t const n_targets;
   bst_feature_t const n_features;
   bst_node_t n_nodes{0};
 
@@ -41,7 +41,7 @@ class GBTreeModelView {
                            bst_tree_t tree_begin, bst_tree_t tree_end, CopyViews&& copy)
       : tree_begin{tree_begin},
         tree_end{tree_end},
-        n_groups{model.learner_model_param->OutputLength()},
+        n_targets{model.learner_model_param->NumTargets()},
         n_features{model.learner_model_param->num_feature} {
     // Make sure the trees are pulled to target device without race.
     std::lock_guard guard{model.Mutex()};

@@ -158,8 +158,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   }
   // Handle old model formats, before 3.1, the intercept was always a scalar.
   void HandleOldFormat() {
-    if (this->base_score.size() == 1 && this->OutputLength() > 1) {
-      this->base_score.Resize(this->OutputLength(), this->base_score[0]);
+    if (this->base_score.size() == 1 && this->NumTargets() > 1) {
+      this->base_score.Resize(this->NumTargets(), this->base_score[0]);
     }
   }
 
@@ -175,8 +175,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     }
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
-  // The number of outputs of the model.
-  [[nodiscard]] bst_target_t OutputLength() const noexcept {
+  // The number of targets in the model.
+  [[nodiscard]] bst_target_t NumTargets() const noexcept {
     return std::max({this->num_target, static_cast<bst_target_t>(this->num_class),
                      static_cast<bst_target_t>(1)});
   }
@@ -241,7 +241,7 @@ namespace xgboost {
 LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
                                      MultiStrategy multi_strategy)
     : num_feature{user_param.num_feature},
-      num_output_group{user_param.OutputLength()},
+      n_targets{user_param.NumTargets()},
       task{t},
       multi_strategy{multi_strategy} {
   if (user_param.num_class > 1 && user_param.num_target > 1) {
@@ -294,7 +294,7 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   CHECK(base_score_.Data()->HostCanRead());
 
   num_feature = that.num_feature;
-  num_output_group = that.num_output_group;
+  n_targets = that.n_targets;
   task = that.task;
   multi_strategy = that.multi_strategy;
 }
@@ -376,7 +376,7 @@ class Intercept : public Learner {
  private:
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
-    base_score->Reshape(this->mparam_.OutputLength());
+    base_score->Reshape(this->mparam_.NumTargets());
     UsePtr(obj_)->InitEstimation(info, base_score);
   }
 
@@ -438,8 +438,7 @@ class Intercept : public Learner {
 
     if (this->NeedFit()) {
       // Initialize with a sensible default value to get prediction/model io going.
-      this->mparam_.base_score.Resize(this->mparam_.OutputLength(),
-                                      ObjFunction::DefaultBaseScore());
+      this->mparam_.base_score.Resize(this->mparam_.NumTargets(), ObjFunction::DefaultBaseScore());
       this->InitModelParam(tparam, false);
       // This should not be altered, we will estimate it later.
       CHECK(this->NeedFit());
@@ -881,7 +880,7 @@ class LearnerConfiguration : public Intercept {
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
-    base_score->Reshape(this->mparam_.OutputLength());
+    base_score->Reshape(this->mparam_.NumTargets());
     UsePtr(obj_)->InitEstimation(info, base_score);
   }
 };
@@ -1144,10 +1143,10 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
     if (in_gpair->HasValueGrad()) {
-      CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->NumTargets())
+      CHECK_EQ(this->learner_model_param_.NumTargets(), in_gpair->NumTargets())
           << "Value gradient should have the same number of targets as the overall model.";
     } else {
-      CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->NumSplitTargets())
+      CHECK_EQ(this->learner_model_param_.NumTargets(), in_gpair->NumSplitTargets())
           << "The number of columns in gradient should be equal to the number of "
              "targets/classes in the model.";
     }
@@ -1238,10 +1237,10 @@ class LearnerImpl : public LearnerIO {
     return this->gbm_->BoostedRounds();
   }
 
-  uint32_t Groups() const override {
+  bst_target_t NumTargets() const override {
     CHECK(!this->need_configuration_);
     this->CheckModelInitialized();
-    return this->learner_model_param_.num_output_group;
+    return this->learner_model_param_.NumTargets();
   }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
@@ -1316,14 +1315,14 @@ class LearnerImpl : public LearnerIO {
       error::WarnEmptyDataset();
     }
     if (!p_fmat->Info().base_margin_.Empty()) {
-      CHECK_EQ(p_fmat->Info().base_margin_.Shape(1), this->mparam_.OutputLength());
+      CHECK_EQ(p_fmat->Info().base_margin_.Shape(1), this->mparam_.NumTargets());
     }
   }
 
  private:
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) {
-    out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
+    out_gpair->Reshape(info.num_row_, this->learner_model_param_.NumTargets());
     obj_->GetGradient(preds, info, iter, out_gpair);
   }
 

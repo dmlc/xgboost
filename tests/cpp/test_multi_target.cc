@@ -2,23 +2,23 @@
  * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                         // for Args, bst_target_t
-#include <xgboost/data.h>                         // for DMatrix, MetaInfo
-#include <xgboost/json.h>                         // for Json, get, Object, String
-#include <xgboost/learner.h>                      // for Learner
+#include <xgboost/base.h>     // for Args, bst_target_t
+#include <xgboost/data.h>     // for DMatrix, MetaInfo
+#include <xgboost/json.h>     // for Json, get, Object, String
+#include <xgboost/learner.h>  // for Learner
 
-#include <algorithm>                              // for copy
-#include <cstddef>                                // for size_t
-#include <memory>                                 // for shared_ptr, allocator, __shared_ptr_access
-#include <numeric>                                // for accumulate
-#include <string>                                 // for stod, string
-#include <vector>                                 // for vector
+#include <algorithm>  // for copy
+#include <cstddef>    // for size_t
+#include <memory>     // for shared_ptr, allocator, __shared_ptr_access
+#include <numeric>    // for accumulate
+#include <string>     // for stod, string
+#include <vector>     // for vector
 
-#include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
-#include "../../src/common/stats.h"               // for Median
-#include "helpers.h"                              // for RandomDataGenerator
-#include "xgboost/host_device_vector.h"           // for HostDeviceVector
-#include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
+#include "../../src/common/linalg_op.h"  // for begin, cbegin, cend
+#include "../../src/common/stats.h"      // for Median
+#include "helpers.h"                     // for RandomDataGenerator
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for Tensor, All, TensorView, Vector
 
 namespace xgboost {
 class TestL1MultiTarget : public ::testing::Test {
@@ -77,7 +77,7 @@ class TestL1MultiTarget : public ::testing::Test {
     for (auto i = 0; i < 4; ++i) {
       learner->UpdateOneIter(i, p_fmat);
     }
-    ASSERT_EQ(learner->Groups(), 3);
+    ASSERT_EQ(learner->NumTargets(), 3);
 
     Json config{Object{}};
     learner->SaveConfig(&config);
@@ -138,7 +138,7 @@ TEST(MultiStrategy, Configure) {
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
   learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
   learner->Configure();
-  ASSERT_EQ(learner->Groups(), 2);
+  ASSERT_EQ(learner->NumTargets(), 2);
 
   learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}});
   ASSERT_THROW({ learner->Configure(); }, dmlc::Error);

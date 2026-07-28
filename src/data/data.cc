@@ -522,8 +522,8 @@ void ReshapeInfo(bst_idx_t n_samples, linalg::Matrix<float>* p_info, StringView 
     CHECK_EQ(p_info->Size() % n_samples, 0)
         << "Invalid size for `" << name << "`:(" << p_info->Shape(0) << "," << p_info->Shape(1)
         << "). n_samples:" << n_samples;
-    std::size_t n_groups = p_info->Size() / n_samples;
-    p_info->Reshape(n_samples, n_groups);
+    std::size_t n_targets = p_info->Size() / n_samples;
+    p_info->Reshape(n_samples, n_targets);
   }
 }
 }  // namespace

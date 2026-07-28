@@ -920,14 +920,14 @@ class MeanAbsoluteError : public ObjFunction {
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       float learning_rate, HostDeviceVector<float> const& prediction,
-                      bst_target_t group_idx, RegTree* p_tree) const override {
+                      bst_target_t target_idx, RegTree* p_tree) const override {
     std::vector<float> alphas;
     if (p_tree->IsMultiTarget()) {
       alphas.resize(p_tree->NumTargets(), 0.5);
     } else {
       alphas.push_back(0.5);
     }
-    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
+    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, target_idx, info, learning_rate, prediction,
                                    alphas, p_tree);
   }
 

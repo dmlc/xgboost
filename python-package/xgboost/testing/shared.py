@@ -17,11 +17,11 @@ def validate_leaf_output(leaf: np.ndarray, num_parallel_tree: int) -> None:
     """Validate output for predict leaf tests."""
     for i in range(leaf.shape[0]):  # n_samples
         for j in range(leaf.shape[1]):  # n_rounds
-            for k in range(leaf.shape[2]):  # n_classes
-                tree_group = leaf[i, j, k, :]
-                assert tree_group.shape[0] == num_parallel_tree
+            for k in range(leaf.shape[2]):  # n_targets
+                parallel_trees = leaf[i, j, k, :]
+                assert parallel_trees.shape[0] == num_parallel_tree
                 # No sampling, all trees within forest are the same
-                assert np.all(tree_group == tree_group[0])
+                assert np.all(parallel_trees == parallel_trees[0])
 
 
 def validate_data_initialization(

@@ -8,23 +8,18 @@
 #include <memory>     // for unique_ptr, shared_ptr
 #include <vector>     // for vector
 
-#include "../collective/allreduce.h"         // for Allreduce
-#include "../collective/communicator-inl.h"  // for IsDistributed
-#include "../common/bitfield.h"              // for RBitField8
-#include "../common/column_matrix.h"         // for ColumnMatrix
-#include "../common/error_msg.h"             // for InplacePredictProxy
-#include "../common/math.h"                  // for CheckNAN
-#include "../common/optional_weight.h"       // for OptionalWeights
-#include "../common/threading_utils.h"       // for ParallelFor
-#include "../data/adapter.h"                 // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
-#include "../data/cat_container.h"           // for CatContainer
-#include "../data/gradient_index.h"          // for GHistIndexMatrix
-#include "../data/proxy_dmatrix.h"           // for DMatrixProxy
-#include "../gbm/gbtree_model.h"             // for GBTreeModel, GBTreeModelParam
-#include "array_tree_layout.h"               // for ProcessArrayTree
-#include "data_accessor.h"                   // for GHistIndexMatrixView, SparsePageView
-#include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
-#include "gbtree_view.h"                     // for GBTreeModelView
+#include "../common/error_msg.h"        // for InplacePredictProxy
+#include "../common/optional_weight.h"  // for OptionalWeights
+#include "../common/threading_utils.h"  // for ParallelFor
+#include "../data/adapter.h"            // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
+#include "../data/cat_container.h"      // for CatContainer
+#include "../data/gradient_index.h"     // for GHistIndexMatrix
+#include "../data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../gbm/gbtree_model.h"        // for GBTreeModel, GBTreeModelParam
+#include "array_tree_layout.h"          // for ProcessArrayTree
+#include "data_accessor.h"              // for GHistIndexMatrixView, SparsePageView
+#include "dmlc/registry.h"              // for DMLC_REGISTRY_FILE_TAG
+#include "gbtree_view.h"                // for GBTreeModelView
 #include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
 #include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
 #include "utils.h"                  // for CheckProxyDMatrix
@@ -87,8 +82,8 @@ template <bool has_categorical>
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
 void PredValueByOneTree(tree::ScalarTreeView const &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
-                        linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, int depth, int gid,
-                        float tree_weight) {
+                        linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, int depth,
+                        bst_target_t target_idx, float tree_weight) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
     ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
@@ -103,7 +98,7 @@ void PredValueByOneTree(tree::ScalarTreeView const &tree, std::size_t const pred
       nidx = p_nidx[i];
       p_nidx[i] = 0;
     }
-    out_predt(predict_offset + i, gid) +=
+    out_predt(predict_offset + i, target_idx) +=
         PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, nidx) * tree_weight;
   }
 }
@@ -169,15 +164,15 @@ void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_of
     std::visit(
         enc::Overloaded{[&](tree::ScalarTreeView const &tree) {
                           bool has_categorical = tree.HasCategoricalSplit();
-                          auto const gid = model.tree_groups[tree_id];
+                          auto const target_idx = model.tree_groups[tree_id];
                           if (has_categorical) {
                             scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
                                 tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(),
-                                depth, gid, weight);
+                                depth, target_idx, weight);
                           } else {
                             scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
                                 tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(),
-                                depth, gid, weight);
+                                depth, target_idx, weight);
                           }
                         },
                         [&](tree::MultiTargetTreeView const &tree) {
@@ -423,7 +418,6 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
     batch.FVecDrop(fvec_tloc);
   });
 }
-
 }  // anonymous namespace
 
 class CPUPredictor : public Predictor {
@@ -434,10 +428,10 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
 
     // Create a writable view on the output prediction vector.
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_target_t n_targets = model.learner_model_param->NumTargets();
     bst_idx_t n_samples = p_fmat->Info().num_row_;
-    CHECK_EQ(out_preds->size(), n_samples * n_groups);
-    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
+    CHECK_EQ(out_preds->size(), n_samples * n_targets);
+    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_targets);
     bool any_missing = !(p_fmat->IsDense());
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
@@ -489,7 +483,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
     // Always use block as we don't know the nnz.
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_target_t n_targets = model.learner_model_param->NumTargets();
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
     auto const *tree_weights = model.TreeWeights();
@@ -499,7 +493,7 @@ class CPUPredictor : public Predictor {
                                                  static_cast<std::size_t>(tree_end - tree_begin)}};
 
     auto kernel = [&](auto &&view) {
-      auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
+      auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_targets);
       PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
                                                                any_missing, out_predt, weights);
     };

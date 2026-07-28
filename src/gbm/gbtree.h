@@ -182,11 +182,13 @@ class GBTree : public GradientBooster {
   void Configure(Args const& cfg) override;
   /**
    * @brief Optionally update the leaf value.
+   *
+   * @param target_idx Target index for scalar trees; zero for vector-leaf trees.
    */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, std::int32_t group_idx,
+                      ObjFunction const* obj, bst_target_t target_idx,
                       std::vector<HostDeviceVector<bst_node_t>> const& node_position,
-                      std::vector<std::unique_ptr<RegTree>>* p_trees);
+                      TreesOneGroup* p_trees);
   /**
    * @brief Carry out one iteration of boosting.
    */
@@ -341,11 +343,10 @@ class GBTree : public GradientBooster {
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
   [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
 
-  void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
-                     std::vector<HostDeviceVector<bst_node_t>>* out_position,
-                     std::vector<std::unique_ptr<RegTree>>* ret);
+  void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, bst_target_t target_idx,
+                     std::vector<HostDeviceVector<bst_node_t>>* out_position, TreesOneGroup* ret);
 
-  std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
+  std::vector<RegTree*> InitNewTrees(bst_target_t target_idx, TreesOneGroup* ret);
 
   [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,

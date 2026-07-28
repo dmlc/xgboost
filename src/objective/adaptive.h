@@ -89,10 +89,10 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   }
 }
 
-inline std::size_t IdxY(MetaInfo const& info, bst_group_t group_idx) {
+inline std::size_t IdxY(MetaInfo const& info, bst_target_t target_idx) {
   std::size_t y_idx{0};
   if (info.labels.Shape(1) > 1) {
-    y_idx = group_idx;
+    y_idx = target_idx;
   }
   CHECK_LE(y_idx, info.labels.Shape(1));
   return y_idx;
@@ -101,29 +101,29 @@ inline std::size_t IdxY(MetaInfo const& info, bst_group_t group_idx) {
 
 namespace cpu_impl {
 void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
-                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    bst_target_t target_idx, MetaInfo const& info, float learning_rate,
                     HostDeviceVector<float> const& predt, std::vector<float> const& alphas,
                     RegTree* p_tree);
 }
 
 namespace cuda_impl {
 void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
-                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    bst_target_t target_idx, MetaInfo const& info, float learning_rate,
                     HostDeviceVector<float> const& predt, std::vector<float> const& alphas,
                     RegTree* p_tree);
 }
 
 inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> const& position,
-                           bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                           bst_target_t target_idx, MetaInfo const& info, float learning_rate,
                            HostDeviceVector<float> const& predt, std::vector<float> const& alphas,
                            RegTree* p_tree) {
   if (ctx->IsCUDA()) {
     position.SetDevice(ctx->Device());
-    cuda_impl::UpdateTreeLeaf(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
+    cuda_impl::UpdateTreeLeaf(ctx, position.ConstDeviceSpan(), target_idx, info, learning_rate,
                               predt, alphas, p_tree);
   } else {
-    cpu_impl::UpdateTreeLeaf(ctx, position.ConstHostVector(), group_idx, info, learning_rate, predt,
-                             alphas, p_tree);
+    cpu_impl::UpdateTreeLeaf(ctx, position.ConstHostVector(), target_idx, info, learning_rate,
+                             predt, alphas, p_tree);
   }
 }
 }  // namespace xgboost::obj

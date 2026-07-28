@@ -105,7 +105,7 @@ namespace {
 }  // namespace
 
 void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
-                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    bst_target_t target_idx, MetaInfo const& info, float learning_rate,
                     HostDeviceVector<float> const& predt, std::vector<float> const& alphas,
                     RegTree* p_tree) {
   std::vector<bst_node_t> nidx;
@@ -142,11 +142,11 @@ void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
     auto h_weights = linalg::MakeVec(&info.weights_);
     // Loop over each target (quantile).
     for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
-      // If it's vector-leaf, group_idx is 0, alpha_idx is used. Otherwise,
-      // alpha_idx is 0, the group idx is used.
-      auto predt_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+      // If it's vector-leaf, target_idx is 0, alpha_idx is used. Otherwise,
+      // alpha_idx is 0, the target idx is used.
+      auto predt_idx = std::max(alpha_idx, static_cast<std::size_t>(target_idx));
       // label is a single column for quantile regression, but it's a matrix for MAE.
-      auto y_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+      auto y_idx = std::max(alpha_idx, static_cast<std::size_t>(target_idx));
       y_idx = std::min(y_idx, h_labels.Shape(1) - 1);
       auto iter = common::MakeIndexTransformIter([&](std::size_t i) -> float {
         auto row_idx = h_row_set[i];

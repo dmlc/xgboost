@@ -84,7 +84,7 @@ class DeviceModel {
       }
     }
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_param->NumTargets();
     if (num_group > 1) {
       tree_group.Resize(model.tree_info.Size());
       auto& tree_group_host = tree_group.HostVector();
@@ -405,7 +405,7 @@ class Predictor : public xgboost::Predictor {
 
     device_model.Init(model, tree_begin, tree_end);
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_param->NumTargets();
     int num_features = dmat->Info().num_col_;
 
     float* out_predictions = out_preds->DevicePointer();

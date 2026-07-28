@@ -9,7 +9,7 @@
 #include <string>   // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for Args, bst_group_t, bst_idx_t
+#include "xgboost/base.h"                // for Args, bst_idx_t, bst_target_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -35,12 +35,12 @@ Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
 
 template <int32_t D>
 void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_idx_t n_samples,
-                             bst_group_t n_groups) {
+                             bst_target_t n_targets) {
   // FIXME: Bindings other than Python and R don't have shape.
   std::string expected{"Invalid shape of base_margin. Expected: (" + std::to_string(n_samples) +
-                       ", " + std::to_string(n_groups) + ")"};
+                       ", " + std::to_string(n_targets) + ")"};
   CHECK_EQ(margin.Shape(0), n_samples) << expected;
-  CHECK_EQ(margin.Shape(1), n_groups) << expected;
+  CHECK_EQ(margin.Shape(1), n_targets) << expected;
 }
 
 namespace cuda_impl {
@@ -55,20 +55,20 @@ void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base
 
 void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_preds,
                                    gbm::GBTreeModel const& model) const {
-  CHECK_NE(model.learner_model_param->num_output_group, 0);
+  CHECK_NE(model.learner_model_param->NumTargets(), 0);
 
   if (!ctx_->Device().IsCPU()) {
     out_preds->SetDevice(ctx_->Device());
   }
 
   // Cannot rely on the Resize to fill as it might skip if the size is already correct.
-  auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
+  auto n = static_cast<size_t>(model.learner_model_param->NumTargets() * info.num_row_);
   out_preds->Resize(n);
 
   HostDeviceVector<float> const* base_margin = info.base_margin_.Data();
   if (!base_margin->Empty()) {
     ValidateBaseMarginShape(info.base_margin_, info.num_row_,
-                            model.learner_model_param->OutputLength());
+                            model.learner_model_param->NumTargets());
     out_preds->Copy(*base_margin);
     return;
   }
@@ -82,7 +82,7 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>
 
   // Handle multi-output models where base_score is a vector.
   auto predt = linalg::MakeTensorView(this->ctx_, out_preds, info.num_row_,
-                                      model.learner_model_param->OutputLength());
+                                      model.learner_model_param->NumTargets());
   CHECK_EQ(predt.Size(), out_preds->Size());
 
   if (this->ctx_->IsCUDA()) {

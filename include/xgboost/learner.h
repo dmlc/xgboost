@@ -146,9 +146,9 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual int32_t BoostedRounds() const = 0;
   /**
-   * \brief Get the number of output groups from the model.
+   * \brief Get the number of targets from the model.
    */
-  virtual std::uint32_t Groups() const = 0;
+  virtual bst_target_t NumTargets() const = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
@@ -316,7 +316,7 @@ struct LearnerModelParam {
   /**
    * @brief The number of classes or targets.
    */
-  std::uint32_t num_output_group{0};
+  bst_target_t n_targets{0};
   /**
    * @brief Current task, determined by objective.
    */
@@ -331,10 +331,10 @@ struct LearnerModelParam {
                     linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
   // This ctor is only used by tests.
   LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
-                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
+                    bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},
         num_feature{n_features},
-        num_output_group{std::max(n_groups, n_targets)},
+        n_targets{n_targets},
         multi_strategy{multi_strategy} {}
 
   linalg::VectorView<float const> BaseScore(Context const* ctx) const;
@@ -344,13 +344,13 @@ struct LearnerModelParam {
   [[nodiscard]] bool IsVectorLeaf() const noexcept {
     return multi_strategy == MultiStrategy::kMultiOutputTree;
   }
-  [[nodiscard]] bst_target_t OutputLength() const noexcept { return this->num_output_group; }
-  [[nodiscard]] bst_target_t LeafLength() const noexcept {
-    return this->IsVectorLeaf() ? this->OutputLength() : 1;
+  [[nodiscard]] bst_target_t NumTargets() const noexcept { return this->n_targets; }
+  [[nodiscard]] bst_target_t NumTreeTargets() const noexcept {
+    return this->IsVectorLeaf() ? this->NumTargets() : 1;
   }
 
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  [[nodiscard]] bool Initialized() const { return num_feature != 0 && num_output_group != 0; }
+  [[nodiscard]] bool Initialized() const { return num_feature != 0 && n_targets != 0; }
 };
 
 }  // namespace xgboost
