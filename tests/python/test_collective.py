@@ -85,6 +85,18 @@ def test_federated_communicator() -> None:
             assert worker.result() == 0
 
 
+@pytest.mark.skipif(
+    build_info()["USE_FEDERATED"],
+    reason="XGBoost is built with federated learning enabled",
+)
+def test_federated_tracker_without_plugin() -> None:
+    with pytest.raises(
+        xgb.core.XGBoostError,
+        match="XGBoost is not compiled with federated learning support",
+    ):
+        federated.run_federated_server(n_workers=1, port=0, blocking=False)
+
+
 def test_config_serialization() -> None:
     cfg = Config(retry=1, timeout=2, tracker_host_ip="127.0.0.1", tracker_port=None)
     cfg1 = Config(**asdict(cfg))
