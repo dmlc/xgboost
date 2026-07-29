@@ -864,9 +864,6 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
  * gradient as the residual scale contracts.
  */
 class MeanAbsoluteError : public ObjFunction {
-  HostDeviceVector<float> root_residual_;
-  HostDeviceVector<float> scale_;
-
  public:
   void Configure(Args const&) override {}
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false, false}; }
@@ -888,8 +885,7 @@ class MeanAbsoluteError : public ObjFunction {
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
-    root_residual_.SetDevice(ctx_->Device());
-    root_residual_.Resize(info.num_row_);
+    HostDeviceVector<float> root_residual(info.num_row_, 0.0f, ctx_->Device());
     std::vector<double> scale_stats(n_targets + 1, 0.0);
     for (bst_target_t target{0}; target < n_targets; ++target) {
       common::Transform<>::Init(
@@ -902,8 +898,8 @@ class MeanAbsoluteError : public ObjFunction {
           },
           common::Range{0, static_cast<std::int64_t>(info.num_row_)}, ctx_->Threads(),
           ctx_->Device())
-          .Eval(&root_residual_, &preds, info.labels.Data(), &info.weights_);
-      scale_stats[target] = common::Reduce(ctx_, root_residual_);
+          .Eval(&root_residual, &preds, info.labels.Data(), &info.weights_);
+      scale_stats[target] = common::Reduce(ctx_, root_residual);
     }
     scale_stats.back() = common::SumOptionalWeights(ctx_, weight, info.num_row_);
     auto cpu_ctx = ctx_->MakeCPU();
@@ -911,8 +907,8 @@ class MeanAbsoluteError : public ObjFunction {
         collective::GlobalSum(&cpu_ctx, linalg::MakeVec(scale_stats.data(), scale_stats.size()));
     collective::SafeColl(rc);
 
-    auto& h_scale = scale_.HostVector();
-    h_scale.resize(n_targets);
+    HostDeviceVector<float> scale(n_targets, 0.0f, ctx_->Device());
+    auto h_scale = scale.HostSpan();
     for (bst_target_t target{0}; target < n_targets; ++target) {
       if (common::CloseTo(scale_stats.back(), 0.0)) {
         h_scale[target] = 0.0f;
@@ -921,13 +917,12 @@ class MeanAbsoluteError : public ObjFunction {
         h_scale[target] = static_cast<float>(root_mean * root_mean);
       }
     }
-    scale_.SetDevice(ctx_->Device());
-    auto scale = ctx_->Device().IsCPU() ? scale_.ConstHostSpan() : scale_.ConstDeviceSpan();
+    auto scale_view = ctx_->Device().IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan();
 
     linalg::ElementWiseKernel(ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
                                 auto const residual = predt(i, j) - labels(i, j);
-                                auto const delta = scale[j];
+                                auto const delta = scale_view[j];
                                 auto const norm = hypotf(delta, residual);
                                 auto const curvature = norm > 0.0f ? delta / norm : 1.0f;
                                 auto const w = weight[i];
