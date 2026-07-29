@@ -152,6 +152,8 @@ class MultiClassMetricsReduction {
  */
 template <typename Derived>
 struct EvalMClassBase : public MetricNoCache {
+  ~EvalMClassBase() noexcept override = default;
+
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
     CheckRowWeights(info);
     if (info.labels.Size() == 0) {
