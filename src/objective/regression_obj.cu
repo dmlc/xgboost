@@ -889,16 +889,13 @@ class MeanAbsoluteError : public ObjFunction {
     std::vector<double> scale_stats(n_targets + 1, 0.0);
     for (bst_target_t target{0}; target < n_targets; ++target) {
       common::Transform<>::Init(
-          [target, n_targets] XGBOOST_DEVICE(
-              std::size_t i, common::Span<float> root_residual, common::Span<float const> predts,
-              common::Span<float const> labels, common::Span<float const> weights) {
-            auto const offset = i * n_targets + target;
-            auto const w = weights.empty() ? 1.0f : weights[i];
-            root_residual[i] = w * sqrtf(fabsf(predts[offset] - labels[offset]));
+          [target, labels, predt, weight] XGBOOST_DEVICE(std::size_t i,
+                                                         common::Span<float> root_residual) {
+            root_residual[i] = weight[i] * sqrtf(fabsf(predt(i, target) - labels(i, target)));
           },
           common::Range{0, static_cast<std::int64_t>(info.num_row_)}, ctx_->Threads(),
           ctx_->Device())
-          .Eval(&root_residual, &preds, info.labels.Data(), &info.weights_);
+          .Eval(&root_residual);
       scale_stats[target] = common::Reduce(ctx_, root_residual);
     }
     scale_stats.back() = common::SumOptionalWeights(ctx_, weight, info.num_row_);

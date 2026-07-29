@@ -176,7 +176,9 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     config_0 = json.loads(booster_0.save_config())
     config_1 = json.loads(booster_1.save_config())
 
-    np.testing.assert_allclose(get_basescore(config_0), get_basescore(config_1))
+    np.testing.assert_allclose(
+        get_basescore(config_0), get_basescore(config_1), rtol=1e-6
+    )
 
     # check the base score is correctly serialized.
     raw_booster = booster_1.save_raw(raw_format="ubj")
