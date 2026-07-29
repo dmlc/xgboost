@@ -9,13 +9,12 @@
 #include <xgboost/objective.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include <cmath>    // for hypot, sqrt
 #include <memory>   // for unique_ptr
-#include <numeric>  // for iota
 #include <utility>  // for pair
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/common/math.h"       // for SoftPlus
-#include "../../../src/tree/param.h"        // for TrainParam
 #include "../../../src/tree/tree_view.h"    // for MultiTargetTreeView
 #include "../helpers.h"
 #include "../tree/test_multi_target_tree_model.h"  // for MakeMtTreeForTest
@@ -308,95 +307,106 @@ void TestAbsoluteError(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
   obj->Configure({});
   CheckConfigReload(obj, "reg:absoluteerror");
+  ASSERT_FALSE(obj->Task().const_hess);
+  ASSERT_FALSE(obj->Task().zero_hess);
+
+  auto check = [&](std::vector<float> const& predts, std::vector<float> const& labels,
+                   std::vector<float> const& weights) {
+    double sum_weight{0.0};
+    double sum_root_residual{0.0};
+    for (std::size_t i{0}; i < labels.size(); ++i) {
+      auto const w = weights.empty() ? 1.0f : weights[i];
+      sum_weight += w;
+      sum_root_residual += w * std::sqrt(std::abs(predts[i] - labels[i]));
+    }
+    auto const root_mean = sum_weight == 0.0 ? 0.0 : sum_root_residual / sum_weight;
+    auto const delta = static_cast<float>(root_mean * root_mean);
+    std::vector<float> grad(labels.size());
+    std::vector<float> hess(labels.size());
+    for (std::size_t i{0}; i < labels.size(); ++i) {
+      auto const residual = predts[i] - labels[i];
+      auto const norm = std::hypot(delta, residual);
+      auto const curvature = norm > 0.0f ? delta / norm : 1.0f;
+      auto const w = weights.empty() ? 1.0f : weights[i];
+      grad[i] = w * residual * curvature;
+      hess[i] = w * curvature;
+    }
+    CheckObjFunction(obj, predts, labels, weights, grad, hess);
+  };
+
+  check({0.0f, 2.0f, 5.0f}, {1.0f, 0.0f, 1.0f}, {1.0f, 2.0f, 0.5f});
+  check({0.0f, 2.0f, 5.0f}, {1.0f, 0.0f, 1.0f}, {});
+  check({1.0f, 2.0f}, {1.0f, 2.0f}, {});
 
   MetaInfo info;
-  std::vector<float> labels{0.f, 3.f, 2.f, 5.f, 4.f, 7.f};
-  info.labels.Reshape(6, 1);
-  info.labels.Data()->HostVector() = labels;
-  info.num_row_ = labels.size();
-
-  HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
-  info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
-
-  CheckObjFunction(obj, predt.HostVector(), labels, info.weights_.HostVector(),
-                   {1.f, -1.f, 1.f, -1.f, 1.f, -1.f}, info.weights_.HostVector());
-
-  RegTree tree;
-  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  bst_node_t left_nidx = tree.LeftChild(RegTree::kRoot);
-  bst_node_t right_nidx = tree.RightChild(RegTree::kRoot);
-
-  HostDeviceVector<bst_node_t> position;
-  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
-
-  auto& h_predt = predt.HostVector();
-  for (size_t i = 0; i < h_predt.size(); ++i) {
-    h_predt[i] = labels[i] + i;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 2);
+  info.labels.Data()->HostVector() = {0.0f, 0.0f, 0.0f, 0.0f};
+  HostDeviceVector<float> predts{{1.0f, 100.0f, 4.0f, 400.0f}};
+  linalg::Matrix<GradientPair> gpair;
+  obj->GetGradient(predts, info, 0, &gpair);
+  auto h_gpair = gpair.HostView();
+  for (std::size_t row{0}; row < 2; ++row) {
+    auto const residual = row == 0 ? 1.0f : 4.0f;
+    auto const delta = 2.25f;
+    auto const curvature = delta / std::hypot(delta, residual);
+    ASSERT_NEAR(h_gpair(row, 0).GetGrad(), residual * curvature, kRtEps);
+    ASSERT_NEAR(h_gpair(row, 1).GetGrad(), 100.0f * residual * curvature, 1.0e-4f);
+    ASSERT_NEAR(h_gpair(row, 0).GetHess(), curvature, kRtEps);
+    ASSERT_NEAR(h_gpair(row, 1).GetHess(), curvature, kRtEps);
   }
 
-  tree::TrainParam param;
-  param.Init(Args{});
-  auto lr = param.learning_rate;
-
-  obj->UpdateTreeLeaf(position, info, lr, predt, 0, &tree);
-  ASSERT_EQ(tree[1].LeafValue(), -1.0f * lr);
-  ASSERT_EQ(tree[2].LeafValue(), -4.0f * lr);
-}
-
-void TestAbsoluteErrorLeaf(const Context* ctx) {
-  bst_target_t constexpr kTargets = 3, kRows = 16;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
-  obj->Configure({});
-
-  MetaInfo info;
-  info.num_row_ = kRows;
-  info.labels.Reshape(16, kTargets);
-  HostDeviceVector<float> predt(info.labels.Size());
-
-  for (bst_target_t t{0}; t < kTargets; ++t) {
-    auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
-    std::iota(linalg::begin(h_labels), linalg::end(h_labels), .0f);
-
-    auto h_predt =
-        linalg::MakeTensorView(ctx, predt.HostSpan(), kRows, kTargets).Slice(linalg::All(), t);
-    for (size_t i = 0; i < h_predt.Size(); ++i) {
-      h_predt(i) = h_labels(i) + i;
+  auto expected_intercept = [](std::vector<float> const& labels,
+                               std::vector<float> const& weights) {
+    double sum_weight{0.0};
+    double mean{0.0};
+    for (std::size_t i{0}; i < labels.size(); ++i) {
+      auto const w = weights.empty() ? 1.0f : weights[i];
+      sum_weight += w;
+      mean += w * labels[i];
     }
+    mean /= sum_weight;
 
-    HostDeviceVector<bst_node_t> position(h_labels.Size(), 0);
-    auto& h_position = position.HostVector();
-    for (int32_t i = 0; i < 3; ++i) {
-      h_position[i] = ~i;  // negation for sampled nodes.
+    double root_residual{0.0};
+    for (std::size_t i{0}; i < labels.size(); ++i) {
+      auto const w = weights.empty() ? 1.0f : weights[i];
+      root_residual += w * std::sqrt(std::abs(mean - labels[i]));
     }
-    for (size_t i = 3; i < 8; ++i) {
-      h_position[i] = 3;
+    auto const delta = std::pow(root_residual / sum_weight, 2.0);
+
+    double sum_grad{0.0};
+    double sum_hess{0.0};
+    for (std::size_t i{0}; i < labels.size(); ++i) {
+      auto const w = weights.empty() ? 1.0f : weights[i];
+      auto const residual = mean - labels[i];
+      auto const norm = std::hypot(delta, residual);
+      auto const curvature = norm > 0.0 ? delta / norm : 1.0;
+      sum_grad += w * residual * curvature;
+      sum_hess += w * curvature;
     }
-    // empty leaf for node 4
-    for (size_t i = 8; i < 13; ++i) {
-      h_position[i] = 5;
-    }
-    for (size_t i = 13; i < h_labels.Size(); ++i) {
-      h_position[i] = 6;
-    }
+    return static_cast<float>(mean - sum_grad / sum_hess);
+  };
 
-    RegTree tree;
-    tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-    tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-    tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-    ASSERT_EQ(tree.GetNumLeaves(), 4);
+  auto init = [&](std::vector<float> labels, std::vector<float> const& weights) {
+    MetaInfo init_info;
+    init_info.num_row_ = labels.size();
+    init_info.labels.Reshape(labels.size(), 1);
+    init_info.labels.Data()->HostVector() = std::move(labels);
+    init_info.weights_.HostVector() = weights;
+    linalg::Vector<float> base_score;
+    obj->InitEstimation(init_info, &base_score);
+    return base_score.HostView()(0);
+  };
 
-    auto empty_leaf = tree[4].LeafValue();
-
-    tree::TrainParam param;
-    param.Init(Args{});
-    auto lr = param.learning_rate;
-
-    obj->UpdateTreeLeaf(position, info, lr, predt, t, &tree);
-    ASSERT_EQ(tree[3].LeafValue(), -5.0f * lr);
-    ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
-    ASSERT_EQ(tree[5].LeafValue(), -10.0f * lr);
-    ASSERT_EQ(tree[6].LeafValue(), -14.0f * lr);
+  for (auto const& weights : std::vector<std::vector<float>>{{}, {1.0f, 2.0f, 3.0f, 4.0f}}) {
+    std::vector<float> labels{0.0f, 0.0f, 0.0f, 1000.0f};
+    auto const expected = expected_intercept(labels, weights);
+    ASSERT_NEAR(init(labels, weights), expected, 1.0e-4f);
+    std::transform(labels.cbegin(), labels.cend(), labels.begin(),
+                   [](float label) { return label + 1000.0f; });
+    ASSERT_NEAR(init(labels, weights), expected + 1000.0f, 1.0e-4f);
   }
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mae"});
 }
 
 void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,

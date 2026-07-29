@@ -9,6 +9,7 @@
 #include <algorithm>  // for all_of
 #include <cmath>
 #include <cstdint>  // for int32_t
+#include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
 #include "../collective/aggregator.h"
@@ -24,7 +25,6 @@
 #include "../common/utils.h"  // for NoOp
 #include "../tree/fit_stump.h"
 #include "./regression_loss.h"
-#include "adaptive.h"
 #include "init_estimation.h"  // FitIntercept
 #include "regression_param.h"
 #include "xgboost/base.h"
@@ -37,7 +37,6 @@
 #include "xgboost/objective.h"  // ObjFunction
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
-#include "xgboost/tree_model.h"  // RegTree
 
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/algorithm.cuh"       // for AllOf
@@ -852,10 +851,22 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
     .describe("Tweedie regression for insurance data.")
     .set_body([]() { return new TweedieRegression(); });
 
+/**
+ * @brief Smooth MM approximation to the mean absolute error.
+ *
+ * At each boosting iteration and for each target, choose the automatic scale
+ *
+ *   delta = E_w[sqrt(abs(prediction - label))]^2.
+ *
+ * For residual r, q = sqrt(1 + (r / delta)^2), the pseudo-Huber gradient is r / q.
+ * We use 1 / q as the Hessian instead of the exact pseudo-Huber Hessian 1 / q^3. This is
+ * the majorization curvature that produces a stable IRLS update while approaching the L1
+ * gradient as the residual scale contracts.
+ */
 class MeanAbsoluteError : public ObjFunction {
  public:
   void Configure(Args const&) override {}
-  [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
+  [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false, false}; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
   }
@@ -864,29 +875,63 @@ class MeanAbsoluteError : public ObjFunction {
                    std::int32_t /*iter*/, linalg::Matrix<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     auto labels = info.labels.View(ctx_->Device());
+    auto const n_targets = this->Targets(info);
 
     out_gpair->SetDevice(ctx_->Device());
-    out_gpair->Reshape(info.num_row_, this->Targets(info));
+    out_gpair->Reshape(info.num_row_, n_targets);
     auto gpair = out_gpair->View(ctx_->Device());
 
     preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    linalg::ElementWiseKernel(
-        ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-          auto sign = [](auto x) {
-            return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
-          };
-          auto y = labels(i, j);
-          auto hess = weight[i];
-          auto grad = sign(predt(i, j) - y) * hess;
-          gpair(i, j) = GradientPair{grad, hess};
-        });
+
+    HostDeviceVector<float> root_residual(info.num_row_, 0.0f, ctx_->Device());
+    std::vector<double> scale_stats(n_targets + 1, 0.0);
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      common::Transform<>::Init(
+          [target, labels, predt, weight] XGBOOST_DEVICE(std::size_t i,
+                                                         common::Span<float> root_residual) {
+            root_residual[i] = weight[i] * sqrtf(fabsf(predt(i, target) - labels(i, target)));
+          },
+          common::Range{0, static_cast<std::int64_t>(info.num_row_)}, ctx_->Threads(),
+          ctx_->Device())
+          .Eval(&root_residual);
+      scale_stats[target] = common::Reduce(ctx_, root_residual);
+    }
+    scale_stats.back() = common::SumOptionalWeights(ctx_, weight, info.num_row_);
+    auto cpu_ctx = ctx_->MakeCPU();
+    auto rc =
+        collective::GlobalSum(&cpu_ctx, linalg::MakeVec(scale_stats.data(), scale_stats.size()));
+    collective::SafeColl(rc);
+
+    HostDeviceVector<float> scale(n_targets, 0.0f, ctx_->Device());
+    auto h_scale = scale.HostSpan();
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      if (common::CloseTo(scale_stats.back(), 0.0)) {
+        h_scale[target] = 0.0f;
+      } else {
+        auto const root_mean = scale_stats[target] / scale_stats.back();
+        h_scale[target] = static_cast<float>(root_mean * root_mean);
+      }
+    }
+    auto scale_view = ctx_->Device().IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan();
+
+    linalg::ElementWiseKernel(ctx_, labels,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                auto const residual = predt(i, j) - labels(i, j);
+                                auto const delta = scale_view[j];
+                                auto const norm = hypotf(delta, residual);
+                                auto const curvature = norm > 0.0f ? delta / norm : 1.0f;
+                                auto const w = weight[i];
+                                gpair(i, j) = GradientPair{w * residual * curvature, w * curvature};
+                              });
   }
 
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     CheckInitInputs(info);
-    base_score->Reshape(this->Targets(info));
+    auto const n_targets = this->Targets(info);
+    base_score->SetDevice(ctx_->Device());
+    base_score->Reshape(n_targets);
 
     double sum_weight{0.0};
     if (info.weights_.Empty()) {
@@ -894,20 +939,9 @@ class MeanAbsoluteError : public ObjFunction {
     } else {
       sum_weight = common::Reduce(ctx_, info.weights_);
     }
-
-    if (info.num_row_ == 0) {
-      auto out = base_score->HostView();
-      std::fill(linalg::begin(out), linalg::end(out), 0.0f);
-    } else {
-      common::Median(ctx_, info.labels, info.weights_, base_score);
-    }
-
-    auto intercept = base_score->View(this->ctx_->Device());
-    // weighted avg
-    linalg::VecScaMul(this->ctx_, intercept, sum_weight);
-    auto rc = collective::GlobalSum(ctx_, intercept, &sum_weight);
-    collective::SafeColl(rc);
-
+    auto cpu_ctx = ctx_->MakeCPU();
+    collective::SafeColl(
+        collective::GlobalSum(&cpu_ctx, linalg::MakeVec(&sum_weight, std::size_t{1})));
     if (common::CloseTo(sum_weight, 0.0)) {
       // Mostly for handling empty dataset test.
       LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
@@ -915,20 +949,38 @@ class MeanAbsoluteError : public ObjFunction {
       return;
     }
 
-    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
-  }
-
-  void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
-                      float learning_rate, HostDeviceVector<float> const& prediction,
-                      bst_target_t group_idx, RegTree* p_tree) const override {
-    std::vector<float> alphas;
-    if (p_tree->IsMultiTarget()) {
-      alphas.resize(p_tree->NumTargets(), 0.5);
+    linalg::Vector<float> mean;
+    if (info.weights_.Empty()) {
+      common::SampleMean(ctx_, info.labels, &mean);
     } else {
-      alphas.push_back(0.5);
+      common::WeightedSampleMean(ctx_, info.labels, info.weights_, &mean);
     }
-    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
-                                   alphas, p_tree);
+    CHECK_EQ(mean.Size(), n_targets);
+
+    HostDeviceVector<float> predt(info.labels.Size(), 0.0f, ctx_->Device());
+    auto predt_view = linalg::MakeTensorView(ctx_, &predt, info.num_row_, n_targets);
+    mean.SetDevice(ctx_->Device());
+    auto mean_view = mean.View(ctx_->Device());
+    linalg::ElementWiseKernel(ctx_, predt_view,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                predt_view(i, j) = mean_view(j);
+                              });
+
+    Json config{Object{}};
+    this->SaveConfig(&config);
+    std::unique_ptr<ObjFunction> new_obj{
+        ObjFunction::Create(get<String const>(config["name"]), ctx_)};
+    new_obj->LoadConfig(config);
+
+    linalg::Matrix<GradientPair> gpair;
+    new_obj->GetGradient(predt, info, 0, &gpair);
+    tree::FitStump(ctx_, gpair, n_targets, base_score);
+
+    auto h_mean = mean.HostView();
+    auto out = base_score->HostView();
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      out(target) += h_mean(target);
+    }
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mae"; }
@@ -944,6 +996,6 @@ class MeanAbsoluteError : public ObjFunction {
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
-    .describe("Mean absoluate error.")
+    .describe("Mean absolute error with automatic smooth majorization.")
     .set_body([]() { return new MeanAbsoluteError(); });
 }  // namespace xgboost::obj
