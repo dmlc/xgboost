@@ -1617,7 +1617,7 @@ class TestWithDask:
                     num_boost_round=1,
                 )
                 predt = booster.predict(Xy)
-                delta = ((np.sqrt(1000.0) / 4.0) ** 2)
+                delta = (np.sqrt(1000.0) / 4.0) ** 2
                 outlier_curvature = delta / np.hypot(delta, 1000.0)
                 expected = (1000.0 * outlier_curvature) / (3.0 + outlier_curvature)
                 np.testing.assert_allclose(predt, expected, rtol=1e-5)
