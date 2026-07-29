@@ -62,6 +62,18 @@ class TestMonotoneConstraints:
 
         assert is_correctly_constrained(constrained)
 
+    def test_quantile_error(self) -> None:
+        params = {
+            "objective": "reg:quantileerror",
+            "quantile_alpha": 0.5,
+            "tree_method": "hist",
+            "monotone_constraints": "(1, -1)",
+            "min_child_weight": 0,
+        }
+        constrained = xgb.train(params, training_dset, num_boost_round=16)
+
+        assert is_correctly_constrained(constrained)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_accuracy(self) -> None:
         from sklearn.metrics import accuracy_score

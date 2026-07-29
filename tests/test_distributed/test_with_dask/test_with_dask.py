@@ -1621,6 +1621,31 @@ class TestWithDask:
                 outlier_curvature = delta / np.hypot(delta, 1000.0)
                 expected = (1000.0 * outlier_curvature) / (3.0 + outlier_curvature)
                 np.testing.assert_allclose(predt, expected, rtol=1e-5)
+
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:quantileerror",
+                        "quantile_alpha": 0.5,
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                residual_scale = (np.sqrt(1000.0) / 4.0) ** 2
+                x_outlier = -1000.0 / (0.04 * residual_scale)
+                tanh_x = np.tanh(x_outlier)
+                outlier_grad = 0.5 * residual_scale * tanh_x
+                zero_hess = 0.5 / 0.04
+                outlier_hess = 0.5 / 0.04 * tanh_x / x_outlier
+                expected = -outlier_grad / (3.0 * zero_hess + outlier_hess)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
                 return True
 
         workers = tm.dask.get_client_workers(client)

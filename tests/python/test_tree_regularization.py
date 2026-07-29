@@ -90,6 +90,32 @@ class TestTreeRegularization:
         expected = 0.5 + (0.5 * curvature) / (curvature + 1.0)
         assert_approx_equal(regularized_pred[0], expected)
 
+    def test_quantile_error_lambda(self):
+        params = {
+            "tree_method": "exact",
+            "verbosity": 0,
+            "objective": "reg:quantileerror",
+            "quantile_alpha": 0.5,
+            "eta": 1,
+            "alpha": 0,
+            "base_score": 0.5,
+            "max_depth": 1,
+            "min_child_weight": 0,
+        }
+
+        unregularized = xgb.train({**params, "lambda": 0}, train_data, 1)
+        regularized = xgb.train({**params, "lambda": 1}, train_data, 1)
+        unregularized_pred = unregularized.predict(train_data)
+        regularized_pred = regularized.predict(train_data)
+
+        residual = -0.5
+        residual_scale = abs(residual)
+        x = residual / (0.04 * residual_scale)
+        grad = 0.5 * residual_scale * np.tanh(x)
+        curvature = 0.5 / 0.04 * np.tanh(x) / x
+        assert_approx_equal(unregularized_pred[0], 0.5 - grad / curvature)
+        assert_approx_equal(regularized_pred[0], 0.5 - grad / (curvature + 1.0))
+
     def test_unlimited_depth(self):
         x = np.array([[0], [1], [2], [3]])
         y = np.array([0, 1, 2, 3])
