@@ -208,7 +208,7 @@ def _from_scipy_csc(
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSC matrix."""
     handle = ctypes.c_void_p()
-    transform_scipy_sparse(data, False)
+    data = transform_scipy_sparse(data, False)
     _check_call(
         _LIB.XGDMatrixCreateFromCSC(
             array_interface(data.indptr),
