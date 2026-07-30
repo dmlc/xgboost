@@ -93,7 +93,7 @@ struct ArrayInterfaceErrors {
   }
 
   static std::string UnSupportedType(std::string_view typestr) {
-    return std::string{TypeStr(typestr[1])} + "-" + typestr[2] + " is not supported.";
+    return std::string{TypeStr(typestr[1])} + "-" + typestr[2] + " is not supported.";  // NOLINT
   }
 };
 
@@ -538,7 +538,7 @@ class ArrayInterface {
       }
 #else
       case T::kF16:
-        return func(reinterpret_cast<long double const *>(data));  // NOLINT(google-runtime-float)
+        return func(reinterpret_cast<long double const *>(data));  // NOLINT
 #endif
       case T::kI1:
         return func(reinterpret_cast<int8_t const *>(data));
@@ -624,7 +624,7 @@ auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
       return dispatch(double{});
     }
     case ArrayInterfaceHandler::kF16: {
-      using T = long double;  // NOLINT(google-runtime-float)
+      using T = long double;  // NOLINT
       CHECK(sizeof(T) == 16) << error::NoF128();
       // Avoid invalid type.
       if constexpr (sizeof(T) == 16) {
