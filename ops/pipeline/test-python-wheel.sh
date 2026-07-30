@@ -68,17 +68,10 @@ if [[ -n "${cuda_version}" ]]; then
   esac
 fi
 
-# Set up conda environment based on CUDA version and suite
+# Set up the suite's pre-built conda environment
 # Cannot set -u before Conda env activation
 case "$suite" in
   gpu|mgpu|gpu-arm64)
-    if [[ "${cuda_version}" == "13" ]]; then
-      # CUDA 13: Create conda environment on-the-fly
-      # Fix permissions for conda directories
-      gosu root chown -R "$(id -u):$(id -g)" /opt/miniforge/envs /opt/miniforge/pkgs/cache
-      gosu root chown "$(id -u):$(id -g)" /opt/miniforge/pkgs
-      mamba create -y -n gpu_test python=3.12 pytest cupy scipy numpy pandas scikit-learn joblib hypothesis
-    fi
     source activate gpu_test
     ;;
   cpu|cpu-arm64)

@@ -117,9 +117,10 @@ YAML file ``containers/ci_container.yml``. For example, when ``IMAGE_REPO`` is s
   xgb-ci.gpu:
     container_def: gpu
     build_args:
-      CUDA_VERSION_ARG: "12.4.1"
-      NCCL_VERSION_ARG: "2.23.4-1"
-      RAPIDS_VERSION_ARG: "24.10"
+      CUDA_VERSION: "13.3.0"
+      NCCL_VERSION: "2.30.7-1"
+      RAPIDS_VERSION: "26.04"
+      ARCH: x86_64
 
 The ``container_def`` entry indicates where the Dockerfile is located. The container
 definition will be fetched from ``containers/dockerfile/Dockerfile.CONTAINER_DEF`` where
@@ -131,8 +132,8 @@ the build arguments are:
 
 .. code-block::
 
-  --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
-    --build-arg RAPIDS_VERSION_ARG=24.10
+  --build-arg CUDA_VERSION=13.3.0 --build-arg NCCL_VERSION=2.30.7-1 \
+    --build-arg RAPIDS_VERSION=26.04 --build-arg ARCH=x86_64
 
 The build arguments provide inputs to the ``ARG`` instructions in the Dockerfile.
 
