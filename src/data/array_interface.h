@@ -253,8 +253,8 @@ class ArrayInterfaceHandler {
    * \brief Extracts the optiona `strides' field and returns whether the array is c-contiguous.
    */
   template <int32_t D>
-  static bool ExtractStride(Object::Map const &array, size_t itemsize,
-                            size_t (&shape)[D], size_t (&stride)[D]) {
+  static bool ExtractStride(Object::Map const &array, size_t itemsize, size_t (&shape)[D],
+                            size_t (&stride)[D]) {
     auto strides_it = array.find("strides");
     // No stride is provided
     if (strides_it == array.cend() || IsA<Null>(strides_it->second)) {
