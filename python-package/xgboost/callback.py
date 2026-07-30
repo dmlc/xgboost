@@ -142,7 +142,7 @@ def _allreduce_metric(score: _ART) -> _ART:
             "xgboost.cv function should not be used in distributed environment."
         )
     arr = numpy.array([score])
-    arr = collective.allreduce(arr, collective.Op.SUM) / world
+    arr = collective.allreduce_average(arr)
     return arr[0]
 
 
