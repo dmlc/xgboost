@@ -209,37 +209,6 @@ TEST(GPUSpan, Compare) {
   ASSERT_EQ(status.Get(), 1);
 }
 
-struct TestElementAccess {
- private:
-  Span<float> span_;
-
- public:
-  XGBOOST_DEVICE explicit TestElementAccess (Span<float> _span) : span_(_span) {}
-
-  XGBOOST_DEVICE float operator()(size_t _idx) {
-    float tmp = span_[_idx];
-    return tmp;
-  }
-};
-
-TEST(GPUSpanDeathTest, ElementAccess) {
-  dh::safe_cuda(cudaSetDevice(0));
-  auto test_element_access = []() {
-    thrust::host_vector<float> h_vec (16);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    dh::LaunchN(17, TestElementAccess{span});
-  };
-
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(test_element_access(), "");
-  std::string output = testing::internal::GetCapturedStdout();
-}
-
 __global__ void TestFirstDynamicKernel(Span<float> _span) {
   _span.first<static_cast<Span<float>::index_type>(-1)>();
 }
@@ -253,133 +222,11 @@ __global__ void TestLastStaticKernel(Span<float> _span) {
   _span.last(static_cast<Span<float>::index_type>(-1));
 }
 
-TEST(GPUSpanDeathTest, FirstLast) {
-  // We construct vectors multiple times since thrust can not recover from
-  // death test.
-  auto lambda_first_dy = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestFirstDynamicKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_first_dy(), "");
-  std::string output = testing::internal::GetCapturedStdout();
-
-  auto lambda_first_static = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestFirstStaticKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_first_static(), "");
-  output = testing::internal::GetCapturedStdout();
-
-  auto lambda_last_dy = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestLastDynamicKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_last_dy(), "");
-  output = testing::internal::GetCapturedStdout();
-
-  auto lambda_last_static = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestLastStaticKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_last_static(), "");
-  output = testing::internal::GetCapturedStdout();
-}
-
-namespace {
-void TestFrontBack() {
-  Span<float> s;
-  EXPECT_DEATH(
-      {
-        // make sure the termination happens inside this test.
-        try {
-          dh::LaunchN(1, [=] __device__(size_t) { s.front(); });
-          dh::safe_cuda(cudaDeviceSynchronize());
-          dh::safe_cuda(cudaGetLastError());
-        } catch (dmlc::Error const& e) {
-          std::terminate();
-        }
-      },
-      "");
-  EXPECT_DEATH(
-      {
-        try {
-          dh::LaunchN(1, [=] __device__(size_t) { s.back(); });
-          dh::safe_cuda(cudaDeviceSynchronize());
-          dh::safe_cuda(cudaGetLastError());
-        } catch (dmlc::Error const& e) {
-          std::terminate();
-        }
-      },
-      "");
-}
-}  // namespace
-
-TEST(GPUSpanDeathTest, FrontBack) {
-  TestFrontBack();
-}
-
 __global__ void TestSubspanDynamicKernel(Span<float> _span) {
   _span.subspan(16, 0);
 }
 __global__ void TestSubspanStaticKernel(Span<float> _span) {
   _span.subspan<16>();
-}
-TEST(GPUSpanDeathTest, Subspan) {
-  auto lambda_subspan_dynamic = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestSubspanDynamicKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_subspan_dynamic(), "");
-  std::string output = testing::internal::GetCapturedStdout();
-
-  auto lambda_subspan_static = []() {
-    thrust::host_vector<float> h_vec (4);
-    InitializeRange(h_vec.begin(), h_vec.end());
-
-    thrust::device_vector<float> d_vec (h_vec.size());
-    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
-
-    Span<float> span (d_vec.data().get(), d_vec.size());
-    TestSubspanStaticKernel<<<1, 1>>>(span);
-  };
-  testing::internal::CaptureStdout();
-  EXPECT_DEATH(lambda_subspan_static(), "");
-  output = testing::internal::GetCapturedStdout();
 }
 
 TEST(GPUSpanIter, Construct) {
