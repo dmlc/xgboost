@@ -937,6 +937,7 @@ class XGBModel(XGBModelBase):
         tags.input_tags.allow_nan = tags_dict["allow_nan"]
         tags.input_tags.sparse = tags_dict["sparse"]
         tags.input_tags.categorical = tags_dict["categorical"]
+        tags.input_tags.string = tags_dict["string"]
         return tags
 
     def __sklearn_tags__(self) -> _sklearn_Tags:
