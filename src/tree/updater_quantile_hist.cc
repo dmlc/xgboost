@@ -209,7 +209,9 @@ class MultiTargetHistBuilder {
     partitioner_.resize(page_idx);
 
     bst_target_t n_targets = gpair.Shape(1);
-    histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
+    if (!histogram_builder_) {
+      histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
+    }
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
                               collective::IsDistributed(), hist_param_);
 
