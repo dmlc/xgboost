@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-clang_version="23.1.0.rc1"
+clang_version="23.1.0.rc2"
 clang_channel="${XGBOOST_CLANG_CHANNEL:-conda-forge/label/llvm_rc}"
 cmake_version="4.2.3"
 build_dir="build-clang-cuda"
