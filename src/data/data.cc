@@ -1108,7 +1108,7 @@ bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32
   auto& data_vec = data.HostVector();
 
   size_t builder_base_row_offset = this->Size();
-  common::ParallelGroupBuilder<Entry, std::remove_reference<decltype(offset_vec)>::type::value_type,
+  common::ParallelGroupBuilder<Entry, std::remove_reference_t<decltype(offset_vec)>::value_type,
                                kIsRowMajor>
       builder(&offset_vec, &data_vec, builder_base_row_offset);
   // Estimate expected number of rows by using last element in batch

@@ -92,7 +92,7 @@ struct ArrayInterfaceErrors {
   }
 
   static std::string UnSupportedType(StringView typestr) {
-    return TypeStr(typestr[1]) + "-" + typestr[2] + " is not supported.";
+    return std::string{TypeStr(typestr[1])} + "-" + typestr[2] + " is not supported.";
   }
 };
 
@@ -334,11 +334,13 @@ template <>
 struct ToDType<double> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF8;
 };
+// NumPy's 128-bit floating-point array interface maps to long double on supported hosts.
+// NOLINTBEGIN(google-runtime-float)
 template <typename T>
-struct ToDType<T,
-               std::enable_if_t<std::is_same_v<T, long double> && sizeof(long double) == 16>> {
+struct ToDType<T, std::enable_if_t<std::is_same_v<T, long double> && sizeof(long double) == 16>> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF16;
 };
+// NOLINTEND(google-runtime-float)
 // uint
 template <>
 struct ToDType<uint8_t> {
@@ -535,7 +537,7 @@ class ArrayInterface {
       }
 #else
       case T::kF16:
-        return func(reinterpret_cast<long double const *>(data));
+        return func(reinterpret_cast<long double const *>(data));  // NOLINT(google-runtime-float)
 #endif
       case T::kI1:
         return func(reinterpret_cast<int8_t const *>(data));
@@ -621,7 +623,7 @@ auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
       return dispatch(double{});
     }
     case ArrayInterfaceHandler::kF16: {
-      using T = long double;
+      using T = long double;  // NOLINT(google-runtime-float)
       CHECK(sizeof(T) == 16) << error::NoF128();
       // Avoid invalid type.
       if constexpr (sizeof(T) == 16) {
