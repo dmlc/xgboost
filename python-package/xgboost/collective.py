@@ -316,6 +316,46 @@ def allreduce(data: np.ndarray, op: Op) -> np.ndarray:
     return buf
 
 
+def allreduce_average(data: np.ndarray) -> np.ndarray:
+    """Compute the element-wise average of `data` across all workers.
+
+    This is a small convenience wrapper around :py:func:`allreduce` for the
+    common pattern of summing a value across all workers and dividing by the
+    number of workers, e.g. for averaging a per-worker metric or statistic in
+    custom distributed training code.
+
+    Parameters
+    ----------
+    data :
+        Input data.
+
+    Returns
+    -------
+    result :
+        The element-wise average of `data` across all workers, with the same
+        shape as `data`.
+
+    Notes
+    -----
+    This function is not thread-safe, the same as :py:func:`allreduce`.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        from xgboost import collective as coll
+
+        with coll.CommunicatorContext(...):
+            local_value = np.array([metric_value])
+            avg_value = coll.allreduce_average(local_value)
+    """
+    world = get_world_size()
+    if world == 1:
+        return data
+    return allreduce(data, Op.SUM) / world
+
+
 def signal_error() -> None:
     """Kill the process."""
     _check_call(_LIB.XGCommunicatorSignalError())
