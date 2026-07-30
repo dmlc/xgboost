@@ -26,14 +26,14 @@ jobs:
       tag-prefix: lint
 
   clang-tidy:
-    name: Run clang-tidy
+    name: Run clang-tidy with CUDA 12.9
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=lint-clang-tidy-clang-cuda
     container:
-      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_cuda12_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}

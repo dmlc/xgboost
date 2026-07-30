@@ -149,7 +149,7 @@ jobs:
             build/testxgboost python-package/dist/*.whl
 
   build-cuda-clang:
-    name: Build CUDA with clang 23.1.0.rc2 (x86_64)
+    name: Build CUDA 12.9 with clang 23.1.0.rc2 (x86_64)
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -157,7 +157,7 @@ jobs:
       - tag=main-build-cuda-clang
       - extras=s3-cache
     container:
-      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_cuda12_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
@@ -168,7 +168,7 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          cache-key-prefix: ${{ github.job }}-clang23rc2-cuda13
+          cache-key-prefix: ${{ github.job }}-clang23rc2-cuda12
       - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 23.1.0.rc2
       - run: sccache --show-stats
 
