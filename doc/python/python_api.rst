@@ -212,6 +212,10 @@ Collective
 
 .. autofunction:: xgboost.collective.get_world_size
 
+.. autofunction:: xgboost.collective.allreduce
+
+.. autofunction:: xgboost.collective.allreduce_average
+
 .. autoclass:: xgboost.collective.CommunicatorContext
 
 .. automodule:: xgboost.tracker
