@@ -4,7 +4,8 @@
 
 set -euo pipefail
 
-clang_version="21.1.8"
+clang_version="23.1.0.rc1"
+clang_channel="${XGBOOST_CLANG_CHANNEL:-conda-forge/label/llvm_rc}"
 cmake_version="4.2.3"
 build_dir="build-clang-cuda"
 target="xgboost"
@@ -53,12 +54,17 @@ if [[ "${build_dir}" != /* ]]; then
 fi
 
 if [[ "${XGBOOST_SKIP_CLANG_INSTALL:-0}" != 1 ]]; then
+  clang_packages=(
+    "${clang_channel}::clang==${clang_version}"
+    "${clang_channel}::clangxx==${clang_version}"
+    "${clang_channel}::clang-tools==${clang_version}"
+  )
   if command -v mamba >/dev/null 2>&1; then
-    mamba install -y -n base -c conda-forge "clangxx=${clang_version}" "clang-tools=${clang_version}" "cmake=${cmake_version}"
+    mamba install -y -n base -c conda-forge "${clang_packages[@]}" "cmake=${cmake_version}"
   elif command -v conda >/dev/null 2>&1; then
-    conda install -y -n base -c conda-forge "clangxx=${clang_version}" "clang-tools=${clang_version}" "cmake=${cmake_version}"
+    conda install -y -n base -c conda-forge "${clang_packages[@]}" "cmake=${cmake_version}"
   else
-    echo "clangxx=${clang_version}, clang-tools=${clang_version}, and cmake=${cmake_version} are required, but neither mamba nor conda is available."
+    echo "${clang_packages[*]} and cmake=${cmake_version} are required, but neither mamba nor conda is available."
     exit 1
   fi
 fi
@@ -94,7 +100,7 @@ echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${cmake_bin}" --version
 
 if ! command -v clang-linker-wrapper >/dev/null 2>&1; then
-  echo "clang-linker-wrapper is required for clang CUDA offload linking. Install clang-tools=${clang_version}."
+  echo "clang-linker-wrapper is required for clang CUDA offload linking. Install ${clang_channel}::clang-tools==${clang_version}."
   exit 1
 fi
 if [[ -f "${clang_bin_dir}/x86_64-conda-linux-gnu-clang++.cfg" ]] &&

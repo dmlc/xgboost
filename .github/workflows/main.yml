@@ -149,7 +149,7 @@ jobs:
             build/testxgboost python-package/dist/*.whl
 
   build-cuda-clang:
-    name: Build CUDA with clang 21.1.8 (x86_64)
+    name: Build CUDA with clang 23.1.0.rc1 (x86_64)
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -168,8 +168,8 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          cache-key-prefix: ${{ github.job }}-clang21-cuda13
-      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 21.1.8
+          cache-key-prefix: ${{ github.job }}-clang23rc1-cuda13
+      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 23.1.0.rc1
       - run: sccache --show-stats
 
   audit-cuda-wheel:

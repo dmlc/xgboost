@@ -212,9 +212,8 @@ filter, checks, extra arguments, and ``warnings-as-errors`` filter. For example:
 
 The helper expects a clang toolchain with ``clang++``, ``clang-linker-wrapper``, and
 ``run-clang-tidy`` available either from the active conda base environment or from
-``XGBOOST_CLANG_PREFIX``. When using conda, install both ``clangxx`` and
-``clang-tools`` so the compiler resource directory and ``run-clang-tidy`` are both
-present.
+``XGBOOST_CLANG_PREFIX``. By default, it installs ``clang``, ``clangxx``, and
+``clang-tools`` 23.1.0.rc1 from the ``conda-forge/label/llvm_rc`` channel.
 
 **********************************
 Guide for handling user input data

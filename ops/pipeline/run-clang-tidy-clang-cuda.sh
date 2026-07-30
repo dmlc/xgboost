@@ -3,7 +3,8 @@
 
 set -euo pipefail
 
-clang_version="21.1.8"
+clang_version="23.1.0.rc1"
+clang_channel="${XGBOOST_CLANG_CHANNEL:-conda-forge/label/llvm_rc}"
 cmake_version="4.2.3"
 build_dir="build-clang-tidy-cuda"
 jobs="${XGBOOST_TIDY_JOBS:-}"
@@ -99,7 +100,7 @@ fi
 clang_run_tidy="${clang_prefix}/bin/run-clang-tidy"
 if [[ ! -x "${clang_run_tidy}" ]]; then
   if ! clang_run_tidy="$(command -v run-clang-tidy)"; then
-    echo "run-clang-tidy is required. Install clang-tools or set XGBOOST_CLANG_PREFIX to a clang prefix containing bin/run-clang-tidy."
+    echo "run-clang-tidy is required. Install ${clang_channel}::clang-tools==${clang_version} or set XGBOOST_CLANG_PREFIX to a clang prefix containing bin/run-clang-tidy."
     exit 1
   fi
 fi
