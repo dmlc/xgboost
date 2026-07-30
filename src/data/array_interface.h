@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
@@ -12,6 +12,7 @@
 #include <limits>       // for numeric_limits
 #include <map>          // for map
 #include <string>       // for string
+#include <string_view>  // for string_view
 #include <type_traits>  // for alignment_of_v, remove_pointer_t, invoke_result_t
 #include <vector>       // for vector
 
@@ -55,7 +56,7 @@ struct ArrayInterfaceErrors {
     return str.c_str();
   }
 
-  static std::string TypeStr(char c) {
+  static std::string_view TypeStr(char c) {
     switch (c) {
       case 't':
         return "Bit field";
@@ -91,7 +92,7 @@ struct ArrayInterfaceErrors {
     }
   }
 
-  static std::string UnSupportedType(StringView typestr) {
+  static std::string UnSupportedType(std::string_view typestr) {
     return std::string{TypeStr(typestr[1])} + "-" + typestr[2] + " is not supported.";
   }
 };
@@ -409,7 +410,7 @@ class ArrayInterface {
     ArrayInterfaceHandler::Validate(array);
 
     auto typestr = get<String const>(array.at("typestr"));
-    this->AssignType(StringView{typestr});
+    this->AssignType(std::string_view{typestr});
     ArrayInterfaceHandler::ExtractShape(array, shape);
     std::size_t itemsize = typestr[2] - '0';
     is_contiguous = ArrayInterfaceHandler::ExtractStride(array, itemsize, shape, strides);
@@ -468,7 +469,7 @@ class ArrayInterface {
 
   explicit ArrayInterface(StringView str) : ArrayInterface{Json::Load(str)} {}
 
-  void AssignType(StringView typestr) {
+  void AssignType(std::string_view typestr) {
     using T = ArrayInterfaceHandler::Type;
     if (typestr.size() == 4 && typestr[1] == 'f' && typestr[2] == '1' && typestr[3] == '6') {
       CHECK(sizeof(long double) == 16) << error::NoF128();
