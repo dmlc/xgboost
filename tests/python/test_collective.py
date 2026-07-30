@@ -19,6 +19,10 @@ def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
         assert str(ret) == "test1234"
         reduced = xgb.collective.allreduce(np.asarray([1, 2, 3]), xgb.collective.Op.SUM)
         assert np.array_equal(reduced, np.asarray([2, 4, 6]))
+        # Every worker contributes the same values here, so the average across
+        # all workers should equal the original values, regardless of world size.
+        averaged = xgb.collective.allreduce_average(np.asarray([1.0, 2.0, 3.0]))
+        assert np.allclose(averaged, np.asarray([1.0, 2.0, 3.0]))
     return 0
 
 
@@ -89,3 +93,13 @@ def test_config_serialization() -> None:
     cfg = Config(retry=1, timeout=2, tracker_host_ip="127.0.0.1", tracker_port=None)
     cfg1 = Config(**asdict(cfg))
     assert cfg == cfg1
+
+
+def test_allreduce_average_single_worker() -> None:
+    # Outside of a CommunicatorContext, world size is 1, so
+    # allreduce_average should short-circuit and return the input unchanged
+    # without needing an actual distributed communicator.
+    assert xgb.collective.get_world_size() == 1
+    data = np.asarray([1.0, -2.5, 3.0])
+    result = xgb.collective.allreduce_average(data)
+    assert np.array_equal(result, data)
