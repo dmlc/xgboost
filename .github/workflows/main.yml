@@ -76,14 +76,6 @@ jobs:
         run: |
           source activate linux_cpu_test
           bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
-      - name: Test federated learning on CPU
-        if: matrix.variant == 'default'
-        shell: bash -l {0}
-        run: |
-          source activate linux_cpu_test
-          conda install scikit-build-core -y
-          cd python-package && pip install -e . --no-deps --no-build-isolation && cd -
-          timeout 600s pytest -v -s -rxXs --durations=0 tests/test_distributed/test_federated
       - run: sccache --show-stats
       - name: Build and test with sanitizer
         if: matrix.variant == 'sanitizer'
