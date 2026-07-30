@@ -336,6 +336,15 @@ pandas_pyarrow_mapper = {
     "float32[pyarrow]": "float",
     "double[pyarrow]": "float",
     "float64[pyarrow]": "float",
+    # pyarrow's own name for its 16-bit float type is "halffloat", not
+    # "float16" -- this is the actual `dtype.name` produced by a real
+    # `pandas.Series(..., dtype="float16[pyarrow]")`, verified at runtime.
+    # Every other numeric width (int8..uint64, float32, float64) already has
+    # an entry here; this one was simply missing, causing a real
+    # float16[pyarrow] column to hit the `KeyError` -> `_invalid_dataframe_dtype`
+    # fallback and raise a misleading "must be int, float, bool or category"
+    # error instead of being accepted.
+    "halffloat[pyarrow]": "float",
     "bool[pyarrow]": "i",
 }
 
