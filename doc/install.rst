@@ -96,6 +96,7 @@ Users with GPU whose NVIDIA driver supports CUDA 12 but not CUDA 13 can instead 
 
 .. code-block:: bash
 
+  pip uninstall xgboost xgboost-cu12
   pip install xgboost-cu12
 
 The CUDA 12 package is a driver-compatibility option.
