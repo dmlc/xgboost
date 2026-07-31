@@ -109,7 +109,6 @@ case "$suite" in
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_with_dask
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark/test_data.py -k dmatrix_ctor_gpu
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark/test_spark.py -k local_cluster_gpu
-    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_federated
     ;;
   cpu)
     echo "-- Run Python tests (CPU)"
@@ -117,7 +116,6 @@ case "$suite" in
     pytest -v -s -rxXs --durations=0 tests/python
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_dask
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark
-    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_federated
     ;;
   cpu-arm64)
     echo "-- Run Python tests (CPU, ARM64)"

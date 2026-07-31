@@ -51,7 +51,6 @@ OBJECTS= \
     $(PKGROOT)/src/objective/lambdarank_obj.o \
     $(PKGROOT)/src/objective/hinge.o \
     $(PKGROOT)/src/objective/aft_obj.o \
-    $(PKGROOT)/src/objective/adaptive.o \
     $(PKGROOT)/src/objective/init_estimation.o \
     $(PKGROOT)/src/objective/quantile_obj.o \
     $(PKGROOT)/src/gbm/gbm.o \

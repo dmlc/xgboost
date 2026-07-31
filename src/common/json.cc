@@ -39,7 +39,16 @@ namespace {
 auto to_i64 = [](auto v) {
   return Json{static_cast<int64_t>(v)};
 };
+
+void CheckU64Range(U64Array const* arr) {
+  auto const& array = arr->GetArray();
+  auto supported_int = std::none_of(array.cbegin(), array.cend(), [](auto const& v) {
+    return v > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+  });
+  CHECK(supported_int) << "Unsigned integers larger than INT64_MAX are not supported.";
+}
 }  // anonymous namespace
+
 void JsonWriter::Visit(I8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(U8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I16Array const* arr) { this->WriteArray(arr, to_i64); }
@@ -47,7 +56,10 @@ void JsonWriter::Visit(U16Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I32Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(U32Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I64Array const* arr) { this->WriteArray(arr, to_i64); }
-void JsonWriter::Visit(U64Array const* arr) { this->WriteArray(arr, to_i64); }  // dangerous
+void JsonWriter::Visit(U64Array const* arr) {
+  CheckU64Range(arr);
+  this->WriteArray(arr, to_i64);
+}
 
 void JsonWriter::Visit(JsonObject const* obj) {
   stream_->emplace_back('{');
@@ -962,23 +974,23 @@ void UBJWriter::Visit(JsonArray const* arr) {
   }
 }
 
-template <typename T, Value::ValueKind kind>
-void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stream) {
+template <typename StorageT, typename T, Value::ValueKind kind>
+void WriteTypedArrayAs(JsonTypedArray<T, kind> const* arr, std::vector<char>* stream) {
   stream->emplace_back('[');
   stream->push_back('$');
-  if (std::is_same_v<T, float>) {
+  if (std::is_same_v<StorageT, float>) {
     stream->push_back('d');
-  } else if (std::is_same_v<T, double>) {
+  } else if (std::is_same_v<StorageT, double>) {
     stream->push_back('D');
-  } else if (std::is_same_v<T, std::int8_t>) {
+  } else if (std::is_same_v<StorageT, std::int8_t>) {
     stream->push_back('i');
-  } else if (std::is_same_v<T, std::uint8_t>) {
+  } else if (std::is_same_v<StorageT, std::uint8_t>) {
     stream->push_back('U');
-  } else if (std::is_same_v<T, std::int16_t>) {
+  } else if (std::is_same_v<StorageT, std::int16_t>) {
     stream->push_back('I');
-  } else if (std::is_same_v<T, std::int32_t>) {
+  } else if (std::is_same_v<StorageT, std::int32_t>) {
     stream->push_back('l');
-  } else if (std::is_same_v<T, std::int64_t>) {
+  } else if (std::is_same_v<StorageT, std::int64_t>) {
     stream->push_back('L');
   } else {
     LOG(FATAL) << "Not implemented";
@@ -990,13 +1002,25 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
   int64_t n = arr->Size();
   WritePrimitive(n, stream);
   auto s = stream->size();
-  stream->resize(s + arr->Size() * sizeof(T));
+  stream->resize(s + arr->Size() * sizeof(StorageT));
   auto const& vec = arr->GetArray();
   for (int64_t i = 0; i < n; ++i) {
-    auto v = ToBigEndian(vec[i]);
+    StorageT v;
+    if constexpr (std::is_same_v<T, StorageT>) {
+      v = vec[i];
+    } else {
+      static_assert(sizeof(T) == sizeof(StorageT));
+      std::memcpy(&v, &vec[i], sizeof(v));
+    }
+    v = ToBigEndian(v);
     std::memcpy(stream->data() + s, &v, sizeof(v));
     s += sizeof(v);
   }
+}
+
+template <typename T, Value::ValueKind kind>
+void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stream) {
+  WriteTypedArrayAs<T>(arr, stream);
 }
 
 void UBJWriter::Visit(F32Array const* arr) { WriteTypedArray(arr, stream_); }
@@ -1004,8 +1028,11 @@ void UBJWriter::Visit(F64Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(I8Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(U8Array const* arr) { WriteTypedArray(arr, stream_); }
 void UBJWriter::Visit(I16Array const* arr) { WriteTypedArray(arr, stream_); }
+void UBJWriter::Visit(U16Array const* arr) { WriteTypedArrayAs<std::int16_t>(arr, stream_); }
 void UBJWriter::Visit(I32Array const* arr) { WriteTypedArray(arr, stream_); }
+void UBJWriter::Visit(U32Array const* arr) { WriteTypedArrayAs<std::int32_t>(arr, stream_); }
 void UBJWriter::Visit(I64Array const* arr) { WriteTypedArray(arr, stream_); }
+void UBJWriter::Visit(U64Array const* arr) { WriteTypedArrayAs<std::int64_t>(arr, stream_); }
 
 void UBJWriter::Visit(JsonObject const* obj) {
   stream_->emplace_back('{');

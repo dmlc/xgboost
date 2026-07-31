@@ -321,8 +321,6 @@ class GlobalApproxUpdater : public TreeUpdater {
     this->pimpl_->UpdatePredictionCache(p_fmat, out_position.front().ConstHostSpan(), out_preds);
     return true;
   }
-
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 };
 
 DMLC_REGISTRY_FILE_TAG(grow_histmaker);

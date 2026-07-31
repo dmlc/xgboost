@@ -206,7 +206,6 @@ have one of the following types:
 
 - string
 - integer, from 8-bit to 64-bit, both signed and unsigned are supported.
-- 32-bit or 64-bit floating point
 
 Other category types are not supported. Second, the input types must be strictly
 consistent. For example, XGBoost will raise an error if the categorical columns in the
@@ -226,8 +225,6 @@ encoder. To clarify, the type here refers to the type of the name of categories 
   {-1: 0, 1: 1, 3: 2, 7: 3}
   # depending on the dataframe implementation, it can be signed or unsigned.
   {5: 0, 1: 1, 3: 2, 7: 3}
-  # floating point type, both 32-bit and 64-bit are supported.
-  {-1.0: 0, 1.0: 1, 3.0: 2, 7.0: 3}
 
 Internally, XGBoost attempts to extract the categories from the dataframe inputs. For
 inference (predict), the re-coding happens on the fly and there's no data copy (baring

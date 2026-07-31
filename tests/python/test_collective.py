@@ -3,7 +3,6 @@ from dataclasses import asdict
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
 from xgboost import testing as tm
@@ -83,6 +82,18 @@ def test_federated_communicator() -> None:
             workers.append(worker)
         for worker in workers:
             assert worker.result() == 0
+
+
+@pytest.mark.skipif(
+    build_info()["USE_FEDERATED"],
+    reason="XGBoost is built with federated learning enabled",
+)
+def test_federated_tracker_without_plugin() -> None:
+    with pytest.raises(
+        xgb.core.XGBoostError,
+        match="XGBoost is not compiled with federated learning support",
+    ):
+        federated.run_federated_server(n_workers=1, port=0, blocking=False)
 
 
 def test_config_serialization() -> None:

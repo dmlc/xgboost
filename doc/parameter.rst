@@ -398,11 +398,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
   - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+  - ``reg:absoluteerror``: Regression with L1 error. A smooth approximation is used to optimize the L1 loss.
 
     .. versionadded:: 1.7.0
 
-  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. A smooth approximation is used to optimize the quantile loss. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
 
     .. versionadded:: 2.0.0
 
@@ -524,7 +524,7 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
-* ``quantile_alpha``: A scalar or a list of targeted quantiles.
+* ``quantile_alpha``: A scalar or an ascending list of targeted quantiles.
 
     .. versionadded:: 2.0.0
 

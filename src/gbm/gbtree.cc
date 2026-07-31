@@ -201,29 +201,8 @@ void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, 
 }
 #endif
 
-void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                            ObjFunction const* obj, std::int32_t group_idx,
-                            std::vector<HostDeviceVector<bst_node_t>> const& node_position,
-                            TreesOneGroup* p_trees) {
-  CHECK(!updaters_.empty());
-  if (!updaters_.back()->HasNodePosition()) {
-    return;
-  }
-  if (!obj || !obj->Task().UpdateTreeLeaf()) {
-    return;
-  }
-
-  auto& trees = *p_trees;
-  CHECK_EQ(model_.param.num_parallel_tree, trees.size());
-  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-    auto const& position = node_position[tree_idx];
-    obj->UpdateTreeLeaf(position, p_fmat->Info(), tree_param_.learning_rate / trees.size(),
-                        predictions, group_idx, trees[tree_idx].get());
-  }
-}
-
 void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
-                     ObjFunction const* obj) {
+                     ObjFunction const*) {
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
@@ -264,7 +243,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     // Multi-target, vector leaf
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     std::size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
@@ -275,7 +253,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     // Single target
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
@@ -295,7 +272,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
-      UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));

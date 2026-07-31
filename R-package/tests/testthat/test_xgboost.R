@@ -1115,6 +1115,56 @@ test_that("'eval_set' as fraction works", {
   expect_equal(length(attributes(model)$metadata$y_levels), 3L)
 })
 
+test_that("'early_stopping_rounds' works", {
+  x <- as.matrix(mtcars[, -1L])
+  y <- cbind(
+    mpg = mtcars$mpg,
+    mpg_squared = mtcars$mpg ^ 2
+  )
+
+  expect_error(
+    xgboost(
+      x,
+      y,
+      nthreads = 1L,
+      nrounds = 4L,
+      early_stopping_rounds = 1L,
+      verbosity = 0L
+    ),
+    "'early_stopping_rounds' requires passing 'eval_set'.",
+    fixed = TRUE
+  )
+  expect_error(
+    xgboost(
+      x,
+      y,
+      nthreads = 1L,
+      nrounds = 4L,
+      eval_set = seq_len(8L),
+      early_stopping_rounds = 0L,
+      verbosity = 0L
+    ),
+    "'early_stopping_rounds' must be NULL or an integer greater than zero.",
+    fixed = TRUE
+  )
+
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 8L,
+    eval_set = seq_len(8L),
+    early_stopping_rounds = 1L,
+    learning_rate = 0,
+    tree_method = "hist",
+    multi_strategy = "multi_output_tree",
+    verbosity = 0L
+  )
+  expect_equal(length(model), 2L)
+  expect_equal(xgb.attr(model, "best_iteration"), 0L)
+  expect_equal(nrow(attributes(model)$evaluation_log), 2L)
+})
+
 test_that("Linear booster importance uses class names", {
   y <- iris$Species
   x <- iris[, -5L]

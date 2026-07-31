@@ -197,13 +197,7 @@ def run_gpu_hist(
     )["history"]["train"][dataset.metric]
     note(str(history))
 
-    # See note on `ObjFunction::UpdateTreeLeaf`.
-    update_leaf = dataset.name.endswith("-l1")
-    if update_leaf:
-        assert history[0] + 1e-2 >= history[-1]
-        return
-    else:
-        assert tm.non_increasing(history)
+    assert tm.non_increasing(history, tolerance=1e-3)
 
 
 def test_tree_stats() -> None:

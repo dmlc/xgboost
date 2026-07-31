@@ -141,7 +141,7 @@ def test_regressor() -> None:
 
 
 def test_categorical() -> None:
-    cats = ["aa", "cc", "bb", "ee", "ee"]
+    cats = ["a", "café", "猫", "🐍", "🐍"]
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Categorical())],

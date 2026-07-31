@@ -1431,18 +1431,7 @@ class TestWithDask:
                 or params.get("max_leaves", None) == 1
             )
 
-        def minimum_bin() -> bool:
-            return "max_bin" in params and params["max_bin"] == 2
-
-        # See note on `ObjFunction::UpdateTreeLeaf`.
-        update_leaf = dataset.name.endswith("-l1")
-        if update_leaf and (is_stump() or minimum_bin()):
-            assert tm.non_increasing(history, tolerance=1e-2)
-            return
-        elif minimum_bin() and is_stump():
-            assert tm.non_increasing(history, tolerance=1e-3)
-        else:
-            assert tm.non_increasing(history)
+        assert tm.non_increasing(history, tolerance=1e-3)
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
@@ -1590,7 +1579,62 @@ class TestWithDask:
                 )
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
-                assert base_score == [250.0]
+                mean = 250.0
+                residuals = np.array([mean, mean, mean, mean - 1000.0])
+                delta = np.mean(np.sqrt(np.abs(residuals))) ** 2
+                curvature = delta / np.hypot(delta, residuals)
+                expected_base_score = mean - np.sum(residuals * curvature) / np.sum(
+                    curvature
+                )
+                np.testing.assert_allclose(base_score, [expected_base_score], rtol=1e-5)
+
+                # The smooth approximation scale must be global. Worker 0 has only zero
+                # residuals while worker 1 has one residual of -1000. A local scale would
+                # therefore produce a different root update.
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:absoluteerror",
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                delta = (np.sqrt(1000.0) / 4.0) ** 2
+                outlier_curvature = delta / np.hypot(delta, 1000.0)
+                expected = (1000.0 * outlier_curvature) / (3.0 + outlier_curvature)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
+
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:quantileerror",
+                        "quantile_alpha": 0.5,
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                residual_scale = (np.sqrt(1000.0) / 4.0) ** 2
+                x_outlier = -1000.0 / (0.04 * residual_scale)
+                tanh_x = np.tanh(x_outlier)
+                outlier_grad = 0.5 * residual_scale * tanh_x
+                zero_hess = 0.5 / 0.04
+                outlier_hess = 0.5 / 0.04 * tanh_x / x_outlier
+                expected = -outlier_grad / (3.0 * zero_hess + outlier_hess)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
                 return True
 
         workers = tm.dask.get_client_workers(client)

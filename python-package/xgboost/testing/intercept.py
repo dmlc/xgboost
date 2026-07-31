@@ -133,8 +133,6 @@ def run_init_estimation(tree_method: str, device: Device) -> None:
 def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for adaptive trees."""
     rng = np.random.RandomState(1994)
-    from sklearn.utils import stats
-
     n_samples = 256
     X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
         n_samples, 16, random_state=rng
@@ -144,13 +142,16 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         w -= w.min()
         Xy = DMatrix(X, y, weight=w)
 
-        kwargs = {"percentile_rank": 50}
-        base_score = stats._weighted_percentile(  # pylint: disable=protected-access
-            y, w, **kwargs
-        )
     else:
         Xy = DMatrix(X, y)
-        base_score = np.median(y)
+        w = np.ones_like(y)
+
+    mean = np.average(y, weights=w)
+    residual = mean - y
+    delta = np.average(np.sqrt(np.abs(residual)), weights=w) ** 2
+    norm = np.hypot(delta, residual)
+    curvature = np.divide(delta, norm, out=np.ones_like(norm), where=norm > 0.0)
+    base_score = mean - np.sum(w * residual * curvature) / np.sum(w * curvature)
 
     # Check the base score is expected.
     booster_0 = train(
@@ -175,7 +176,9 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     config_0 = json.loads(booster_0.save_config())
     config_1 = json.loads(booster_1.save_config())
 
-    assert get_basescore(config_0) == get_basescore(config_1)
+    np.testing.assert_allclose(
+        get_basescore(config_0), get_basescore(config_1), rtol=1e-6
+    )
 
     # check the base score is correctly serialized.
     raw_booster = booster_1.save_raw(raw_format="ubj")

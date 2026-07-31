@@ -55,11 +55,6 @@ class TreeUpdater : public Configurable {
    */
   [[nodiscard]] virtual bool CanModifyTree() const { return false; }
   /**
-   * @brief Whether the out_position in `Update` is valid. This determines whether adaptive
-   *        tree can be used.
-   */
-  [[nodiscard]] virtual bool HasNodePosition() const { return false; }
-  /**
    * @brief perform update to the tree models
    *
    * @param param  Hyper-parameter for constructing trees.
@@ -126,10 +121,10 @@ struct TreeUpdaterReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)                   \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeUpdaterReg&               \
-  __make_ ## TreeUpdaterReg ## _ ## UniqueId ## __ =                    \
-      ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)     \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeUpdaterReg& \
+      __make_##TreeUpdaterReg##_##UniqueId##__ =          \
+          ::dmlc::Registry<::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_UPDATER_H_
