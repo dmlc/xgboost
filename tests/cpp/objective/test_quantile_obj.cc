@@ -25,7 +25,6 @@ void TestQuantile(Context const* ctx) {
   obj->Configure(args);
   CheckConfigReload(obj, "reg:quantileerror");
   ASSERT_FALSE(obj->Task().const_hess);
-  ASSERT_FALSE(obj->Task().zero_hess);
 
   std::vector<float> const predts{0.0f, 10.0f, 2.0f, 20.0f, 8.0f, 80.0f};
   std::vector<float> const labels{1.0f, 0.0f, 4.0f};

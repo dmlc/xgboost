@@ -127,7 +127,7 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
   Context ctx;
   ctx.InitAllowUnknown(Args{{"nthread", "1"}});
 
-  ObjInfo task{ObjInfo::kRegression, true, true};
+  ObjInfo task{ObjInfo::kRegression, true};
   auto updater =
       std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
 

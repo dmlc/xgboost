@@ -268,7 +268,7 @@ class QuantileRegression : public ObjFunction {
     param_.Validate();
     this->alpha_.HostVector() = param_.quantile_alpha.Get();
   }
-  [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false, false}; }
+  [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
   static char const* Name() { return "reg:quantileerror"; }
 
   void SaveConfig(Json* p_out) const override {

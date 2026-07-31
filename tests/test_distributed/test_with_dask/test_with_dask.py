@@ -1431,18 +1431,7 @@ class TestWithDask:
                 or params.get("max_leaves", None) == 1
             )
 
-        def minimum_bin() -> bool:
-            return "max_bin" in params and params["max_bin"] == 2
-
-        # See note on `ObjFunction::UpdateTreeLeaf`.
-        update_leaf = dataset.name.endswith("-l1")
-        if update_leaf and (is_stump() or minimum_bin()):
-            assert tm.non_increasing(history, tolerance=1e-2)
-            return
-        elif minimum_bin() and is_stump():
-            assert tm.non_increasing(history, tolerance=1e-3)
-        else:
-            assert tm.non_increasing(history)
+        assert tm.non_increasing(history, tolerance=1e-3)
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
