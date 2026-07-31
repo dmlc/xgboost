@@ -89,6 +89,23 @@ export SPARK_TESTING=1
 
 pip install -v ./wheelhouse/*.whl
 
+if [[ -n "${cuda_version}" ]]; then
+  python - "${cuda_version}" <<'PY'
+import sys
+
+from xgboost import build_info
+
+expected_cuda_major = int(sys.argv[1])
+cuda_version = build_info()["CUDA_VERSION"]
+if cuda_version[0] != expected_cuda_major:
+    raise RuntimeError(
+        f"Expected a CUDA {expected_cuda_major} wheel, but it was built with CUDA "
+        f"{cuda_version[0]}.{cuda_version[1]}"
+    )
+print(f"Wheel was built with CUDA {cuda_version[0]}.{cuda_version[1]}")
+PY
+fi
+
 case "$suite" in
   gpu|gpu-arm64)
     echo "-- Run Python tests, using a single GPU"
