@@ -3081,7 +3081,9 @@ class Booster:
         return results
 
     # pylint: disable=too-many-locals, too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> PdDataFrame:
+    def trees_to_dataframe(
+        self, fmap: PathLike = "", use_category_names: bool = False
+    ) -> PdDataFrame:
         """Parse a boosted tree model into a pandas DataFrame.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -3094,6 +3096,16 @@ class Booster:
             :attr:`.feature_names`.
 
             .. deprecated:: 3.4.0
+
+        use_category_names :
+            For categorical splits, resolve the raw category codes in the
+            ``Category`` column to the original category values (e.g. ``"red"``
+            instead of ``2``) using :py:meth:`get_categories`, when available.
+            Defaults to ``False``, which keeps the existing behavior of reporting
+            raw integer codes, to avoid changing the dtype of the ``Category``
+            column for existing code that expects it.
+
+            .. versionadded:: 3.4.0
 
         """
         if not is_pandas_available():
@@ -3118,12 +3130,20 @@ class Booster:
         fnames = dict(enumerate(self.feature_names or []))
         ftypes = dict(enumerate(self.feature_types or []))
 
+        cat_names_by_feature: Dict[str, List[str]] = {}
+        if use_category_names:
+            cats = self.get_categories(export_to_arrow=True)
+            if not cats.empty():
+                for fname, arr in cats.to_arrow():
+                    if arr is not None:
+                        cat_names_by_feature[fname] = [str(v) for v in arr]
+
         tree_ids: List[int] = []
         target_ids: List[Optional[int]] = []
         node_ids: List[int] = []
         fids: List[str] = []
         splits: List[float | None] = []
-        categories: List[None | List[int]] = []
+        categories: List[None | List[int] | List[str]] = []
         y_directs: List[str | None] = []
         n_directs: List[str | None] = []
         missings: List[str | None] = []
@@ -3196,12 +3216,22 @@ class Booster:
                 target_ids.append(None if is_vector else tree_target)
                 node_ids.append(nid)
                 fidx = sindex[nid]
-                fids.append(fnames.get(fidx, f"f{fidx}"))
+                fname = fnames.get(fidx, f"f{fidx}")
+                fids.append(fname)
                 dft_child = left[nid] if dft_left[nid] else right[nid]
                 if stypes[nid] == 1:  # categorical
                     yes, no = right[nid], left[nid]
                     splits.append(None)
-                    categories.append(node_cats.get(nid))
+                    node_cat_codes = node_cats.get(nid)
+                    cat_names = cat_names_by_feature.get(fname)
+                    if node_cat_codes is not None and cat_names is not None:
+                        resolved: List[str] = [
+                            cat_names[c] if 0 <= c < len(cat_names) else str(c)
+                            for c in node_cat_codes
+                        ]
+                        categories.append(resolved)
+                    else:
+                        categories.append(node_cat_codes)
                 elif ftypes.get(fidx, "q") == "i":  # indicator (boolean)
                     # No split threshold; missing follows the "no" (default) branch.
                     yes, no = (right[nid] if dft_left[nid] else left[nid]), dft_child
