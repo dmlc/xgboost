@@ -239,6 +239,16 @@ categories by exporting it to arrow arrays. This interface is still experimental
   categories = booster.get_categories(export_to_arrow=True)
   print(categories.to_arrow())
 
+To inspect how categorical splits use these categories inside the trained trees,
+:py:meth:`~xgboost.Booster.trees_to_dataframe` has a ``use_category_names`` option that
+resolves the raw category codes shown in the ``Category`` column back to their original
+values:
+
+.. code-block:: python
+
+  df = booster.trees_to_dataframe(use_category_names=True)
+  print(df[df.Feature != "Leaf"][["Feature", "Category"]])
+
 
 In addition to the notes above, there's a `blog post
 <https://developer.nvidia.com/blog/training-xgboost-models-with-gpu-accelerated-polars-dataframes/>`__
