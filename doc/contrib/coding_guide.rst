@@ -186,17 +186,8 @@ To run this check locally, use the clang-CUDA helper from the top level source t
   bash ops/pipeline/run-clang-tidy-clang-cuda.sh
 
 This helper configures a clang-generated CUDA compilation database and then runs
-``run-clang-tidy -p`` against it. The same path is used by CI.
-
-By default it lints files under ``src/``. Use environment variables to narrow the
-scope or adjust the checks:
-
-.. code-block:: bash
-
-  cd /path/to/xgboost/
-  XGBOOST_TIDY_FILES='src/common/timer.cc,src/predictor/interpretability/shap.cu' \
-  XGBOOST_TIDY_CHECKS='-*,google-runtime-int' \
-  bash ops/pipeline/run-clang-tidy-clang-cuda.sh
+``run-clang-tidy -p`` against files under ``src/`` using the repository's
+``.clang-tidy`` configuration. The same path is used by CI.
 
 Use ``--jobs`` to override the number of parallel clang-tidy processes:
 

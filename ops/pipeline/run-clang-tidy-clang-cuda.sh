@@ -5,11 +5,6 @@ set -euo pipefail
 
 build_dir="build-clang-tidy-cuda"
 jobs=""
-checks="${XGBOOST_TIDY_CHECKS:-}"
-extra_args_csv="${XGBOOST_TIDY_EXTRA_ARGS:--Wno-everything}"
-files_csv="${XGBOOST_TIDY_FILES:-}"
-source_filter="${XGBOOST_TIDY_SOURCE_FILTER:-}"
-warnings_as_errors="${XGBOOST_TIDY_WARNINGS_AS_ERRORS:-*,-clang-diagnostic-*,-clang-analyzer-*}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,15 +28,9 @@ if [[ -z "${jobs}" ]]; then
   else
     jobs=4
   fi
-  if (( jobs > 35 )); then
-    jobs=35
-  fi
 fi
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
-if [[ -z "${source_filter}" ]]; then
-  source_filter="${repo_root}/src/.*"
-fi
 
 "${repo_root}/ops/pipeline/build-cuda-clang.sh" \
   --build-dir "${repo_root}/${build_dir}" \
@@ -68,31 +57,15 @@ if [[ ! -x "${clang_run_tidy}" ]]; then
   fi
 fi
 
-IFS=',' read -r -a extra_args <<< "${extra_args_csv}"
-IFS=',' read -r -a tidy_files <<< "${files_csv}"
-
 tidy_args=(
   -p "${repo_root}/${build_dir}" \
   -j "${jobs}" \
   -config-file "${repo_root}/.clang-tidy" \
   -header-filter "${repo_root}/(include|src)/.*" \
-  -source-filter "${source_filter}" \
+  -source-filter "${repo_root}/src/.*" \
+  -extra-arg=-Wno-everything \
+  -warnings-as-errors="*,-clang-diagnostic-*,-clang-analyzer-*" \
   -quiet
 )
-
-if [[ -n "${checks}" ]]; then
-  tidy_args+=(-checks="${checks}")
-fi
-if [[ -n "${extra_args_csv}" ]]; then
-  for extra_arg in "${extra_args[@]}"; do
-    tidy_args+=(-extra-arg="${extra_arg}")
-  done
-fi
-if [[ -n "${warnings_as_errors}" ]]; then
-  tidy_args+=(-warnings-as-errors="${warnings_as_errors}")
-fi
-if [[ -n "${files_csv}" ]]; then
-  tidy_args+=("${tidy_files[@]}")
-fi
 
 "${clang_run_tidy}" "${tidy_args[@]}"
