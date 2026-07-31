@@ -3338,7 +3338,7 @@ class Booster:
         xgdump = self.get_dump(fmap=fmap)
         values = []
         # pylint: disable=consider-using-f-string
-        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
+        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(re.escape(feature)))
         for val in xgdump:
             m = re.findall(regexp, val)
             values.extend([float(x) for x in m])
