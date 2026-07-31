@@ -1,11 +1,18 @@
 """Interpretability functions for XGBoost models."""
 
+import ctypes
+import json
 from typing import Optional, Tuple, Union
 
-import numpy as np
-
-from ._typing import ArrayLike, FloatCompatible, IterationRange
-from .core import Booster, DMatrix
+from ._data_utils import from_array_interface
+from ._typing import ArrayLike, FloatCompatible, IterationRange, NumpyOrCupy
+from .core import (
+    _LIB,
+    Booster,
+    DMatrix,
+    _check_call,
+    from_pystr_to_cstr,
+)
 
 
 def _as_booster(model: object) -> Booster:
@@ -50,6 +57,39 @@ def _as_prediction_dmatrix(
     )
 
 
+def _capi_shap_values(
+    booster: Booster,
+    data: DMatrix,
+    background: Optional[DMatrix],
+    iteration_range: IterationRange,
+) -> Tuple[NumpyOrCupy, NumpyOrCupy]:
+    values = ctypes.c_char_p()
+    bias = ctypes.c_char_p()
+    config = {
+        "algorithm": "auto",
+        "iteration_begin": int(iteration_range[0]),
+        "iteration_end": int(iteration_range[1]),
+    }
+    _check_call(
+        _LIB.XGBoosterInterpretShapValues(
+            booster.handle,
+            data.handle,
+            background.handle if background is not None else None,
+            from_pystr_to_cstr(json.dumps(config)),
+            ctypes.byref(values),
+            ctypes.byref(bias),
+        )
+    )
+    assert values.value is not None
+    assert bias.value is not None
+    values_out = from_array_interface(json.loads(values.value))
+    bias_out = from_array_interface(json.loads(bias.value))
+    if values_out.shape[-1] == 1:
+        values_out = values_out[..., 0]
+        bias_out = bias_out[..., 0]
+    return values_out, bias_out
+
+
 def shap_values(  # pylint: disable=too-many-arguments
     model: object,
     X: Union[DMatrix, ArrayLike],
@@ -59,7 +99,7 @@ def shap_values(  # pylint: disable=too-many-arguments
     iteration_range: Optional[IterationRange] = None,
     missing: Optional[FloatCompatible] = None,
     validate_features: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[NumpyOrCupy, NumpyOrCupy]:
     """Return SHAP values for an XGBoost model.
 
     .. warning::
@@ -97,31 +137,34 @@ def shap_values(  # pylint: disable=too-many-arguments
         ``values`` contains feature SHAP values with the bias term removed.
         ``bias`` contains the separated bias term. For multi-target models, the
         output shape follows the corresponding prediction shape with the final
-        feature dimension split into ``values`` and ``bias``.
+        feature dimension split into ``values`` and ``bias``. Returns NumPy
+        arrays on CPU and CuPy arrays on CUDA.
 
     Notes
     -----
     To use GPU algorithms, configure the model before calling this function, for
     example with ``booster.set_param({"device": "cuda"})``.
     """
-    if X_background is not None:
-        raise NotImplementedError("`X_background` is not yet supported.")
     # SHAP contributions currently correspond to the model margin. Keep this
     # argument in the initial API so callers can use the proposed signature.
     _ = output_margin
 
     booster = _as_booster(model)
     data = _as_prediction_dmatrix(model, X, missing)
-    contribs = booster.predict(
-        data,
-        pred_contribs=True,
-        validate_features=validate_features,
-        iteration_range=_get_iteration_range(model, iteration_range),
+    if validate_features:
+        validate = getattr(booster, "_validate_features")
+        validate(data.feature_names)
+    background = (
+        _as_prediction_dmatrix(model, X_background, missing=None)
+        if X_background is not None
+        else None
     )
-
-    values = contribs[..., :-1]
-    bias = contribs[..., -1]
-    return values, bias
+    return _capi_shap_values(
+        booster,
+        data,
+        background,
+        _get_iteration_range(model, iteration_range),
+    )
 
 
 __all__ = ["shap_values"]
