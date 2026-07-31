@@ -5,6 +5,7 @@ from xgboost import testing as tm
 from xgboost.testing.parse_tree import (
     run_split_value_histograms,
     run_tree_to_df_categorical,
+    run_tree_to_df_use_category_names,
     run_tree_to_df_vector_leaf_mixed,
 )
 
@@ -67,6 +68,9 @@ class TestTreesToDataFrame:
 
     def test_tree_to_df_categorical(self) -> None:
         run_tree_to_df_categorical("approx", "cpu")
+
+    def test_tree_to_df_use_category_names(self) -> None:
+        run_tree_to_df_use_category_names("approx", "cpu")
 
     def test_tree_to_df_vector_leaf_mixed(self) -> None:
         run_tree_to_df_vector_leaf_mixed("cpu")

@@ -47,6 +47,58 @@ def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
             assert x["Missing"] in all_ids
 
 
+def run_tree_to_df_use_category_names(tree_method: str, device: Device) -> None:
+    """Tests trees_to_dataframe's use_category_names option with genuine string
+    category names, not just numeric-looking codes.
+
+    """
+    import pandas as pd
+
+    rng = np.random.default_rng(1994)
+    n_samples = 256
+    colors = pd.Categorical.from_codes(
+        rng.integers(0, 4, size=n_samples), categories=["red", "green", "blue", "cyan"]
+    )
+    X = pd.DataFrame({"color": colors, "num": rng.standard_normal(n_samples)})
+    y = rng.standard_normal(n_samples)
+
+    Xy = DMatrix(X, y, enable_categorical=True)
+    booster = train(
+        {"tree_method": tree_method, "device": device}, Xy, num_boost_round=10
+    )
+
+    df_codes = booster.trees_to_dataframe()
+    df_names = booster.trees_to_dataframe(use_category_names=True)
+
+    # The two calls must agree on everything except the Category column itself.
+    for col in df_codes.columns:
+        if col == "Category":
+            continue
+        pd.testing.assert_series_equal(df_codes[col], df_names[col])
+
+    color_splits = df_codes["Feature"] == "color"
+    assert color_splits.any(), "test setup should produce at least one categorical split"
+
+    valid_names = set(colors.categories)
+    for (_, row_codes), (_, row_names) in zip(
+        df_codes[color_splits].iterrows(), df_names[color_splits].iterrows()
+    ):
+        codes = row_codes["Category"]
+        names = row_names["Category"]
+        assert isinstance(codes, list) and isinstance(names, list)
+        assert len(codes) == len(names)
+        # Every resolved name must be a real category name, not a raw code.
+        assert all(n in valid_names for n in names)
+        # And they must correspond position-for-position to the original codes.
+        assert names == [colors.categories[int(c)] for c in codes]
+
+    # Non-categorical (numerical) splits are untouched either way.
+    num_splits = df_codes["Feature"] == "num"
+    if num_splits.any():
+        assert df_codes.loc[num_splits, "Category"].isna().all()
+        assert df_names.loc[num_splits, "Category"].isna().all()
+
+
 def _expected_leaf_vectors(booster: Booster) -> dict[tuple[int, int], list[float]]:
     """Map ``(tree_id, node_id) -> list[float]`` of leaf outputs."""
     model = json.loads(booster.save_raw(raw_format="json"))
