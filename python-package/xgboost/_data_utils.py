@@ -215,6 +215,11 @@ def make_array_interface(
     assert addr is not None or length == 0
 
     if addr is None:
+        # `array` still has the placeholder (0,) shape from the empty array used
+        # to derive `typestr`/`descr` above; update it to the actual requested
+        # shape (e.g. (0, n_features) for an empty multi-dimensional result)
+        # instead of always reporting a flat 1-D empty shape.
+        array["shape"] = shape
         return array
 
     array["data"] = (addr, True)
