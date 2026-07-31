@@ -332,13 +332,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUDA 12 artifact compatibility tests (using the default CUDA 13 runtime)
+          # CUDA 12 artifact tests using the native CUDA 12.9 runtime
           # Note: --gpus all provides GPU access; --privileged is not needed for basic GPU tests
           - cuda_version: 12
             suite: gpu
             arch: x86_64
             runner: linux-amd64-gpu
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             artifact_from: build-cuda12-x86_64
             container_options: "--gpus all --privileged"
             test_args: ""
@@ -346,7 +346,7 @@ jobs:
             suite: gpu
             arch: aarch64
             runner: linux-arm64-gpu
-            image_repo: xgb-ci.gpu_aarch64
+            image_repo: xgb-ci.gpu_cuda12_aarch64
             artifact_from: build-cuda12-aarch64
             container_options: "--gpus all --privileged"
             test_args: ""
@@ -354,7 +354,7 @@ jobs:
             suite: mgpu
             arch: x86_64
             runner: linux-amd64-mgpu
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             artifact_from: build-cuda12-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
             container_options: "--gpus all --shm-size=4g --privileged"
@@ -417,26 +417,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # xgboost-cu12 tests (using the default CUDA 13 runtime)
+          # xgboost-cu12 tests using the native CUDA 12.9 runtime
           - cuda_version: 12
             description: GPU-x86_64-CUDA-12
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
             container_options: "--gpus all --privileged"
           - cuda_version: 12
             description: Multi-GPU-x86_64-CUDA-12
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: audit-cuda12-wheel-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
             container_options: "--gpus all --shm-size=4g --privileged"
-          # xgboost-cu12 aarch64 test (using the default CUDA 13 runtime)
+          # xgboost-cu12 aarch64 test using the native CUDA 12.9 runtime
           - cuda_version: 12
             description: GPU-arm64-CUDA-12
-            image_repo: xgb-ci.gpu_aarch64
+            image_repo: xgb-ci.gpu_cuda12_aarch64
             suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
