@@ -4,7 +4,7 @@ XGBoost GPU Support
 
 This page contains information about GPU algorithms supported in XGBoost.
 
-.. note:: CUDA >= 12.9 is required.
+.. note:: CUDA >= 12.9 is required. See :ref:`wheel-cuda`.
 
 *********************************************
 CUDA Accelerated Tree Construction Algorithms

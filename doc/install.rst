@@ -84,6 +84,8 @@ modern Jetson or Graviton machines provides the same GPU functionality as the
 Linux x86_64 wheel. Multi-node and multi-GPU training remain experimental on
 ARM64 at this time.
 
+.. _wheel-cuda:
+
 CUDA toolkit variants (Linux)
 *****************************
 The default ``xgboost`` wheel for Linux x86_64 and aarch64 is built with CUDA Toolkit 13.x:

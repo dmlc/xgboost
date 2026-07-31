@@ -139,23 +139,6 @@ architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus
   building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables
   XGBoost to load NCCL at runtime using ``dlopen``.
 
-Federated Learning
-==================
-
-The federated learning plugin requires ``grpc`` and ``protobuf``. To install grpc, refer
-to the `installation guide from the gRPC website
-<https://grpc.io/docs/languages/cpp/quickstart/>`_. Alternatively, one can use the
-``libgrpc`` and the ``protobuf`` package from conda forge if conda is available. After
-obtaining the required dependencies, enable the flag: ``-DPLUGIN_FEDERATED=ON`` when
-running CMake. Please note that only Linux is supported for the federated plugin.
-
-
-.. code-block:: bash
-
-  cmake -B build -S . -DPLUGIN_FEDERATED=ON -GNinja
-  cd build && ninja
-
-
 .. _build_python:
 
 ***********************************
@@ -206,8 +189,7 @@ There are several ways to build and install the package from source:
         --config-settings cmake.define.USE_CUDA=ON \
         --config-settings cmake.define.USE_NCCL=ON
 
-  Common CMake options
-  (see :ref:`building-the-shared-library` for the full list):
+  Common CMake options (see :ref:`build_shared_lib` for the full list):
 
   - ``USE_CUDA`` — build with CUDA / GPU acceleration
   - ``USE_NCCL`` — build with NCCL for distributed GPU training
