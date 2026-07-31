@@ -105,6 +105,15 @@ def plot_importance(
             + "This maybe caused by having all trees as decision dumps."
         )
 
+    if any(isinstance(v, list) for v in importance.values()):
+        raise ValueError(
+            "`plot_importance` doesn't support a per-class list of importance "
+            "values, which `Booster.get_score()` returns for a multi-class "
+            "`gblinear` model. Select a single class first, for instance by "
+            "passing `{k: v[i] for k, v in importance.items()}` for the i-th "
+            "class as the `booster` argument instead of the model directly."
+        )
+
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
         # pylint: disable=invalid-unary-operand-type
