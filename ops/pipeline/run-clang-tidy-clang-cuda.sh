@@ -3,11 +3,8 @@
 
 set -euo pipefail
 
-clang_version="23.1.0.rc2"
-clang_channel="${XGBOOST_CLANG_CHANNEL:-conda-forge/label/llvm_rc}"
-cmake_version="4.2.3"
 build_dir="build-clang-tidy-cuda"
-jobs="${XGBOOST_TIDY_JOBS:-}"
+jobs=""
 checks="${XGBOOST_TIDY_CHECKS:-}"
 extra_args_csv="${XGBOOST_TIDY_EXTRA_ARGS:--Wno-everything}"
 files_csv="${XGBOOST_TIDY_FILES:-}"
@@ -16,45 +13,13 @@ warnings_as_errors="${XGBOOST_TIDY_WARNINGS_AS_ERRORS:-*,-clang-diagnostic-*,-cl
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --clang-version)
-      clang_version="$2"
-      shift 2
-      ;;
-    --cmake-version)
-      cmake_version="$2"
-      shift 2
-      ;;
-    --build-dir)
-      build_dir="$2"
-      shift 2
-      ;;
     --jobs)
       jobs="$2"
       shift 2
       ;;
-    --checks)
-      checks="$2"
-      shift 2
-      ;;
-    --extra-arg)
-      extra_args_csv="$2"
-      shift 2
-      ;;
-    --files)
-      files_csv="$2"
-      shift 2
-      ;;
-    --source-filter)
-      source_filter="$2"
-      shift 2
-      ;;
-    --warnings-as-errors)
-      warnings_as_errors="$2"
-      shift 2
-      ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 [--clang-version <version>] [--cmake-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--extra-arg <comma-separated-extra-args>] [--files <comma-separated-files>] [--source-filter <regex>] [--warnings-as-errors <filter>]"
+      echo "Usage: $0 [--jobs <n>]"
       exit 1
       ;;
   esac
@@ -79,8 +44,6 @@ if [[ -z "${source_filter}" ]]; then
 fi
 
 "${repo_root}/ops/pipeline/build-cuda-clang.sh" \
-  --clang-version "${clang_version}" \
-  --cmake-version "${cmake_version}" \
   --build-dir "${repo_root}/${build_dir}" \
   --configure-only
 
@@ -100,7 +63,7 @@ fi
 clang_run_tidy="${clang_prefix}/bin/run-clang-tidy"
 if [[ ! -x "${clang_run_tidy}" ]]; then
   if ! clang_run_tidy="$(command -v run-clang-tidy)"; then
-    echo "run-clang-tidy is required. Install ${clang_channel}::clang-tools==${clang_version} or set XGBOOST_CLANG_PREFIX to a clang prefix containing bin/run-clang-tidy."
+    echo "run-clang-tidy is required. Install conda-forge::clang-tools or set XGBOOST_CLANG_PREFIX to a clang prefix containing bin/run-clang-tidy."
     exit 1
   fi
 fi

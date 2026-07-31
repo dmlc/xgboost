@@ -4,8 +4,7 @@
 
 set -euo pipefail
 
-clang_version="23.1.0.rc2"
-clang_channel="${XGBOOST_CLANG_CHANNEL:-conda-forge/label/llvm_rc}"
+clang_version="22.1.8"
 cmake_version="4.2.3"
 build_dir="build-clang-cuda"
 target="xgboost"
@@ -55,9 +54,9 @@ fi
 
 if [[ "${XGBOOST_SKIP_CLANG_INSTALL:-0}" != 1 ]]; then
   clang_packages=(
-    "${clang_channel}::clang==${clang_version}"
-    "${clang_channel}::clangxx==${clang_version}"
-    "${clang_channel}::clang-tools==${clang_version}"
+    "conda-forge::clang==${clang_version}"
+    "conda-forge::clangxx==${clang_version}"
+    "conda-forge::clang-tools==${clang_version}"
   )
   if command -v mamba >/dev/null 2>&1; then
     mamba install -y -n base -c conda-forge "${clang_packages[@]}" "cmake=${cmake_version}"
@@ -100,7 +99,7 @@ echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${cmake_bin}" --version
 
 if ! command -v clang-linker-wrapper >/dev/null 2>&1; then
-  echo "clang-linker-wrapper is required for clang CUDA offload linking. Install ${clang_channel}::clang-tools==${clang_version}."
+  echo "clang-linker-wrapper is required for clang CUDA offload linking. Install conda-forge::clang-tools==${clang_version}."
   exit 1
 fi
 if [[ -f "${clang_bin_dir}/x86_64-conda-linux-gnu-clang++.cfg" ]] &&

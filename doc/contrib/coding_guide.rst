@@ -146,7 +146,7 @@ Linter
 ======
 We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
 
-For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are provided via the corresponding pre-commit hooks, which operate on changed files. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
+For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `ruff <https://github.com/astral-sh/ruff>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are provided via the corresponding pre-commit hooks, which operate on changed files. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
 
 To run Python checks locally, install the checkers mentioned previously and run the pre-commit hooks for the files you changed:
 
@@ -198,22 +198,17 @@ scope or adjust the checks:
   XGBOOST_TIDY_CHECKS='-*,google-runtime-int' \
   bash ops/pipeline/run-clang-tidy-clang-cuda.sh
 
-The helper accepts command-line overrides for the build directory, job count, source
-filter, checks, extra arguments, and ``warnings-as-errors`` filter. For example:
+Use ``--jobs`` to override the number of parallel clang-tidy processes:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  bash ops/pipeline/run-clang-tidy-clang-cuda.sh \
-    --build-dir build-clang-tidy-cuda \
-    --jobs 16 \
-    --source-filter '.*/(src|include)/.*' \
-    --checks '-*,google-runtime-int'
+  bash ops/pipeline/run-clang-tidy-clang-cuda.sh --jobs 16
 
 The helper expects a clang toolchain with ``clang++``, ``clang-linker-wrapper``, and
 ``run-clang-tidy`` available either from the active conda base environment or from
 ``XGBOOST_CLANG_PREFIX``. By default, it installs ``clang``, ``clangxx``, and
-``clang-tools`` 23.1.0.rc2 from the ``conda-forge/label/llvm_rc`` channel.
+``clang-tools`` from the ``conda-forge`` channel.
 
 **********************************
 Guide for handling user input data
