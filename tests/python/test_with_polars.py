@@ -47,7 +47,9 @@ def test_polars_basic(
     df = pl.DataFrame({"a": [True, False, False], "b": [False, False, True]})
     Xy = DMatrixT(df)
 
-    np.testing.assert_equal(Xy.get_data().data, np.array([1, m, m, m, m, 1]))
+    np.testing.assert_equal(
+        Xy.get_data().data, np.array([1.0, m, m, m, m, 1.0], dtype=np.float32)
+    )
 
 
 def test_polars_missing() -> None:
