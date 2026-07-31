@@ -181,13 +181,6 @@ class GBTree : public GradientBooster {
 
   void Configure(Args const& cfg) override;
   /**
-   * @brief Optionally update the leaf value.
-   */
-  void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, std::int32_t group_idx,
-                      std::vector<HostDeviceVector<bst_node_t>> const& node_position,
-                      std::vector<std::unique_ptr<RegTree>>* p_trees);
-  /**
    * @brief Carry out one iteration of boosting.
    */
   void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,

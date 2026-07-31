@@ -308,7 +308,6 @@ void TestAbsoluteError(const Context* ctx) {
   obj->Configure({});
   CheckConfigReload(obj, "reg:absoluteerror");
   ASSERT_FALSE(obj->Task().const_hess);
-  ASSERT_FALSE(obj->Task().zero_hess);
 
   auto check = [&](std::vector<float> const& predts, std::vector<float> const& labels,
                    std::vector<float> const& weights) {
@@ -407,38 +406,6 @@ void TestAbsoluteError(const Context* ctx) {
     ASSERT_NEAR(init(labels, weights), expected + 1000.0f, 1.0e-4f);
   }
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mae"});
-}
-
-void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
-                       bst_idx_t n_target_labels, std::vector<float> const& sol_left,
-                       std::vector<float> const& sol_right) {
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
-  obj->Configure(args);
-
-  bst_target_t n_targets = 3;
-  auto tree = MakeMtTreeForTest(n_targets);
-
-  bst_node_t left_nidx = tree->LeftChild(RegTree::kRoot);
-  bst_node_t right_nidx = tree->RightChild(RegTree::kRoot);
-
-  MetaInfo info;
-  MakeIotaLabelsForTest(n_samples, n_target_labels, &info);
-  HostDeviceVector<bst_node_t> position;
-  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
-
-  HostDeviceVector<float> predt(info.labels.Shape(0) * n_targets, 0.0f);
-
-  auto lr = 2.0f;
-  obj->UpdateTreeLeaf(position, info, lr, predt, 0, tree.get());
-
-  auto mt_tree = tree->HostMtView();
-  auto left = mt_tree.LeafValue(mt_tree.LeftChild(RegTree::kRoot));
-  auto right = mt_tree.LeafValue(mt_tree.RightChild(RegTree::kRoot));
-
-  for (std::size_t i = 0; i < left.Size(); ++i) {
-    ASSERT_FLOAT_EQ(left(i), sol_left[i]);
-    ASSERT_FLOAT_EQ(right(i), sol_right[i]);
-  }
 }
 
 void TestExpectileRegressionGPair(const Context* ctx) {
