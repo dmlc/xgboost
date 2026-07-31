@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
@@ -12,6 +12,7 @@
 #include <limits>       // for numeric_limits
 #include <map>          // for map
 #include <string>       // for string
+#include <string_view>  // for string_view
 #include <type_traits>  // for alignment_of_v, remove_pointer_t, invoke_result_t
 #include <vector>       // for vector
 
@@ -55,7 +56,7 @@ struct ArrayInterfaceErrors {
     return str.c_str();
   }
 
-  static std::string TypeStr(char c) {
+  static std::string_view TypeStr(char c) {
     switch (c) {
       case 't':
         return "Bit field";
@@ -91,8 +92,8 @@ struct ArrayInterfaceErrors {
     }
   }
 
-  static std::string UnSupportedType(StringView typestr) {
-    return TypeStr(typestr[1]) + "-" + typestr[2] + " is not supported.";
+  static std::string UnSupportedType(std::string_view typestr) {
+    return std::string{TypeStr(typestr[1])} + "-" + typestr[2] + " is not supported.";  // NOLINT
   }
 };
 
@@ -253,8 +254,8 @@ class ArrayInterfaceHandler {
    * \brief Extracts the optiona `strides' field and returns whether the array is c-contiguous.
    */
   template <int32_t D>
-  static bool ExtractStride(Object::Map const &array, size_t itemsize,
-                            size_t (&shape)[D], size_t (&stride)[D]) {
+  static bool ExtractStride(Object::Map const &array, size_t itemsize, size_t (&shape)[D],
+                            size_t (&stride)[D]) {
     auto strides_it = array.find("strides");
     // No stride is provided
     if (strides_it == array.cend() || IsA<Null>(strides_it->second)) {
@@ -334,11 +335,13 @@ template <>
 struct ToDType<double> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF8;
 };
+// NumPy's 128-bit floating-point array interface maps to long double on supported hosts.
+// NOLINTBEGIN(google-runtime-float)
 template <typename T>
-struct ToDType<T,
-               std::enable_if_t<std::is_same_v<T, long double> && sizeof(long double) == 16>> {
+struct ToDType<T, std::enable_if_t<std::is_same_v<T, long double> && sizeof(long double) == 16>> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF16;
 };
+// NOLINTEND(google-runtime-float)
 // uint
 template <>
 struct ToDType<uint8_t> {
@@ -407,9 +410,14 @@ class ArrayInterface {
     ArrayInterfaceHandler::Validate(array);
 
     auto typestr = get<String const>(array.at("typestr"));
-    this->AssignType(StringView{typestr});
+    this->AssignType(std::string_view{typestr});
     ArrayInterfaceHandler::ExtractShape(array, shape);
-    std::size_t itemsize = typestr[2] - '0';
+    std::size_t itemsize = 0;
+    if (this->type == ArrayInterfaceHandler::kF16) {
+      itemsize = 16;
+    } else {
+      itemsize = typestr[2] - '0';
+    }
     is_contiguous = ArrayInterfaceHandler::ExtractStride(array, itemsize, shape, strides);
     n = linalg::detail::CalcSize(shape);
 
@@ -466,7 +474,7 @@ class ArrayInterface {
 
   explicit ArrayInterface(StringView str) : ArrayInterface{Json::Load(str)} {}
 
-  void AssignType(StringView typestr) {
+  void AssignType(std::string_view typestr) {
     using T = ArrayInterfaceHandler::Type;
     if (typestr.size() == 4 && typestr[1] == 'f' && typestr[2] == '1' && typestr[3] == '6') {
       CHECK(sizeof(long double) == 16) << error::NoF128();
@@ -535,7 +543,7 @@ class ArrayInterface {
       }
 #else
       case T::kF16:
-        return func(reinterpret_cast<long double const *>(data));
+        return func(reinterpret_cast<long double const *>(data));  // NOLINT
 #endif
       case T::kI1:
         return func(reinterpret_cast<int8_t const *>(data));
@@ -621,7 +629,7 @@ auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
       return dispatch(double{});
     }
     case ArrayInterfaceHandler::kF16: {
-      using T = long double;
+      using T = long double;  // NOLINT
       CHECK(sizeof(T) == 16) << error::NoF128();
       // Avoid invalid type.
       if constexpr (sizeof(T) == 16) {

@@ -8,14 +8,14 @@
 ## All parameters are required (no defaults).
 ##
 ## Examples:
-##   # CUDA 12 standard build
+##   # CUDA 12 xgboost-cu12 package build
 ##   build-cuda.sh --cuda-version 12 --use-rmm 0
 ##
-##   # CUDA 12 with RMM
-##   build-cuda.sh --cuda-version 12 --use-rmm 1
-##
-##   # CUDA 13
+##   # Default CUDA 13 build
 ##   build-cuda.sh --cuda-version 13 --use-rmm 0
+##
+##   # CUDA 13 with RMM
+##   build-cuda.sh --cuda-version 13 --use-rmm 1
 
 set -euo pipefail
 
@@ -72,12 +72,9 @@ case "${use_rmm}" in
     ;;
 esac
 
-# Validate CUDA 13 constraints
-if [[ "${cuda_version}" == "13" ]]; then
-  if [[ "${use_rmm}" == "1" ]]; then
-    echo "Error: RMM is not supported for CUDA 13 (--use-rmm must be 0)"
-    exit 1
-  fi
+if [[ "${cuda_version}" == "12" && "${use_rmm}" == "1" ]]; then
+  echo "Error: CUDA 12 is reserved for the xgboost-cu12 package build and does not support RMM"
+  exit 1
 fi
 
 # Export validated values
@@ -95,9 +92,11 @@ fi
 
 set -x
 
-# Configure PyPI variant for CUDA 13
-if [[ "${cuda_version}" == "13" ]]; then
-  python3 ops/script/pypi_variants.py --use-suffix=cu13 --require-nccl-dep=cu13
+# Configure the PyPI package variant
+if [[ "${cuda_version}" == "12" ]]; then
+  python3 ops/script/pypi_variants.py --use-suffix=cu12 --require-nccl-dep=cu12
+else
+  python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu13
 fi
 
 # Run the build implementation directly (we're already inside the container)
