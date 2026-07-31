@@ -2,8 +2,8 @@
  * Copyright 2017-2024 by Contributors
  * \file updater_quantile_hist.cc
  */
-#include <vector>
 #include <memory>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
@@ -25,7 +25,7 @@ DMLC_REGISTRY_FILE_TAG(updater_quantile_hist_sycl);
 
 DMLC_REGISTER_PARAMETER(HistMakerTrainParam);
 
-void QuantileHistMaker::Configure(const Args& args) {
+void QuantileHistMaker::Configure(const Args &args) {
   const DeviceOrd device_spec = ctx_->Device();
   qu_ = device_manager.GetQueue(device_spec);
 
@@ -43,14 +43,9 @@ void QuantileHistMaker::Configure(const Args& args) {
   }
 }
 
-template<typename GradientSumT>
-void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>* pimpl,
-                                 DMatrix *dmat) {
-  pimpl->reset(new HistUpdater<GradientSumT>(
-                ctx_,
-                qu_,
-                param_,
-                int_constraint_, dmat));
+template <typename GradientSumT>
+void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>> *pimpl, DMatrix *dmat) {
+  pimpl->reset(new HistUpdater<GradientSumT>(ctx_, qu_, param_, int_constraint_, dmat));
   if (collective::IsDistributed()) {
     (*pimpl)->SetHistSynchronizer(new DistributedHistSynchronizer<GradientSumT>());
     (*pimpl)->SetHistRowsAdder(new DistributedHistRowsAdder<GradientSumT>());
@@ -66,8 +61,9 @@ void QuantileHistMaker::CallUpdate(const std::unique_ptr<HistUpdater<GradientSum
                                    ::xgboost::linalg::Matrix<GradientPair> *gpair, DMatrix *dmat,
                                    xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
                                    const std::vector<RegTree *> &trees) {
-  for (auto tree : trees) {
-    pimpl->Update(param, gmat_, *(gpair->Data()), dmat, out_position, tree);
+  CHECK_EQ(out_position.size(), trees.size());
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    pimpl->Update(param, gmat_, *(gpair->Data()), dmat, &out_position[tree_idx], trees[tree_idx]);
   }
 }
 
@@ -105,30 +101,9 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
   p_last_dmat_ = dmat;
 }
 
-bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
-                                              xgboost::common::Span<HostDeviceVector<bst_node_t>>,
-                                              ::xgboost::linalg::MatrixView<float> out_preds) {
-  if (param_.subsample < 1.0f) return false;
-
-  if (hist_precision_ == HistPrecision::fp32) {
-    if (pimpl_fp32) {
-      return pimpl_fp32->UpdatePredictionCache(data, out_preds);
-    } else {
-      return false;
-    }
-  } else {
-    if (pimpl_fp64) {
-      return pimpl_fp64->UpdatePredictionCache(data, out_preds);
-    } else {
-      return false;
-    }
-  }
-}
-
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker_sycl")
-.describe("Grow tree using quantized histogram with SYCL.")
-.set_body(
-    [](Context const* ctx, ObjInfo const * task) {
+    .describe("Grow tree using quantized histogram with SYCL.")
+    .set_body([](Context const *ctx, ObjInfo const *task) {
       return new QuantileHistMaker(ctx, task);
     });
 }  // namespace tree

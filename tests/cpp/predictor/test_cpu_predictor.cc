@@ -167,7 +167,7 @@ TEST(CpuPredictor, InplacePredict) {
 }
 
 namespace {
-void TestUpdatePredictionCache(bool use_subsampling) {
+void TestTrainingPredictionCache(bool use_subsampling) {
   std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
@@ -226,9 +226,9 @@ TEST(CPUPredictor, CategoricalPredictLeaf) {
   TestCategoricalPredictLeaf(&ctx);
 }
 
-TEST(CpuPredictor, UpdatePredictionCache) {
-  TestUpdatePredictionCache(false);
-  TestUpdatePredictionCache(true);
+TEST(CpuPredictor, TrainingPredictionCache) {
+  TestTrainingPredictionCache(false);
+  TestTrainingPredictionCache(true);
 }
 
 TEST(CpuPredictor, LesserFeatures) {

@@ -11,6 +11,7 @@
 #include "../../src/collective/allreduce.h"
 #include "../../src/tree/common_row_partitioner.h"
 #include "../../src/tree/driver.h"
+#include "../../src/tree/sample_position.h"
 #include "../common/hist_util.h"
 #include "xgboost/linalg.h"
 
@@ -309,10 +310,11 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::Update(
-    xgboost::tree::TrainParam const* param, const common::GHistIndexMatrix& gmat,
-    const HostDeviceVector<GradientPair>& gpair, DMatrix* p_fmat,
-    xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position, RegTree* p_tree) {
+void HistUpdater<GradientSumT>::Update(xgboost::tree::TrainParam const* param,
+                                       const common::GHistIndexMatrix& gmat,
+                                       const HostDeviceVector<GradientPair>& gpair, DMatrix* p_fmat,
+                                       HostDeviceVector<bst_node_t>* p_out_position,
+                                       RegTree* p_tree) {
   builder_monitor_.Start("Update");
 
   tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
@@ -330,54 +332,42 @@ void HistUpdater<GradientSumT>::Update(
     p_tree->Stat(nid).base_weight = snode_host_[nid].weight;
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_host_[nid].stats.GetHess());
   }
+  this->FinalizePosition(p_fmat->Info().num_row_, *p_tree, p_out_position);
 
   builder_monitor_.Stop("Update");
 }
 
 template <typename GradientSumT>
-bool HistUpdater<GradientSumT>::UpdatePredictionCache(
-    const DMatrix* data, ::xgboost::linalg::MatrixView<float> out_preds) {
-  CHECK(out_preds.Device().IsSycl());
-  // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
-  // conjunction with Update().
-  if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
-    return false;
+void HistUpdater<GradientSumT>::FinalizePosition(std::size_t n_samples, RegTree const& tree,
+                                                 HostDeviceVector<bst_node_t>* p_out_position) {
+  CHECK(p_out_position);
+  if (param_.subsample < 1.0f || row_set_collection_.Data().Size() != n_samples) {
+    p_out_position->Resize(0);
+    return;
   }
-  builder_monitor_.Start("UpdatePredictionCache");
-  CHECK_GT(out_preds.Size(), 0U);
+  p_out_position->SetDevice(ctx_->Device());
+  p_out_position->Resize(n_samples);
+  if (n_samples == 0) {
+    return;
+  }
+  auto d_position = p_out_position->DeviceSpan();
 
-  size_t n_nodes = row_set_collection_.Size();
-  std::vector<::sycl::event> events(n_nodes);
-  auto tree = p_last_tree_->HostScView();
-  for (size_t node = 0; node < n_nodes; node++) {
-    const common::RowSetCollection::Elem& rowset = row_set_collection_[node];
-    if (rowset.begin != nullptr && rowset.end != nullptr && rowset.Size() != 0) {
-      int nid = rowset.node_id;
-      // if a node is marked as deleted by the pruner, traverse upward to locate
-      // a non-deleted leaf.
-      if (tree.IsDeleted(nid)) {
-        while (tree.IsDeleted(nid)) {
-          nid = tree.Parent(nid);
-        }
-        CHECK(tree.IsLeaf(nid));
-      }
-      bst_float leaf_value = tree.LeafValue(nid);
-      const size_t* rid = rowset.begin;
-      const size_t num_rows = rowset.Size();
-
-      events[node] = qu_->submit([&](::sycl::handler& cgh) {
-        cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
-          size_t row_id = rid[pid.get_id(0)];
-          float& val = const_cast<float&>(out_preds(row_id));
-          val += leaf_value;
-        });
-      });
+  auto const t = tree.HostScView();
+  for (std::size_t nid = 0; nid < row_set_collection_.Size(); ++nid) {
+    auto const& row_set = row_set_collection_[nid];
+    if (row_set.node_id < 0 || !t.IsLeaf(row_set.node_id) || row_set.Size() == 0) {
+      continue;
     }
+    auto const encoded = xgboost::tree::SamplePosition::Encode(row_set.node_id, true);
+    auto const* rows = row_set.begin;
+    auto* position = d_position.data();
+    auto n_rows = row_set.Size();
+    qu_->submit([&](::sycl::handler& cgh) {
+         cgh.parallel_for<>(::sycl::range<1>(n_rows),
+                            [=](::sycl::id<1> pid) { position[rows[pid[0]]] = encoded; });
+       })
+        .wait_and_throw();
   }
-  qu_->wait();
-
-  builder_monitor_.Stop("UpdatePredictionCache");
-  return true;
 }
 
 template <typename GradientSumT>

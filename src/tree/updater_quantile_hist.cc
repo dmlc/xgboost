@@ -400,21 +400,6 @@ class MultiTargetHistBuilder {
         ctx_{ctx} {
     monitor_->Init(__func__);
   }
-
-  bool UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
-                             linalg::MatrixView<float> out_preds) const {
-    // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
-    // conjunction with Update().
-    if (!p_last_fmat_ || !p_last_tree_ || p_fmat != p_last_fmat_) {
-      return false;
-    }
-    monitor_->Start(__func__);
-    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_ * p_last_tree_->NumTargets());
-    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
-    monitor_->Stop(__func__);
-    return true;
-  }
 };
 
 /**
@@ -449,21 +434,6 @@ class HistUpdater {
         histogram_builder_{new MultiHistogramBuilder},
         ctx_{ctx} {
     monitor_->Init(__func__);
-  }
-
-  bool UpdatePredictionCache(DMatrix const *data, common::Span<bst_node_t const> node_position,
-                             linalg::MatrixView<float> out_preds) const {
-    // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
-    // conjunction with Update().
-    if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
-      return false;
-    }
-    monitor_->Start(__func__);
-    CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    CHECK_EQ(node_position.size(), data->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
-    monitor_->Stop(__func__);
-    return true;
   }
 
  public:
@@ -685,22 +655,6 @@ class QuantileHistMaker : public TreeUpdater {
       }
 
       hist_param_.CheckTreesSynchronized(ctx_, *tree_it);
-    }
-  }
-
-  bool UpdatePredictionCache(DMatrix const *p_fmat,
-                             common::Span<HostDeviceVector<bst_node_t>> node_position,
-                             linalg::MatrixView<float> out_preds) override {
-    if (node_position.size() > 1) {
-      return false;
-    }
-    auto position = node_position.front().ConstHostSpan();
-    if (out_preds.Shape(1) > 1) {
-      CHECK(p_mtimpl_);
-      return p_mtimpl_->UpdatePredictionCache(p_fmat, position, out_preds);
-    } else {
-      CHECK(p_impl_);
-      return p_impl_->UpdatePredictionCache(p_fmat, position, out_preds);
     }
   }
 };
