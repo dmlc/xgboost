@@ -12,6 +12,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <string_view>
 #include <type_traits>  // std::enable_if_t
 #include <utility>
 #include <vector>
@@ -69,7 +70,7 @@ class Value {
   virtual bool operator==(Value const& rhs) const = 0;
   virtual Value& operator=(Value const& rhs) = delete;
 
-  std::string TypeStr() const;
+  std::string_view TypeStr() const;
 
  private:
   ValueKind kind_;
@@ -85,7 +86,7 @@ T* Cast(U* value) {
   if (IsA<T>(value)) {
     return dynamic_cast<T*>(value);
   } else {
-    LOG(FATAL) << "Invalid cast, from " + value->TypeStr() + " to " + T().TypeStr();
+    LOG(FATAL) << "Invalid cast, from " << value->TypeStr() << " to " << T().TypeStr();
   }
   return dynamic_cast<T*>(value);  // suppress compiler warning.
 }

@@ -81,6 +81,20 @@ class TestDMatrix:
         assert from_view.shape == from_array.shape
         assert (from_view == from_array).all()
 
+    @pytest.mark.skipif(
+        np.dtype(np.longdouble).itemsize != 16,
+        reason="128-bit NumPy floating point is not supported on this platform",
+    )
+    def test_np_float128_view(self):
+        base = np.arange(1, 401, dtype=np.longdouble).reshape(100, 4)
+        view = base[:2, ::2]
+        assert view.strides == (4 * view.itemsize, 2 * view.itemsize)
+
+        dmat = xgb.DMatrix(view)
+        np.testing.assert_array_equal(
+            dmat.get_data().toarray(), view.astype(np.float32)
+        )
+
     def test_slice(self):
         X = rng.randn(100, 100)
         y = rng.randint(low=0, high=3, size=100).astype(np.float32)

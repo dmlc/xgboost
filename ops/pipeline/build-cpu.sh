@@ -25,7 +25,6 @@ case "${suite}" in
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-      -DCMAKE_PREFIX_PATH='/opt/grpc' \
       -DPLUGIN_FEDERATED=ON
     time ninja -v
     echo "--- Run Google Test"

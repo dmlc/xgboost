@@ -130,16 +130,16 @@ def make_python_sdist(
             dest = dist_dir / sdist_name
             shutil.move(src, dest)
 
-    # Build stub package `xgboost-cu12`.
+    # Build stub package `xgboost-cu13`.
     with DirectoryExcursion(ROOT):
-        make_pyproject(use_suffix="cu12", require_nccl_dep="na", create_stub=True)
+        make_pyproject(use_suffix="cu13", require_nccl_dep="na", create_stub=True)
 
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
         sdist_name = (
-            f"xgboost_cu12-{release}{rc}{rc_ver}.tar.gz"
+            f"xgboost_cu13-{release}{rc}{rc_ver}.tar.gz"
             if rc
-            else f"xgboost_cu12-{release}.tar.gz"
+            else f"xgboost_cu13-{release}.tar.gz"
         )
         src = DIST / sdist_name
         subprocess.run(["twine", "check", str(src)], check=True)
@@ -156,7 +156,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "macosx_10_15_x86_64",
         "macosx_12_0_arm64",
     ]
-    cu13_platforms = [
+    cu12_platforms = [
         "manylinux_2_28_x86_64",
         "manylinux_2_28_aarch64",
     ]
@@ -173,7 +173,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     for pkg_name, platforms in [
         ("xgboost", full_platforms),
         ("xgboost_cpu", minimal_platforms),
-        ("xgboost_cu13", cu13_platforms),
+        ("xgboost_cu12", cu12_platforms),
     ]:
         src_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
         target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
