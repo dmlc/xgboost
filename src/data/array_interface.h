@@ -412,7 +412,12 @@ class ArrayInterface {
     auto typestr = get<String const>(array.at("typestr"));
     this->AssignType(std::string_view{typestr});
     ArrayInterfaceHandler::ExtractShape(array, shape);
-    std::size_t itemsize = typestr[2] - '0';
+    std::size_t itemsize = 0;
+    if (this->type == ArrayInterfaceHandler::kF16) {
+      itemsize = 16;
+    } else {
+      itemsize = typestr[2] - '0';
+    }
     is_contiguous = ArrayInterfaceHandler::ExtractStride(array, itemsize, shape, strides);
     n = linalg::detail::CalcSize(shape);
 
