@@ -21,6 +21,7 @@
 #include "../data/proxy_dmatrix.cuh"  // for DispatchAny
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
+#include "../tree/sample_position.h"
 #include "../tree/tree_view.h"
 #include "gbtree_view.h"  // for GBTreeModelView
 #include "gpu_data_accessor.cuh"
@@ -600,6 +601,45 @@ class GPUPredictor : public xgboost::Predictor {
         batch_offset += n_rows * n_trees;
       });
     });
+  }
+
+  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                          common::Span<RegTree const*> trees,
+                          linalg::MatrixView<float> out_preds) const override {
+    CHECK_EQ(leaf_ids.size(), trees.size());
+    CHECK(out_preds.Device().IsCUDA());
+    CHECK_EQ(out_preds.Device().ordinal, ctx_->Ordinal());
+    auto stream = ctx_->CUDACtx()->Stream();
+
+    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+      auto const* p_tree = trees[tree_idx];
+      CHECK(p_tree);
+      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+      CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
+
+      if (!p_tree->IsMultiTarget()) {
+        CHECK_EQ(out_preds.Shape(1), 1);
+        dh::CachingDeviceUVector<RegTree::Node> nodes;
+        dh::CopyTo(p_tree->GetNodes(DeviceOrd::CPU()), &nodes, stream);
+        common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
+        dh::LaunchN(d_leaf_ids.size(), stream, [=] XGBOOST_DEVICE(std::size_t row_idx) mutable {
+          auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
+          out_preds(row_idx, 0) += d_nodes[nidx].LeafValue();
+        });
+      } else {
+        auto mt_tree = tree::MultiTargetTreeView{ctx_->Device(), false, p_tree};
+        auto n_targets = mt_tree.NumTargets();
+        CHECK_EQ(out_preds.Shape(1), n_targets);
+        thrust::for_each_n(ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
+                           out_preds.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                             auto [row_idx, target_idx] =
+                                 linalg::UnravelIndex(i, out_preds.Shape());
+                             auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
+                             auto weight = mt_tree.LeafValue(nidx);
+                             out_preds(row_idx, target_idx) += weight(target_idx);
+                           });
+      }
+    }
   }
 };
 

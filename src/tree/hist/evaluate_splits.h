@@ -18,7 +18,6 @@
 #include "../../common/random.h"       // for ColumnSampler
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
-#include "../sample_position.h"        // for SamplePosition
 #include "../split_evaluator.h"        // for TreeEvaluator
 #include "../tree_view.h"              // for MultiTargetTreeView
 #include "expand_entry.h"              // for MultiExpandEntry
@@ -825,49 +824,5 @@ class HistMultiEvaluator {
   [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
 };
 
-/**
- * @brief CPU implementation of update prediction cache, which calculates the leaf value
- *        for the last tree and accumulates it to prediction vector.
- *
- * @param last_tree The last tree being updated by tree updater
- */
-inline void UpdatePredictionCacheImpl(Context const *ctx, ScalarTreeView const &last_tree,
-                                      common::Span<bst_node_t const> node_position,
-                                      linalg::VectorView<float> out_preds) {
-  CHECK(out_preds.Device().IsCPU());
-  common::ParallelFor(out_preds.Size(), ctx->Threads(), [&](std::size_t idx) {
-    bst_node_t nidx = node_position[idx];
-    nidx = SamplePosition::Decode(nidx);
-    auto weight = last_tree.LeafValue(nidx);
-    out_preds(idx) += weight;
-  });
-}
-
-inline void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
-                                      common::Span<bst_node_t const> node_position,
-                                      linalg::MatrixView<float> out_preds) {
-  CHECK_GT(out_preds.Size(), 0U);
-  CHECK(p_last_tree);
-
-  auto const &tree = *p_last_tree;
-  if (!tree.IsMultiTarget()) {
-    return UpdatePredictionCacheImpl(ctx, p_last_tree->HostScView(), node_position,
-                                     out_preds.Slice(linalg::All(), 0));
-  }
-
-  auto const mt_tree = tree.HostMtView();
-  auto n_targets = mt_tree.NumTargets();
-  CHECK_EQ(out_preds.Shape(1), n_targets);
-  CHECK(out_preds.Device().IsCPU());
-
-  common::ParallelFor(out_preds.Shape(0), ctx->Threads(), [&](std::size_t sample_idx) {
-    bst_node_t nidx = node_position[sample_idx];
-    nidx = SamplePosition::Decode(nidx);
-    auto weight = mt_tree.LeafValue(nidx);
-    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-      out_preds(sample_idx, target_idx) += weight(target_idx);
-    }
-  });
-}
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_

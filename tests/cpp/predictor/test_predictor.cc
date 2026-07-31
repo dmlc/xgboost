@@ -57,6 +57,26 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
+
+  std::vector<HostDeviceVector<bst_node_t>> leaf_ids(1);
+  leaf_ids.front().SetDevice(ctx->Device());
+  leaf_ids.front().Resize(h_leaf_out_predictions.size());
+  auto &h_leaf_ids = leaf_ids.front().HostVector();
+  for (std::size_t i = 0; i < h_leaf_out_predictions.size(); ++i) {
+    h_leaf_ids[i] = static_cast<bst_node_t>(h_leaf_out_predictions[i]);
+  }
+  std::vector<RegTree const *> trees{model.trees.front().get()};
+  PredictionCacheEntry from_leaf_ids;
+  predictor->InitOutPredictions(dmat->Info(), &from_leaf_ids.predictions, model);
+  auto from_leaf_view =
+      linalg::MakeTensorView(ctx, &from_leaf_ids.predictions, dmat->Info().num_row_,
+                             model.learner_model_param->OutputLength());
+  predictor->PredictFromLeafIds(common::Span{leaf_ids}, common::Span{trees}, from_leaf_view);
+  auto const &h_from_leaf_ids = from_leaf_ids.predictions.ConstHostVector();
+  ASSERT_EQ(h_from_leaf_ids.size(), out_predictions_h.size());
+  for (std::size_t i = 0; i < h_from_leaf_ids.size(); ++i) {
+    ASSERT_EQ(h_from_leaf_ids[i], out_predictions_h[i]);
+  }
 }
 
 void TestBatchPredictionWithWeights(Context const *ctx) {

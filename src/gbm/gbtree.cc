@@ -231,6 +231,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   }
 
   predt->predictions.SetDevice(ctx_->Device());
+  auto const& predictor = this->GetPredictor(false, &predt->predictions, p_fmat);
+  if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
+    CHECK_EQ(predt->version, 0);
+    predictor->InitOutPredictions(p_fmat->Info(), &predt->predictions, model_);
+  }
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
@@ -238,27 +243,41 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
   std::vector<HostDeviceVector<bst_node_t>> node_position;
+  auto update_prediction_cache = [&](std::vector<HostDeviceVector<bst_node_t>>& positions,
+                                     TreesOneGroup const& trees,
+                                     linalg::MatrixView<float> out_preds) {
+    CHECK_EQ(positions.size(), trees.size());
+    for (auto& position : positions) {
+      if (out_preds.Shape(0) != 0 && position.Size() != out_preds.Shape(0)) {
+        return false;
+      }
+      position.SetDevice(predt->predictions.Device());
+    }
+    std::vector<RegTree const*> tree_ptrs;
+    tree_ptrs.reserve(trees.size());
+    for (auto const& tree : trees) {
+      tree_ptrs.push_back(tree.get());
+    }
+    predictor->PredictFromLeafIds(common::Span{positions}, common::Span{tree_ptrs}, out_preds);
+    return true;
+  };
 
   if (model_.learner_model_param->IsVectorLeaf()) {
     // Multi-target, vector leaf
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    std::size_t num_new_trees = ret.size();
-    new_trees.push_back(std::move(ret));
-    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
+    if (update_prediction_cache(node_position, ret, out)) {
       predt->Update(1);
     }
+    new_trees.push_back(std::move(ret));
   } else if (model_.learner_model_param->OutputLength() == 1u) {
     // Single target
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    const size_t num_new_trees = ret.size();
-    new_trees.push_back(std::move(ret));
-    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
+    if (update_prediction_cache(node_position, ret, out)) {
       predt->Update(1);
     }
+    new_trees.push_back(std::move(ret));
   } else {
     // Multi-target, scalar leaf
     CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
@@ -266,23 +285,17 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     GradientContainer tmp;
     tmp.gpair = linalg::Matrix<GradientPair>{
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
-    bool update_predict = true;
+    bool cache_updated{true};
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
       node_position.clear();
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
-      const size_t num_new_trees = ret.size();
-      new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
-      // random forest doesn't support the prediction cache yet.
-      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
-            updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position},
-                                                    v_predt))) {
-        update_predict = false;
-      }
+      cache_updated = update_prediction_cache(node_position, ret, v_predt) && cache_updated;
+      new_trees.push_back(std::move(ret));
     }
-    if (update_predict) {
+    if (cache_updated) {
       predt->Update(1);
     }
   }
