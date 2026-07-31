@@ -16,35 +16,14 @@ Stable Release
 Python
 ------
 
-Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
+Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon). In addition the ``xgboost-cpu`` windows package supports aarch64.
 
 .. code-block:: bash
 
-  # Pip 21.3+ is required
   pip install xgboost
 
 
-You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run
-into permission errors.
-
-.. note:: Parts of the Python package now require glibc 2.28+
-
-  Starting from 2.1.0, XGBoost Python package will be distributed in two variants:
-
-  * ``manylinux_2_28``: for recent Linux distros with glibc 2.28 or newer. This variant supports GPU algorithms.
-  * ``manylinux2014``: for old Linux distros with glibc older than 2.28. This variant does not support GPU algorithms or federated learning.
-
-  The ``pip`` package manager will automatically choose the correct variant depending on your system.
-
-  Starting from **May 31, 2025**, we will stop distributing the ``manylinux2014`` variant and exclusively
-  distribute the ``manylinux_2_28`` variant. We made this decision so that our CI/CD pipeline won't have
-  depend on software components that reached end-of-life (such as CentOS 7). We strongly encourage
-  everyone to migrate to recent Linux distros in order to use future versions of XGBoost.
-
-  Note. If you want to use GPU algorithms on an older Linux distro, you have two alternatives:
-
-  1. Upgrade to a recent Linux distro with glibc 2.28+.  OR
-  2. Build XGBoost from the source.
+You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run into permission errors.
 
 .. note:: Windows users need to install Visual C++ Redistributable
 
@@ -54,11 +33,6 @@ into permission errors.
   you have Visual Studio installed, you already have access to
   necessary libraries and thus don't need to install Visual C++
   Redistributable.
-
-
-.. note::
-
-  Federated learning has been removed from PyPI binary wheels since 3.4
 
 Capabilities of binary wheels for each platform:
 
@@ -77,6 +51,8 @@ Capabilities of binary wheels for each platform:
 | MacOS Apple Silicon | |cross| |  |cross|             |
 +---------------------+---------+----------------------+
 | Windows             | |tick|  |  |cross|             |
++---------------------+---------+----------------------+
+| Windows aarch64     | |cross| |  |cross|             |
 +---------------------+---------+----------------------+
 
 Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on
