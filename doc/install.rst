@@ -92,11 +92,13 @@ The default ``xgboost`` wheel for Linux x86_64 and aarch64 is built with CUDA To
 
   pip install xgboost
 
-Users whose NVIDIA driver or GPU supports CUDA 12 but not CUDA 13 can instead install the full CUDA 12 package:
+Users with GPU whose NVIDIA driver supports CUDA 12 but not CUDA 13 can instead install the CUDA 12 package:
 
 .. code-block:: bash
 
   pip install xgboost-cu12
+
+The CUDA 12 package is a driver-compatibility option.
 
 
 Minimal installation (CPU-only)
