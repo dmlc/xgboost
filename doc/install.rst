@@ -16,7 +16,7 @@ Stable Release
 Python
 ------
 
-Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
+Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64, aarch64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
@@ -55,10 +55,9 @@ Capabilities of binary wheels for each platform:
 | Windows aarch64     | |cross| |  |cross|             |
 +---------------------+---------+----------------------+
 
-Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on
-modern Jetson or Graviton machines provides the same GPU functionality as the
-Linux x86_64 wheel. Multi-node and multi-GPU training remain experimental on
-ARM64 at this time.
+Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on modern
+Jetson or Graviton machines provides the same GPU functionality as the Linux x86_64
+wheel.
 
 .. _wheel-cuda:
 
