@@ -269,6 +269,37 @@ class TestModels:
         for d in text_dump:
             assert d.find(r"feature \"2\"") != -1
 
+    def test_dump_model_dot_format(self, tmp_path: Path) -> None:
+        X, y, w = tm.make_regression(n_samples=128, n_features=3, use_cupy=False)
+        Xy = xgb.DMatrix(X, label=y)
+
+        # A single-tree booster: dump_format="dot" should write the tree's DOT
+        # dump directly, with no extra "booster[i]:" header (which isn't valid
+        # DOT syntax and would corrupt the file).
+        single_tree = xgb.train(
+            {"objective": "reg:squarederror"}, Xy, num_boost_round=1
+        )
+        out_path = tmp_path / "single_tree.dot"
+        single_tree.dump_model(out_path, dump_format="dot")
+        content = out_path.read_text()
+        assert content == single_tree.get_dump(dump_format="dot")[0]
+        assert content.startswith("digraph")
+        assert "booster[" not in content
+
+        # A multi-tree booster: dump_format="dot" can't represent more than one
+        # tree in a single valid DOT file, so this should raise a clear error
+        # instead of silently writing a broken one.
+        multi_tree = xgb.train(
+            {"objective": "reg:squarederror"}, Xy, num_boost_round=3
+        )
+        out_path_multi = tmp_path / "multi_tree.dot"
+        with pytest.raises(ValueError, match="only supports writing a single tree"):
+            multi_tree.dump_model(out_path_multi, dump_format="dot")
+        # Nothing should be left behind (or if the file was created by `open()`
+        # before the error, it should at least be empty, not a corrupted dump).
+        if out_path_multi.exists():
+            assert out_path_multi.read_text() == ""
+
     def run_slice(
         self,
         booster: xgb.Booster,
