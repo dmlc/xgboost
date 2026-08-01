@@ -113,10 +113,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
         with:
-          environment-name: win64_test
-          environment-file: ops/conda_env/win64_cpu_test.yml
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: python -m pip install hypothesis pytest
 
       - name: Download Python wheel
         uses: actions/download-artifact@v8.0.1
