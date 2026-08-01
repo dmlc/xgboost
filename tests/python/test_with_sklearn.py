@@ -698,6 +698,47 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
 
 
+def test_split_value_histogram_regex_special_feature_name():
+    # Regression test: a feature name containing regex metacharacters used to
+    # silently break get_split_value_histogram's internal regex, since the
+    # feature name was substituted into the pattern without escaping.
+    from sklearn.datasets import load_digits
+
+    digits_2class = load_digits(n_class=2)
+    X = digits_2class["data"]
+    y = digits_2class["target"]
+
+    # Give the same feature ("f28" in the plain, unescaped test above) a name
+    # containing several regex metacharacters: parentheses, brackets, a plus
+    # sign, and a dot.
+    feature_names = [f"f{i}" for i in range(X.shape[1])]
+    special_name = "f(28)[+.]"
+    feature_names[28] = special_name
+
+    dm_plain = xgb.DMatrix(X, label=y)
+    dm_special = xgb.DMatrix(X, label=y, feature_names=feature_names)
+    params = {
+        "max_depth": 6,
+        "eta": 0.01,
+        "objective": "binary:logistic",
+        "base_score": 0.5,
+    }
+
+    gbdt_plain = xgb.train(params, dm_plain, num_boost_round=10)
+    gbdt_special = xgb.train(params, dm_special, num_boost_round=10)
+
+    expected = gbdt_plain.get_split_value_histogram("f28", as_pandas=False)
+    actual = gbdt_special.get_split_value_histogram(special_name, as_pandas=False)
+
+    # Same underlying data and training params (only the feature name differs),
+    # so the histogram for this feature should come out identical either way.
+    assert actual.shape[0] == expected.shape[0]
+    assert np.array_equal(actual, expected)
+    # And, as a sanity check on the bug itself: the unescaped regex used to
+    # return an empty histogram for this feature name instead.
+    assert actual.shape[0] > 0
+
+
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
     assert clf.get_xgb_params()["random_state"] == 402
