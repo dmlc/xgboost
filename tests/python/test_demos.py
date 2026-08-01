@@ -81,6 +81,13 @@ def test_sklearn_evals_result_demo() -> None:
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_quantile_regression_sklearn_demo() -> None:
+    script = os.path.join(PYTHON_DEMO_DIR, "quantile_regression_sklearn.py")
+    cmd = [PYTHON, script]
+    subprocess.check_call(cmd)
+
+
 def test_boost_from_prediction_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "boost_from_prediction.py")
     cmd = [PYTHON, script]
