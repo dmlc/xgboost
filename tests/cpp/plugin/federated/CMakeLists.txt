@@ -4,7 +4,6 @@ target_sources(
   ${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated/test_federated_comm.cc
   ${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated/test_federated_comm_group.cc
   ${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated/test_federated_tracker.cc
-  ${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated/test_federated_learner.cc
   ${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated/test_federated_data.cc
 )
 

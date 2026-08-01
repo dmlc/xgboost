@@ -152,10 +152,8 @@ def is_pandas_available() -> bool:
 
 try:
     import scipy.sparse as scipy_sparse
-    from scipy.sparse import csr_matrix as scipy_csr
 except ImportError:
     scipy_sparse = False
-    scipy_csr = object
 
 
 def _is_polars_lazyframe(data: DataType) -> bool:

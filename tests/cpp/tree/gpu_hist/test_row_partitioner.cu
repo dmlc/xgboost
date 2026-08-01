@@ -37,9 +37,8 @@ void TestUpdatePositionBatch() {
   dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(kNumRows);
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePositionBatch(
-      &ctx, {0}, {1}, {2}, extra_data, dh::ToSpan(ridx_tmp),
-      [=] __device__(RowPartitioner::RowIndexT ridx, int, int) { return ridx > 4; });
+  rp.UpdatePositionBatch(&ctx, {0}, {1}, {2}, extra_data, dh::ToSpan(ridx_tmp),
+                         [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx > 4; });
   rows = rp.GetRowsHost(1);
   for (auto r : rows) {
     EXPECT_GT(r, 4);
@@ -50,9 +49,8 @@ void TestUpdatePositionBatch() {
   }
 
   // Split the left node again
-  rp.UpdatePositionBatch(
-      &ctx, {1}, {3}, {4}, extra_data, dh::ToSpan(ridx_tmp),
-      [=] __device__(RowPartitioner::RowIndexT ridx, int, int) { return ridx < 7; });
+  rp.UpdatePositionBatch(&ctx, {1}, {3}, {4}, extra_data, dh::ToSpan(ridx_tmp),
+                         [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx < 7; });
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
 }
@@ -65,7 +63,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
   thrust::device_vector<cuda_impl::RowIndexT> counts(segments.size());
 
-  auto op = [=] __device__(auto ridx, int split_index, int data) {
+  auto op = [=] __device__(auto ridx, int data) {
     return ridx % 2 == 0;
   };  // NOLINT
   std::vector<int> op_data(segments.size());
@@ -127,8 +125,7 @@ template <typename Accessor>
 struct LessThanOp {
   Accessor acc;
   explicit LessThanOp(Accessor acc) : acc{acc} {}
-  __device__ bool operator()(bst_idx_t ridx, std::int32_t nidx_in_batch,
-                             RegTree::Node const& node) const {
+  __device__ bool operator()(bst_idx_t ridx, RegTree::Node const& node) const {
     auto fvalue = acc.GetFvalue(ridx, node.SplitIndex());
     return fvalue <= node.SplitCond();
   }
@@ -220,9 +217,7 @@ void TestEmptyNode(std::int32_t n_workers) {
     dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(n_samples);
     partitioner.UpdatePositionBatch(
         &ctx, {0}, {1}, {2}, splits, dh::ToSpan(ridx_tmp),
-        [] XGBOOST_DEVICE(bst_idx_t ridx, std::int32_t /*nidx_in_batch*/, RegTree::Node) {
-          return ridx < 3;
-        });
+        [] XGBOOST_DEVICE(bst_idx_t ridx, RegTree::Node) { return ridx < 3; });
     ASSERT_EQ(partitioner.GetNumNodes(), 3);
     if (collective::GetRank() == 0) {
       for (std::size_t i = 0; i < 3; ++i) {

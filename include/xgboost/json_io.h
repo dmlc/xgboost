@@ -236,8 +236,11 @@ class UBJWriter : public JsonWriter {
   void Visit(I8Array const* arr) override;
   void Visit(U8Array const* arr) override;
   void Visit(I16Array const* arr) override;
+  void Visit(U16Array const* arr) override;
   void Visit(I32Array const* arr) override;
+  void Visit(U32Array const* arr) override;
   void Visit(I64Array const* arr) override;
+  void Visit(U64Array const* arr) override;
   void Visit(JsonObject const* obj) override;
   void Visit(JsonNumber const* num) override;
   void Visit(JsonInteger const* num) override;

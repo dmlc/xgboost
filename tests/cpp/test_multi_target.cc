@@ -2,23 +2,20 @@
  * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                         // for Args, bst_target_t
-#include <xgboost/data.h>                         // for DMatrix, MetaInfo
-#include <xgboost/json.h>                         // for Json, get, Object, String
-#include <xgboost/learner.h>                      // for Learner
+#include <xgboost/base.h>     // for Args, bst_target_t
+#include <xgboost/data.h>     // for DMatrix, MetaInfo
+#include <xgboost/json.h>     // for Json, get, Object, String
+#include <xgboost/learner.h>  // for Learner
 
-#include <algorithm>                              // for copy
-#include <cstddef>                                // for size_t
-#include <memory>                                 // for shared_ptr, allocator, __shared_ptr_access
-#include <numeric>                                // for accumulate
-#include <string>                                 // for stod, string
-#include <vector>                                 // for vector
+#include <algorithm>  // for copy
+#include <cstddef>    // for size_t
+#include <memory>     // for shared_ptr, allocator, __shared_ptr_access
+#include <string>     // for stod, string
+#include <vector>     // for vector
 
-#include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
-#include "../../src/common/stats.h"               // for Median
-#include "helpers.h"                              // for RandomDataGenerator
-#include "xgboost/host_device_vector.h"           // for HostDeviceVector
-#include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
+#include "../../src/common/linalg_op.h"  // for begin, cbegin, cend
+#include "helpers.h"                     // for RandomDataGenerator
+#include "xgboost/linalg.h"              // for Tensor, All, TensorView, Vector
 
 namespace xgboost {
 class TestL1MultiTarget : public ::testing::Test {
@@ -96,9 +93,6 @@ class TestL1MultiTarget : public ::testing::Test {
       sl->SaveConfig(&s_config);
       auto s_base_score = GetBaseScore(s_config);
       ASSERT_EQ(s_base_score.size(), 1);
-      linalg::Vector<float> out;
-      common::Median(sl->Ctx(), t_Xy->Info().labels, t_Xy->Info().weights_, &out);
-      ASSERT_FLOAT_EQ(s_base_score[0], out(0));
       split_scores.push_back(s_base_score[0]);
     }
     ASSERT_EQ(split_scores, base_score);

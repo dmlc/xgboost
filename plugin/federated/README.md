@@ -3,14 +3,22 @@ XGBoost Plugin for Federated Learning
 
 This folder contains the plugin for federated learning.
 
-See [build instruction](../../doc/build.rst) for how to build the plugin.
+Build
+-----
 
+The federated learning plugin requires `grpc` and `protobuf`. To install grpc, refer to the [installation guide from the gRPC website](https://grpc.io/docs/languages/cpp/quickstart/). Alternatively, one can use the `libgrpc` and the `protobuf` package from conda forge if conda is available. After obtaining the required dependencies, enable the flag: `-DPLUGIN_FEDERATED=ON` when running CMake. Please note that only Linux is supported for the federated plugin.
+
+``` shell
+
+cmake -B build -S . -DPLUGIN_FEDERATED=ON -GNinja
+cd build && ninja
+
+```
 
 Test Federated XGBoost
 ----------------------
-```shell
+
+``` shell
 # Under xgboost source tree.
-cd tests/distributed/test_federated
-# This tests both CPU training (`hist`) and GPU training (`gpu_hist`).
-./runtests-federated.sh
+pytest -sv tests/test_distributed/test_federated
 ```

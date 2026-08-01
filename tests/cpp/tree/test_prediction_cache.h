@@ -4,15 +4,16 @@
 #pragma once
 
 #include <gtest/gtest.h>
-
 #include <xgboost/host_device_vector.h>
+#include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
 
 #include <memory>
 
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
-#include "xgboost/task.h"             // for ObjInfo
+#include "../predictor/test_predictor.h"  // for CreatePredictorForTest
+#include "xgboost/task.h"                 // for ObjInfo
 
 namespace xgboost {
 class TestPredictionCache : public ::testing::Test {
@@ -83,7 +84,11 @@ class TestPredictionCache : public ::testing::Test {
       out_prediction_cached.Resize(n_samples_);
       auto cache =
           linalg::MakeTensorView(ctx, &out_prediction_cached, out_prediction_cached.Size(), 1);
-      ASSERT_TRUE(updater->UpdatePredictionCache(Xy_.get(), common::Span{position}, cache));
+      if (position.front().Size() == n_samples_) {
+        std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
+        std::vector<RegTree const*> tree_ptrs{&tree};
+        predictor->PredictFromLeafIds(common::Span{position}, common::Span{tree_ptrs}, cache);
+      }
     }
 
     for (auto policy : {"depthwise", "lossguide"}) {

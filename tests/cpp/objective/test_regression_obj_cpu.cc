@@ -5,7 +5,6 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
-#include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
 #include "test_regression_obj.h"
 
@@ -148,38 +147,4 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   TestAbsoluteError(&ctx);
 }
 
-TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  TestAbsoluteErrorLeaf(&ctx);
-}
-
-TEST(Objective, DeclareUnifiedTest(AbsoluteErrorVectorLeaf)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  bst_idx_t n_samples = 16;
-  std::vector<float> sol_left{21.0f, 23.0f, 25.0f};
-  std::vector<float> sol_right{69.0f, 71.0f, 73.0f};
-  TestVectorLeafObj(&ctx, "reg:absoluteerror", Args{}, n_samples, 3u, sol_left, sol_right);
-}
-
-TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
-  std::vector<bst_node_t> missing{1, 3};
-
-  std::vector<bst_node_t> h_nidx = {2, 4, 5};
-  std::vector<size_t> h_nptr = {0, 4, 8, 16};
-
-  obj::detail::FillMissingLeaf(missing, &h_nidx, &h_nptr);
-
-  ASSERT_EQ(h_nidx[0], missing[0]);
-  ASSERT_EQ(h_nidx[2], missing[1]);
-  ASSERT_EQ(h_nidx[1], 2);
-  ASSERT_EQ(h_nidx[3], 4);
-  ASSERT_EQ(h_nidx[4], 5);
-
-  ASSERT_EQ(h_nptr[0], 0);
-  ASSERT_EQ(h_nptr[1], 0);  // empty
-  ASSERT_EQ(h_nptr[2], 4);
-  ASSERT_EQ(h_nptr[3], 4);  // empty
-  ASSERT_EQ(h_nptr[4], 8);
-  ASSERT_EQ(h_nptr[5], 16);
-}
 }  // namespace xgboost

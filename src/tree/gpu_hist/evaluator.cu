@@ -18,9 +18,9 @@
 namespace xgboost::tree {
 void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cuts,
                              common::Span<FeatureType const> ft, bst_feature_t n_features,
-                             TrainParam const &param, bool is_column_split) {
+                             TrainParam const &param) {
   param_ = param;
-  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device()};
+  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), 1u};
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
@@ -63,14 +63,12 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
                         return fidx;
                       });
   }
-  is_column_split_ = is_column_split;
   device_ = ctx->Device();
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitSharedInputs shared_inputs,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
+    EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<EvalParam> evaluator) {
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());

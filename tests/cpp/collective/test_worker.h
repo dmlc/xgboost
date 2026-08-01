@@ -207,35 +207,4 @@ inline void GetWorkerLocalThreads(std::int32_t n_workers, Context* ctx) {
   ctx->UpdateAllowUnknown(
       Args{{"nthread", std::to_string(n_threads)}, {"device", ctx->DeviceName()}});
 }
-
-class BaseMGPUTest : public ::testing::Test {
- public:
-  /**
-   * @param emulate_if_single Emulate multi-GPU for federated test if there's only one GPU
-   *                          available.
-   */
-  template <typename Fn>
-  auto DoTest([[maybe_unused]] Fn&& fn, bool is_federated,
-              [[maybe_unused]] bool emulate_if_single = false) const {
-    auto n_gpus = curt::AllVisibleGPUs();
-    if (is_federated) {
-#if defined(XGBOOST_USE_FEDERATED)
-      if (n_gpus == 1 && emulate_if_single) {
-        // Emulate multiple GPUs.
-        // We don't use nccl and can have multiple communicators running on the same device.
-        n_gpus = 3;
-      }
-      TestFederatedGlobal(n_gpus, fn);
-#else
-      GTEST_SKIP_("Not compiled with federated learning.");
-#endif  // defined(XGBOOST_USE_FEDERATED)
-    } else {
-#if defined(XGBOOST_USE_NCCL)
-      TestDistributedGlobal(n_gpus, fn);
-#else
-      GTEST_SKIP_("Not compiled with NCCL.");
-#endif  // defined(XGBOOST_USE_NCCL)
-    }
-  }
-};
 }  // namespace xgboost::collective

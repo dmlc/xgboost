@@ -11,19 +11,11 @@ else
   cmake_args=''
 fi
 
-if [[ "${USE_FEDERATED:-0}" == 1 ]]
-then
-  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=ON"
-else
-  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
-fi
-
+cmake_prefix_path=''
 if [[ "${USE_RMM:-0}" == 1 ]]
 then
-  cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
+  cmake_prefix_path='/opt/rmm;/opt/rmm/lib64/rapids/cmake'
   cmake_args="${cmake_args} -DPLUGIN_RMM=ON"
-else
-  cmake_prefix_path='/opt/grpc'
 fi
 
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
@@ -52,7 +44,6 @@ time ninja -v
 popd
 
 echo "--- Build binary wheel"
-python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 pushd python-package
 rm -rfv dist/*
 pip wheel --no-deps -v . --wheel-dir dist/

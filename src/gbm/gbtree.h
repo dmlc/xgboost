@@ -181,13 +181,6 @@ class GBTree : public GradientBooster {
 
   void Configure(Args const& cfg) override;
   /**
-   * @brief Optionally update the leaf value.
-   */
-  void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, std::int32_t group_idx,
-                      std::vector<HostDeviceVector<bst_node_t>> const& node_position,
-                      std::vector<std::unique_ptr<RegTree>>* p_trees);
-  /**
    * @brief Carry out one iteration of boosting.
    */
   void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
@@ -238,7 +231,7 @@ class GBTree : public GradientBooster {
     auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
       for (auto idx : trees) {
-        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        CHECK_LT(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
         tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
           if (!tree.IsLeaf(nidx)) {
@@ -339,7 +332,7 @@ class GBTree : public GradientBooster {
 
  protected:
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
-  std::size_t NormalizeTrees(std::size_t size_new_trees);
+  [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,

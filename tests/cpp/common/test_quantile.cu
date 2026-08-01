@@ -2,11 +2,12 @@
  * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/fill.h>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
-#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../collective/test_worker.h"  // for TestDistributedGlobal, TestFederatedGlobal
 #include "../helpers.h"
 #include "test_quantile.h"
 
@@ -111,11 +112,80 @@ auto CopySketchToHost(xgboost::common::Span<common::SketchEntry const> data,
   auto limit = common::WQSketch::LimitSizeLevel(num_rows, eps);
   return std::min(limit, num_rows);
 }
+
+void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = false) {
+  ASSERT_FALSE(sketch.columns_ptr.empty());
+  ASSERT_EQ(sketch.columns_ptr.front(), 0);
+  ASSERT_TRUE(std::is_sorted(sketch.columns_ptr.begin(), sketch.columns_ptr.end()));
+  ASSERT_EQ(static_cast<std::size_t>(sketch.columns_ptr.back()), sketch.data.size());
+  for (size_t i = 1; i < sketch.columns_ptr.size(); ++i) {
+    auto column_id = i - 1;
+    auto beg = sketch.columns_ptr[column_id];
+    auto end = sketch.columns_ptr[i];
+
+    auto column = common::Span<common::SketchEntry const>{sketch.data}.subspan(beg, end - beg);
+    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                   [](common::SketchEntry const& l, common::SketchEntry const& r) {
+                                     return l.value == r.value;
+                                   }) == column.end());
+    for (size_t idx = 1; idx < column.size(); ++idx) {
+      float prev_rmin = column[idx - 1].rmin;
+      float prev_rmax = column[idx - 1].rmax;
+      float rmin_next = column[idx].RMinNext();
+      if (with_error) {
+        ASSERT_GE(column[idx].rmin + column[idx].rmin * kRtEps, prev_rmin);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, prev_rmax);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, rmin_next);
+      } else {
+        ASSERT_GE(column[idx].rmin, prev_rmin);
+        ASSERT_GE(column[idx].rmax, prev_rmax);
+        ASSERT_GE(column[idx].rmax, rmin_next);
+      }
+    }
+  }
+}
+
+void AssertSameSketchOnAllWorkers(HostSketchView const& sketch) {
+  constexpr std::int32_t kRoot = 0;
+  Context cpu_ctx;
+
+  auto ptrs = sketch.columns_ptr;
+  auto ptr_size = static_cast<std::int64_t>(ptrs.size());
+  auto rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&ptr_size, 1), kRoot);
+  SafeColl(rc);
+  if (collective::GetRank() != kRoot) {
+    ptrs.resize(ptr_size);
+  }
+  if (ptr_size != 0) {
+    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(ptrs.data(), ptrs.size()), kRoot);
+    SafeColl(rc);
+  }
+  ASSERT_EQ(sketch.columns_ptr, ptrs);
+
+  auto data = sketch.data;
+  auto data_size = static_cast<std::int64_t>(data.size());
+  rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&data_size, 1), kRoot);
+  SafeColl(rc);
+  if (collective::GetRank() != kRoot) {
+    data.resize(data_size);
+  }
+  if (data_size != 0) {
+    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(data.data(), data.size()), kRoot);
+    SafeColl(rc);
+  }
+
+  ASSERT_EQ(sketch.data.size(), data.size());
+  for (size_t i = 0; i < sketch.data.size(); ++i) {
+    ASSERT_FLOAT_EQ(sketch.data[i].value, data[i].value);
+    ASSERT_FLOAT_EQ(sketch.data[i].rmin, data[i].rmin);
+    ASSERT_FLOAT_EQ(sketch.data[i].rmax, data[i].rmax);
+    ASSERT_FLOAT_EQ(sketch.data[i].wmin, data[i].wmin);
+  }
+}
 }  // namespace
 
 namespace common {
-class MGPUQuantileTest : public collective::BaseMGPUTest {};
-
 namespace {
 void DoGPUContainerProperty(quantile_test::ContainerCase const& c) {
   auto ctx = MakeCUDACtx(0);
@@ -157,7 +227,6 @@ void DoMGPURowSplitProperty(quantile_test::ContainerCase const& c) {
   std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
   auto m =
       std::shared_ptr<DMatrix>{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
-  m->Info().data_split_mode = DataSplitMode::kRow;
 
   auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
   collective::Finalize();
@@ -167,35 +236,7 @@ void DoMGPURowSplitProperty(quantile_test::ContainerCase const& c) {
   quantile_test::ValidateContainerCuts(c, cuts, full_m.get(), columns);
 }
 
-void DoMGPUColumnSplitProperty(quantile_test::ContainerCase const& c) {
-  auto const world = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  auto ctx = MakeCUDACtx(GPUIDX);
-  auto ft = quantile_test::FeatureTypes(c);
-  auto full_m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
-                    .Seed(c.seed)
-                    .Lower(.0f)
-                    .Upper(1.0f)
-                    .Type(ft)
-                    .MaxCategory(13)
-                    .GenerateDMatrix();
-  if (c.weights == quantile_test::WeightKind::kRow) {
-    full_m->Info().weights_.HostVector() = quantile_test::GenerateWeights(c.rows, c.seed + 2048);
-  }
-  auto m = std::shared_ptr<DMatrix>{full_m->SliceCol(world, rank)};
-
-  auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
-  auto const slice_size = c.cols / world;
-  auto const slice_start = slice_size * rank;
-  auto const slice_end = (rank == world - 1) ? c.cols : slice_start + slice_size;
-
-  collective::Finalize();
-  CHECK_EQ(collective::GetWorldSize(), 1);
-
-  auto columns = quantile_test::CollectWeightedColumns(full_m.get());
-  quantile_test::ValidateContainerCuts(c, cuts, full_m.get(), columns, slice_start, slice_end);
-}
-}  // namespace
+}  // anonymous namespace
 
 TEST(GPUQuantileProperty, Invariants) {
   for (auto const& c : quantile_test::ContainerAnchorCases()) {
@@ -204,19 +245,26 @@ TEST(GPUQuantileProperty, Invariants) {
   }
 }
 
-TEST_F(MGPUQuantileTest, RowSplitProperty) {
+TEST(GPUQuantileProperty, RowSplit) {
+#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+  auto n_gpus = curt::AllVisibleGPUs();
+#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
   for (auto const& c : quantile_test::ContainerAnchorCases()) {
-    SCOPED_TRACE(c.name);
-    this->DoTest([&] { DoMGPURowSplitProperty(c); }, true);
-    this->DoTest([&] { DoMGPURowSplitProperty(c); }, false);
-  }
-}
-
-TEST_F(MGPUQuantileTest, ColumnSplitProperty) {
-  for (auto const& c : quantile_test::ContainerAnchorCases()) {
-    SCOPED_TRACE(c.name);
-    this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, true);
-    this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, false);
+#if defined(XGBOOST_USE_FEDERATED)
+    collective::TestFederatedGlobal(n_gpus, [&] {
+      SCOPED_TRACE(c.name);
+      DoMGPURowSplitProperty(c);
+    });
+#endif  // defined(XGBOOST_USE_FEDERATED)
+#if defined(XGBOOST_USE_NCCL)
+    collective::TestDistributedGlobal(
+        n_gpus,
+        [&] {
+          SCOPED_TRACE(c.name);
+          DoMGPURowSplitProperty(c);
+        },
+        false);
+#endif  // defined(XGBOOST_USE_NCCL)
   }
 }
 
@@ -231,39 +279,6 @@ TEST(GPUQuantile, EmptyPush) {
   // Push empty
   sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
-}
-
-void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = false) {
-  ASSERT_FALSE(sketch.columns_ptr.empty());
-  ASSERT_EQ(sketch.columns_ptr.front(), 0);
-  ASSERT_TRUE(std::is_sorted(sketch.columns_ptr.begin(), sketch.columns_ptr.end()));
-  ASSERT_EQ(static_cast<std::size_t>(sketch.columns_ptr.back()), sketch.data.size());
-  for (size_t i = 1; i < sketch.columns_ptr.size(); ++i) {
-    auto column_id = i - 1;
-    auto beg = sketch.columns_ptr[column_id];
-    auto end = sketch.columns_ptr[i];
-
-    auto column = Span<SketchEntry const>{sketch.data}.subspan(beg, end - beg);
-    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
-    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                   [](SketchEntry const& l, SketchEntry const& r) {
-                                     return l.value == r.value;
-                                   }) == column.end());
-    for (size_t idx = 1; idx < column.size(); ++idx) {
-      float prev_rmin = column[idx - 1].rmin;
-      float prev_rmax = column[idx - 1].rmax;
-      float rmin_next = column[idx].RMinNext();
-      if (with_error) {
-        ASSERT_GE(column[idx].rmin + column[idx].rmin * kRtEps, prev_rmin);
-        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, prev_rmax);
-        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, rmin_next);
-      } else {
-        ASSERT_GE(column[idx].rmin, prev_rmin);
-        ASSERT_GE(column[idx].rmax, prev_rmax);
-        ASSERT_GE(column[idx].rmax, rmin_next);
-      }
-    }
-  }
 }
 
 TEST(GPUQuantile, Prune) {
@@ -461,44 +476,6 @@ TEST(GPUQuantile, MergeMatchesCpuCombine) {
 }
 
 namespace {
-void AssertSameSketchOnAllWorkers(HostSketchView const& sketch) {
-  constexpr std::int32_t kRoot = 0;
-  Context cpu_ctx;
-
-  auto ptrs = sketch.columns_ptr;
-  auto ptr_size = static_cast<std::int64_t>(ptrs.size());
-  auto rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&ptr_size, 1), kRoot);
-  SafeColl(rc);
-  if (collective::GetRank() != kRoot) {
-    ptrs.resize(ptr_size);
-  }
-  if (ptr_size != 0) {
-    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(ptrs.data(), ptrs.size()), kRoot);
-    SafeColl(rc);
-  }
-  ASSERT_EQ(sketch.columns_ptr, ptrs);
-
-  auto data = sketch.data;
-  auto data_size = static_cast<std::int64_t>(data.size());
-  rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&data_size, 1), kRoot);
-  SafeColl(rc);
-  if (collective::GetRank() != kRoot) {
-    data.resize(data_size);
-  }
-  if (data_size != 0) {
-    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(data.data(), data.size()), kRoot);
-    SafeColl(rc);
-  }
-
-  ASSERT_EQ(sketch.data.size(), data.size());
-  for (size_t i = 0; i < sketch.data.size(); ++i) {
-    ASSERT_FLOAT_EQ(sketch.data[i].value, data[i].value);
-    ASSERT_FLOAT_EQ(sketch.data[i].rmin, data[i].rmin);
-    ASSERT_FLOAT_EQ(sketch.data[i].rmax, data[i].rmax);
-    ASSERT_FLOAT_EQ(sketch.data[i].wmin, data[i].wmin);
-  }
-}
-
 void TestSameOnAllWorkers() {
   constexpr size_t kRows = 1000, kCols = 100;
   for (auto n_bins : {bst_bin_t{2}, bst_bin_t{16}, static_cast<bst_bin_t>(kRows + 160)}) {
@@ -511,7 +488,7 @@ void TestSameOnAllWorkers() {
       auto batch = MakeSyntheticBatch(kRows, kCols, rank + 29, weighted, false, rank);
       sketch_distributed.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr),
                               batch.rows, dh::ToSpan(batch.weights_scan));
-      sketch_distributed.AllReduce(&ctx, false);
+      sketch_distributed.AllReduce(&ctx);
       auto h_sketch = CopySketchToHost(sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
       ValidateSketchInvariants(h_sketch, true);
       AssertSameSketchOnAllWorkers(h_sketch);
@@ -520,9 +497,16 @@ void TestSameOnAllWorkers() {
 }
 }  // anonymous namespace
 
-TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
-  this->DoTest([] { TestSameOnAllWorkers(); }, true);
-  this->DoTest([] { TestSameOnAllWorkers(); }, false);
+TEST(GPUQuantile, SameOnAllWorkers) {
+#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+  auto n_gpus = curt::AllVisibleGPUs();
+#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
+#endif  // defined(XGBOOST_USE_FEDERATED)
+#if defined(XGBOOST_USE_NCCL)
+  collective::TestDistributedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
+#endif  // defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, Push) {

@@ -552,8 +552,6 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
                               HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
                               bst_tree_t tree_end, std::vector<float> const *tree_weights,
                               std::size_t quadrature_points) {
-  CHECK(!p_fmat->Info().IsColumnSplit())
-      << "Predict contribution support for column-wise data split is not yet implemented.";
   CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
       << "CPU QuadratureTreeSHAP currently uses a fixed quadrature size of "
       << kQuadratureTreeShapPoints << ".";
@@ -631,8 +629,6 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                          gbm::GBTreeModel const &model, bst_tree_t tree_end,
                                          std::vector<float> const *tree_weights,
                                          std::size_t quadrature_points) {
-  CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
-                                            "column-wise data split is not yet implemented.";
   CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
       << "CPU QuadratureTreeSHAP currently uses a fixed quadrature size of "
       << kQuadratureTreeShapPoints << ".";
@@ -739,8 +735,6 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
                              bst_tree_t tree_end, std::vector<float> const *tree_weights) {
-  CHECK(!p_fmat->Info().IsColumnSplit())
-      << "Predict contribution support for column-wise data split is not yet implemented.";
   MetaInfo const &info = p_fmat->Info();
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   CHECK_GE(tree_end, 0);
@@ -825,8 +819,6 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   }
   CHECK(!model.learner_model_param->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();
-  CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
-                                            "column-wise data split is not yet implemented.";
   MetaInfo const &info = p_fmat->Info();
   auto const ngroup = model.learner_model_param->num_output_group;
   auto const ncolumns = model.learner_model_param->num_feature;
