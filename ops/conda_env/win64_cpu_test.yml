@@ -15,7 +15,5 @@ dependencies:
 - pip
 - loky>=3.5.1
 - pyarrow
-# CUDA
-- cupy
 - pip:
   - py-ubjson

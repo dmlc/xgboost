@@ -16,7 +16,7 @@ Stable Release
 Python
 ------
 
-Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon). In addition the ``xgboost-cpu`` windows package supports aarch64.
+Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
@@ -44,7 +44,7 @@ Capabilities of binary wheels for each platform:
 +=====================+=========+======================+
 | Linux x86_64        | |tick|  |  |tick|              |
 +---------------------+---------+----------------------+
-| Linux aarch64       | |tick|  |  |cross|             |
+| Linux aarch64       | |tick|  |  |tick|              |
 +---------------------+---------+----------------------+
 | MacOS x86_64        | |cross| |  |cross|             |
 +---------------------+---------+----------------------+

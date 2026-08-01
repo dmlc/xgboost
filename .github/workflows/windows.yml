@@ -62,7 +62,7 @@ jobs:
       - run: ops/pipeline/build-win64.ps1 -variant cpu
       - run: sccache --show-stats
 
-  test-win64-gpu:
+  test-win64-cuda:
     name: Test XGBoost on Windows
     needs: build-win64-gpu
     runs-on:
