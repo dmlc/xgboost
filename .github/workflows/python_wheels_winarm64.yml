@@ -1,4 +1,4 @@
-name: Build Python wheels targeting Windows ARM64
+name: Windows aarch64
 
 on:
   push:
