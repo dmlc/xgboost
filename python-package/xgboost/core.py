@@ -2924,8 +2924,8 @@ class Booster:
         with_stats: bool = False,
         dump_format: str = "text",
     ) -> None:
-        """Dump model into a text or JSON file.  Unlike :py:meth:`save_model`, the
-        output format is primarily used for visualization or interpretation,
+        """Dump model into a text, JSON, or dot file.  Unlike :py:meth:`save_model`,
+        the output format is primarily used for visualization or interpretation,
         hence it's more human readable but cannot be loaded back to XGBoost.
 
         Parameters
@@ -2937,7 +2937,12 @@ class Booster:
         with_stats :
             Controls whether the split statistics are output.
         dump_format :
-            Format of model dump file. Can be 'text' or 'json'.
+            Format of model dump file. Can be 'text', 'json', or 'dot'.
+
+            .. versionadded:: 3.4.0
+
+                Added support for ``'dot'``.
+
         """
         if isinstance(fout, (str, os.PathLike)):
             fout = os.fspath(os.path.expanduser(fout))
@@ -2955,6 +2960,25 @@ class Booster:
                 if i < len(ret) - 1:
                     fout_obj.write(",\n")
             fout_obj.write("\n]")
+        elif dump_format == "dot":
+            # Each tree's dump is already a complete, self-contained `digraph {...}`
+            # block (see `to_graphviz`/`plot_tree` for the single-tree case). Unlike
+            # `text`/`json`, these can't be concatenated into one valid multi-tree
+            # DOT file with a "booster[i]:" style header, since that isn't valid DOT
+            # syntax and would corrupt the output. Support the common single-tree
+            # case directly; for multiple trees, point the user at the per-tree API
+            # instead of silently writing a broken file.
+            if len(ret) != 1:
+                if need_close:
+                    fout_obj.close()
+                raise ValueError(
+                    "`dump_format='dot'` only supports writing a single tree at a "
+                    f"time, but this booster has {len(ret)} trees. Use "
+                    "`Booster.get_dump(dump_format='dot')` to get the dump for each "
+                    "tree individually, or `xgboost.to_graphviz`/`xgboost.plot_tree` "
+                    "with `tree_idx` to select one tree, instead of `dump_model`."
+                )
+            fout_obj.write(ret[0])
         else:
             for i, val in enumerate(ret):
                 fout_obj.write(f"booster[{i}]:\n")
