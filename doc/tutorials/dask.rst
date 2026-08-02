@@ -634,7 +634,7 @@ Troubleshooting
     pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
 
   The default conda installation of XGBoost should not encounter this error. If you are
-  using a customized XGBoost, please make sure one of the followings is true:
+  using a customized XGBoost, please make sure one of the following is true:
 
   + XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
   + The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
