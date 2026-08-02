@@ -133,6 +133,14 @@ def run_normalization(device: str) -> None:
     )
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e1 = ltr.evals_result()
+    # For the (default) top-k pair method, normalization scales gradients by
+    # log2(1 + sum_lambda) / sum_lambda, which is strictly less than 1 whenever
+    # sum_lambda > 0 (see src/objective/lambdarank_obj.cc). Unlike the `mean`
+    # pair method with a single pair per sample (checked below, where
+    # normalization is a no-op and the two results are expected to match), this
+    # does change the effective gradient scale, so the two training runs are
+    # expected to diverge.
+    assert e1["validation_0"]["ndcg"][-1] != e0["validation_0"]["ndcg"][-1]
 
     # mean
     ltr = xgb.XGBRanker(
