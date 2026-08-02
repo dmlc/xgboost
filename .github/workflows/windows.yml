@@ -70,6 +70,8 @@ jobs:
       - runner=windows-gpu
       - tag=windows-test-win64-gpu
     steps:
+      - name: Display NVIDIA GPU information
+        run: nvidia-smi.exe
       - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
