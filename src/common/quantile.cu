@@ -487,7 +487,7 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
       ctx->CUDACtx()->CTP(), d_columns_ptr_out.data(),
       d_columns_ptr_out.data() + d_columns_ptr_out.size(), d_selected_idx.data(),
       d_selected_idx.data() + d_selected_idx.size(), selected_columns_ptr.DeviceSpan().data(),
-      d_selected_idx.data(), thrust::equal_to<size_t>{});
+      d_selected_idx.data(), cuda::std::equal_to<size_t>{});
   GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
                      stream);
   entries.swap(scratch);
