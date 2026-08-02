@@ -67,7 +67,7 @@ stack of trees:
     clf = xgb.XGBClassifier(tree_method="hist", callbacks=[early_stop])
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
 
-At present, XGBoost doesn't implement data spliting logic within the estimator and relies
+At present, XGBoost doesn't implement data splitting logic within the estimator and relies
 on the ``eval_set`` parameter of the :py:meth:`xgboost.XGBModel.fit` method. If you want
 to use early stopping to prevent overfitting, you'll need to manually split your data into
 training and testing sets using the :py:func:`sklearn.model_selection.train_test_split`

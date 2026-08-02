@@ -291,7 +291,7 @@ Self-Hosted Runners with RunsOn
 self-hosted runners to use with GitHub Actions pipelines. RunsOn uses
 `Amazon Web Services (AWS) <https://aws.amazon.com/>`_ under the hood to provision runners with
 access to various amount of CPUs, memory, and NVIDIA GPUs. Thanks to this app, we are able to test
-GPU-accelerated and distributed algorithms of XGBoost while using the familar interface of
+GPU-accelerated and distributed algorithms of XGBoost while using the familiar interface of
 GitHub Actions.
 
 In GitHub Actions, jobs run on Microsoft-hosted runners by default.

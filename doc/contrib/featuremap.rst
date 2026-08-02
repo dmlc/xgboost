@@ -27,7 +27,7 @@ There's working-in-progress support for vector leaves, which are decision tree l
 ----------
 Inference
 ----------
-By inference, we specifically mean getting model prediction for the response variable. XGBoost supports two inference methods. The first one is the prediction on the ``DMatrix`` object (or ``QuantileDMatrix``, which is a subclass). Using a ``DMatrix`` object allows XGBoost to cache the prediction, hence getting faster performance when running prediction on the same data with new trees. The second method is ``inplace_predict``, which bypasses the construction of ``DMatrix``. It's more efficient but doesn't support cached prediction. In addtion to returning the estimated response, we also support returning the leaf index, which can be used to analyse the model and as a feature to another model.
+By inference, we specifically mean getting model prediction for the response variable. XGBoost supports two inference methods. The first one is the prediction on the ``DMatrix`` object (or ``QuantileDMatrix``, which is a subclass). Using a ``DMatrix`` object allows XGBoost to cache the prediction, hence getting faster performance when running prediction on the same data with new trees. The second method is ``inplace_predict``, which bypasses the construction of ``DMatrix``. It's more efficient but doesn't support cached prediction. In addition to returning the estimated response, we also support returning the leaf index, which can be used to analyse the model and as a feature to another model.
 
 ----------
 Model IO
