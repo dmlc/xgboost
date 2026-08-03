@@ -44,10 +44,13 @@ Breaking Changes and Deprecations
 Build and Platform
 ******************
 
-- The default ``xgboost`` binaries for the Python and JVM packages are now built with
-  CUDA 13.3 on Linux and Windows. Python users who need CUDA 12.9 can install
-  ``xgboost-cu12`` from PyPI or build from source. (:pr:`12384`, :pr:`12394`)
-- Both the ``xgboost`` and ``xgboost-cpu`` packages support Windows on AArch64. (:pr:`12394`)
+- The default `xgboost <https://pypi.org/project/xgboost/>`__ binaries for the Python and
+  JVM packages are now built with CUDA 13.3 on Linux and Windows. Python users who need CUDA
+  12.9 can install `xgboost-cu12 <https://pypi.org/project/xgboost-cu12/>`__ from PyPI or
+  build from source. (:pr:`12384`, :pr:`12394`)
+- Both the `xgboost <https://pypi.org/project/xgboost/>`__ and `xgboost-cpu
+  <https://pypi.org/project/xgboost-cpu/>`__ packages support Windows on
+  AArch64. (:pr:`12394`)
 
 *************
 Optimizations
@@ -67,8 +70,6 @@ corresponding package sections.
 
 - Fix an issue where ``min_child_weight`` could produce an empty root node. Also, this
   release fixes its interaction with ``max_delta_step``. (:pr:`12322`, :pr:`12296`)
-- Fix ``collective.allreduce`` always returning a flattened one-dimensional array.
-  (:pr:`12377`)
 - Preserve tiny positive Hessians during GPU quantization. (:pr:`12266`)
 - Fix compatibility with RMM 26.08. (:pr:`12316`, :pr:`12269`)
 - Fix learning-to-rank pair sampling when continuing training. (:pr:`12332`)
@@ -82,13 +83,15 @@ Python Package
 
 - Migrate Python package builds to scikit-build-core and include license files in both
   installed packages and wheel metadata. (:pr:`12219`, :pr:`12349`, :pr:`12280`)
-- ``trees_to_dataframe`` now uses pandas ``NA`` for unavailable vector-leaf values instead
-  of a mix of ``np.nan`` and ``None``. (:pr:`12293`)
+- :py:meth:`~xgboost.Booster.trees_to_dataframe` now uses pandas ``NA`` for unavailable
+  vector-leaf values instead of a mix of ``np.nan`` and ``None``. (:pr:`12293`)
 - Correct scikit-learn input tags and raise ``ValueError`` when ``qid`` is omitted from
-  ``XGBRanker.score``. (:pr:`12383`, :pr:`12335`)
-- Pass Graphviz keyword arguments through ``to_graphviz``. (:pr:`12359`)
+  :py:meth:`~xgboost.XGBRanker.score`. (:pr:`12383`, :pr:`12335`)
+- Pass Graphviz keyword arguments through :py:func:`~xgboost.plotting.to_graphviz`. (:pr:`12359`)
 - Fix shape reporting for empty array-interface results and SciPy CSC input handling.
   (:pr:`12381`, :pr:`12378`)
+- Fix :py:func:`~xgboost.collective.allreduce` always returning a flattened
+  one-dimensional array.  (:pr:`12377`)
 - Code cleanup. (:pr:`12331`)
 
 *********
