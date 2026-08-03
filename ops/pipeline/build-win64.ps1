@@ -29,8 +29,7 @@ $cmake_args = @(
   "-G", "Ninja",
   "-DCMAKE_BUILD_TYPE=Release",
   "-DCMAKE_C_COMPILER_LAUNCHER=sccache",
-  "-DCMAKE_CXX_COMPILER_LAUNCHER=sccache",
-  "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
+  "-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
 )
 
 if ($variant -eq "gpu") {
