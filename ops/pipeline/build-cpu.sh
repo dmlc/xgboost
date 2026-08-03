@@ -64,7 +64,8 @@ case "${suite}" in
     ;;
   i386)
     echo "--- Build and test XGBoost for i386 (32-bit)"
-    export CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move -Wno-narrowing'
+    # GCC 16 emits a false-positive stringop-overflow warning for dmlc::optional on i386.
+    export CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move -Wno-error=stringop-overflow -Wno-narrowing'
     cmake .. \
       -GNinja \
       -DGOOGLE_TEST=ON \
