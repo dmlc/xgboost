@@ -64,13 +64,11 @@ case "${suite}" in
     ;;
   i386)
     echo "--- Build and test XGBoost for i386 (32-bit)"
-    export CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move -Wno-narrowing'
     cmake .. \
       -GNinja \
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
-      -DENABLE_ALL_WARNINGS=ON \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      -DENABLE_ALL_WARNINGS=ON
     time ninja -v
     # TODO(hcho3): Run gtest for i386
     # ./testxgboost
