@@ -38,7 +38,6 @@
 #include "xgboost/json.h"                           // for Json, Object, get, String, IsA, opera...
 #include "xgboost/linalg.h"                         // for Tensor, TensorView
 #include "xgboost/logging.h"                        // for ConsoleLogger
-#include "xgboost/predictor.h"                      // for PredictionCacheEntry
 #include "xgboost/string_view.h"                    // for StringView
 
 namespace xgboost {
@@ -280,10 +279,10 @@ TEST(Learner, MultiThreadedPredict) {
   for (decltype(n_threads) thread_id = 0; thread_id < n_threads; ++thread_id) {
     threads.emplace_back([learner, p_data] {
       size_t constexpr kIters = 10;
-      auto& entry = learner->GetThreadLocal().prediction_entry;
+      auto& out_predictions = learner->GetThreadLocal().predictions;
       HostDeviceVector<float> predictions;
       for (size_t iter = 0; iter < kIters; ++iter) {
-        learner->Predict(p_data, false, &entry.predictions, 0, 0);
+        learner->Predict(p_data, false, &out_predictions, 0, 0);
 
         learner->Predict(p_data, false, &predictions, 0, 0, false, true);         // leaf
         learner->Predict(p_data, false, &predictions, 0, 0, false, false, true);  // contribs

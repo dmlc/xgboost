@@ -45,7 +45,6 @@
 #include "xgboost/json.h"                // for Json, get, Integer, IsA, Boolean, String
 #include "xgboost/learner.h"             // for Learner, PredictionType
 #include "xgboost/logging.h"             // for LOG_FATAL, LogMessageFatal, CHECK, LogCheck_EQ
-#include "xgboost/predictor.h"           // for PredictionCacheEntry
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView, operator<<
 #include "xgboost/version_config.h"      // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
@@ -1273,18 +1272,18 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
-  auto &entry = learner->GetThreadLocal().prediction_entry;
+  auto &predictions = learner->GetThreadLocal().predictions;
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat), (option_mask & 1) != 0,
-                   &entry.predictions, 0, iteration_end, static_cast<bool>(training),
+                   &predictions, 0, iteration_end, static_cast<bool>(training),
                    (option_mask & 2) != 0, (option_mask & 4) != 0, (option_mask & 8) != 0,
                    (option_mask & 16) != 0, false);
 
   xgboost_CHECK_C_ARG_PTR(len);
   xgboost_CHECK_C_ARG_PTR(out_result);
 
-  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
-  *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
+  *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
+  *len = static_cast<xgboost::bst_ulong>(predictions.Size());
   API_END();
 }
 
@@ -1303,7 +1302,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   auto config = Json::Load(StringView{c_json_config});
 
   auto *learner = static_cast<Learner *>(handle);
-  auto &entry = learner->GetThreadLocal().prediction_entry;
+  auto &predictions = learner->GetThreadLocal().predictions;
   auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
 
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
@@ -1328,15 +1327,15 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
       type == PredictionType::kInteraction || type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions, iteration_begin,
+  learner->Predict(p_m, type == PredictionType::kMargin, &predictions, iteration_begin,
                    iteration_end, training, type == PredictionType::kLeaf, contribs, approximate,
                    interactions, strict_shape);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
-  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
+  *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
+  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : predictions.Size() / p_m->Info().num_row_;
   auto n_rounds = iteration_end - iteration_begin;
   n_rounds = n_rounds == 0 ? learner->BoostedRounds() : n_rounds;
 

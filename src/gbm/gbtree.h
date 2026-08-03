@@ -22,6 +22,7 @@
 #include "../tree/tree_view.h"  // for WalkTree
 #include "gbtree_model.h"
 #include "xgboost/base.h"
+#include "xgboost/cache.h"
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"
 #include "xgboost/host_device_vector.h"
@@ -172,6 +173,36 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
 }  // namespace detail
 
 // gradient boosted trees
+/**
+ * \brief Cached predictions owned by GBTree.
+ */
+struct PredictionCacheEntry {
+  HostDeviceVector<float> predictions;
+  std::uint32_t version{0};
+
+  PredictionCacheEntry() = default;
+
+  void Update(std::uint32_t v) { version += v; }
+  void Reset() { version = 0; }
+};
+
+/**
+ * \brief A container for GBTree prediction caches.
+ */
+class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
+  std::size_t static constexpr DefaultSize() { return 64; }
+
+ public:
+  PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
+  std::shared_ptr<PredictionCacheEntry> Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
+    auto p_cache = this->CacheItem(m);
+    if (!device.IsCPU()) {
+      p_cache->predictions.SetDevice(device);
+    }
+    return p_cache;
+  }
+};
+
 class GBTree : public GradientBooster {
  public:
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
@@ -183,7 +214,7 @@ class GBTree : public GradientBooster {
   /**
    * @brief Carry out one iteration of boosting.
    */
-  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
+  void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                ObjFunction const* obj) override;
 
   [[nodiscard]] GBTreeTrainParam const& GetTrainParam() const { return tparam_; }
@@ -203,15 +234,18 @@ class GBTree : public GradientBooster {
     return !model_.trees.empty() || !model_.trees_to_update.empty();
   }
 
-  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                        bst_layer_t layer_begin, bst_layer_t layer_end,
-                        std::vector<float> const* tree_weights_override = nullptr) const;
+  // Test-only accessor. The cache entry is thread-local and must have been initialized by
+  // PredictBatch or DoBoost on this thread.
+  [[nodiscard]] PredictionCacheEntry const& PredictionCache(DMatrix const* p_fmat) const {
+    return *prediction_cache_.Entry(p_fmat);
+  }
 
-  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
-                    bst_layer_t layer_begin, bst_layer_t layer_end) override;
+  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
+                    bool training, bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
-  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
-                      bst_layer_t layer_begin, bst_layer_t layer_end) const override;
+  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
+                      HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
+                      bst_layer_t layer_end) const override;
 
   void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
                     std::vector<bst_feature_t>* features,
@@ -365,6 +399,7 @@ class GBTree : public GradientBooster {
 #endif  // defined(XGBOOST_USE_SYCL)
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
+  mutable PredictionContainer prediction_cache_;
   common::Monitor monitor_;
 };
 

@@ -444,12 +444,11 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
-                    bst_tree_t tree_begin, bst_tree_t tree_end = 0,
+  void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
+                    const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const* tree_weights_override = nullptr) const override {
     xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
-    auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
@@ -469,13 +468,13 @@ class GPUPredictor : public xgboost::Predictor {
   template <typename Adapter>
   void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
-                                PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
+                                HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
                                 bst_tree_t tree_end, common::OptionalWeights tree_weights) const {
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
-    this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-    out_preds->predictions.SetDevice(m->Device());
+    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    out_preds->SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
     auto n_features = model.learner_model_param->num_feature;
@@ -492,7 +491,7 @@ class GPUPredictor : public xgboost::Predictor {
               typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
           cfg.template AllocShmem<Loader>();
           cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                                   &out_preds->predictions, tree_weights);
+                                                   out_preds, tree_weights);
         });
         return;
       }
@@ -506,12 +505,12 @@ class GPUPredictor : public xgboost::Predictor {
           typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
       cfg.template AllocShmem<Loader>();
       cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                               &out_preds->predictions, tree_weights);
+                                               out_preds, tree_weights);
     });
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
-                                    float missing, PredictionCacheEntry* out_preds,
+                                    float missing, HostDeviceVector<float>* out_preds,
                                     bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     xgboost_NVTX_FN_RANGE();
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
