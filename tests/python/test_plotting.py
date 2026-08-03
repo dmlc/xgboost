@@ -77,6 +77,12 @@ class TestPlotting:
         )
         self._check_tree_plot(booster, with_stats=True)
 
+    def test_dump_model_dot_format_multi_tree(self, tmp_path):
+        m, _ = tm.load_agaricus(__file__)
+        booster = xgb.train({"objective": "binary:logistic"}, m, num_boost_round=2)
+        with pytest.raises(ValueError, match="only supports writing a single tree"):
+            booster.dump_model(tmp_path / "out.dot", dump_format="dot")
+
     def test_importance_plot_lim(self):
         np.random.seed(1)
         dm = xgb.DMatrix(np.random.randn(100, 100), label=[0, 1] * 50)

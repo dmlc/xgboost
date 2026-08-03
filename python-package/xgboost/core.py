@@ -2961,13 +2961,8 @@ class Booster:
                     fout_obj.write(",\n")
             fout_obj.write("\n]")
         elif dump_format == "dot":
-            # Each tree's dump is already a complete, self-contained `digraph {...}`
-            # block (see `to_graphviz`/`plot_tree` for the single-tree case). Unlike
-            # `text`/`json`, these can't be concatenated into one valid multi-tree
-            # DOT file with a "booster[i]:" style header, since that isn't valid DOT
-            # syntax and would corrupt the output. Support the common single-tree
-            # case directly; for multiple trees, point the user at the per-tree API
-            # instead of silently writing a broken file.
+            # A single `digraph {...}` block is valid DOT; multiple concatenated
+            # ones are not.
             if len(ret) != 1:
                 if need_close:
                     fout_obj.close()
