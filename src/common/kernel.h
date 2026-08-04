@@ -81,11 +81,14 @@ decltype(auto) DispatchKernel(Context const* ctx, Args&&... args) {
                 "Kernel arguments do not match its declared signature.");
 
   auto function = KernelRegistry<Kernel>::Find(ctx->Device());
-  if (!function) {
-    function = KernelRegistry<Kernel>::Find(DeviceOrd::CPU());
+  if (function) {
+    return function(ctx, std::forward<Args>(args)...);
   }
+
+  auto cpu_ctx = ctx->MakeCPU();
+  function = KernelRegistry<Kernel>::Find(cpu_ctx.Device());
   CHECK(function) << "No kernel variant supports device " << ctx->Device().Name();
-  return function(ctx, std::forward<Args>(args)...);
+  return function(&cpu_ctx, std::forward<Args>(args)...);
 }
 }  // namespace xgboost::common
 

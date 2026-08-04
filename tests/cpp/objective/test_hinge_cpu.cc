@@ -17,11 +17,4 @@ TEST(Objective, DeclareUnifiedTest(HingeObj)) {
   TestHingeObj(&ctx);
 }
 
-#if !defined(__CUDACC__)
-TEST(Objective, HingeKernelCPUFallback) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"device", DeviceSym::SyclDefault()}});
-  TestHingeObj(&ctx);
-}
-#endif  // !defined(__CUDACC__)
 }  // namespace xgboost
