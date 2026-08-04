@@ -7,9 +7,7 @@
 #pragma once
 #include <dmlc/registry.h>    // for FunctionRegEntryBase
 #include <xgboost/base.h>     // for bst_tree_t
-#include <xgboost/cache.h>    // for DMatrixCache
 #include <xgboost/context.h>  // for Context
-#include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
@@ -27,43 +25,6 @@ struct GBTreeModel;
 
 namespace xgboost {
 class RegTree;
-/**
- * \brief Contains pointer to input matrix and associated cached predictions.
- */
-struct PredictionCacheEntry {
-  // A storage for caching prediction values
-  HostDeviceVector<float> predictions;
-  // The version of current cache, corresponding number of layers of trees
-  std::uint32_t version{0};
-
-  PredictionCacheEntry() = default;
-  /**
-   * \brief Update the cache entry by number of versions.
-   *
-   * \param v Added versions.
-   */
-  void Update(std::uint32_t v) { version += v; }
-  void Reset() { version = 0; }
-};
-
-/**
- * \brief A container for managed prediction caches.
- */
-class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
-  // We cache up to 64 DMatrix for all threads
-  std::size_t static constexpr DefaultSize() { return 64; }
-
- public:
-  PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
-  std::shared_ptr<PredictionCacheEntry> Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
-    auto p_cache = this->CacheItem(m);
-    if (!device.IsCPU()) {
-      p_cache->predictions.SetDevice(device);
-    }
-    return p_cache;
-  }
-};
-
 /**
  * \class Predictor
  *
@@ -109,7 +70,7 @@ class Predictor {
    * \param           tree_end    The tree end index.
    * \param           tree_weights_override Optional weights for temporary prediction overrides.
    */
-  virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
+  virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                             gbm::GBTreeModel const& model, bst_tree_t tree_begin,
                             bst_tree_t tree_end = 0,
                             std::vector<float> const* tree_weights_override = nullptr) const = 0;
@@ -128,7 +89,7 @@ class Predictor {
    * \return True if the data can be handled by current predictor, false otherwise.
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, PredictionCacheEntry* out_preds,
+                              float missing, HostDeviceVector<float>* out_preds,
                               bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
 
   /**

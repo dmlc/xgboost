@@ -37,7 +37,7 @@
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
 #include "xgboost/logging.h"                  // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_NE
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree
-#include "xgboost/predictor.h"                // for PredictionCacheEntry, Predictor, PredictorReg
+#include "xgboost/predictor.h"                // for Predictor, PredictorReg
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree, MTNotImplemented, RTreeNodeStat
 
@@ -456,10 +456,9 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
-  void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, gbm::GBTreeModel const &model,
-                    bst_tree_t tree_begin, bst_tree_t tree_end = 0,
+  void PredictBatch(DMatrix *dmat, HostDeviceVector<float> *out_preds,
+                    gbm::GBTreeModel const &model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const *tree_weights_override = nullptr) const override {
-    auto *out_preds = &predts->predictions;
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
     if (tree_end == 0) {
@@ -475,7 +474,7 @@ class CPUPredictor : public Predictor {
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
-                                    float missing, PredictionCacheEntry *out_preds,
+                                    float missing, HostDeviceVector<float> *out_preds,
                                     bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
@@ -483,8 +482,8 @@ class CPUPredictor : public Predictor {
       tree_end = model.trees.size();
     }
 
-    this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-    auto &predictions = out_preds->predictions.HostVector();
+    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    auto &predictions = out_preds->HostVector();
     bool any_missing = true;
 
     auto const n_threads = this->ctx_->Threads();
