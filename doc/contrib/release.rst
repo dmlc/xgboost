@@ -30,7 +30,7 @@ Making a Release
 
    + The CRAN package and the R-universe packages are maintained by `Jiaming Yuan <https://github.com/trivialfis>`__.
 
-   + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_, `Hyunsu Cho <https://github.com/hcho3>`_, and `Jiaming Yuan <https://github.com/trivialfis>`__.
+   + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`__, `Hyunsu Cho <https://github.com/hcho3>`_, and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
 
 R Universe Packages
