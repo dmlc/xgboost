@@ -39,11 +39,11 @@ import sys
 import tempfile
 import zipfile
 from contextlib import chdir
-from typing import Literal
+from typing import Any, Literal
 from urllib.request import urlretrieve
 
 
-def normpath(path):
+def normpath(path: str) -> str:
     """Normalize UNIX path to a native path."""
     normalized = os.path.join(*path.split("/"))
     if os.path.isabs(path):
@@ -51,7 +51,7 @@ def normpath(path):
     return normalized
 
 
-def cp(source, target):
+def cp(source: str, target: str) -> None:
     """Copy a file after normalizing both paths."""
     source = normpath(source)
     target = normpath(target)
@@ -59,14 +59,14 @@ def cp(source, target):
     shutil.copy(source, target)
 
 
-def maybe_makedirs(path):
+def maybe_makedirs(path: str) -> None:
     """Create a directory and its parents if needed."""
     path = normpath(path)
     print("mkdir -p " + path)
     os.makedirs(path, exist_ok=True)
 
 
-def run(command, **kwargs):
+def run(command: str, **kwargs: Any) -> None:
     """Run a shell command and fail if it exits with an error."""
     print(command)
     subprocess.run(command, shell=True, check=True, **kwargs)
@@ -101,10 +101,10 @@ def get_current_git_branch() -> str:
     return m.group(0)
 
 
-def retrieve(url, filename=None):
+def retrieve(url: str, filename: str | None = None) -> None:
     """Download a file from a URL and print the destination."""
     print(f"{url} -> {filename}")
-    return urlretrieve(url, filename)
+    urlretrieve(url, filename)
 
 
 def parse_args() -> argparse.Namespace:
