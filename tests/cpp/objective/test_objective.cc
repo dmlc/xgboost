@@ -40,11 +40,17 @@ TEST(Objective, PredTransform) {
       obj->Configure(Args{{"expectile_alpha", "0.5"}});
     }
     HostDeviceVector<float> predts;
-    predts.Resize(n, 3.14f);  // prediction is performed on host.
-    ASSERT_FALSE(predts.DeviceCanRead());
+    predts.SetDevice(tparam.Device());
+    predts.Resize(n, 3.14f);
     obj->PredTransform(&predts);
-    ASSERT_FALSE(predts.DeviceCanRead());
-    ASSERT_TRUE(predts.HostCanWrite());
+    ASSERT_EQ(predts.Device(), tparam.Device());
+    if (tparam.IsCUDA()) {
+      ASSERT_TRUE(predts.DeviceCanRead());
+      ASSERT_FALSE(predts.HostCanWrite());
+    } else {
+      ASSERT_FALSE(predts.DeviceCanRead());
+      ASSERT_TRUE(predts.HostCanWrite());
+    }
   }
 }
 
