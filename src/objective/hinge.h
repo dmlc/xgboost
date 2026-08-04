@@ -36,17 +36,6 @@ struct HingePredTransformKernel {
   using Signature = void(Context const*, HostDeviceVector<float>*);
 };
 
-namespace cpu_impl {
-void HingeGradient(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
-                   bst_target_t n_targets, linalg::Matrix<GradientPair>* out_gpair);
-void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds);
-}  // namespace cpu_impl
-
-namespace cuda_impl {
-void HingeGradient(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
-                   bst_target_t n_targets, linalg::Matrix<GradientPair>* out_gpair);
-void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds);
-}  // namespace cuda_impl
 }  // namespace xgboost::obj
 
 #endif  // XGBOOST_OBJECTIVE_HINGE_H_
