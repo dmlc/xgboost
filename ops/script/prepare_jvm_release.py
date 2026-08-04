@@ -22,10 +22,10 @@ Maven Central.
 
 Run this script 4 times:
 
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant cpu --release=x.x.x
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant gpu --release=x.x.x
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant cpu --release=x.x.x
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant gpu --release=x.x.x
+python3 ops/script/prepare_jvm_release.py --scala-version 2.12 --variant cpu --release=x.x.x
+python3 ops/script/prepare_jvm_release.py --scala-version 2.12 --variant gpu --release=x.x.x
+python3 ops/script/prepare_jvm_release.py --scala-version 2.13 --variant cpu --release=x.x.x
+python3 ops/script/prepare_jvm_release.py --scala-version 2.13 --variant gpu --release=x.x.x
 
 """
 
