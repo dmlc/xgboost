@@ -48,7 +48,6 @@
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView, operator<<
 #include "xgboost/version_config.h"      // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
-#include "xgboost/windefs.h"             // for xgboost_IS_WIN
 
 using namespace xgboost;  // NOLINT(*);
 
@@ -219,9 +218,6 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
   if (use_rmm) {
     LOG(WARNING) << error::DeprecatedFunc("RMM plugin", "3.5.0", "CUDA async pool.");
   }
-#endif  // defined(XGBOOST_USE_RMM)
-#if defined(xgboost_IS_WIN)
-  CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` on Windows.";
 #endif  // defined(XGBOOST_USE_RMM)
   if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
     LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
