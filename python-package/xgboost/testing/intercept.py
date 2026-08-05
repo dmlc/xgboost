@@ -1,6 +1,5 @@
 """Tests for estimating the intercept."""
 
-import json
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -173,18 +172,15 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         Xy,
         num_boost_round=1,
     )
-    config_0 = json.loads(booster_0.save_config())
-    config_1 = json.loads(booster_1.save_config())
 
     np.testing.assert_allclose(
-        get_basescore(config_0), get_basescore(config_1), rtol=1e-6
+        get_basescore(booster_0), get_basescore(booster_1), rtol=1e-6
     )
 
     # check the base score is correctly serialized.
     raw_booster = booster_1.save_raw(raw_format="ubj")
     booster_2 = Booster(model_file=raw_booster)
-    config_2 = json.loads(booster_2.save_config())
-    assert get_basescore(config_1) == get_basescore(config_2)
+    assert get_basescore(booster_1) == get_basescore(booster_2)
 
     # check we can override the base score.
     booster_0 = train(
@@ -197,9 +193,8 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         Xy,
         num_boost_round=1,
     )
-    config_0 = json.loads(booster_0.save_config())
     np.testing.assert_allclose(
-        get_basescore(config_0), np.asarray(get_basescore(config_1)) + 1
+        get_basescore(booster_0), np.asarray(get_basescore(booster_1)) + 1
     )
 
     # check we can use subsampling.

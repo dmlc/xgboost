@@ -281,9 +281,9 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   auto &h_pred_0 = predict_0.HostVector();
   auto &h_pred_1 = predict_1.HostVector();
 
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score = GetBaseScore(config);
+  Json model{Object{}};
+  learner->SaveModel(&model);
+  auto base_score = GetBaseScore(model);
 
   ASSERT_EQ(h_pred.size(), rows * kClasses);
   ASSERT_EQ(h_pred.size(), h_pred_0.size());

@@ -96,28 +96,6 @@ void GBTree::Configure(Args const& cfg) {
     model_.InitTreesToUpdate();
   }
 
-  // configure predictors
-  if (!cpu_predictor_) {
-    cpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", this->ctx_));
-  }
-  cpu_predictor_->Configure(cfg);
-#if defined(XGBOOST_USE_CUDA)
-  auto n_gpus = curt::AllVisibleGPUs();
-  if (!gpu_predictor_) {
-    gpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", this->ctx_));
-  }
-  if (n_gpus != 0) {
-    gpu_predictor_->Configure(cfg);
-  }
-#endif  // defined(XGBOOST_USE_CUDA)
-
-#if defined(XGBOOST_USE_SYCL)
-  if (!sycl_predictor_) {
-    sycl_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("sycl_predictor", this->ctx_));
-  }
-  sycl_predictor_->Configure(cfg);
-#endif  // defined(XGBOOST_USE_SYCL)
-
   // `updater` parameter was manually specified
   specified_updater_ =
       std::any_of(cfg.cbegin(), cfg.cend(), [](auto const& arg) { return arg.first == "updater"; });
@@ -232,7 +210,7 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
   }
 
   predt->predictions.SetDevice(ctx_->Device());
-  auto const& predictor = this->GetPredictor(false, &predt->predictions, p_fmat.get());
+  auto predictor = this->CreatePredictor(false, &predt->predictions, p_fmat.get());
   if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(predt->version, 0);
     predictor->InitOutPredictions(p_fmat->Info(), &predt->predictions, model_);
@@ -450,10 +428,6 @@ void GBTree::SaveConfig(Json* p_out) const {
   // e.g. updating a model, then saving and loading it would result in an empty
   // model
   out["gbtree_train_param"]["process_type"] = String("default");
-  // Duplicated from SaveModel so that user can get `num_parallel_tree` without parsing
-  // the model. We might remove this once we can deprecate `best_ntree_limit` so that the
-  // language binding doesn't need to know about the forest size.
-  out["gbtree_model_param"] = ToJson(model_.param);
 
   out["updater"] = Array{};
   auto& j_updaters = get<Array>(out["updater"]);
@@ -691,7 +665,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     CHECK_EQ(cache->version, 0);
   }
 
-  auto const& predictor = GetPredictor(is_training, &cache->predictions, p_fmat.get());
+  auto predictor = CreatePredictor(is_training, &cache->predictions, p_fmat.get());
   if (initialize_output) {
     // cache->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -726,7 +700,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    auto const& predictor = GetPredictor(false, out_preds, p_fmat.get());
+    auto predictor = CreatePredictor(false, out_preds, p_fmat.get());
     predictor->InitOutPredictions(p_fmat->Info(), out_preds, model_);
     if (tree_end > tree_begin) {
       predictor->PredictBatch(p_fmat.get(), out_preds, model_, tree_begin, tree_end);
@@ -734,18 +708,9 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     return;
   }
 
-  bool known_type = this->ctx_->DispatchDevice(
-      [&, begin = tree_begin, end = tree_end] {
-        return this->cpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
-      },
-      [&, begin = tree_begin, end = tree_end] {
-        return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
-#if defined(XGBOOST_USE_SYCL)
-      },
-      [&, begin = tree_begin, end = tree_end] {
-        return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
-#endif  // defined(XGBOOST_USE_SYCL)
-      });
+  auto predictor = this->CreatePredictor(false);
+  bool known_type =
+      predictor->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end);
   if (!known_type) {
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
@@ -753,22 +718,20 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   }
 }
 
-[[nodiscard]] std::unique_ptr<Predictor> const& GBTree::GetPredictor(
+[[nodiscard]] std::unique_ptr<Predictor> GBTree::CreatePredictor(
     bool is_training, HostDeviceVector<float> const* out_pred, DMatrix* f_dmat) const {
   // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
   // prevent data copy.
   if (f_dmat && !f_dmat->SingleColBlock()) {
     if (ctx_->IsCPU()) {
-      return cpu_predictor_;
+      return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
     } else if (ctx_->IsCUDA()) {
       common::AssertGPUSupport();
-      CHECK(gpu_predictor_);
-      return gpu_predictor_;
+      return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
     } else {
 #if defined(XGBOOST_USE_SYCL)
       common::AssertSYCLSupport();
-      CHECK(sycl_predictor_);
-      return sycl_predictor_;
+      return std::unique_ptr<Predictor>{Predictor::Create("sycl_predictor", ctx_)};
 #endif  // defined(XGBOOST_USE_SYCL)
     }
   }
@@ -784,8 +747,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   // Use GPU Predictor if data is already on device and gpu_id is set.
   if (on_device && ctx_->IsCUDA()) {
     common::AssertGPUSupport();
-    CHECK(gpu_predictor_);
-    return gpu_predictor_;
+    return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
   }
 
   // GPU_Hist by default has prediction cache calculated from quantile values,
@@ -798,25 +760,22 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
       // FIXME(trivialfis): Implement a better method for testing whether data
       // is on device after DMatrix refactoring is done.
       !on_device && is_training) {
-    CHECK(cpu_predictor_);
-    return cpu_predictor_;
+    return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
   }
 
   if (ctx_->IsCPU()) {
-    return cpu_predictor_;
+    return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
   } else if (ctx_->IsCUDA()) {
     common::AssertGPUSupport();
-    CHECK(gpu_predictor_);
-    return gpu_predictor_;
+    return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
   } else {
 #if defined(XGBOOST_USE_SYCL)
     common::AssertSYCLSupport();
-    CHECK(sycl_predictor_);
-    return sycl_predictor_;
+    return std::unique_ptr<Predictor>{Predictor::Create("sycl_predictor", ctx_)};
 #endif  // defined(XGBOOST_USE_SYCL)
   }
 
-  return cpu_predictor_;
+  return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
 }
 
 // register the objective functions

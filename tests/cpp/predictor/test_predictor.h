@@ -55,7 +55,6 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
 
   std::unique_ptr<Predictor> predictor =
       std::unique_ptr<Predictor>(CreatePredictorForTest(&cuda_ctx));
-  predictor->Configure({});
 
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, kClasses);
   auto const& model = *p_model;

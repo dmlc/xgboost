@@ -229,9 +229,11 @@ def check_multi_output_tree_classifier(client: Client, device: Device) -> None:
         assert proba.shape == predt.shape
         np.testing.assert_array_equal(predt, (proba > 0.5).astype(predt.dtype))
 
-        config = json.loads(clf.get_booster().save_config())["learner"]
+        booster = clf.get_booster()
+        config = json.loads(booster.save_config())["learner"]
         assert config["objective"]["name"] == "binary:logistic"
-        assert int(config["learner_model_param"]["num_class"]) == 0
+        model = json.loads(booster.save_raw(raw_format="json"))["learner"]
+        assert int(model["learner_model_param"]["num_class"]) == 0
 
     y_ind = (y > 0.0).astype(np.int32)
     check_classifier(y_ind)

@@ -30,9 +30,6 @@ TEST(GPUPredictor, Basic) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
 
-  gpu_predictor->Configure({});
-  cpu_predictor->Configure({});
-
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
@@ -111,7 +108,6 @@ void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_feature
   auto const& model = *p_model;
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", ctx));
-  gpu_predictor->Configure({});
 
   for (auto p_fmat : {create_fn(400), create_fn(800), create_fn(2048)}) {
     p_fmat->Info().base_margin_ = linalg::Constant(ctx, 0.5f, p_fmat->Info().num_row_, n_classes);
@@ -198,7 +194,6 @@ TEST(GPUPredictor, PredictLeafBasic) {
   auto lparam = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
-  gpu_predictor->Configure({});
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
   Context ctx;

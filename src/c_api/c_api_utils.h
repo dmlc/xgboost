@@ -129,34 +129,6 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
       chunksize * rows);
 }
 
-// Reverse the ntree_limit in old prediction API.
-inline uint32_t GetIterationFromTreeLimit(uint32_t ntree_limit, Learner *learner) {
-  // On Python and R, `best_ntree_limit` is set to `best_iteration * num_parallel_tree`.
-  // To reverse it we just divide it by `num_parallel_tree`.
-  if (ntree_limit != 0) {
-    learner->Configure();
-    uint32_t num_parallel_tree = 0;
-
-    Json config{Object()};
-    learner->SaveConfig(&config);
-    auto const &booster = get<String const>(config["learner"]["gradient_booster"]["name"]);
-    if (booster == "gblinear") {
-      num_parallel_tree = 0;
-    } else if (booster == "dart") {
-      num_parallel_tree =
-          std::stoi(get<String const>(config["learner"]["gradient_booster"]["gbtree"]
-                                            ["gbtree_model_param"]["num_parallel_tree"]));
-    } else if (booster == "gbtree") {
-      num_parallel_tree = std::stoi(get<String const>(
-          (config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"])));
-    } else {
-      LOG(FATAL) << "Unknown booster:" << booster;
-    }
-    ntree_limit /= std::max(num_parallel_tree, 1u);
-  }
-  return ntree_limit;
-}
-
 inline float GetMissing(Json const &config) {
   float missing;
   auto const &obj = get<Object const>(config);

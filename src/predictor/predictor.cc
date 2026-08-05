@@ -9,7 +9,7 @@
 #include <string>   // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for Args, bst_group_t, bst_idx_t
+#include "xgboost/base.h"                // for bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -22,8 +22,6 @@ DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
 
 namespace xgboost {
-void Predictor::Configure(Args const&) {}
-
 Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {

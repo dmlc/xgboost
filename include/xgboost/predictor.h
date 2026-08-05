@@ -43,13 +43,6 @@ class Predictor {
   virtual ~Predictor() = default;
 
   /**
-   * \brief Configure and register input matrices in prediction cache.
-   *
-   * \param cfg   The configuration.
-   */
-  virtual void Configure(Args const&);
-
-  /**
    * \brief Initialize output prediction
    *
    * \param info Meta info for the DMatrix object used for prediction.
