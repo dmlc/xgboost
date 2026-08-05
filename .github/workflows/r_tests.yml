@@ -54,7 +54,7 @@ jobs:
           source("./R-package/tests/helper_scripts/install_deps.R")
       - name: Test R
         run: |
-          python ops/script/test_r_package.py --task=check
+          python ops/script/test_r_package.py --task=check --print-install-log
       - run: sccache --show-stats
 
   test-R-on-Debian:

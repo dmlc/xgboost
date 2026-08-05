@@ -101,6 +101,12 @@ def build_rpackage(path: str) -> str:
     return tarball
 
 
+def emit_r_log(name: str, log: str) -> None:
+    """Print a log produced by R CMD check."""
+    print(f"\n----------------------- {name} -----------------------")
+    print(log, end="" if log.endswith("\n") else "\n")
+
+
 def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
     with open(rcheck_dir / "xgboost-Ex.timings", "r") as fd:
         timings = fd.readlines()
@@ -131,7 +137,7 @@ def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
 
 @cd(ROOT)
 @record_time
-def check_rpackage(path: str) -> None:
+def check_rpackage(path: str, *, print_install_log: bool = False) -> None:
     env = os.environ.copy()
     print("Ncpus:", f"{os.cpu_count()}")
     threshold = 2.5
@@ -155,25 +161,20 @@ def check_rpackage(path: str) -> None:
     with open(rcheck_dir / "00install.out", "r") as fd:
         install_log = fd.read()
 
-    msg = f"""
------------------------ Install ----------------------
-{install_log}
-
------------------------  Check -----------------------
-{check_log}
-
-    """
-
+    error = None
     if status.returncode != 0:
-        print(msg)
-        raise ValueError("Failed r package check.")
+        error = "Failed r package check."
+    elif check_log.find("WARNING") != -1:
+        error = "Has unresolved warnings."
+    elif check_log.find("Examples with CPU time") != -1:
+        error = "Suspicious NOTE."
 
-    if check_log.find("WARNING") != -1:
-        print(msg)
-        raise ValueError("Has unresolved warnings.")
-    if check_log.find("Examples with CPU time") != -1:
-        print(msg)
-        raise ValueError("Suspicious NOTE.")
+    if print_install_log or error is not None:
+        emit_r_log("Install", install_log)
+    if error is not None:
+        emit_r_log("Check", check_log)
+        raise ValueError(error)
+
     if pd is not None:
         check_example_timing(rcheck_dir, threshold)
 
@@ -261,7 +262,7 @@ def main(args: argparse.Namespace) -> None:
             if system() != "Windows":
                 src_dir = pack_rpackage()
                 tarball = build_rpackage(src_dir)
-                check_rpackage(tarball)
+                check_rpackage(tarball, print_install_log=args.print_install_log)
             else:
                 test_rpackage_on_windows()
         case "rchk":
@@ -292,6 +293,11 @@ if __name__ == "__main__":
         type=str,
         default="R" if system() != "Windows" else "R.exe",
         help="Path to the R executable.",
+    )
+    parser.add_argument(
+        "--print-install-log",
+        action="store_true",
+        help="Print 00install.out after R CMD check on Unix-like systems.",
     )
     args = parser.parse_args()
     R = args.r
