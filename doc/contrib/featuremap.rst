@@ -60,9 +60,7 @@ XGBoost has built-in support for three distributed frameworks, including ``Dask`
 
 Distributed training works with custom objective functions and metrics as well. XGBoost aggregates the evaluation result automatically during training.
 
-The distributed training is enabled by a built-in implementation of a collective library. It's based on the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL.
-
-Inference normally doesn't require any special treatment since we are using sample-based split. However, with column-based data split, we need to initialize the communicator context as well.
+The distributed training is enabled by a built-in implementation of a collective library. It's lineage can be tracked back to the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL.
 
 *****************
 Language Bindings
