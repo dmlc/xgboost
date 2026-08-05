@@ -7,6 +7,7 @@
 #include <xgboost/gradient.h>            // for GradientContainer
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json
+#include <xgboost/predictor.h>           // for Predictor
 #include <xgboost/task.h>                // for ObjInfo
 #include <xgboost/tree_model.h>          // for RegTree
 #include <xgboost/tree_updater.h>        // for TreeUpdater
@@ -15,9 +16,9 @@
 #include <string>  // for string
 #include <vector>  // for vector
 
-#include "../../../src/tree/param.h"    // for TrainParam
-#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
+#include "../predictor/test_predictor.h"  // for CreatePredictorForTest
 
 namespace xgboost::tree {
 namespace {
@@ -44,7 +45,9 @@ void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, Reg
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, common::Span{position}, cache));
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
+  std::vector<RegTree const*> tree_ptrs{tree};
+  predictor->PredictFromLeafIds(common::Span{position}, common::Span{tree_ptrs}, cache);
 }
 }  // anonymous namespace
 
@@ -216,54 +219,5 @@ TEST(GpuHist, MaxDepth) {
   learner->Configure();
 
   ASSERT_THROW({ learner->UpdateOneIter(0, p_mat); }, dmlc::Error);
-}
-
-namespace {
-RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
-  hist_maker->Configure(Args{});
-
-  TrainParam param;
-  param.UpdateAllowUnknown(Args{});
-  auto gpair = GenerateRandomGradients(ctx, dmat->Info().num_row_, 1);
-
-  std::vector<HostDeviceVector<bst_node_t>> position(1);
-  RegTree tree;
-  hist_maker->Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
-                     {&tree});
-  return tree;
-}
-
-void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  Context ctx(MakeCUDACtx(GPUIDX));
-
-  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
-
-  RegTree tree = GetHistTree(&ctx, sliced.get());
-
-  Json json{Object{}};
-  tree.SaveModel(&json);
-  Json expected_json{Object{}};
-  expected_tree.SaveModel(&expected_json);
-  ASSERT_EQ(json, expected_json);
-}
-}  // anonymous namespace
-
-class MGPUHistTest : public collective::BaseMGPUTest {};
-
-TEST_F(MGPUHistTest, HistColumnSplit) {
-  auto constexpr kRows = 32;
-  auto constexpr kCols = 16;
-
-  Context ctx(MakeCUDACtx(0));
-  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-  RegTree expected_tree = GetHistTree(&ctx, dmat.get());
-
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, true);
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, false);
 }
 }  // namespace xgboost::tree

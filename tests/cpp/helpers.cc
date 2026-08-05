@@ -178,21 +178,19 @@ xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
-                                 std::vector<xgboost::bst_uint> groups,
-                                 xgboost::DataSplitMode data_split_mode) {
+                                 std::vector<xgboost::bst_uint> groups) {
   return GetMultiMetricEval(
       metric, preds,
       xgboost::linalg::Tensor<float, 2>{
           labels.begin(), labels.end(), {labels.size()}, xgboost::DeviceOrd::CPU()},
-      weights, groups, data_split_mode);
+      weights, groups);
 }
 
 double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                           xgboost::linalg::Tensor<float, 2> const& labels,
                           std::vector<xgboost::bst_float> weights,
-                          std::vector<xgboost::bst_uint> groups,
-                          xgboost::DataSplitMode data_split_mode) {
+                          std::vector<xgboost::bst_uint> groups) {
   std::shared_ptr<xgboost::DMatrix> p_fmat{xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix()};
   auto& info = p_fmat->Info();
   info.num_row_ = labels.Shape(0);
@@ -200,10 +198,6 @@ double GetMultiMetricEval(xgboost::Metric* metric,
   info.labels.Data()->Copy(*labels.Data());
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
-  info.data_split_mode = data_split_mode;
-  if (info.IsVerticalFederated() && xgboost::collective::GetRank() != 0) {
-    info.labels.Reshape(0);
-  }
   return metric->Evaluate(preds, p_fmat);
 }
 
@@ -430,8 +424,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 }
 }  // namespace
 
-[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
-    bool with_label, DataSplitMode data_split_mode) const {
+[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label) const {
   HostDeviceVector<float> data;
   HostDeviceVector<std::size_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
@@ -446,7 +439,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
                             Json::Dump(GetArrayInterface(&data, data.Size(), 1)), this->cols_};
 
   std::shared_ptr<DMatrix> out{
-      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, "", data_split_mode)};
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
 
   if (with_label) {
     MakeLabels(this->device_, this->rows_, this->n_classes_, this->n_targets_, out);
@@ -661,7 +654,6 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,
                                                   Context const* ctx) {
-  auto caches = std::make_shared<PredictionContainer>();
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -679,9 +671,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};
   }
 
-  PredictionCacheEntry predts;
-
-  gbm->DoBoost(p_dmat.get(), &gpair, &predts, nullptr);
+  gbm->DoBoost(p_dmat, &gpair, nullptr);
 
   return gbm;
 }

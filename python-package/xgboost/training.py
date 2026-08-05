@@ -30,9 +30,9 @@ from .callback import (
 from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold
 from .core import (
     Booster,
+    CustomObj,
     DMatrix,
     Metric,
-    PlainObj,
     XGBoostError,
     _deprecate_positional_args,
     _RefMixIn,
@@ -56,7 +56,7 @@ def train(
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
-    obj: Optional[PlainObj] = None,
+    obj: Optional[CustomObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -227,7 +227,7 @@ class CVPack:
 
         return _inner
 
-    def update(self, iteration: int, fobj: Optional[PlainObj]) -> None:
+    def update(self, iteration: int, fobj: Optional[CustomObj]) -> None:
         """ "Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
@@ -240,7 +240,7 @@ class _PackedBooster:
     def __init__(self, cvfolds: _CVFolds) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration: int, obj: Optional[PlainObj]) -> None:
+    def update(self, iteration: int, obj: Optional[CustomObj]) -> None:
         """Iterate through folds for update"""
         for fold in self.cvfolds:
             fold.update(iteration, obj)
@@ -441,7 +441,7 @@ def cv(
     stratified: bool = False,
     folds: Optional[XGBStratifiedKFold] = None,
     metrics: Sequence[str] = (),
-    obj: Optional[PlainObj] = None,
+    obj: Optional[CustomObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     fpreproc: Optional[FPreProcCallable] = None,

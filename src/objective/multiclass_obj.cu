@@ -206,7 +206,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     CHECK_EQ(n, info.num_row_);
     linalg::SmallHistogram(ctx_, labels, weights, intercept);
     auto sum_weight = common::SumOptionalWeights(this->ctx_, weights, n);
-    auto status = collective::GlobalSum(this->ctx_, info, intercept, &sum_weight);
+    auto status = collective::GlobalSum(this->ctx_, intercept, &sum_weight);
     collective::SafeColl(status);
     CHECK_GE(sum_weight, kRtEps);
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);

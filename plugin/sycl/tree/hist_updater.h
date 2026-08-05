@@ -77,9 +77,7 @@ class HistUpdater {
   // update one tree, growing
   void Update(xgboost::tree::TrainParam const* param, const common::GHistIndexMatrix& gmat,
               const HostDeviceVector<GradientPair>& gpair, DMatrix* p_fmat,
-              xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position, RegTree* p_tree);
-
-  bool UpdatePredictionCache(const DMatrix* data, ::xgboost::linalg::MatrixView<float> p_out_preds);
+              HostDeviceVector<bst_node_t>* p_out_position, RegTree* p_tree);
 
   void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
   void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
@@ -163,6 +161,9 @@ class HistUpdater {
 
   void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat, RegTree* p_tree,
                            const HostDeviceVector<GradientPair>& gpair);
+
+  void FinalizePosition(std::size_t n_samples, RegTree const& tree,
+                        HostDeviceVector<bst_node_t>* p_out_position);
 
   void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
 

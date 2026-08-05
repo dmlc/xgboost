@@ -46,12 +46,12 @@ struct ColMakerTrainParam : XGBoostParameter<ColMakerTrainParam> {
   }
 
   /*! \brief whether need forward small to big search: default right */
-  inline bool NeedForwardSearch(float col_density, bool indicator) const {
+  bool NeedForwardSearch(float col_density, bool indicator) const {
     return default_direction == 2 ||
            (default_direction == 0 && (col_density < opt_dense_col) && !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool NeedBackwardSearch() const { return default_direction != 2; }
+  bool NeedBackwardSearch() const { return default_direction != 2; }
 };
 
 DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
@@ -93,7 +93,7 @@ class ColMaker : public TreeUpdater {
   }
 
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *dmat,
-              common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
@@ -115,11 +115,12 @@ class ColMaker : public TreeUpdater {
     // build tree
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
-    for (auto tree : trees) {
+    for (std::size_t i = 0; i < trees.size(); ++i) {
       CHECK(ctx_);
+      CHECK(!trees[i]->IsMultiTarget()) << "exact" << MTNotImplemented();
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
                       column_sampler_);
-      builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
+      builder.Update(gpair->Data()->ConstHostVector(), dmat, trees[i], &out_position[i]);
     }
   }
 
@@ -164,14 +165,16 @@ class ColMaker : public TreeUpdater {
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
           column_sampler_{std::move(column_sampler)},
-          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU()),
+          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU(), 1u),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
-    virtual void Update(const std::vector<GradientPair> &gpair, DMatrix *p_fmat, RegTree *p_tree) {
-      std::vector<int> newnodes;
+    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree,
+                HostDeviceVector<bst_node_t> *p_out_position) {
       this->InitData(gpair, *p_fmat);
-      this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
+      this->InitRoot(gpair, *p_fmat, *p_tree);
+
+      std::vector<int> newnodes;
       // We can check max_leaves too, but might break some grid searching pipelines.
       CHECK_GT(param_.max_depth, 0) << "exact tree method doesn't support unlimited depth.";
       for (int depth = 0; depth < param_.max_depth; ++depth) {
@@ -205,19 +208,31 @@ class ColMaker : public TreeUpdater {
         stat.base_weight = snode_[nid].weight;
         stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
+      CHECK(p_out_position);
+      auto &h_position = p_out_position->HostVector();
+      h_position.resize(position_.size());
+      CHECK_EQ(row_is_valid_.size(), position_.size());
+      for (std::size_t i = 0; i < position_.size(); ++i) {
+        h_position[i] =
+            SamplePosition::Encode(SamplePosition::Decode(position_[i]), row_is_valid_[i]);
+      }
     }
 
    protected:
     // initialize temp data structure
-    inline void InitData(const std::vector<GradientPair> &gpair, const DMatrix &fmat) {
+    void InitData(const std::vector<GradientPair> &gpair, const DMatrix &fmat) {
       {
         // setup position
         position_.resize(gpair.size());
         CHECK_EQ(fmat.Info().num_row_, position_.size());
         std::fill(position_.begin(), position_.end(), 0);
+        row_is_valid_.assign(position_.size(), true);
         // mark delete for the deleted datas
         for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-          if (gpair[ridx].GetHess() < 0.0f) position_[ridx] = ~position_[ridx];
+          if (gpair[ridx].GetHess() < 0.0f) {
+            position_[ridx] = ~position_[ridx];
+            row_is_valid_[ridx] = false;
+          }
         }
         // mark subsample
         if (param_.subsample < 1.0f) {
@@ -227,8 +242,13 @@ class ColMaker : public TreeUpdater {
           std::bernoulli_distribution coin_flip(param_.subsample);
           auto &rnd = ctx_->Rng();
           for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-            if (gpair[ridx].GetHess() < 0.0f) continue;
-            if (!coin_flip(rnd)) position_[ridx] = ~position_[ridx];
+            if (!row_is_valid_[ridx]) {
+              continue;
+            }
+            if (!coin_flip(rnd)) {
+              position_[ridx] = ~position_[ridx];
+              row_is_valid_[ridx] = false;
+            }
           }
         }
       }
@@ -252,17 +272,12 @@ class ColMaker : public TreeUpdater {
         // expand query
         qexpand_.reserve(256);
         qexpand_.clear();
-        qexpand_.push_back(0);
+        qexpand_.push_back(RegTree::kRoot);
       }
     }
-    /*!
-     * \brief initialize the base_weight, root_gain,
-     *  and NodeEntry for all the new nodes in qexpand
-     */
-    void InitNewNode(const std::vector<int> &qexpand, const std::vector<GradientPair> &gpair,
-                     const DMatrix &fmat, RegTree const &tree) {
+    void InitNodeStats(const std::vector<int> &nodes, const std::vector<GradientPair> &gpair,
+                       const DMatrix &fmat, RegTree const &tree) {
       auto n_nodes = tree.NumNodes();
-      auto sc_tree = tree.HostScView();
       {
         // setup statistics space for each tree node
         for (auto &i : stemp_) {
@@ -278,7 +293,7 @@ class ColMaker : public TreeUpdater {
         stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
       });
       // sum the per thread statistics together
-      for (int nid : qexpand) {
+      for (int nid : nodes) {
         GradStats stats;
         for (auto &s : stemp_) {
           stats.Add(s[nid].stats);
@@ -286,7 +301,33 @@ class ColMaker : public TreeUpdater {
         // update node statistics
         snode_[nid].stats = stats;
       }
+    }
 
+    void InitRoot(std::vector<GradientPair> const &gpair, const DMatrix &fmat,
+                  RegTree const &tree) {
+      CHECK_EQ(qexpand_.size(), 1);
+      CHECK_EQ(qexpand_.front(), RegTree::kRoot);
+
+      this->InitNodeStats(qexpand_, gpair, fmat, tree);
+
+      auto evaluator = tree_evaluator_.GetEvaluator();
+      auto &root = snode_[RegTree::kRoot];
+      root.weight = static_cast<float>(evaluator.CalcWeight(RegTree::kRoot, param_, root.stats));
+      root.root_gain = static_cast<float>(evaluator.CalcGain(RegTree::kRoot, param_, root.stats));
+    }
+
+    /**
+     * @brief Initialize the base_weight, root_gain, and NodeEntry for all the new non-root nodes.
+     */
+    void InitNewNode(const std::vector<int> &qexpand, const std::vector<GradientPair> &gpair,
+                     const DMatrix &fmat, RegTree const &tree) {
+      for (auto nidx : qexpand) {
+        CHECK_NE(nidx, RegTree::kRoot);
+      }
+
+      this->InitNodeStats(qexpand, gpair, fmat, tree);
+
+      auto sc_tree = tree.HostScView();
       auto evaluator = tree_evaluator_.GetEvaluator();
       // calculating the weights
       for (bst_node_t nidx : qexpand) {
@@ -311,11 +352,9 @@ class ColMaker : public TreeUpdater {
     }
 
     // update enumeration solution
-    inline void UpdateEnumeration(
-        int nid, GradientPair gstats, bst_float fvalue, int d_step, bst_uint fid,
-        GradStats &c,                    // NOLINT
-        std::vector<ThreadEntry> &temp,  // NOLINT(*)
-        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
+    void UpdateEnumeration(int nid, GradientPair gstats, bst_float fvalue, int d_step, bst_uint fid,
+                           GradStats &c, std::vector<ThreadEntry> &temp,  // NOLINT
+                           TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
       // get the statistics of nid
       ThreadEntry &e = temp[nid];
       // test if first hit, this is fine, because we set 0 during init
@@ -513,9 +552,9 @@ class ColMaker : public TreeUpdater {
         }
       });
     }
-    // customization part
+
     // synchronize the best solution of each node
-    virtual void SyncBestSolution(const std::vector<int> &qexpand) {
+    void SyncBestSolution(const std::vector<int> &qexpand) {
       for (int nid : qexpand) {
         NodeEntry &e = snode_[nid];
         CHECK(this->ctx_);
@@ -524,8 +563,8 @@ class ColMaker : public TreeUpdater {
         }
       }
     }
-    virtual void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
-                                       const RegTree &tree) {
+    void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
+                               const RegTree &tree) {
       // step 1, classify the non-default data into right places
       auto sc_tree = tree.HostScView();
       std::vector<unsigned> fsplits;
@@ -571,6 +610,9 @@ class ColMaker : public TreeUpdater {
     std::shared_ptr<common::ColumnSampler> column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
+    // Whether the row participates in training.  `position_` can be marked invalid internally
+    // after reaching a finished leaf, but the exported node positions should still include it.
+    std::vector<char> row_is_valid_;
     // PerThread x PerTreeNode: statistics for per thread construction
     std::vector<std::vector<ThreadEntry>> stemp_;
     /*! \brief TreeNode Data: statistics for each constructed node */

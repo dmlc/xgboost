@@ -12,6 +12,7 @@
 #include <numeric>  // for accumulate
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../common/survival_util.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
@@ -191,7 +192,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
                                   info.labels_upper_bound_, preds);
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }

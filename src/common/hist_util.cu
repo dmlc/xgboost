@@ -267,6 +267,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
     }
   }
 
-  return sketch_container.MakeCuts(ctx, p_fmat->Info().IsColumnSplit());
+  return sketch_container.MakeCuts(ctx);
 }
 }  // namespace xgboost::common

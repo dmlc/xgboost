@@ -313,7 +313,10 @@ def allreduce(data: np.ndarray, op: Op) -> np.ndarray:
             int(op),
         )
     )
-    return buf
+    # `buf` is a flattened copy used for the underlying C call; reshape it back
+    # to the input's original shape so the result actually "has the same shape
+    # as data", as documented above, instead of always returning a 1-D array.
+    return buf.reshape(data.shape)
 
 
 def signal_error() -> None:

@@ -2,7 +2,7 @@
 ===========
 
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost%20CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
-[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
+[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.io)
 [![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](https://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
@@ -13,7 +13,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/comet-ml/comet-examples/blob/master/integrations/model-training/xgboost/notebooks/how_to_use_comet_with_xgboost_tutorial.ipynb)
 
 [Community](https://xgboost.ai/community) |
-[Documentation](https://xgboost.readthedocs.org) |
+[Documentation](https://xgboost.readthedocs.io) |
 [Resources](demo/README.md) |
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](https://xgboost.readthedocs.io/en/latest/changes/index.html)

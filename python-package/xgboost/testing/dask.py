@@ -18,10 +18,11 @@ from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
 from .._typing import EvalsLog
-from ..dask import _get_rabit_args
+from ..dask import TrainReturnT, _get_rabit_args
 from ..dask.utils import _DASK_VERSION
 from .data import make_batches
 from .data import make_categorical as make_cat_local
+from .multi_target import LsObj1, LsObj2
 from .ordinal import make_recoded
 from .utils import Device, assert_allclose
 
@@ -115,9 +116,15 @@ def make_multi_output_regression(
     return dX, dy
 
 
-def check_multi_output_tree(client: Client, device: Device) -> None:
-    """Test Dask vector-leaf hist with train and sklearn-style APIs."""
-    tolerance = 1e-3
+def _as_numpy(array: Any) -> np.ndarray:
+    if hasattr(array, "get"):
+        array = array.get()
+    return np.asarray(array)
+
+
+def _train_multi_output_tree(
+    client: Client, device: Device
+) -> Tuple[da.Array, da.Array, dxgb.DaskDMatrix, TrainReturnT]:
     n_targets = 3
     X, y = make_multi_output_regression(device, n_targets=n_targets)
     Xy = dxgb.DaskDMatrix(client, X, y)
@@ -138,14 +145,21 @@ def check_multi_output_tree(client: Client, device: Device) -> None:
         num_boost_round=4,
         evals=[(Xy, "train")],
     )
+    return X, y, Xy, result
+
+
+def check_multi_output_tree_regressor(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf regression with train and sklearn-style APIs."""
+    tolerance = 1e-3
+    X, y, Xy, result = _train_multi_output_tree(client, device)
+    n_targets = y.shape[1]
+    assert isinstance(n_targets, int)
 
     history = result["history"]["train"]["mae"]
     assert np.isfinite(np.asarray(history)).all()
     assert tm.non_increasing(history, tolerance=tolerance)
 
-    predt = dxgb.predict(client, result["booster"], Xy).compute()
-    if hasattr(predt, "get"):
-        predt = predt.get()
+    predt = _as_numpy(dxgb.predict(client, result["booster"], Xy).compute())
     assert predt.shape == (X.shape[0], n_targets)
     assert np.isfinite(predt).all()
 
@@ -161,15 +175,115 @@ def check_multi_output_tree(client: Client, device: Device) -> None:
     reg.client = client
     reg.fit(X, y, eval_set=[(X, y)])
 
-    predt = reg.predict(X).compute()
-    if hasattr(predt, "get"):
-        predt = predt.get()
+    predt = _as_numpy(reg.predict(X).compute())
     assert predt.shape == (X.shape[0], n_targets)
     assert np.isfinite(predt).all()
 
     config = json.loads(reg.get_booster().save_config())
     assert config["learner"]["learner_train_param"]["multi_strategy"] == (
         "multi_output_tree"
+    )
+
+    for objective in (LsObj1(device), LsObj2(device, False)):
+        reg = dxgb.DaskXGBRegressor(
+            n_estimators=2,
+            device=device,
+            tree_method="hist",
+            objective=objective,
+            multi_strategy="multi_output_tree",
+            max_depth=2,
+            max_bin=64,
+        )
+        reg.client = client
+        reg.fit(X, y)
+        predt = _as_numpy(reg.predict(X).compute())
+        assert predt.shape == (X.shape[0], n_targets)
+        assert np.isfinite(predt).all()
+
+
+def check_multi_output_tree_classifier(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf classification with array and dataframe labels."""
+    n_targets = 3
+    X, y = make_multi_output_regression(device, n_targets=n_targets)
+
+    def check_classifier(labels: Union[da.Array, dd.DataFrame]) -> None:
+        clf = dxgb.DaskXGBClassifier(
+            n_estimators=2,
+            device=device,
+            tree_method="hist",
+            objective=LsObj2(device, False),
+            multi_strategy="multi_output_tree",
+            max_depth=2,
+            max_bin=64,
+        )
+        clf.client = client
+        clf.fit(X, labels)
+
+        assert isinstance(clf.classes_, np.ndarray)
+        np.testing.assert_array_equal(clf.classes_, np.array([0, 1]))
+        assert clf.n_classes_ == 2
+
+        predt = _as_numpy(clf.predict(X).compute())
+        proba = _as_numpy(clf.predict_proba(X).compute())
+        assert predt.shape == (X.shape[0], n_targets)
+        assert proba.shape == predt.shape
+        np.testing.assert_array_equal(predt, (proba > 0.5).astype(predt.dtype))
+
+        config = json.loads(clf.get_booster().save_config())["learner"]
+        assert config["objective"]["name"] == "binary:logistic"
+        assert int(config["learner_model_param"]["num_class"]) == 0
+
+    y_ind = (y > 0.0).astype(np.int32)
+    check_classifier(y_ind)
+    y_df = dd.from_dask_array(y_ind)
+    if device == "cuda":
+        y_df = y_df.to_backend("cudf")
+    check_classifier(y_df)
+
+
+def check_multi_output_tree_shap(client: Client, device: Device) -> None:
+    """Test SHAP output shapes for Dask vector-leaf models."""
+    X, y, _, result = _train_multi_output_tree(client, device)
+    n_targets = y.shape[1]
+    assert isinstance(n_targets, int)
+    booster = result["booster"]
+
+    margin = _as_numpy(dxgb.predict(client, booster, X, output_margin=True).compute())
+    n_features = X.shape[1]
+    assert isinstance(n_features, int)
+    contributions = dxgb.predict(client, booster, X, pred_contribs=True)
+    contributions_shape = (X.shape[0], n_targets, n_features + 1)
+    assert contributions.shape == contributions_shape
+    assert contributions.chunks == (
+        X.chunks[0],
+        (n_targets,),
+        (n_features + 1,),
+    )
+    contributions = _as_numpy(contributions.compute())
+    assert contributions.shape == contributions_shape
+    np.testing.assert_allclose(
+        contributions.sum(axis=-1),
+        margin,
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+    interactions = dxgb.predict(client, booster, X, pred_interactions=True)
+    interactions_shape = (X.shape[0], n_targets, n_features + 1, n_features + 1)
+    assert interactions.shape == interactions_shape
+    assert interactions.chunks == (
+        X.chunks[0],
+        (n_targets,),
+        (n_features + 1,),
+        (n_features + 1,),
+    )
+    interactions = _as_numpy(interactions.compute())
+    assert interactions.shape == interactions_shape
+    np.testing.assert_allclose(
+        interactions.sum(axis=(-2, -1)),
+        margin,
+        rtol=1e-4,
+        atol=1e-4,
     )
 
 
