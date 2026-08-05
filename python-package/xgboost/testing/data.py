@@ -373,7 +373,7 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
             x,
             dtype=pd.CategoricalDtype(
                 # not NA
-                filter(lambda x: isinstance(x, str), keys)
+                [key for key in keys if isinstance(key, str)]
             ),
         )
         return series
@@ -503,7 +503,7 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
         if isinstance(df[c].dtype, pd.CategoricalDtype):
             y += df[c].cat.codes.astype(np.float64)
         else:
-            y += df[c].values
+            y += df[c].to_numpy()
 
     # Shift and scale to match the original y.
     y *= 79442.50288288662 / y.std()

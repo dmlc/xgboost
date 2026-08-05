@@ -236,28 +236,22 @@ def is_arrow_dict(data: Any) -> TypeGuard["pa.DictionaryArray"]:
 
 
 class DfCatAccessor(Protocol):
-    """Protocol for pandas cat accessor."""
+    """Protocol for a dataframe categorical accessor."""
 
     @property
     def categories(  # pylint: disable=missing-function-docstring
         self,
-    ) -> "pd.Index": ...
+    ) -> Any: ...
 
     @property
-    def codes(self) -> "pd.Series": ...  # pylint: disable=missing-function-docstring
+    def codes(self) -> Any: ...  # pylint: disable=missing-function-docstring
+
+
+class CudfCatIndex(_CudaArrayLikeArg, Protocol):
+    """Protocol for a cuDF categorical index."""
 
     @property
     def dtype(self) -> np.dtype: ...  # pylint: disable=missing-function-docstring
-
-    @property
-    def values(self) -> np.ndarray: ...  # pylint: disable=missing-function-docstring
-
-    def to_arrow(  # pylint: disable=missing-function-docstring
-        self,
-    ) -> Union["pa.StringArray", "pa.IntegerArray"]: ...
-
-    @property
-    def __cuda_array_interface__(self) -> CudaArrayInf: ...
 
     @property
     def _column(self) -> Any: ...
@@ -556,7 +550,7 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         raise ValueError(f"Missing value is not allowed for: {field}")
 
 
-def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
+def _cudf_str_cat_inf(cats: CudfCatIndex) -> Tuple[CudaStringArray, Tuple]:
     """String category index path for :py:func:`cudf_cat_inf`."""
     import pylibcudf as plc  # pylint: disable=import-outside-toplevel
 
@@ -593,7 +587,7 @@ def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
 
 
 def cudf_cat_inf(
-    cats: DfCatAccessor, codes: "pd.Series"
+    cats: CudfCatIndex, codes: _CudaArrayLikeArg
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
     cp = import_cupy()

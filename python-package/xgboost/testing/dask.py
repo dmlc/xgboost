@@ -386,9 +386,11 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     n_samples_per_worker = n_samples // len(workers)
 
     if device == "cpu":
-        from pandas import DataFrame as DF
+        DF: Any = pd.DataFrame
     else:
-        from cudf import DataFrame as DF
+        from cudf import DataFrame as CudfDataFrame
+
+        DF = CudfDataFrame
 
     def make(n: int, seed: int) -> pd.DataFrame:
         rng = np.random.default_rng(seed)

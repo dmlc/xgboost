@@ -452,7 +452,7 @@ def cv(
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
-) -> Union[Dict[str, float], "PdDataFrame"]:
+) -> Union[Dict[str, List[float]], "PdDataFrame"]:
     """Cross-validation with given parameters.
 
     Parameters
@@ -610,14 +610,16 @@ def cv(
             for k in results.keys():  # pylint: disable=consider-iterating-dictionary
                 results[k] = results[k][: (booster.best_iteration + 1)]
             break
+
+    results_df: Union[Dict[str, List[float]], "PdDataFrame"] = results
     if as_pandas:
         try:
             import pandas as pd
-
-            results = pd.DataFrame.from_dict(results)
         except ImportError:
             pass
+        else:
+            results_df = pd.DataFrame.from_dict(results)
 
     callbacks_container.after_training(booster)
 
-    return results
+    return results_df

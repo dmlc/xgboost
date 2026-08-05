@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import pytest
@@ -39,7 +39,9 @@ def test_cat_container() -> None:
         ("UInt64", [1, np.iinfo(np.int64).max]),
     ],
 )
-def test_pd_cat_nullable_integer(dtype: str, values: list[int]) -> None:
+def test_pd_cat_nullable_integer(
+    dtype: Literal["Int64", "UInt16", "UInt32", "UInt64"], values: list[int]
+) -> None:
     import pandas as pd
 
     categories = pd.Index(pd.array(values, dtype=dtype))
