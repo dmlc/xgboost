@@ -40,9 +40,6 @@ std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
   }
   print_span(e.split.child_sum);
 
-  os << "base_weight: ";
-  print_span(e.base_weight);
-
   return os;
 }
 }  // namespace xgboost::tree::cuda_impl

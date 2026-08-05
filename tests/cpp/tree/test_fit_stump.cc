@@ -11,7 +11,7 @@
 
 namespace xgboost::tree {
 namespace {
-void TestFitStump(Context const *ctx, DataSplitMode split = DataSplitMode::kRow) {
+void TestFitStump(Context const *ctx) {
   std::size_t constexpr kRows = 16, kTargets = 2;
   linalg::Matrix<GradientPair> gpair;
   gpair.SetDevice(ctx->Device());
@@ -23,9 +23,7 @@ void TestFitStump(Context const *ctx, DataSplitMode split = DataSplitMode::kRow)
     }
   }
   linalg::Vector<float> out;
-  MetaInfo info;
-  info.data_split_mode = split;
-  FitStump(ctx, info, gpair, kTargets, &out);
+  FitStump(ctx, gpair, kTargets, &out);
   auto h_out = out.HostView();
   for (auto it = linalg::cbegin(h_out); it != linalg::cend(h_out); ++it) {
     // sum_hess == kRows
@@ -49,9 +47,4 @@ TEST(InitEstimation, GPUFitStump) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-TEST(InitEstimation, FitStumpColumnSplit) {
-  Context ctx;
-  auto constexpr kWorldSize{3};
-  collective::TestDistributedGlobal(kWorldSize, [&] { TestFitStump(&ctx, DataSplitMode::kCol); });
-}
 }  // namespace xgboost::tree

@@ -47,7 +47,9 @@ def test_polars_basic(
     df = pl.DataFrame({"a": [True, False, False], "b": [False, False, True]})
     Xy = DMatrixT(df)
 
-    np.testing.assert_equal(Xy.get_data().data, np.array([1, m, m, m, m, 1]))
+    np.testing.assert_equal(
+        Xy.get_data().data, np.array([1.0, m, m, m, m, 1.0], dtype=np.float32)
+    )
 
 
 def test_polars_missing() -> None:
@@ -141,7 +143,7 @@ def test_regressor() -> None:
 
 
 def test_categorical() -> None:
-    cats = ["aa", "cc", "bb", "ee", "ee"]
+    cats = ["a", "café", "猫", "🐍", "🐍"]
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Categorical())],

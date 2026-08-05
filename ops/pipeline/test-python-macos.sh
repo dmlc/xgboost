@@ -14,7 +14,6 @@ cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
 ninja
 popd
 
-python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 cd python-package
 python --version
 pip install -v .

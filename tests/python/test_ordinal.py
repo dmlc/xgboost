@@ -1,5 +1,10 @@
+from typing import cast
+
+import numpy as np
 import pytest
+import xgboost as xgb
 from xgboost import testing as tm
+from xgboost._data_utils import ArrayInf, from_array_interface, pd_cat_inf
 from xgboost.testing.ordinal import (
     run_cat_container,
     run_cat_container_iter,
@@ -23,6 +28,43 @@ pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_arrow(), tm.no_pandas()))
 
 def test_cat_container() -> None:
     run_cat_container("cpu")
+
+
+@pytest.mark.parametrize(
+    "dtype, values",
+    [
+        ("Int64", [-2, 1]),
+        ("UInt16", [1, np.iinfo(np.uint16).max]),
+        ("UInt32", [1, np.iinfo(np.uint32).max]),
+        ("UInt64", [1, np.iinfo(np.int64).max]),
+    ],
+)
+def test_pd_cat_nullable_integer(dtype: str, values: list[int]) -> None:
+    import pandas as pd
+
+    categories = pd.Index(pd.array(values, dtype=dtype))
+    names, codes, temporary = pd_cat_inf(
+        categories, pd.Series([0, -1, 1], dtype=np.int8)
+    )
+    expected_dtype = np.dtype(dtype.lower())
+    converted = temporary[0]
+    assert converted.dtype == expected_dtype
+    assert converted.flags.c_contiguous and converted.flags.aligned
+    assert "typestr" in names
+    numeric_names = cast(ArrayInf, names)
+    assert numeric_names["typestr"] == expected_dtype.str
+    np.testing.assert_array_equal(from_array_interface(numeric_names), values)
+    code_values = np.asarray(from_array_interface(codes))
+    assert code_values[0] == 0 and np.isnan(code_values[1]) and code_values[2] == 1
+
+
+def test_pd_cat_nullable_float() -> None:
+    import pandas as pd
+
+    categories = pd.Index(pd.array([1.0, 2.0], dtype="Float64"))
+    cat = pd.Categorical.from_codes([0, 1], categories=categories)
+    with pytest.raises(xgb.core.XGBoostError, match="floating point dtype"):
+        xgb.DMatrix(pd.DataFrame({"c": cat}), enable_categorical=True)
 
 
 def test_cat_container_mixed() -> None:

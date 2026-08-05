@@ -117,9 +117,10 @@ YAML file ``containers/ci_container.yml``. For example, when ``IMAGE_REPO`` is s
   xgb-ci.gpu:
     container_def: gpu
     build_args:
-      CUDA_VERSION_ARG: "12.4.1"
-      NCCL_VERSION_ARG: "2.23.4-1"
-      RAPIDS_VERSION_ARG: "24.10"
+      CUDA_VERSION: "13.3.0"
+      NCCL_VERSION: "2.30.7-1"
+      RAPIDS_VERSION: "26.04"
+      ARCH: x86_64
 
 The ``container_def`` entry indicates where the Dockerfile is located. The container
 definition will be fetched from ``containers/dockerfile/Dockerfile.CONTAINER_DEF`` where
@@ -131,8 +132,8 @@ the build arguments are:
 
 .. code-block::
 
-  --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
-    --build-arg RAPIDS_VERSION_ARG=24.10
+  --build-arg CUDA_VERSION=13.3.0 --build-arg NCCL_VERSION=2.30.7-1 \
+    --build-arg RAPIDS_VERSION=26.04 --build-arg ARCH=x86_64
 
 The build arguments provide inputs to the ``ARG`` instructions in the Dockerfile.
 
@@ -152,7 +153,7 @@ Invoke ``ops/docker_run.py`` from the main ``dmlc/xgboost`` repo as follows:
   python3 ops/docker_run.py \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:[image_tag] \
     [--use-gpus] \
-    -- "command to run inside the container"
+    -- command [arguments...]
 
 where ``--use-gpus`` should be specified to expose NVIDIA GPUs to the Docker container.
 
@@ -163,13 +164,13 @@ For example:
   # Run without GPU
   python3 ops/docker_run.py \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    -- bash ops/pipeline/build-cpu-impl.sh cpu
+    -- bash ops/pipeline/test-python-wheel.sh --suite cpu
 
   # Run with NVIDIA GPU
   python3 ops/docker_run.py \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
-    -- bash ops/pipeline/test-python-wheel.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh --suite gpu --cuda-version 13
 
 Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker run``:
 
@@ -181,7 +182,7 @@ Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker r
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
-    -- bash ops/pipeline/test-python-wheel.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh --suite mgpu --cuda-version 13
 
 See :ref:`ci_container_infra` to read about how containers are built and managed in the CI pipelines.
 
@@ -214,7 +215,7 @@ Examples: useful tasks for local development
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.cpu:main \
-      -- ops/pipeline/test-python-wheel.sh cpu
+      -- ops/pipeline/test-python-wheel.sh --suite cpu
 
 * Run Python tests with GPU algorithm
 
@@ -224,7 +225,7 @@ Examples: useful tasks for local development
     python3 ops/docker_run.py \
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
-      -- ops/pipeline/test-python-wheel.sh gpu
+      -- ops/pipeline/test-python-wheel.sh --suite gpu --cuda-version 13
 
 * Run Python tests with GPU algorithm on Linux ARM64
 
@@ -234,7 +235,7 @@ Examples: useful tasks for local development
     python3 ops/docker_run.py \
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_aarch64:main \
       --use-gpus \
-      -- ops/pipeline/test-python-wheel.sh gpu-arm64
+      -- ops/pipeline/test-python-wheel.sh --suite gpu-arm64 --cuda-version 13
 
 * Run Python tests with GPU algorithm, with multiple GPUs
 
@@ -245,7 +246,7 @@ Examples: useful tasks for local development
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
       --run-args='--shm-size=4g' \
-      -- ops/pipeline/test-python-wheel.sh mgpu
+      -- ops/pipeline/test-python-wheel.sh --suite mgpu --cuda-version 13
       # --shm-size=4g is needed for multi-GPU algorithms to function
 
 * Build and test JVM packages
@@ -291,7 +292,7 @@ Self-Hosted Runners with RunsOn
 self-hosted runners to use with GitHub Actions pipelines. RunsOn uses
 `Amazon Web Services (AWS) <https://aws.amazon.com/>`_ under the hood to provision runners with
 access to various amount of CPUs, memory, and NVIDIA GPUs. Thanks to this app, we are able to test
-GPU-accelerated and distributed algorithms of XGBoost while using the familar interface of
+GPU-accelerated and distributed algorithms of XGBoost while using the familiar interface of
 GitHub Actions.
 
 In GitHub Actions, jobs run on Microsoft-hosted runners by default.
@@ -502,15 +503,16 @@ For example, when you run ``bash containers/docker_build.sh xgb-ci.gpu``, the lo
   # docker_build.sh calls docker_build.py...
   python3 containers/docker_build.py --container-def gpu \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
-    --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
-    --build-arg RAPIDS_VERSION_ARG=24.10
+    --build-arg CUDA_VERSION=13.3.0 --build-arg NCCL_VERSION=2.30.7-1 \
+    --build-arg RAPIDS_VERSION=26.04 --build-arg ARCH=x86_64
 
   ...
 
   # .. and docker_build.py in turn calls "docker build"...
-  docker build --build-arg CUDA_VERSION_ARG=12.4.1 \
-    --build-arg NCCL_VERSION_ARG=2.23.4-1 \
-    --build-arg RAPIDS_VERSION_ARG=24.10 \
+  docker build --build-arg CUDA_VERSION=13.3.0 \
+    --build-arg NCCL_VERSION=2.30.7-1 \
+    --build-arg RAPIDS_VERSION=26.04 \
+    --build-arg ARCH=x86_64 \
     --load --progress=plain \
     --ulimit nofile=1024000:1024000 \
     -t 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
@@ -526,7 +528,7 @@ Here is an example with ``docker_run.py``:
   # Run without GPU
   python3 ops/docker_run.py \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    -- bash ops/pipeline/build-cpu-impl.sh cpu
+    -- bash ops/pipeline/test-python-wheel.sh --suite cpu
 
   # Run with NVIDIA GPU
   # Allocate extra space in /dev/shm to enable NCCL
@@ -535,26 +537,26 @@ Here is an example with ``docker_run.py``:
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
-    -- bash ops/pipeline/test-python-wheel.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh --suite mgpu --cuda-version 13
 
 which are translated to the following ``docker run`` invocations:
 
 .. code-block:: bash
 
   docker run --rm --pid=host \
-    -w /workspace -v /path/to/xgboost:/workspace \
+    -v /path/to/xgboost:/workspace -w /workspace \
     -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
     -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
     492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    bash ops/pipeline/build-cpu-impl.sh cpu
+    bash ops/pipeline/test-python-wheel.sh --suite cpu
 
   docker run --rm --pid=host --gpus all \
-    -w /workspace -v /path/to/xgboost:/workspace \
+    -v /path/to/xgboost:/workspace -w /workspace \
     -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
     -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
     --shm-size=4g --privileged \
     492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
-    bash ops/pipeline/test-python-wheel.sh gpu
+    bash ops/pipeline/test-python-wheel.sh --suite mgpu --cuda-version 13
 
 
 .. _vm_images:

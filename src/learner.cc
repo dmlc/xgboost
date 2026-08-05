@@ -30,8 +30,9 @@
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
-#include "collective/aggregator.h"        // for ApplyWithLabels
-#include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
+#include "collective/allreduce.h"         // for Allreduce, SafeColl
+#include "collective/broadcast.h"         // for Broadcast
+#include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
@@ -52,7 +53,6 @@
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
 #include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
 
@@ -350,7 +350,7 @@ std::string CanonicalizeBoosterName(std::string booster) {
  * @brief Handler for the `n_targets` property and the intercept.
  */
 class Intercept : public Learner {
-  using CacheT = common::GetValueT<decltype(std::declval<PredictionContainer>().Container())>;
+  using CacheT = std::vector<std::weak_ptr<DMatrix>>;
 
  protected:
   /**
@@ -375,8 +375,7 @@ class Intercept : public Learner {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 
   [[nodiscard]] bool NeedFit() const {
@@ -408,11 +407,15 @@ class Intercept : public Learner {
   void GetNumTargets(CacheT const& cache) {
     CHECK(this->obj_);
     bst_target_t n_targets = 1;
-    for (auto const& d : cache) {
+    for (auto const& weak : cache) {
+      auto d = weak.lock();
+      if (!d) {
+        continue;
+      }
       if (n_targets == 1) {
-        n_targets = this->obj_->Targets(d.first.ptr->Info());
+        n_targets = this->obj_->Targets(d->Info());
       } else {
-        auto t = this->obj_->Targets(d.first.ptr->Info());
+        auto t = this->obj_->Targets(d->Info());
         CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
       }
     }
@@ -501,7 +504,7 @@ class LearnerConfiguration : public Intercept {
   common::Monitor monitor_;
   LearnerTrainParam tparam_;
   // Initial prediction.
-  PredictionContainer prediction_container_;
+  std::vector<std::weak_ptr<DMatrix>> cache_data_;
 
   std::vector<std::string> metric_names_;
 
@@ -511,7 +514,7 @@ class LearnerConfiguration : public Intercept {
     monitor_.Init("Learner");
     for (std::shared_ptr<DMatrix> const& d : cache) {
       if (d) {
-        prediction_container_.Cache(d, DeviceOrd::CPU());
+        cache_data_.emplace_back(d);
       }
     }
   }
@@ -553,7 +556,7 @@ class LearnerConfiguration : public Intercept {
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
 
-    this->InitModelUserParam(this->tparam_, this->prediction_container_.Container());
+    this->InitModelUserParam(this->tparam_, this->cache_data_);
 
     this->ConfigureMetrics(args);
 
@@ -799,12 +802,16 @@ class LearnerConfiguration : public Intercept {
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
       unsigned num_feature = 0;
-      for (auto const& matrix : prediction_container_.Container()) {
-        CHECK(matrix.first.ptr);
-        CHECK(!matrix.second.ref.expired());
-        const uint64_t num_col = matrix.first.ptr->Info().num_col_;
+      for (auto it = cache_data_.begin(); it != cache_data_.end();) {
+        auto matrix = it->lock();
+        if (!matrix) {
+          it = cache_data_.erase(it);
+          continue;
+        }
+        const uint64_t num_col = matrix->Info().num_col_;
         error::MaxFeatureSize(num_col);
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
+        ++it;
       }
 
       auto rc =
@@ -881,8 +888,7 @@ class LearnerConfiguration : public Intercept {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 };
 
@@ -890,7 +896,7 @@ std::string const LearnerConfiguration::kEvalMetric{"eval_metric"};  // NOLINT
 
 class LearnerIO : public LearnerConfiguration {
  protected:
-  void ClearCaches() { this->prediction_container_ = PredictionContainer{}; }
+  void ClearCaches() { this->cache_data_.clear(); }
 
  public:
   explicit LearnerIO(std::vector<std::shared_ptr<DMatrix>> cache) : LearnerConfiguration{cache} {}
@@ -1101,7 +1107,7 @@ class LearnerImpl : public LearnerIO {
     this->Load(&fs);
 
     // Learner self cache. Prediction is cleared in the load method
-    CHECK(this->prediction_container_.Container().empty());
+    CHECK(this->cache_data_.empty());
     this->gpair_ = decltype(this->gpair_){};
   }
 
@@ -1117,19 +1123,19 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
-    auto predt = prediction_container_.Cache(train, ctx_.Device());
+    HostDeviceVector<float> predt;
 
     monitor_.Start("PredictRaw");
-    this->PredictRaw(train.get(), predt.get(), true, 0, 0);
-    TrainingObserver::Instance().Observe(predt->predictions, "Predictions");
+    this->PredictRaw(train, &predt, true, 0, 0);
+    TrainingObserver::Instance().Observe(predt, "Predictions");
     monitor_.Stop("PredictRaw");
 
     monitor_.Start("GetGradient");
-    GetGradient(predt->predictions, train->Info(), iter, &gpair_.gpair);
+    GetGradient(predt, train->Info(), iter, &gpair_.gpair);
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_.Grad()->Data(), "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, predt.get(), obj_.get());
+    gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -1151,8 +1157,7 @@ class LearnerImpl : public LearnerIO {
           << "The number of columns in gradient should be equal to the number of "
              "targets/classes in the model.";
     }
-    auto predt = prediction_container_.Cache(train, ctx_.Device());
-    this->gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
+    this->gbm_->DoBoost(train, in_gpair, obj_.get());
     this->monitor_.Stop(__func__);
   }
 
@@ -1176,13 +1181,9 @@ class LearnerImpl : public LearnerIO {
 
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
-      auto predt = prediction_container_.Cache(m, ctx_.Device());
       this->ValidateDMatrix(m.get(), false);
-      this->PredictRaw(m.get(), predt.get(), false, 0, 0);
-
-      auto& out = output_predictions_.Cache(m, ctx_.Device())->predictions;
-      out.Resize(predt->predictions.Size());
-      out.Copy(predt->predictions);
+      HostDeviceVector<float> out;
+      this->PredictRaw(m, &out, false, 0, 0);
 
       obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
@@ -1208,19 +1209,17 @@ class LearnerImpl : public LearnerIO {
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
     } else if (pred_interactions) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
                                             approx_contribs);
     } else if (pred_leaf) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
     } else {
-      auto predt = prediction_container_.Cache(data, ctx_.Device());
-      this->PredictRaw(data.get(), predt.get(), training, layer_begin, layer_end);
-      // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(ctx_.Device());
-      out_preds->Resize(predt->predictions.Size());
-      out_preds->Copy(predt->predictions);
+      this->PredictRaw(data, out_preds, training, layer_begin, layer_end);
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
@@ -1251,19 +1250,19 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     this->CheckModelInitialized();
 
-    auto& out_predictions = this->GetThreadLocal().prediction_entry;
-    out_predictions.Reset();
+    auto& out_predictions = this->GetThreadLocal().predictions;
+    out_predictions.Resize(0);
 
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
 
     if (type == PredictionType::kValue) {
-      obj_->PredTransform(&out_predictions.predictions);
+      obj_->PredTransform(&out_predictions);
     } else if (type == PredictionType::kMargin) {
       // do nothing
     } else {
       LOG(FATAL) << "Unsupported prediction type:" << static_cast<int>(type);
     }
-    *out_preds = &out_predictions.predictions;
+    *out_preds = &out_predictions;
   }
 
   void CalcFeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
@@ -1287,11 +1286,11 @@ class LearnerImpl : public LearnerIO {
    *   predictor, when it equals 0, this means we are using all the trees
    * \param training allow dropout when the DART booster is being used
    */
-  void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds, bool training,
+  void PredictRaw(std::shared_ptr<DMatrix> data, HostDeviceVector<float>* out_preds, bool training,
                   unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
-    this->ValidateDMatrix(data, false);
+    this->ValidateDMatrix(data.get(), false);
     gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
@@ -1321,17 +1320,13 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    obj_->GetGradient(preds, info, iter, out_gpair);
   }
 
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
   GradientContainer gpair_;
-  /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
-   *  objective function */
-  PredictionContainer output_predictions_;
 };
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;

@@ -295,10 +295,13 @@ chose to not store the ``values`` as a JSON string to avoid handling special cha
 and string encoding. The string names are stored exactly as given by the dataframe.
 
 As for numerical categories, the ``enc`` contains two keys: ``type`` and ``values``. The
-``type`` field is an integer ID that identifies the type of the categories, such as 64-bit
-integers and 32-bit floating points (note that they are all f32 inside a decision
-tree). The exact mapping between the type to the integer ID is internal but stable. The
-``values`` is an array storing all categories in a feature.
+``type`` field is an integer ID that identifies the integer type of the categories, such
+as signed or unsigned 64-bit integers. Floating-point category index is not supported.
+The exact mapping between the type and the integer ID is internal but stable. The
+``values`` field is an array storing all categories in a feature. Since UBJSON only
+supports unsigned 8-bit integers, wider unsigned values are bit-copied into same-width
+signed storage and recovered according to the ``type`` field. Unsigned 64-bit category
+index (name) must not exceed the signed 64-bit range.
 
 *************
 Brief History

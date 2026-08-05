@@ -69,7 +69,7 @@ def run_cat_container(device: Device) -> None:
     def run_dispatch(device: Device, DMatrixT: Type) -> None:
         Df, _ = get_df_impl(device)
         # Basic test with a single feature
-        df = Df({"c": ["cdef", "abc"]}, dtype="category")
+        df = Df({"c": ["猫", "café"]}, dtype="category")
         categories = df.c.cat.categories
 
         Xy = DMatrixT(df, enable_categorical=True)
@@ -86,15 +86,15 @@ def run_cat_container(device: Device) -> None:
             )
 
         # Test with missing values.
-        df = Df({"c": ["cdef", None, "abc", "abc"]}, dtype="category")
+        df = Df({"c": ["猫", None, "café", "café"]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
 
         cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
         cats_id = dict(cats)
         ser = cats_id["c"].to_pandas()
-        assert ser.iloc[0] == "abc"
-        assert ser.iloc[1] == "cdef"
+        assert ser.iloc[0] == "café"
+        assert ser.iloc[1] == "猫"
         assert ser.size == 2
 
         csr = Xy.get_data()
@@ -107,7 +107,7 @@ def run_cat_container(device: Device) -> None:
         comp_booster(device, Xy, "dart")
 
         # Test with explicit null-terminated strings.
-        df = Df({"c": ["cdef", None, "abc", "abc\0"]}, dtype="category")
+        df = Df({"c": ["猫", None, "café", "café\0", ""]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
 
         comp_booster(device, Xy, "gbtree")
@@ -691,33 +691,34 @@ def run_recode_dmatrix(device: Device) -> None:
     Df, _ = get_df_impl(device)
 
     # String index
-    old_cats = ["a", "b", "c", "d"]
-    new_cats = ["b", "a", "c", "d"]
+    old_cats = ["café", "猫", "c", "🐍"]
+    new_cats = ["猫", "café", "c", "🐍"]
 
     col0 = np.arange(0, 9)
     col1 = pd.Categorical.from_codes(
-        # b, b, c, d, a, c, c, d, a
+        # 猫, 猫, c, 🐍, café, c, c, 🐍, café
         categories=old_cats,
         codes=[1, 1, 2, 3, 0, 2, 2, 3, 0],
     )
     df = Df({"f0": col0, "f1": col1})
 
-    Xy = DMatrix(df, enable_categorical=True)
-    cats_0 = Xy.get_categories(export_to_arrow=True)
-    assert Xy.feature_types == ["int", "c"]
+    Xy_0 = DMatrix(df, enable_categorical=True)
+    cats_0 = Xy_0.get_categories(export_to_arrow=True)
+    assert Xy_0.feature_types == ["int", "c"]
 
     col1 = pd.Categorical.from_codes(
-        # b, b, c, d, a, c, c, d, a
+        # 猫, 猫, c, 🐍, café, c, c, 🐍, café
         categories=new_cats,
         codes=[0, 0, 2, 3, 1, 2, 2, 3, 1],
     )
     df = Df({"f0": col0, "f1": col1})
-    Xy = DMatrix(df, enable_categorical=True, feature_types=cats_0)
+    Xy_1 = DMatrix(df, enable_categorical=True, feature_types=cats_0)
     # feature_types is still correct
-    assert Xy.feature_names == ["f0", "f1"]
-    assert Xy.feature_types == ["int", "c"]
-    cats_1 = Xy.get_categories(export_to_arrow=True)
+    assert Xy_1.feature_names == ["f0", "f1"]
+    assert Xy_1.feature_types == ["int", "c"]
+    cats_1 = Xy_1.get_categories(export_to_arrow=True)
     assert cats_0.to_arrow() == cats_1.to_arrow()
+    assert predictor_equal(Xy_0, Xy_1)
 
     # Numeric index
     col0 = pd.Categorical.from_codes(
