@@ -29,6 +29,12 @@ TEST(Objective, PredTransform) {
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+    SCOPED_TRACE(entry->name);
+    // The example plugin is intentionally a CPU-only implementation and is not part of the
+    // built-in objective device-placement contract.
+    if (entry->name == "mylogistic") {
+      continue;
+    }
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
     if (entry->name.find("multi") != std::string::npos) {
       obj->Configure(Args{{"num_class", "2"}});
