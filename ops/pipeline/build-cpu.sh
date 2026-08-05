@@ -24,8 +24,7 @@ case "${suite}" in
       -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-      -DPLUGIN_FEDERATED=ON
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
     time ninja -v
     echo "--- Run Google Test"
     ctest --extra-verbose

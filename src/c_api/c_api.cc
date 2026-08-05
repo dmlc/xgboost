@@ -18,7 +18,7 @@
 #include "../common/api_entry.h"         // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"          // for from_chars, to_chars, NumericLimits, from_ch...
 #include "../common/cuda_rt_utils.h"     // for MemoryPoolsSupported
-#include "../common/error_msg.h"         // for NoFederated
+#include "../common/error_msg.h"         // for DeprecatedFunc
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
@@ -128,12 +128,6 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["DEBUG"] = Boolean{true};
 #else
   info["DEBUG"] = Boolean{false};
-#endif
-
-#if defined(XGBOOST_USE_FEDERATED)
-  info["USE_FEDERATED"] = Boolean{true};
-#else
-  info["USE_FEDERATED"] = Boolean{false};
 #endif
 
 #if defined(XGBOOST_GIT_HASH)

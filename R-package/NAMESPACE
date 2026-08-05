@@ -80,32 +80,42 @@ importClassesFrom(Matrix,CsparseMatrix)
 importClassesFrom(Matrix,dgCMatrix)
 importClassesFrom(Matrix,dgRMatrix)
 importFrom(Matrix,sparse.model.matrix)
-importFrom(data.table,":=")
-importFrom(data.table,as.data.table)
-importFrom(data.table,data.table)
-importFrom(data.table,is.data.table)
-importFrom(data.table,rbindlist)
-importFrom(data.table,setkey)
-importFrom(data.table,setkeyv)
-importFrom(data.table,setnames)
+importFrom(data.table,
+  ":=",
+  as.data.table,
+  data.table,
+  is.data.table,
+  rbindlist,
+  setkey,
+  setkeyv,
+  setnames
+)
 importFrom(grDevices,rgb)
-importFrom(graphics,barplot)
-importFrom(graphics,grid)
-importFrom(graphics,lines)
-importFrom(graphics,par)
-importFrom(graphics,points)
-importFrom(graphics,title)
-importFrom(jsonlite,fromJSON)
-importFrom(jsonlite,toJSON)
+importFrom(graphics,
+  barplot,
+  grid,
+  lines,
+  par,
+  points,
+  title
+)
+importFrom(jsonlite,
+  fromJSON,
+  toJSON
+)
 importFrom(methods,new)
-importFrom(stats,coef)
-importFrom(stats,median)
-importFrom(stats,predict)
-importFrom(stats,sd)
-importFrom(stats,variable.names)
-importFrom(utils,hasName)
-importFrom(utils,head)
-importFrom(utils,object.size)
-importFrom(utils,str)
-importFrom(utils,tail)
+importFrom(stats,
+  coef,
+  median,
+  predict,
+  sd,
+  variable.names
+)
+importFrom(utils,
+  hasName,
+  head,
+  object.size,
+  str,
+  tail
+)
 useDynLib(xgboost, .registration = TRUE)

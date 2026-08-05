@@ -18,18 +18,11 @@
 #include "test_rank_metric.h"
 #include "test_survival_metric.h"
 
-#if defined(XGBOOST_USE_FEDERATED)
-
-#include "../plugin/federated/test_worker.h"  // for TestFederatedGlobal
-
-#endif  // defined(XGBOOST_USE_FEDERATED)
-
 namespace xgboost::metric {
 namespace {
 using Verifier = std::function<void(DeviceOrd)>;
 struct Param {
   bool is_dist;      // is distributed
-  bool is_fed;       // is federated learning
   Verifier v;        // test function
   std::string name;  // metric name
   DeviceOrd device;  // device to run
@@ -38,7 +31,7 @@ struct Param {
 class TestDistributedMetric : public ::testing::TestWithParam<Param> {
  protected:
   template <typename Fn>
-  void Run(bool is_dist, bool is_fed, Fn fn, DeviceOrd device) {
+  void Run(bool is_dist, Fn fn, DeviceOrd device) {
     if (!is_dist) {
       fn(device);
       return;
@@ -58,20 +51,14 @@ class TestDistributedMetric : public ::testing::TestWithParam<Param> {
         fn(DeviceOrd::CUDA(r));
       }
     };
-    if (is_fed) {
-#if defined(XGBOOST_USE_FEDERATED)
-      collective::TestFederatedGlobal(n_workers, fn1);
-#endif  // defined(XGBOOST_USE_FEDERATED)
-    } else {
-      collective::TestDistributedGlobal(n_workers, fn1);
-    }
+    collective::TestDistributedGlobal(n_workers, fn1);
   }
 };
 }  // anonymous namespace
 
 TEST_P(TestDistributedMetric, BinaryAUCRowSplit) {
   auto p = GetParam();
-  this->Run(p.is_dist, p.is_fed, p.v, p.device);
+  this->Run(p.is_dist, p.v, p.device);
 }
 
 constexpr bool UseNCCL() {
@@ -90,41 +77,24 @@ constexpr bool UseCUDA() {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-constexpr bool UseFederated() {
-#if defined(XGBOOST_USE_FEDERATED)
-  return true;
-#else
-  return false;
-#endif
-}
-
 auto MakeParamsForTest() {
   std::vector<Param> cases;
 
   auto push = [&](std::string name, auto fn) {
-    for (bool is_federated : {false, true}) {
-      for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
-        if (!is_federated && !UseNCCL() && d.IsCUDA()) {
-          // Federated doesn't use nccl.
-          continue;
-        }
-        if (!UseCUDA() && d.IsCUDA()) {
-          // skip CUDA tests
-          continue;
-        }
-        if (!UseFederated() && is_federated) {
-          // skip GRPC tests
-          continue;
-        }
-
-        auto p = Param{true, is_federated, fn, name, d};
-        cases.push_back(p);
-        if (!is_federated) {
-          // Add a local test.
-          p.is_dist = false;
-          cases.push_back(p);
-        }
+    for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
+      if (!UseCUDA() && d.IsCUDA()) {
+        // skip CUDA tests
+        continue;
       }
+
+      auto p = Param{true, fn, name, d};
+      // Distributed CUDA tests require NCCL, but local CUDA tests do not.
+      if (d.IsCPU() || UseNCCL()) {
+        cases.push_back(p);
+      }
+      // Add a local test.
+      p.is_dist = false;
+      cases.push_back(p);
     }
   };
 
@@ -174,9 +144,6 @@ INSTANTIATE_TEST_SUITE_P(
       std::string result;
       if (info.param.is_dist) {
         result += "Dist_";
-      }
-      if (info.param.is_fed) {
-        result += "Federated_";
       }
       result += info.param.device.IsCPU() ? "CPU" : "MGPU";
       result += "_";
