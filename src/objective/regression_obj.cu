@@ -736,11 +736,11 @@ class CoxRegression : public FitIntercept {
     }
   }
   void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
-    std::vector<bst_float>& preds = io_preds->HostVector();
-    const long ndata = static_cast<long>(preds.size());        // NOLINT(*)
-    common::ParallelFor(ndata, ctx_->Threads(), [&](long j) {  // NOLINT(*)
-      preds[j] = std::exp(preds[j]);
-    });
+    common::Transform<>::Init(
+        [] XGBOOST_DEVICE(size_t i, common::Span<bst_float> preds) { preds[i] = expf(preds[i]); },
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
+        io_preds->Device())
+        .Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float>* io_preds) override { PredTransform(io_preds); }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
