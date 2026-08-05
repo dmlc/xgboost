@@ -29,20 +29,19 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
 
-* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-  memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-  (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
-  :doc:`/python/rmm-examples/index` for details.
+* ``use_rmm``:
+
+  .. deprecated:: 3.5.0
+
+    The RMM plugin has been deprecated, use the CUDA async pool instead.
 
 * ``use_cuda_async_pool`` [default=false]
 
   Whether to use the device memory pool in the CUDA driver. This option is not available
   if XGBoost is built with RMM support, as it is the same as using the RMM
-  `CudaAsyncMemoryResource` pool.
+  ``CudaAsyncMemoryResource`` pool.
 
   .. versionadded:: 3.2.0
-
-  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -48,7 +48,6 @@
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView, operator<<
 #include "xgboost/version_config.h"      // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
-#include "xgboost/windefs.h"             // for xgboost_IS_WIN
 
 using namespace xgboost;  // NOLINT(*);
 
@@ -212,11 +211,13 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   // Check configuration is valid.
   bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+
 #if defined(XGBOOST_USE_RMM)
   CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
-#endif  // defined(XGBOOST_USE_RMM)
-#if defined(xgboost_IS_WIN)
-  CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` on Windows.";
+  auto use_rmm = GlobalConfigThreadLocalStore::Get()->use_rmm;
+  if (use_rmm) {
+    LOG(WARNING) << error::DeprecatedFunc("RMM plugin", "3.5.0", "CUDA async pool.");
+  }
 #endif  // defined(XGBOOST_USE_RMM)
   if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
     LOG(FATAL) << "CUDA async memory pool is not available for the current device.";

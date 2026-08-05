@@ -194,7 +194,6 @@ There are several ways to build and install the package from source:
   - ``USE_CUDA`` — build with CUDA / GPU acceleration
   - ``USE_NCCL`` — build with NCCL for distributed GPU training
   - ``USE_DLOPEN_NCCL`` — load NCCL dynamically at runtime
-  - ``PLUGIN_RMM`` — build with RAPIDS Memory Manager support
   - ``HIDE_CXX_SYMBOLS`` — hide all C++ symbols in the shared library
   - ``USE_OPENMP`` — build with OpenMP (defaults to ON)
   - ``XGBOOST_USE_SYSTEM_LIBXGBOOST`` — see Item 4 below
@@ -382,8 +381,7 @@ Additional System-dependent Features
 - OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
   -``mvn -Duse.openmp=OFF`` can be used to disable OpenMP support.
 - GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
-  install``. See :ref:`build_gpu_support` for more info. In addition, ``-Dplugin.rmm=ON``
-  can enable the optional RMM support.
+  install``. See :ref:`build_gpu_support` for more info.
 
 **************************
 Building the Documentation

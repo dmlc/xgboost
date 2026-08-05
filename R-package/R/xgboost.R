@@ -1154,7 +1154,6 @@ xgboost <- function(
   seed_per_iteration = NULL,
   device = NULL,
   disable_default_eval_metric = NULL,
-  use_rmm = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
