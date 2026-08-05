@@ -14,4 +14,3 @@ R-package/src/init.c
 R-package/src/xgboost_R.cc
 R-package/src/xgboost_R.h
 R-package/src/xgboost_custom.cc
-R-package/inst/make-r-def.R

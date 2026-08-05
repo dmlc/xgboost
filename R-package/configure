@@ -2,68 +2,13 @@
 
 set -eu
 
-: "${R_HOME:=$(R RHOME)}"
-if test -z "${R_HOME}"; then
-  echo "could not determine R_HOME" >&2
-  exit 1
-fi
-
-if test -n "${CMAKE:-}"; then
-  cmake_bin=${CMAKE}
-elif command -v cmake >/dev/null 2>&1; then
-  cmake_bin=$(command -v cmake)
-elif test -x /Applications/CMake.app/Contents/bin/cmake; then
-  cmake_bin=/Applications/CMake.app/Contents/bin/cmake
-else
-  echo "CMake >= 3.18 is required to build the xgboost R package." >&2
-  echo "Install CMake or set CMAKE to the full path of the cmake executable." >&2
-  exit 1
-fi
-
-if ! cmake_version=$("${cmake_bin}" --version 2>/dev/null | sed -n '1s/[^0-9]*\([0-9][0-9.]*\).*/\1/p'); then
-  echo "failed to run CMake at: ${cmake_bin}" >&2
-  exit 1
-fi
-
-old_ifs=${IFS}
-IFS=.
-set -- ${cmake_version}
-IFS=${old_ifs}
-cmake_major=${1:-0}
-cmake_minor=${2:-0}
-case ${cmake_major}.${cmake_minor} in
-  *[!0-9.]*)
-    echo "could not parse CMake version: ${cmake_version}" >&2
-    exit 1
-    ;;
-esac
-if test "${cmake_major}" -lt 3 || { test "${cmake_major}" -eq 3 && test "${cmake_minor}" -lt 18; }; then
-  echo "CMake >= 3.18 is required; found ${cmake_version} at ${cmake_bin}." >&2
-  exit 1
-fi
+cmake_bin=${CMAKE:-cmake}
 
 # The assembled source package takes precedence when it is located inside a repository checkout.
-if test -f src/xgboost/CMakeLists.txt && \
-   test -f src/xgboost/R-package/CMakeLists.txt && \
-   test -f src/xgboost/dmlc-core/CMakeLists.txt; then
+if test -f src/xgboost/CMakeLists.txt; then
   cmake_source=xgboost
-elif test -f ../CMakeLists.txt && \
-     test -f ../R-package/CMakeLists.txt && \
-     test -f ../dmlc-core/CMakeLists.txt; then
-  cmake_source=../..
 else
-  echo "could not locate the XGBoost CMake source tree" >&2
-  echo "Run this script from R-package/ or from a package assembled by pack_rpackage()." >&2
-  exit 1
-fi
-
-r_executable=${R_HOME}/bin${R_ARCH_BIN:-}/R
-if test ! -x "${r_executable}" && test -x "${r_executable}.exe"; then
-  r_executable=${r_executable}.exe
-fi
-if test ! -x "${r_executable}"; then
-  echo "could not locate the active R executable at ${r_executable}" >&2
-  exit 1
+  cmake_source=../..
 fi
 
 escape_sed_replacement() {
@@ -72,14 +17,12 @@ escape_sed_replacement() {
 
 cmake_escaped=$(escape_sed_replacement "${cmake_bin}")
 source_escaped=$(escape_sed_replacement "${cmake_source}")
-r_escaped=$(escape_sed_replacement "${r_executable}")
 makevars=${XGBOOST_MAKEVARS:-src/Makevars}
 
 sed \
   -e "s|@CMAKE@|${cmake_escaped}|g" \
   -e "s|@XGBOOST_CMAKE_SOURCE@|${source_escaped}|g" \
-  -e "s|@LIBR_EXECUTABLE@|${r_escaped}|g" \
   src/Makevars.in > "${makevars}"
 
-echo "Using CMake ${cmake_version}: ${cmake_bin}"
+echo "Using CMake: ${cmake_bin}"
 echo "Using XGBoost source: ${cmake_source}"

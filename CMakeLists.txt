@@ -340,6 +340,7 @@ if(R_LIB)
   if(R_C_SUPPORTS_FILE_PREFIX_MAP)
     target_compile_options(xgboost-r PRIVATE $<$<COMPILE_LANGUAGE:C>:${r_file_prefix_map}>)
   endif()
+
   if(R_CXX_SUPPORTS_FILE_PREFIX_MAP)
     set(r_file_prefix_targets xgboost-r objxgboost)
     if(NOT BUILD_WITH_SYSTEM_DMLC)
@@ -349,15 +350,9 @@ if(R_LIB)
       target_compile_options(${r_target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${r_file_prefix_map}>)
     endforeach()
     if(USE_CUDA)
-      if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
-        target_compile_options(
-          objxgboost PRIVATE
-          $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${r_file_prefix_map}>)
-      elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(
-          objxgboost PRIVATE
-          $<$<COMPILE_LANGUAGE:CUDA>:${r_file_prefix_map}>)
-      endif()
+      target_compile_options(
+	objxgboost PRIVATE
+	$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${r_file_prefix_map}>)
     endif()
   endif()
 endif()

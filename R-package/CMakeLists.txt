@@ -1,5 +1,28 @@
-find_package(LibR REQUIRED)
-message(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
+set(XGBOOST_R_INCLUDE_DIR "" CACHE PATH "R include directory provided by R")
+set(XGBOOST_R_LINK_FLAGS "" CACHE STRING "R package link flags provided by R")
+message(STATUS "R include directory: ${XGBOOST_R_INCLUDE_DIR}")
+message(STATUS "R link flags: ${XGBOOST_R_LINK_FLAGS}")
+
+separate_arguments(
+  r_link_libraries NATIVE_COMMAND "${XGBOOST_R_LINK_FLAGS}"
+)
+if(APPLE)
+  set(r_link_items)
+  while(r_link_libraries)
+    list(POP_FRONT r_link_libraries r_link_item)
+    if(r_link_item STREQUAL "-framework"
+       OR r_link_item STREQUAL "-weak_framework")
+      if(NOT r_link_libraries)
+        message(FATAL_ERROR "R provided ${r_link_item} without a framework name")
+      endif()
+      list(POP_FRONT r_link_libraries r_framework)
+      list(APPEND r_link_items "${r_link_item} ${r_framework}")
+    else()
+      list(APPEND r_link_items "${r_link_item}")
+    endif()
+  endwhile()
+  set(r_link_libraries ${r_link_items})
+endif()
 
 file(
   GLOB R_SOURCES
@@ -33,12 +56,14 @@ target_compile_definitions(
 
 target_include_directories(
   xgboost-r PRIVATE
-  ${LIBR_INCLUDE_DIRS}
+  "${XGBOOST_R_INCLUDE_DIR}"
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
 )
 
-target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})
+if(r_link_libraries)
+  target_link_libraries(xgboost-r PUBLIC ${r_link_libraries})
+endif()
 
 if(USE_OPENMP)
   find_package(OpenMP REQUIRED)
@@ -57,6 +82,3 @@ target_link_libraries(objxgboost PUBLIC xgboost-r)
 
 # Add all objects of xgboost-r to objxgboost
 target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:xgboost-r>)
-
-set(LIBR_HOME "${LIBR_HOME}" PARENT_SCOPE)
-set(LIBR_EXECUTABLE "${LIBR_EXECUTABLE}" PARENT_SCOPE)
