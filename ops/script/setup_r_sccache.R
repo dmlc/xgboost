@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 # Configure the XGBoost R package's CMake build to use sccache.
 # This script creates R's user Makevars file with CMake compiler launchers.
 
