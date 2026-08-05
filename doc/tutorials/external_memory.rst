@@ -188,9 +188,6 @@ threshold. See :ref:`global_config` for the parameter `use_cuda_async_pool`.
 
   .. versionadded:: 3.2.0
 
-  .. warning:: This is an experimental feature and is subject to change without
-               notice. Windows is not supported yet.
-
 .. code-block:: python
 
     import cupy as cp
