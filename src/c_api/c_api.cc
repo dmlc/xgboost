@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -212,8 +212,13 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   // Check configuration is valid.
   bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+
 #if defined(XGBOOST_USE_RMM)
   CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
+  auto use_rmm = GlobalConfigThreadLocalStore::Get()->use_rmm;
+  if (use_rmm) {
+    LOG(WARNING) << error::DeprecatedFunc("RMM plugin", "3.5.0", "CUDA async pool.");
+  }
 #endif  // defined(XGBOOST_USE_RMM)
 #if defined(xgboost_IS_WIN)
   CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` on Windows.";

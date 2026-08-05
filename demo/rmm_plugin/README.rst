@@ -1,6 +1,10 @@
 Using XGBoost with RAPIDS Memory Manager (RMM) plugin
 =====================================================
 
+.. deprecated:: 3.5.0
+
+   The RMM plugin has been deprecated, use the CUDA async pool instead.
+
 `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ library provides a
 collection of efficient memory allocators for NVIDIA GPUs. It is now possible to use
 XGBoost with memory allocators provided by RMM, by enabling the RMM integration plugin.
