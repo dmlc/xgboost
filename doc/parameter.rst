@@ -39,7 +39,7 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
   Whether to use the device memory pool in the CUDA driver. This option is not available
   if XGBoost is built with RMM support, as it is the same as using the RMM
-  ``CudaAsyncMemoryResource`` pool. Windows is not yet supported.
+  ``CudaAsyncMemoryResource`` pool.
 
   .. versionadded:: 3.2.0
 
