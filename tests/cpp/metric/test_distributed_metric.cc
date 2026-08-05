@@ -82,16 +82,16 @@ auto MakeParamsForTest() {
 
   auto push = [&](std::string name, auto fn) {
     for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
-      if (!UseNCCL() && d.IsCUDA()) {
-        continue;
-      }
       if (!UseCUDA() && d.IsCUDA()) {
         // skip CUDA tests
         continue;
       }
 
       auto p = Param{true, fn, name, d};
-      cases.push_back(p);
+      // Distributed CUDA tests require NCCL, but local CUDA tests do not.
+      if (d.IsCPU() || UseNCCL()) {
+        cases.push_back(p);
+      }
       // Add a local test.
       p.is_dist = false;
       cases.push_back(p);
