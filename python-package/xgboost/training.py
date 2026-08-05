@@ -497,7 +497,7 @@ def cv(
         transformed versions of those.
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
-        If False or pandas is not installed, return np.ndarray
+        If False or pandas is not installed, returns a dictionary.
     verbose_eval : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
         when np.ndarray is returned. If True, progress will be displayed at
