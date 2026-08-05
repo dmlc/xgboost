@@ -351,8 +351,8 @@ if(R_LIB)
     endforeach()
     if(USE_CUDA)
       target_compile_options(
-	objxgboost PRIVATE
-	$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${r_file_prefix_map}>)
+        objxgboost PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${r_file_prefix_map}>)
     endif()
   endif()
 endif()

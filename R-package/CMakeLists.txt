@@ -7,11 +7,11 @@ separate_arguments(
   r_link_libraries NATIVE_COMMAND "${XGBOOST_R_LINK_FLAGS}"
 )
 if(APPLE)
+  # Re-assemble the -framework link flags broken by the `separate_arguments`.
   set(r_link_items)
   while(r_link_libraries)
     list(POP_FRONT r_link_libraries r_link_item)
-    if(r_link_item STREQUAL "-framework"
-       OR r_link_item STREQUAL "-weak_framework")
+    if(r_link_item STREQUAL "-framework" OR r_link_item STREQUAL "-weak_framework")
       if(NOT r_link_libraries)
         message(FATAL_ERROR "R provided ${r_link_item} without a framework name")
       endif()

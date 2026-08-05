@@ -91,6 +91,7 @@ def rpkg(major: int, minor: int, patch: int, is_dev: bool) -> None:
     with open(desc_path, "w") as fd:
         fd.write(description)
 
+
 @cd(JVM_PACKAGES)
 def jvmpkgs(
     major: int, minor: int, patch: int, rc: int, is_rc: bool, is_dev: bool
