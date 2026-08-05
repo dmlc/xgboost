@@ -3,18 +3,6 @@
 
 set -euo pipefail
 
-cleanup_r_config_h=0
-if [[ ! -e R-package/src/config.h ]]; then
-  cleanup_r_config_h=1
-fi
-
-cleanup() {
-  if [[ "${cleanup_r_config_h}" -eq 1 ]]; then
-    rm -f R-package/src/config.h
-  fi
-}
-trap cleanup EXIT
-
 if [[ -z "${R_LIBS_USER:-}" ]]; then
   export R_LIBS_USER=/tmp/xgboost-r-doc-test-lib
 fi

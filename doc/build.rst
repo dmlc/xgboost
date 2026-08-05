@@ -265,8 +265,8 @@ options for installing development version.
 Installing the development version (Linux / Mac OSX)
 ====================================================
 
-Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
-sections for requirements of building C++ core).
+Make sure you have installed git, CMake 3.18 or newer, and a recent C++ compiler
+supporting C++17 (see the earlier sections for requirements of building the C++ core).
 
 Due to the use of git-submodules, ``remotes::install_github()`` cannot be used to
 install the latest version of R package. Thus, one has to run git to check out the code
@@ -289,23 +289,8 @@ project in the RStudio IDE.
   library(devtools)
   devtools::load_all(path = "/path/to/xgboost/R-package")
 
-On Linux, if you want to use the CMake build for greater flexibility around compile flags,
-the earlier snippet can be replaced by:
-
-.. code-block:: bash
-
-  cmake -B build -S . -DR_LIB=ON -GNinja
-  cd build && ninja install
-
-.. warning::
-
-   MSVC is not supported for the R package as it has difficulty handling R C
-   headers. CMake build is not supported either.
-
-Note in this case that ``cmake`` will not take configurations from your regular
-``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
-configurations such as compilers to use and flags need to be set through CMake variables
-like ``-DCMAKE_CXX_COMPILER``.
+``R CMD INSTALL`` invokes CMake through the package's ``Makevars`` file. Compiler and
+linker settings from R's site and user ``Makevars`` files are forwarded to CMake.
 
 
 .. _r_gpu_support:
@@ -315,15 +300,16 @@ Building R package with GPU support
 
 The procedure and requirements are similar as in :ref:`build_gpu_support`, so make sure to read it first.
 
-On Linux, starting from the XGBoost directory type:
+On Linux, starting from the XGBoost directory, enable CUDA for the package build and let
+``R CMD INSTALL`` drive the complete installation:
 
 .. code-block:: bash
 
-  cmake -B build -S . -DUSE_CUDA=ON -DR_LIB=ON
-  cmake --build build --target install -j$(nproc)
+  XGBOOST_USE_CUDA=ON MAKEFLAGS=-j$(nproc) R CMD INSTALL R-package
 
-When default target is used, an R package shared library would be built in the ``build`` area.
-The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
+This source build requires the CUDA toolkit. Release binaries are built from the assembled
+source package with ``R CMD INSTALL --build`` so that installing the resulting package does
+not require the toolkit.
 
 *********************
 Building JVM Packages

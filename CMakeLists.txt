@@ -263,7 +263,14 @@ endif()
 # -- OpenMP
 include(cmake/FindOpenMPMacOS.cmake)
 if(USE_OPENMP)
-  if(APPLE)
+  if(R_LIB)
+    find_package(OpenMP QUIET COMPONENTS C CXX)
+    if(NOT OpenMP_FOUND)
+      message(WARNING
+        "OpenMP is unavailable for the active R toolchain; building the R library without OpenMP.")
+      set(USE_OPENMP OFF CACHE BOOL "Build with OpenMP support." FORCE)
+    endif()
+  elseif(APPLE)
     find_openmp_macos()
   else()
     find_package(OpenMP REQUIRED C CXX)
@@ -325,6 +332,34 @@ endif()
 # Exports some R specific definitions and objects
 if(R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
+  include(CheckCCompilerFlag)
+  include(CheckCXXCompilerFlag)
+  set(r_file_prefix_map "-ffile-prefix-map=${xgboost_SOURCE_DIR}=.")
+  check_c_compiler_flag("${r_file_prefix_map}" R_C_SUPPORTS_FILE_PREFIX_MAP)
+  check_cxx_compiler_flag("${r_file_prefix_map}" R_CXX_SUPPORTS_FILE_PREFIX_MAP)
+  if(R_C_SUPPORTS_FILE_PREFIX_MAP)
+    target_compile_options(xgboost-r PRIVATE $<$<COMPILE_LANGUAGE:C>:${r_file_prefix_map}>)
+  endif()
+  if(R_CXX_SUPPORTS_FILE_PREFIX_MAP)
+    set(r_file_prefix_targets xgboost-r objxgboost)
+    if(NOT BUILD_WITH_SYSTEM_DMLC)
+      list(APPEND r_file_prefix_targets dmlc)
+    endif()
+    foreach(r_target IN LISTS r_file_prefix_targets)
+      target_compile_options(${r_target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${r_file_prefix_map}>)
+    endforeach()
+    if(USE_CUDA)
+      if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+        target_compile_options(
+          objxgboost PRIVATE
+          $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${r_file_prefix_map}>)
+      elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(
+          objxgboost PRIVATE
+          $<$<COMPILE_LANGUAGE:CUDA>:${r_file_prefix_map}>)
+      endif()
+    endif()
+  endif()
 endif()
 
 # This creates its own shared library `xgboost4j'.
@@ -391,11 +426,13 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
-  # Provide versioned shared object
+  # R installs the library itself and expects an unversioned regular file.
   add_library(xgboost SHARED)
-  set_target_properties(xgboost PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+  if(NOT R_LIB)
+    set_target_properties(xgboost PROPERTIES
+      VERSION ${PROJECT_VERSION}
+      SOVERSION ${PROJECT_VERSION_MAJOR})
+  endif()
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -414,6 +451,13 @@ if(NOT BUILD_WITH_SYSTEM_DMLC)
   xgboost_target_properties(dmlc)
   xgboost_target_link_libraries(dmlc)
   xgboost_target_defs(dmlc)
+  if(R_LIB AND NOT MSVC)
+    get_target_property(dmlc_compile_options dmlc COMPILE_OPTIONS)
+    if(dmlc_compile_options)
+      list(REMOVE_ITEM dmlc_compile_options -O3)
+      set_target_properties(dmlc PROPERTIES COMPILE_OPTIONS "${dmlc_compile_options}")
+    endif()
+  endif()
 endif()
 
 if(JVM_BINDINGS)
@@ -432,15 +476,12 @@ else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif()
 
-#-- Installing XGBoost
+#-- R shared library naming
 if(R_LIB)
-  include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
   if(APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif()
-  setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif()
 if(MINGW)
   set_target_properties(xgboost PROPERTIES PREFIX "")

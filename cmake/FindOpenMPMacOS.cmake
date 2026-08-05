@@ -104,21 +104,26 @@ function(patch_openmp_path_macos target target_default_output_name)
     "${__LIBXGBOOST_FILENAME_${target}}: "
     "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
   )
-  # Add RPATH entries to ensure the loader looks in the following, in the following order:
+  # Add RPATH entries to ensure the loader looks in the following locations:
   #
-  #   - /opt/homebrew/opt/libomp/lib  (where 'brew install' / 'brew link' puts libomp.dylib)
-  #   - ${__OpenMP_LIBRARY_DIR}       (wherever find_package(OpenMP) found OpenMP at build time)
+  #   - R builds: wherever the active R toolchain's OpenMP discovery found libomp.
+  #   - Other builds: Homebrew's libomp followed by the discovered OpenMP library directory.
   #
   # Note: This list will only be used if libomp.dylib isn't already loaded into memory.
   #       So Conda users will likely use ${CONDA_PREFIX}/libomp.dylib
-  execute_process(COMMAND brew --prefix libomp
-                  OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(R_LIB)
+    set(__OPENMP_RPATH "${__OpenMP_LIBRARY_DIR}")
+  else()
+    execute_process(COMMAND brew --prefix libomp
+                    OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(__OPENMP_RPATH "${HOMEBREW_LIBOMP_PREFIX}/lib;${__OpenMP_LIBRARY_DIR}")
+  endif()
   set_target_properties(
     ${target}
     PROPERTIES
       BUILD_WITH_INSTALL_RPATH TRUE
-      INSTALL_RPATH "${HOMEBREW_LIBOMP_PREFIX}/lib;${__OpenMP_LIBRARY_DIR}"
+      INSTALL_RPATH "${__OPENMP_RPATH}"
       INSTALL_RPATH_USE_LINK_PATH FALSE
   )
 endfunction()

@@ -59,7 +59,7 @@ function(create_rlib_for_msvc)
 
   execute_process(
     COMMAND ${LIBR_RSCRIPT_EXECUTABLE}
-    "${CMAKE_CURRENT_BINARY_DIR}/../../R-package/inst/make-r-def.R"
+    "${xgboost_SOURCE_DIR}/R-package/inst/make-r-def.R"
     "${LIBR_LIB_DIR}/R.dll" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
   )
 

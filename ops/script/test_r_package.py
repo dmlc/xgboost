@@ -16,8 +16,33 @@ except ImportError:
 from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
 
-def get_mingw_bin() -> str:
-    return os.path.join("c:/rtools40/mingw64/", "bin")
+def read_cmake_source_manifest() -> list[Path]:
+    """Read the build-only source payload embedded in an R source package."""
+    manifest = Path(R_PACKAGE) / "tools" / "cmake-source-files"
+    entries = []
+    with open(manifest, encoding="utf-8") as fd:
+        for line in fd:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                entries.append(Path(line))
+    if not entries:
+        raise ValueError(f"Empty CMake source manifest: {manifest}")
+    return entries
+
+
+def copy_cmake_source_tree(dest: Path) -> None:
+    """Copy the minimal top-level CMake graph into an assembled R package."""
+    embedded_root = dest / "src" / "xgboost"
+    for relative_path in read_cmake_source_manifest():
+        source = Path(ROOT) / relative_path
+        target = embedded_root / relative_path
+        if not source.exists():
+            raise FileNotFoundError(f"Missing CMake source manifest entry: {source}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            shutil.copyfile(source, target)
 
 
 @cd(ROOT)
@@ -25,14 +50,6 @@ def get_mingw_bin() -> str:
 def pack_rpackage() -> Path:
     """Compose the directory used for creating R package tar ball."""
     dest = Path("xgboost")
-
-    def pkgroot(path: str) -> None:
-        """Change makefiles according to the package layout."""
-        with open(Path("R-package") / "src" / path, "r") as fd:
-            makefile = fd.read()
-            makefile = makefile.replace("PKGROOT=../../", "PKGROOT=.", 1)
-        with open(dest / "src" / path, "w") as fd:
-            fd.write(makefile)
 
     output = subprocess.run(["git", "clean", "-xdf", "--dry-run"], capture_output=True)
     if output.returncode != 0:
@@ -49,30 +66,12 @@ def pack_rpackage() -> Path:
 
     shutil.copytree("R-package", dest)
     os.remove(dest / "bootstrap.R")
-    # core
-    shutil.copytree("src", dest / "src" / "src")
-    shutil.copytree("include", dest / "src" / "include")
-    shutil.copytree("amalgamation", dest / "src" / "amalgamation")
-    # dmlc-core
-    dmlc_core = Path("dmlc-core")
-    os.mkdir(dest / "src" / dmlc_core)
-    shutil.copytree(dmlc_core / "include", dest / "src" / "dmlc-core" / "include")
-    shutil.copytree(dmlc_core / "src", dest / "src" / "dmlc-core" / "src")
-    # makefile & license
+    copy_cmake_source_tree(dest)
     shutil.copyfile("LICENSE", dest / "LICENSE")
-    osxmakef = dest / "src" / "Makevars.win-e"
-    if os.path.exists(osxmakef):
-        os.remove(osxmakef)
-    pkgroot("Makevars.in")
-    pkgroot("Makevars.win.in")
-    # misc
     rwsp = Path("R-package") / "remove_warning_suppression_pragma.sh"
     if system() != "Windows":
-        subprocess.check_call(rwsp)
-    rwsp = dest / "remove_warning_suppression_pragma.sh"
-    if system() != "Windows":
-        subprocess.check_call(rwsp)
-    os.remove(rwsp)
+        subprocess.check_call([rwsp, dest])
+    os.remove(dest / "remove_warning_suppression_pragma.sh")
     os.remove(dest / "CMakeLists.txt")
     shutil.rmtree(dest / "tests" / "helper_scripts")
     return dest
@@ -146,14 +145,6 @@ def check_rpackage(path: str) -> None:
         }
     )
 
-    # Actually we don't run this check on windows due to dependency issue.
-    if system() == "Windows":
-        # make sure compiler from rtools is used.
-        mingw_bin = get_mingw_bin()
-        CXX = os.path.join(mingw_bin, "g++.exe")
-        CC = os.path.join(mingw_bin, "gcc.exe")
-        env.update({"CC": CC, "CXX": CXX})
-
     status = subprocess.run(
         [R, "CMD", "check", "--as-cran", "--timings", path], env=env
     )
@@ -208,96 +199,21 @@ def check_rmarkdown() -> None:
 
 @cd(R_PACKAGE)
 @record_time
-def test_with_autotools() -> None:
+def test_rpackage_on_windows() -> None:
     """Windows only test. No `--as-cran` check, only unittests. We don't want to manage
     the dependencies on Windows machine.
 
     """
     assert system() == "Windows"
-    mingw_bin = get_mingw_bin()
-    CXX = os.path.join(mingw_bin, "g++.exe")
-    CC = os.path.join(mingw_bin, "gcc.exe")
-    cmd = [R, "CMD", "INSTALL", str(os.path.curdir)]
+    with DirectoryExcursion(ROOT):
+        package_dir = Path(ROOT) / pack_rpackage()
+    cmd = [R, "CMD", "INSTALL", str(package_dir)]
     env = os.environ.copy()
-    env.update({"CC": CC, "CXX": CXX, "MAKEFLAGS": f"-j{os.cpu_count()}"})
+    env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
     subprocess.check_call(cmd, env=env)
     subprocess.check_call(
-        ["R.exe", "-q", "-e", "library(testthat); setwd('tests'); source('testthat.R')"]
+        [R, "-q", "-e", "library(testthat); setwd('tests'); source('testthat.R')"]
     )
-
-
-@record_time
-def test_with_cmake(args: argparse.Namespace) -> None:
-    os.mkdir("build")
-    with DirectoryExcursion("build"):
-        if args.compiler == "mingw":
-            mingw_bin = get_mingw_bin()
-            CXX = os.path.join(mingw_bin, "g++.exe")
-            CC = os.path.join(mingw_bin, "gcc.exe")
-            env = os.environ.copy()
-            env.update({"CC": CC, "CXX": CXX})
-            subprocess.check_call(
-                [
-                    "cmake",
-                    os.path.pardir,
-                    "-DUSE_OPENMP=ON",
-                    "-DR_LIB=ON",
-                    "-DCMAKE_CONFIGURATION_TYPES=Release",
-                    "-G",
-                    "Unix Makefiles",
-                ],
-                env=env,
-            )
-            subprocess.check_call(["make", "-j", "install"])
-        elif args.compiler == "msvc":
-            subprocess.check_call(
-                [
-                    "cmake",
-                    os.path.pardir,
-                    "-DUSE_OPENMP=ON",
-                    "-DR_LIB=ON",
-                    "-DCMAKE_CONFIGURATION_TYPES=Release",
-                    "-A",
-                    "x64",
-                    "-G",
-                    "Visual Studio 17 2022",
-                ]
-            )
-            subprocess.check_call(
-                [
-                    "cmake",
-                    "--build",
-                    os.path.curdir,
-                    "--target",
-                    "install",
-                    "--config",
-                    "Release",
-                ]
-            )
-        elif args.compiler == "none":
-            subprocess.check_call(
-                [
-                    "cmake",
-                    os.path.pardir,
-                    "-DUSE_OPENMP=ON",
-                    "-DR_LIB=ON",
-                    "-DCMAKE_CONFIGURATION_TYPES=Release",
-                    "-G",
-                    "Unix Makefiles",
-                ]
-            )
-            subprocess.check_call(["make", "-j", "install"])
-        else:
-            raise ValueError("Wrong compiler")
-    with DirectoryExcursion(R_PACKAGE):
-        subprocess.check_call(
-            [
-                R,
-                "-q",
-                "-e",
-                "library(testthat); setwd('tests'); source('testthat.R')",
-            ]
-        )
 
 
 @record_time
@@ -342,14 +258,12 @@ def main(args: argparse.Namespace) -> None:
         case "doc":
             check_rmarkdown()
         case "check":
-            if args.build_tool == "autotools" and system() != "Windows":
+            if system() != "Windows":
                 src_dir = pack_rpackage()
                 tarball = build_rpackage(src_dir)
                 check_rpackage(tarball)
-            elif args.build_tool == "autotools":
-                test_with_autotools()
             else:
-                test_with_cmake(args)
+                test_rpackage_on_windows()
         case "rchk":
             test_with_rchk()
         case "timings":
@@ -371,22 +285,6 @@ if __name__ == "__main__":
         type=str,
         choices=["pack", "build", "check", "doc", "timings", "rchk"],
         default="check",
-        required=False,
-    )
-    parser.add_argument(
-        "--compiler",
-        type=str,
-        choices=["mingw", "msvc", "none"],
-        help="Compiler used for compiling CXX code. Only relevant for windows build",
-        default="none",
-        required=False,
-    )
-    parser.add_argument(
-        "--build-tool",
-        type=str,
-        choices=["cmake", "autotools"],
-        help="Build tool for compiling CXX code and install R package.",
-        default="autotools",
         required=False,
     )
     parser.add_argument(
