@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
     array = series.to_numpy(copy=False)
-    return np.stack(cast(Sequence[Any], array))
+    return np.stack(cast(Sequence[np.ndarray], array))
 
 
 # Global constant for defining column alias shared between estimator and data
