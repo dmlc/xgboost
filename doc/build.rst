@@ -194,7 +194,6 @@ There are several ways to build and install the package from source:
   - ``USE_CUDA`` — build with CUDA / GPU acceleration
   - ``USE_NCCL`` — build with NCCL for distributed GPU training
   - ``USE_DLOPEN_NCCL`` — load NCCL dynamically at runtime
-  - ``PLUGIN_FEDERATED`` — enable the federated learning plugin
   - ``PLUGIN_RMM`` — build with RAPIDS Memory Manager support
   - ``HIDE_CXX_SYMBOLS`` — hide all C++ symbols in the shared library
   - ``USE_OPENMP`` — build with OpenMP (defaults to ON)

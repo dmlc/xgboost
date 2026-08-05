@@ -56,11 +56,11 @@ XGBoost has built-in support for a wide range of metrics, from basic regression 
 --------------------
 Distributed Training
 --------------------
-XGBoost has built-in support for three distributed frameworks, including ``Dask``, ``PySpark``, and ``Spark (Scala)``. In addition, there's ``flink`` support for the Java binding and the ``ray-xgboost`` project. Please see the respective tutorial on how to use them. By default, XGBoost uses sample-based parallelism for distributed training. The column-based split is still working in progress and needs to be supported in these high-level framework integrations. On top of distributed training, we are also working on federated learning for both sample-based and column-based splits.
+XGBoost has built-in support for three distributed frameworks, including ``Dask``, ``PySpark``, and ``Spark (Scala)``. In addition, there's ``flink`` support for the Java binding and the ``ray-xgboost`` project. Please see the respective tutorial on how to use them. By default, XGBoost uses sample-based parallelism for distributed training.
 
 Distributed training works with custom objective functions and metrics as well. XGBoost aggregates the evaluation result automatically during training.
 
-The distributed training is enabled by a built-in implementation of a collective library. It's based on the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL, and has variants for handling federated learning and federated learning on GPU.
+The distributed training is enabled by a built-in implementation of a collective library. It's based on the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL.
 
 Inference normally doesn't require any special treatment since we are using sample-based split. However, with column-based data split, we need to initialize the communicator context as well.
 

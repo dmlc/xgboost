@@ -110,7 +110,6 @@ OBJECTS= \
     $(PKGROOT)/src/collective/comm_group.o \
     $(PKGROOT)/src/collective/coll.o \
     $(PKGROOT)/src/collective/tracker.o \
-    $(PKGROOT)/src/collective/in_memory_handler.o \
     $(PKGROOT)/src/collective/loop.o \
     $(PKGROOT)/src/collective/socket.o \
     $(PKGROOT)/src/common/cache_manager.o \

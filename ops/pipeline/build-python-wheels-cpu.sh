@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Python wheels, CPU variant (no federated learning)
+# Build Python wheels, CPU variant
 
 set -euo pipefail
 

@@ -1672,11 +1672,6 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
 
 /**
  * @brief Handle to the tracker.
- *
- *   There are currently two types of tracker in XGBoost, first one is `rabit`, while the
- *   other one is `federated`.  `rabit` is used for normal collective communication, while
- *   `federated` is used for federated learning.
- *
  */
 typedef void *TrackerHandle; /* NOLINT */
 
@@ -1685,8 +1680,8 @@ typedef void *TrackerHandle; /* NOLINT */
  *
  * @param config JSON encoded parameters.
  *
- *   - dmlc_communicator: String, the type of tracker to create. Available options are
- *                        `rabit` and `federated`. See @ref TrackerHandle for more info.
+ *   - dmlc_communicator: String, the type of tracker to create. The only available option
+ *                        is `rabit`. See @ref TrackerHandle for more info.
  *   - n_workers: Integer, the number of workers.
  *   - port: (Optional) Integer, the port this tracker should listen to.
  *   - timeout: (Optional) Integer, timeout in seconds for various networking
@@ -1699,12 +1694,6 @@ typedef void *TrackerHandle; /* NOLINT */
  *   - sortby: (Optional) Integer.
  *     + 0: Sort workers by their host name.
  *     + 1: Sort workers by task IDs.
- *
- *   Some `federated` specific configurations:
- *   - federated_secure: Boolean, whether this is a secure server. False for testing.
- *   - server_key_path: Path to the server key. Used only if this is a secure server.
- *   - server_cert_path: Path to the server certificate. Used only if this is a secure server.
- *   - client_cert_path: Path to the client certificate. Used only if this is a secure server.
  *
  * @param handle The handle to the created tracker.
  *
@@ -1770,7 +1759,6 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  * @param config JSON encoded configuration. Accepted JSON keys are:
  *   - dmlc_communicator: The type of the communicator, this should match the tracker type.
  *     * rabit: Use Rabit. This is the default if the type is unspecified.
- *     * federated: Use the gRPC interface for Federated Learning.
  *
  * Only applicable to the `rabit` communicator:
  *   - dmlc_tracker_uri: Hostname or IP address of the tracker.
@@ -1779,15 +1767,6 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  *   - dmlc_retry: The number of retries for connection failure.
  *   - dmlc_timeout: Timeout in seconds.
  *   - dmlc_nccl_path: Path to the nccl shared library `libnccl.so`.
- *
- * Only applicable to the `federated` communicator (use upper case for environment variables, use
- * lower case for runtime configuration):
- *   - federated_server_address: Address of the federated server.
- *   - federated_world_size: Number of federated workers.
- *   - federated_rank: Rank of the current worker.
- *   - federated_server_cert_path: Server certificate file path. Only needed for the SSL mode.
- *   - federated_client_key_path: Client key file path. Only needed for the SSL mode.
- *   - federated_client_cert_path: Client certificate file path. Only needed for the SSL mode.
  *
  * @return 0 when success, -1 when failure happens
  */
