@@ -1,6 +1,6 @@
 #!/bin/bash
-# Configure R to use sccache for compiling packages.
-# This script creates ~/.R/Makevars with sccache compiler wrappers.
+# Configure the XGBoost R package's CMake build to use sccache.
+# This script creates ~/.R/Makevars with CMake compiler launchers.
 
 set -euo pipefail
 
@@ -11,12 +11,9 @@ fi
 
 mkdir -p ~/.R
 cat > ~/.R/Makevars << 'EOF'
-CC = sccache gcc
-CXX = sccache g++
-CXX11 = sccache g++
-CXX14 = sccache g++
-CXX17 = sccache g++
-CXX20 = sccache g++
+XGBOOST_CMAKE_C_COMPILER_LAUNCHER = sccache
+XGBOOST_CMAKE_CXX_COMPILER_LAUNCHER = sccache
+XGBOOST_CMAKE_CUDA_COMPILER_LAUNCHER = sccache
 EOF
 
-echo "Configured R to use sccache via ~/.R/Makevars"
+echo "Configured the XGBoost R package to use sccache via ~/.R/Makevars"
