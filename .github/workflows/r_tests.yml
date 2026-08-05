@@ -27,18 +27,11 @@ jobs:
         include:
           - os: windows-latest
             r: release
-          - os: ubuntu-latest
-            r: release
           - os: macos-latest
             r: release
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
     steps:
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install cmake libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2 libuv1-dev
-        if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
@@ -52,10 +45,9 @@ jobs:
           architecture: 'x64'
       - uses: r-lib/actions/setup-tinytex@v2.12.1
       - uses: dmlc/xgboost-devops/actions/sccache@main
-        if: matrix.os == 'ubuntu-latest'
       - run: cmake --version
-      - run: bash ops/script/setup_r_sccache.sh
-        if: matrix.os == 'ubuntu-latest'
+      - name: Configure R to use sccache
+        run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Install dependencies
         shell: Rscript {0}
         run: |
@@ -64,7 +56,6 @@ jobs:
         run: |
           python ops/script/test_r_package.py --task=check
       - run: sccache --show-stats
-        if: matrix.os == 'ubuntu-latest'
 
   test-R-on-Debian:
     name: Test R package on Debian
@@ -85,7 +76,7 @@ jobs:
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/sccache@main
-      - run: bash ops/script/setup_r_sccache.sh
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Install dependencies
         shell: bash -l {0}
         run: |

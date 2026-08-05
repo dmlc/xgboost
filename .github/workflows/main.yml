@@ -305,7 +305,7 @@ jobs:
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
-      - run: bash ops/script/setup_r_sccache.sh
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Install dependencies
         shell: bash -l {0}
         run: |
