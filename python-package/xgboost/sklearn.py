@@ -1137,12 +1137,29 @@ class XGBModel(XGBModelBase):
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
             params.update(self.kwargs)
         if isinstance(params["random_state"], np.random.RandomState):
-            params["random_state"] = params["random_state"].randint(
-                np.iinfo(np.int32).max
+            # Derive a stable seed from the RNG's internal state instead of
+            # drawing a fresh value with `.randint()`, which would both mutate
+            # the caller's RandomState object as a side effect and make
+            # `get_params()` non-idempotent (a different value on every call).
+            #
+            # `get_state(legacy=True)` returns the classic
+            # `(str, ndarray, int, int, float)` tuple for an MT19937-backed
+            # RandomState (numpy's own default at runtime, verified via
+            # `help(np.random.RandomState.get_state)`); the `cast` below is
+            # needed because numpy's type stub for the no-argument overload
+            # is a `dict[str, Any]`, which doesn't match this actual runtime
+            # return type.
+            _, keys, _, _, _ = cast(
+                Tuple[str, Any, int, int, float],
+                params["random_state"].get_state(legacy=True),
             )
+            params["random_state"] = int(keys[0]) % np.iinfo(np.int32).max
         elif isinstance(params["random_state"], np.random.Generator):
+            # Same rationale as above: read the bit generator's state instead
+            # of consuming randomness via `.integers()`.
             params["random_state"] = int(
-                params["random_state"].integers(np.iinfo(np.int32).max)
+                params["random_state"].bit_generator.state["state"]["state"]
+                % np.iinfo(np.int32).max
             )
 
         return params
