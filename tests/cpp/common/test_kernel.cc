@@ -18,7 +18,7 @@ std::int32_t FallbackCPU(Context const* ctx, std::int32_t value) {
   return ctx->IsCPU() ? value : -1;
 }
 
-XGBOOST_REGISTER_KERNEL(FallbackKernel, "fallback-test-cpu", MatchCPU, &FallbackCPU);
+KernelRegistration<FallbackKernel> const register_fallback_cpu{DeviceOrd::kCPU, &FallbackCPU};
 }  // namespace
 
 TEST(Kernel, CPUFallback) {

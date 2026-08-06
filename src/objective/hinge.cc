@@ -49,10 +49,10 @@ void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds) {
 }  // namespace cpu_impl
 
 namespace {
-XGBOOST_REGISTER_KERNEL(HingeGradientKernel, "hinge-gradient-cpu", common::MatchCPU,
-                        &cpu_impl::HingeGradient);
-XGBOOST_REGISTER_KERNEL(HingePredTransformKernel, "hinge-pred-transform-cpu", common::MatchCPU,
-                        &cpu_impl::HingePredTransform);
+common::KernelRegistration<HingeGradientKernel> const register_hinge_gradient_cpu{
+    DeviceOrd::kCPU, &cpu_impl::HingeGradient};
+common::KernelRegistration<HingePredTransformKernel> const register_hinge_pred_transform_cpu{
+    DeviceOrd::kCPU, &cpu_impl::HingePredTransform};
 }  // namespace
 
 class HingeObj : public FitIntercept {

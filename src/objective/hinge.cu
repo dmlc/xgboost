@@ -53,9 +53,9 @@ void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds) {
 }  // namespace cuda_impl
 
 namespace {
-XGBOOST_REGISTER_KERNEL(HingeGradientKernel, "hinge-gradient-cuda", common::MatchCUDA,
-                        &cuda_impl::HingeGradient);
-XGBOOST_REGISTER_KERNEL(HingePredTransformKernel, "hinge-pred-transform-cuda", common::MatchCUDA,
-                        &cuda_impl::HingePredTransform);
+common::KernelRegistration<HingeGradientKernel> const register_hinge_gradient_cuda{
+    DeviceOrd::kCUDA, &cuda_impl::HingeGradient};
+common::KernelRegistration<HingePredTransformKernel> const register_hinge_pred_transform_cuda{
+    DeviceOrd::kCUDA, &cuda_impl::HingePredTransform};
 }  // namespace
 }  // namespace xgboost::obj
