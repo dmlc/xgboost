@@ -55,11 +55,6 @@ class TreeUpdater : public Configurable {
    */
   [[nodiscard]] virtual bool CanModifyTree() const { return false; }
   /**
-   * @brief Whether the out_position in `Update` is valid. This determines whether adaptive
-   *        tree can be used.
-   */
-  [[nodiscard]] virtual bool HasNodePosition() const { return false; }
-  /**
    * @brief perform update to the tree models
    *
    * @param param  Hyper-parameter for constructing trees.
@@ -76,24 +71,6 @@ class TreeUpdater : public Configurable {
   virtual void Update(tree::TrainParam const* param, GradientContainer* gpair, DMatrix* p_fmat,
                       common::Span<HostDeviceVector<bst_node_t>> out_position,
                       std::vector<RegTree*> const& out_trees) = 0;
-
-  /**
-   * @brief Determines whether updater has enough knowledge about a given dataset to
-   *        quickly update prediction cache for the training data and performs the update
-   *        if possible.
-   *
-   * @param p_fmat data matrix
-   * @param out_preds prediction cache to be updated
-   *
-   * @return boolean indicating whether updater has capability to update the prediction
-   *         cache. If true, the prediction cache will have been updated by the time this
-   *         function returns.
-   */
-  virtual bool UpdatePredictionCache(DMatrix const* /*data*/,
-                                     common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
-                                     linalg::MatrixView<float> /*out_preds*/) {
-    return false;
-  }
 
   [[nodiscard]] virtual char const* Name() const = 0;
 
@@ -126,10 +103,10 @@ struct TreeUpdaterReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)                   \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeUpdaterReg&               \
-  __make_ ## TreeUpdaterReg ## _ ## UniqueId ## __ =                    \
-      ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)     \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeUpdaterReg& \
+      __make_##TreeUpdaterReg##_##UniqueId##__ =          \
+          ::dmlc::Registry<::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_UPDATER_H_

@@ -17,10 +17,6 @@ if(USE_CUDA)
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif()
 
-# We will add them back later to separate the definition.
-file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/federated/*.*")
-list(REMOVE_ITEM TEST_SOURCES ${FEDERATED_TEST_SOURCES})
-
 file(GLOB_RECURSE SYCL_TEST_SOURCES "plugin/test_sycl_*.cc")
 list(REMOVE_ITEM TEST_SOURCES ${SYCL_TEST_SOURCES})
 
@@ -53,10 +49,6 @@ if(PLUGIN_SYCL)
   target_link_libraries(testxgboost PUBLIC plugin_sycl_test)
   # Add all objects of plugin_sycl to testxgboost
   target_sources(testxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl_test>)
-endif()
-
-if(PLUGIN_FEDERATED)
-  add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated)
 endif()
 
 target_sources(

@@ -1154,7 +1154,6 @@ xgboost <- function(
   seed_per_iteration = NULL,
   device = NULL,
   disable_default_eval_metric = NULL,
-  use_rmm = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
@@ -1196,6 +1195,10 @@ xgboost <- function(
     use_qdm
   )
   eval_set <- process.eval.set(eval_set, lst_args)
+  early_stopping_rounds <- check.early.stopping.rounds(
+    early_stopping_rounds,
+    eval_set
+  )
 
   if (use_qdm && hasName(params, "max_bin")) {
     lst_args$dmatrix_args$max_bin <- params$max_bin
@@ -1227,7 +1230,8 @@ xgboost <- function(
     nrounds = nrounds,
     verbose = verbosity,
     print_every_n = print_every_n,
-    evals = evals
+    evals = evals,
+    early_stopping_rounds = early_stopping_rounds
   )
   attributes(model)$metadata <- lst_args$metadata
   attributes(model)$call <- match.call()

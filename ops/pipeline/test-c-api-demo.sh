@@ -30,8 +30,7 @@ popd
 
 # Build and install XGBoost shared library (libxgboost.so)
 pushd build
-cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja \
-  -DPLUGIN_FEDERATED=ON
+cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
 ninja -v install
 popd
 

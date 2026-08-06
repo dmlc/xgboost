@@ -101,8 +101,6 @@ constexpr StringView InvalidCUDAOrdinal() {
 
 void MismatchedDevices(Context const* booster, Context const* data);
 
-inline auto NoFederated() { return "XGBoost is not compiled with federated learning support."; }
-
 inline auto NoCategorical(std::string name) {
   return name + " doesn't support categorical features.";
 }

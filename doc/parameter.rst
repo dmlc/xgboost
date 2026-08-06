@@ -29,20 +29,19 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
 
-* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-  memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-  (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
-  :doc:`/python/rmm-examples/index` for details.
+* ``use_rmm``:
+
+  .. deprecated:: 3.5.0
+
+    The RMM plugin has been deprecated, use the CUDA async pool instead.
 
 * ``use_cuda_async_pool`` [default=false]
 
   Whether to use the device memory pool in the CUDA driver. This option is not available
   if XGBoost is built with RMM support, as it is the same as using the RMM
-  `CudaAsyncMemoryResource` pool.
+  ``CudaAsyncMemoryResource`` pool.
 
   .. versionadded:: 3.2.0
-
-  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
@@ -116,6 +115,7 @@ Parameters for Tree Booster
 * ``min_child_weight`` [default=1]
 
   - Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than ``min_child_weight``, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger ``min_child_weight`` is, the more conservative the algorithm will be.
+  - With vector leaf, the mean Hessian across targets is used to compare against the ``min_child_weight``.
   - range: [0,∞]
 
 * ``max_delta_step`` [default=0]
@@ -202,7 +202,6 @@ Parameters for Tree Booster
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
     - ``grow_gpu_hist``:  Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
     - ``grow_gpu_approx``: Enabled when ``tree_method`` is set to ``approx`` along with ``device=cuda``.
-    - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
 
@@ -398,11 +397,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
   - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+  - ``reg:absoluteerror``: Regression with L1 error. A smooth approximation is used to optimize the L1 loss.
 
     .. versionadded:: 1.7.0
 
-  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. A smooth approximation is used to optimize the quantile loss. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
 
     .. versionadded:: 2.0.0
 
@@ -465,6 +464,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       - When used with binary classification, the objective should be ``binary:logistic`` or similar functions that work on probability.
       - When used with multi-class classification, objective should be ``multi:softprob`` instead of ``multi:softmax``, as the latter doesn't output probability.  Also the AUC is calculated by 1-vs-rest with reference class weighted by class prevalence.
+      - When used with multi-label classification, AUC is calculated independently for each target and averaged with the macro method.
       - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
       - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
       - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.
@@ -523,7 +523,7 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
-* ``quantile_alpha``: A scalar or a list of targeted quantiles.
+* ``quantile_alpha``: A scalar or an ascending list of targeted quantiles.
 
     .. versionadded:: 2.0.0
 

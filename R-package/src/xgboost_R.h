@@ -4,18 +4,18 @@
  * \author Tianqi Chen
  * \brief R wrapper of xgboost
  */
-#ifndef XGBOOST_R_H_ // NOLINT(*)
-#define XGBOOST_R_H_ // NOLINT(*)
-
+#ifndef XGBOOST_R_H_  // NOLINT(*)
+#define XGBOOST_R_H_  // NOLINT(*)
 
 #ifndef R_NO_REMAP
-#  define R_NO_REMAP
+#define R_NO_REMAP
 #endif
+// clang-format off
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Altrep.h>
 #include <Rmath.h>
-
+// clang-format on
 #include <xgboost/c_api.h>
 
 /*!
@@ -58,10 +58,9 @@ XGB_DLL SEXP XGBGetGlobalConfig_R();
  * \brief load a data matrix from URI
  * \param uri URI to the source file to read data from
  * \param silent whether print messages
- * \param Data split mode (0=rows, 1=columns)
  * \return a loaded data matrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mode);
+XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent);
 
 /*!
  * \brief create matrix content from dense matrix
@@ -71,9 +70,7 @@ XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mod
  * \param n_threads Number of threads used to construct DMatrix from dense matrix.
  * \return created dmatrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
-                                      SEXP missing,
-                                      SEXP n_threads);
+XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads);
 
 /**
  * @brief Create matrix content from a data frame.
@@ -166,7 +163,6 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
-<<<<<<< HEAD
  * \brief create a ProxyDMatrix and get an R externalptr object for it
  */
 XGB_DLL SEXP XGProxyDMatrixCreate_R();
@@ -209,9 +205,9 @@ XGB_DLL SEXP XGProxyDMatrixSetDataColumnar_R(SEXP handle, SEXP lst);
  * \param cache_prefix path of cache file
  * \return handle R externalptr holding the resulting DMatrix.
  */
-XGB_DLL SEXP XGDMatrixCreateFromCallback_R(
-  SEXP expr_f_next, SEXP expr_f_reset, SEXP calling_env, SEXP proxy_dmat,
-  SEXP n_threads, SEXP missing, SEXP cache_prefix);
+XGB_DLL SEXP XGDMatrixCreateFromCallback_R(SEXP expr_f_next, SEXP expr_f_reset, SEXP calling_env,
+                                           SEXP proxy_dmat, SEXP n_threads, SEXP missing,
+                                           SEXP cache_prefix);
 
 /*!
  * \brief Create a QuantileDMatrix from a DataIter with callbacks
@@ -227,9 +223,10 @@ XGB_DLL SEXP XGDMatrixCreateFromCallback_R(
  * \param ref_dmat an optional reference DMatrix from which to get the bin boundaries.
  * \return handle R externalptr holding the resulting QuantileDMatrix.
  */
-XGB_DLL SEXP XGQuantileDMatrixCreateFromCallback_R(
-  SEXP expr_f_next, SEXP expr_f_reset, SEXP calling_env, SEXP proxy_dmat,
-  SEXP n_threads, SEXP missing, SEXP max_bin, SEXP ref_dmat);
+XGB_DLL SEXP XGQuantileDMatrixCreateFromCallback_R(SEXP expr_f_next, SEXP expr_f_reset,
+                                                   SEXP calling_env, SEXP proxy_dmat,
+                                                   SEXP n_threads, SEXP missing, SEXP max_bin,
+                                                   SEXP ref_dmat);
 
 /*!
  * \brief Frees a ProxyDMatrix and empties out the R externalptr object that holds it
@@ -385,8 +382,8 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
  *
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
-XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing,
-                                         SEXP json_config, SEXP base_margin);
+XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing, SEXP json_config,
+                                         SEXP base_margin);
 
 /*!
  * \brief Run prediction on R CSR matrix
@@ -402,8 +399,8 @@ XGB_DLL SEXP XGBoosterPredictFromDense_R(SEXP handle, SEXP R_mat, SEXP missing,
  *
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
-XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
-                                       SEXP json_config, SEXP base_margin);
+XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing, SEXP json_config,
+                                       SEXP base_margin);
 
 /*!
  * \brief Run prediction on R data.frame
@@ -415,8 +412,8 @@ XGB_DLL SEXP XGBoosterPredictFromCSR_R(SEXP handle, SEXP lst, SEXP missing,
  *
  * \return A list containing 2 vectors, first one for shape while second one for prediction result.
  */
-XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing,
-                                            SEXP json_config, SEXP base_margin);
+XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing, SEXP json_config,
+                                            SEXP base_margin);
 
 /*!
  * \brief load model from existing file

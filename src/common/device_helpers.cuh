@@ -20,6 +20,7 @@
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
+#include <limits>             // for numeric_limits
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
 
@@ -34,10 +35,9 @@
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
 #else  // In device code and CUDA < 600
-__device__ __forceinline__ double atomicAdd(double* address, double val) {  // NOLINT
-  unsigned long long int* address_as_ull =
-      (unsigned long long int*)address;                   // NOLINT
-  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
+__device__ __forceinline__ double atomicAdd(double *address, double val) {     // NOLINT
+  unsigned long long int *address_as_ull = (unsigned long long int *)address;  // NOLINT
+  unsigned long long int old = *address_as_ull, assumed;                       // NOLINT
 
   do {
     assumed = old;
@@ -60,7 +60,7 @@ constexpr bool BuildWithCUDACub() {
   return false;
 #else
   return true;
-#endif // defined(THRUST_IGNORE_CUB_VERSION_CHECK) && THRUST_IGNORE_CUB_VERSION_CHECK == 1
+#endif  // defined(THRUST_IGNORE_CUB_VERSION_CHECK) && THRUST_IGNORE_CUB_VERSION_CHECK == 1
 }
 
 namespace detail {
@@ -84,8 +84,8 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
           std::enable_if_t<std::is_same_v<size_t, T> &&
-                           !std::is_same_v<size_t, unsigned long long>> * =  // NOLINT
-              nullptr>
+                           !std::is_same_v<size_t, unsigned long long>>  // NOLINT
+              * = nullptr>
 XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
@@ -120,7 +120,8 @@ inline int32_t CurrentDevice() {
 
 // Helper function to get a device from a potentially CPU context.
 inline auto GetDevice(xgboost::Context const *ctx) {
-  auto d = (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(::xgboost::curt::CurrentDevice());
+  auto d =
+      (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(::xgboost::curt::CurrentDevice());
   CHECK(!d.IsCPU());
   return d;
 }
@@ -135,9 +136,8 @@ inline auto GetDevice(xgboost::Context const *ctx) {
 
 inline size_t MaxSharedMemory(int device_idx) {
   int max_shared_memory = 0;
-  dh::safe_cuda(cudaDeviceGetAttribute
-                (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlock,
-                 device_idx));
+  dh::safe_cuda(
+      cudaDeviceGetAttribute(&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlock, device_idx));
   return static_cast<std::size_t>(max_shared_memory);
 }
 
@@ -152,17 +152,15 @@ inline size_t MaxSharedMemory(int device_idx) {
 
 inline size_t MaxSharedMemoryOptin(int device_idx) {
   int max_shared_memory = 0;
-  dh::safe_cuda(cudaDeviceGetAttribute
-                (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlockOptin,
-                 device_idx));
+  dh::safe_cuda(cudaDeviceGetAttribute(&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlockOptin,
+                                       device_idx));
   return static_cast<std::size_t>(max_shared_memory);
 }
 
-XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
-                                     size_t ibyte, unsigned char b) {
-  atomicOr(&buffer[ibyte / sizeof(unsigned int)],
-           static_cast<unsigned int>(b)
-               << (ibyte % (sizeof(unsigned int)) * 8));
+XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer, size_t ibyte,
+                                     unsigned char b) {
+  atomicOr(&buffer[ibyte / sizeof(unsigned int)], static_cast<unsigned int>(b)
+                                                      << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
 template <typename T>
@@ -216,10 +214,10 @@ class LaunchKernel {
   cudaStream_t stream_;
 
  public:
-  LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem=0, cudaStream_t _s=nullptr) :
-      grids_{_grids, 1, 1}, blocks_{_blk, 1, 1}, shmem_size_{_shmem}, stream_{_s} {}
-  LaunchKernel(dim3 _grids, dim3 _blk, size_t _shmem=0, cudaStream_t _s=nullptr) :
-      grids_{_grids}, blocks_{_blk}, shmem_size_{_shmem}, stream_{_s} {}
+  LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem = 0, cudaStream_t _s = nullptr)
+      : grids_{_grids, 1, 1}, blocks_{_blk, 1, 1}, shmem_size_{_shmem}, stream_{_s} {}
+  LaunchKernel(dim3 _grids, dim3 _blk, size_t _shmem = 0, cudaStream_t _s = nullptr)
+      : grids_{_grids}, blocks_{_blk}, shmem_size_{_shmem}, stream_{_s} {}
 
   template <typename K, typename... Args>
   void operator()(K kernel, Args... args) {
@@ -274,7 +272,7 @@ class TemporaryArray {
     LaunchN(this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
   }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
-  size_t size() { return size_; }  // NOLINT
+  size_t size() { return size_; }                // NOLINT
 
  private:
   thrust::device_ptr<T> ptr_;
@@ -331,8 +329,8 @@ xgboost::common::Span<T> LazyResize(xgboost::Context const *ctx,
 template <typename T>
 void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<T> src) {
   CHECK_EQ(dst->size(), src.size());
-  dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
-                                cudaMemcpyDeviceToHost));
+  dh::safe_cuda(
+      cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
 /**
@@ -345,8 +343,8 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<T> src) {
 template <typename T>
 void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> src) {
   CHECK_EQ(dst->size(), src.size());
-  dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
-                                cudaMemcpyDeviceToHost));
+  dh::safe_cuda(
+      cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
 // Keep track of pinned memory allocation
@@ -385,19 +383,16 @@ class PinnedMemory {
 template <typename T>
 typename std::iterator_traits<T>::value_type SumReduction(T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
-  size_t tmpSize {0};
+  size_t tmpSize{0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
 
   TemporaryArray<char> temp(tmpSize + sizeof(ValueT));
   auto ptr = reinterpret_cast<ValueT *>(temp.data().get()) + 1;
-  dh::safe_cuda(cub::DeviceReduce::Sum(
-      reinterpret_cast<void *>(ptr), tmpSize, in,
-      reinterpret_cast<ValueT *>(temp.data().get()),
-      nVals));
+  dh::safe_cuda(cub::DeviceReduce::Sum(reinterpret_cast<void *>(ptr), tmpSize, in,
+                                       reinterpret_cast<ValueT *>(temp.data().get()), nVals));
   ValueT sum;
-  dh::safe_cuda(cudaMemcpy(&sum, temp.data().get(), sizeof(ValueT),
-                           cudaMemcpyDeviceToHost));
+  dh::safe_cuda(cudaMemcpy(&sum, temp.data().get(), sizeof(ValueT), cudaMemcpyDeviceToHost));
   return sum;
 }
 
@@ -429,7 +424,7 @@ class TypedDiscard : public thrust::discard_iterator<T> {
  public:
   using value_type = T;  // NOLINT
 };
-} // namespace detail
+}  // namespace detail
 
 template <typename T>
 using TypedDiscard = std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
@@ -466,42 +461,42 @@ xgboost::common::Span<std::add_const_t<T>> ToSpan(DeviceUVector<T> const &vec) {
 
 // thrust begin, similiar to std::begin
 template <typename T>
-thrust::device_ptr<T> tbegin(xgboost::HostDeviceVector<T>& vector) {  // NOLINT
+thrust::device_ptr<T> tbegin(xgboost::HostDeviceVector<T> &vector) {  // NOLINT
   return thrust::device_ptr<T>(vector.DevicePointer());
 }
 
 template <typename T>
-thrust::device_ptr<T> tend(xgboost::HostDeviceVector<T>& vector) {  // // NOLINT
+thrust::device_ptr<T> tend(xgboost::HostDeviceVector<T> &vector) {  // // NOLINT
   return tbegin(vector) + vector.Size();
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcbegin(xgboost::HostDeviceVector<T> const& vector) {  // NOLINT
+thrust::device_ptr<T const> tcbegin(xgboost::HostDeviceVector<T> const &vector) {  // NOLINT
   return thrust::device_ptr<T const>(vector.ConstDevicePointer());
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const& vector) {  // NOLINT
+thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const &vector) {  // NOLINT
   return tcbegin(vector) + vector.Size();
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T> &span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const &span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> &span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> const &span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
@@ -516,12 +511,13 @@ XGBOOST_DEVICE auto trend(xgboost::common::Span<T> &span) {  // NOLINT
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(  // NOLINT
+    xgboost::common::Span<T> const &span) {
   return thrust::device_ptr<T const>(span.data());
 }
 
 template <typename T>
-XGBOOST_DEVICE thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const &span) {  // NOLINT
   return tcbegin(span) + span.size();
 }
 
@@ -537,21 +533,17 @@ XGBOOST_DEVICE auto tcrend(xgboost::common::Span<T> const &span) {  // NOLINT
 
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
-XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                                       const InputGradientT& gpair) {
-  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
+XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT *dest, const InputGradientT &gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT *>(dest);
 
-  atomicAdd(dst_ptr,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
+  atomicAdd(dst_ptr, static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
+  atomicAdd(dst_ptr + 1, static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
-
 
 // Thrust version of this function causes error on Windows
 template <typename ReturnT, typename IterT, typename FuncT>
-XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
-  IterT iter, FuncT func) {
+XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(IterT iter,
+                                                                                       FuncT func) {
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
@@ -575,7 +567,7 @@ namespace detail {
 template <typename Key, typename KeyOutIt>
 struct SegmentedUniqueReduceOp {
   KeyOutIt key_out;
-  __device__ Key const& operator()(Key const& key) const {
+  __device__ Key const &operator()(Key const &key) const {
     auto constexpr kOne = static_cast<std::remove_reference_t<decltype(*(key_out + key.first))>>(1);
     atomicAdd(&(*(key_out + key.first)), kOne);
     return key;
@@ -618,20 +610,19 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
   auto reduce_it = thrust::make_transform_output_iterator(
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, KeyOutIt>{key_segments_out});
-  auto uniques_ret = thrust::unique_by_key_copy(
-      exec, unique_key_it, unique_key_it + n_inputs,
-      val_first, reduce_it, val_out,
-      [=] __device__(Key const &l, Key const &r) {
-        if (comp_key(l.first, r.first)) {
-          // In the same segment.
-          return comp(l.second, r.second);
-        }
-        return false;
-      });
+  auto uniques_ret =
+      thrust::unique_by_key_copy(exec, unique_key_it, unique_key_it + n_inputs, val_first,
+                                 reduce_it, val_out, [=] __device__(Key const &l, Key const &r) {
+                                   if (comp_key(l.first, r.first)) {
+                                     // In the same segment.
+                                     return comp(l.second, r.second);
+                                   }
+                                   return false;
+                                 });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(exec, key_segments_out,
-                         key_segments_out + segments_len, key_segments_out, 0);
+  thrust::exclusive_scan(exec, key_segments_out, key_segments_out + segments_len, key_segments_out,
+                         0);
   return n_uniques;
 }
 
@@ -720,14 +711,13 @@ void CopyTo(Src const &src, Dst *dst,
 }
 
 /**
- * @brief Wrapper for the @ref cudaMemcpyBatchAsync .
+ * @brief Thin wrapper of the @ref cudaMemcpyBatchAsync .
  *
  * @param dsts Host pointer to a list of device pointers.
  * @param srcs Host pointer to a list of device pointers.
  * @param sizes Host pointer to a list of sizes.
  * @param count How many batches.
- * @param fail_idx Which batch has failed, if any. When it's assigned to SIZE_MAX, then
- *   it's a general error.
+ * @param fail_idx Which batch has failed, if any. This is always SIZE_MAX in CUDA 13.
  * @param stream CUDA stream. The wrapper enforces stream order access.
  */
 template <cudaMemcpyKind kind, typename T, typename U>
@@ -735,8 +725,9 @@ template <cudaMemcpyKind kind, typename T, typename U>
                                            std::size_t count, std::size_t *fail_idx,
                                            cudaStream_t stream) {
 #if CUDART_VERSION >= 12080
-  static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice,
-                "Not implemented.");
+  static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice ||
+                    kind == cudaMemcpyDeviceToDevice,
+                "Unsupported copy direction.");
   cudaMemcpyAttributes attr;
   attr.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
   attr.flags = cudaMemcpyFlagPreferOverlapWithCompute;
@@ -752,15 +743,32 @@ template <cudaMemcpyKind kind, typename T, typename U>
   if constexpr (kind == cudaMemcpyDeviceToHost) {
     assign_device(&attr.srcLocHint);
     assign_host(&attr.dstLocHint);
-  } else {
+  } else if constexpr (kind == cudaMemcpyHostToDevice) {
     assign_host(&attr.srcLocHint);
     assign_device(&attr.dstLocHint);
+  } else {
+    assign_device(&attr.srcLocHint);
+    assign_device(&attr.dstLocHint);
   }
+#if CUDART_VERSION >= 13000
+  // CUDA 13 no longer exposes the per-copy failure index in this overload.
+  *fail_idx = std::numeric_limits<std::size_t>::max();
+  return cudaMemcpyBatchAsync(dsts, srcs, sizes, count, attr, stream);
+#else
   return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, fail_idx,
                               stream);
+#endif  // CUDART_VERSION >= 13000
 #else
-  LOG(FATAL) << "CUDA >= 12.8 is required.";
-  return cudaErrorInvalidValue;
+  // Keep callers compatible with CUDA toolkits predating the native batch API.
+  for (std::size_t i = 0; i < count; ++i) {
+    auto status = cudaMemcpyAsync(dsts[i], srcs[i], sizes[i], kind, stream);
+    if (status != cudaSuccess) {
+      *fail_idx = i;
+      return status;
+    }
+  }
+  *fail_idx = std::numeric_limits<std::size_t>::max();
+  return cudaSuccess;
 #endif  // CUDART_VERSION >= 12080
 }
 

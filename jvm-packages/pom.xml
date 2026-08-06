@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm_2.12</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -60,9 +60,9 @@
         <use.debug>OFF</use.debug>
         <use.nvtx>OFF</use.nvtx>
         <plugin.rmm>OFF</plugin.rmm>
-        <cudf.version>24.10.0</cudf.version>
-        <spark.rapids.version>24.10.0</spark.rapids.version>
-        <spark.rapids.classifier>cuda12</spark.rapids.classifier>
+        <cudf.version>26.04.0</cudf.version>
+        <spark.rapids.version>26.04.2</spark.rapids.version>
+        <spark.rapids.classifier>cuda13</spark.rapids.classifier>
         <scalatest.version>3.2.19</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
         <skip.native.build>false</skip.native.build>

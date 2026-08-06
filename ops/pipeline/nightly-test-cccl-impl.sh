@@ -12,10 +12,15 @@ fi
 cccl_version="$1"
 
 # Set up Conda env
+cuda_version="$(nvcc --version | awk '/release/ {gsub(/,/, "", $5); print $5}')"
+if [[ ! "${cuda_version}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  echo "Failed to determine the CUDA version from nvcc: '${cuda_version}'"
+  exit 1
+fi
 gosu root chown -R $(id -u):$(id -g) /opt/miniforge/envs /opt/miniforge/pkgs/cache
 gosu root chown $(id -u):$(id -g) /opt/miniforge/pkgs
 mamba create -y -n cccl_test -c conda-forge python=3.13 \
-  cuda-version=13.0 cxx-compiler cuda-cudart-dev cuda-nvcc gcc_linux-64=14.* ninja \
+  "cuda-version=${cuda_version}" cxx-compiler cuda-cudart-dev cuda-nvcc gcc_linux-64=14.* ninja \
   gtest nccl
 
 source activate cccl_test

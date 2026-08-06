@@ -1,9 +1,7 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
- * \file categorical.h
+ * Copyright 2020-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_COMMON_CATEGORICAL_H_
-#define XGBOOST_COMMON_CATEGORICAL_H_
+#pragma once
 
 #include "bitfield.h"
 #include "xgboost/base.h"
@@ -97,6 +95,6 @@ inline auto GetNodeCats(common::Span<CatBitField::value_type const> categories,
   KCatBitField node_cats{categories.subspan(seg.beg, seg.size)};
   return node_cats;
 }
-}  // namespace xgboost::common
 
-#endif  // XGBOOST_COMMON_CATEGORICAL_H_
+static_assert(std::is_same_v<CatBitField::value_type, tree::CatWordT>);
+}  // namespace xgboost::common

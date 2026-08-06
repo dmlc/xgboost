@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -18,7 +18,7 @@
 #include "../common/api_entry.h"         // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"          // for from_chars, to_chars, NumericLimits, from_ch...
 #include "../common/cuda_rt_utils.h"     // for MemoryPoolsSupported
-#include "../common/error_msg.h"         // for NoFederated
+#include "../common/error_msg.h"         // for DeprecatedFunc
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
@@ -45,13 +45,18 @@
 #include "xgboost/json.h"                // for Json, get, Integer, IsA, Boolean, String
 #include "xgboost/learner.h"             // for Learner, PredictionType
 #include "xgboost/logging.h"             // for LOG_FATAL, LogMessageFatal, CHECK, LogCheck_EQ
-#include "xgboost/predictor.h"           // for PredictionCacheEntry
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView, operator<<
 #include "xgboost/version_config.h"      // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...
-#include "xgboost/windefs.h"             // for xgboost_IS_WIN
 
 using namespace xgboost;  // NOLINT(*);
+
+namespace {
+void ValidateCAPIDataSplitMode(std::int64_t data_split_mode) {
+  CHECK_EQ(data_split_mode, 0)
+      << "Column-wise data split has been removed. Please use row-wise data split instead.";
+}
+}  // namespace
 
 XGB_DLL void XGBoostVersion(int *major, int *minor, int *patch) {
   if (major) {
@@ -122,12 +127,6 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["DEBUG"] = Boolean{true};
 #else
   info["DEBUG"] = Boolean{false};
-#endif
-
-#if defined(XGBOOST_USE_FEDERATED)
-  info["USE_FEDERATED"] = Boolean{true};
-#else
-  info["USE_FEDERATED"] = Boolean{false};
 #endif
 
 #if defined(XGBOOST_GIT_HASH)
@@ -212,11 +211,13 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   // Check configuration is valid.
   bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+
 #if defined(XGBOOST_USE_RMM)
   CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
-#endif  // defined(XGBOOST_USE_RMM)
-#if defined(xgboost_IS_WIN)
-  CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` on Windows.";
+  auto use_rmm = GlobalConfigThreadLocalStore::Get()->use_rmm;
+  if (use_rmm) {
+    LOG(WARNING) << error::DeprecatedFunc("RMM plugin", "3.5.0", "CUDA async pool.");
+  }
 #endif  // defined(XGBOOST_USE_RMM)
   if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
     LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
@@ -272,10 +273,10 @@ XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
   auto jconfig = Json::Load(StringView{config});
   std::string uri = RequiredArg<String>(jconfig, "uri", __func__);
   auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
-  auto data_split_mode =
-      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0));
+  auto data_split_mode = OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0);
 
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(uri, silent, data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(uri, silent));
   API_END();
 }
 
@@ -490,12 +491,11 @@ XGB_DLL int XGDMatrixCreateFromColumnar(char const *data, char const *c_json_con
   auto config = Json::Load(c_json_config);
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
-  auto data_split_mode =
-      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
+  auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
 
   data::ColumnarAdapter adapter{data};
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
 
   API_END();
 }
@@ -512,11 +512,10 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
-  auto data_split_mode =
-      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
+  auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -529,11 +528,10 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *c_json_config
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
-  auto data_split_mode =
-      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
+  auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -550,11 +548,10 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
-  auto data_split_mode =
-      static_cast<DataSplitMode>(OptionalArg<Integer, int64_t>(config, "data_split_mode", 0));
+  auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
 
   API_END();
 }
@@ -910,9 +907,8 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
 }
 
 XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
-    return static_cast<bst_ulong>(p_fmat->Info().data_split_mode);
-  });
+  return GetDMatrixIntegralInfo(handle, out,
+                                [](DMatrix const *) { return static_cast<bst_ulong>(0); });
 }
 
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
@@ -1271,18 +1267,18 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
-  auto &entry = learner->GetThreadLocal().prediction_entry;
+  auto &predictions = learner->GetThreadLocal().predictions;
   auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
   learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat), (option_mask & 1) != 0,
-                   &entry.predictions, 0, iteration_end, static_cast<bool>(training),
+                   &predictions, 0, iteration_end, static_cast<bool>(training),
                    (option_mask & 2) != 0, (option_mask & 4) != 0, (option_mask & 8) != 0,
                    (option_mask & 16) != 0, false);
 
   xgboost_CHECK_C_ARG_PTR(len);
   xgboost_CHECK_C_ARG_PTR(out_result);
 
-  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
-  *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
+  *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
+  *len = static_cast<xgboost::bst_ulong>(predictions.Size());
   API_END();
 }
 
@@ -1301,7 +1297,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   auto config = Json::Load(StringView{c_json_config});
 
   auto *learner = static_cast<Learner *>(handle);
-  auto &entry = learner->GetThreadLocal().prediction_entry;
+  auto &predictions = learner->GetThreadLocal().predictions;
   auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
 
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
@@ -1326,15 +1322,15 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
       type == PredictionType::kInteraction || type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions, iteration_begin,
+  learner->Predict(p_m, type == PredictionType::kMargin, &predictions, iteration_begin,
                    iteration_end, training, type == PredictionType::kLeaf, contribs, approximate,
                    interactions, strict_shape);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
-  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
+  *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
+  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : predictions.Size() / p_m->Info().num_row_;
   auto n_rounds = iteration_end - iteration_begin;
   n_rounds = n_rounds == 0 ? learner->BoostedRounds() : n_rounds;
 

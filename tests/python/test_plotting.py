@@ -64,6 +64,17 @@ class TestPlotting:
 
         self._check_tree_plot(booster)
 
+        # Regression test: a single extra graphviz kwarg (with no `rankdir`
+        # passed) used to be silently dropped from `graph_attrs`. Assert it
+        # actually shows up in the rendered DOT source.
+        graph = xgb.to_graphviz(booster, tree_idx=0, size="7,7")
+        assert "size=" in graph.source
+
+        # Also check it still works alongside other extra kwargs and `rankdir`.
+        graph = xgb.to_graphviz(booster, tree_idx=0, size="7,7", rankdir="LR")
+        assert "size=" in graph.source
+        assert "rankdir=" in graph.source
+
         X = np.arange(64, dtype=np.float32).reshape(32, 2)
         y = np.column_stack((X[:, 0], -X[:, 0]))
         booster = xgb.train(
