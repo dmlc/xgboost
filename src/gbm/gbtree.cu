@@ -21,23 +21,8 @@ void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_
   thrust::copy(cuctx->CTP(), it, it + v_in.Size(), d_out.Values().data());
 }
 
-void GPUDartPredictInc(common::Span<float> out_predts,
-                       common::Span<float> predts, float tree_w, size_t n_rows,
-                       bst_group_t n_groups, bst_group_t group) {
-  dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
-    const size_t offset = ridx * n_groups + group;
-    out_predts[offset] += (predts[offset] * tree_w);
-  });
-}
-
-void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float> predts,
-                              float tree_w, size_t n_rows,
-                              linalg::TensorView<float const, 1> base_score, bst_group_t n_groups,
-                              bst_group_t group) {
-  CHECK_EQ(base_score.Size(), n_groups);
-  dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
-    const size_t offset = ridx * n_groups + group;
-    out_predts[offset] += (predts[offset] - base_score(group)) * tree_w;
-  });
+void GPUScalePrediction(common::Span<float> predictions, float scale) {
+  dh::LaunchN(predictions.size(),
+              [=] XGBOOST_DEVICE(size_t i) { predictions[i] *= scale; });
 }
 }  // namespace xgboost::gbm

@@ -218,7 +218,7 @@ def test_gradient_based_sampling_accuracy() -> None:
     run_gradient_based_sampling_accuracy("cpu")
 
 
-def test_dart_normalization_multi_output_eta() -> None:
+def test_multi_output_eta() -> None:
     X = np.array([[0.0]], dtype=np.float32)
     y = np.array([[1.0, 1.0]], dtype=np.float32)
     Xy = xgb.DMatrix(X, label=y)
@@ -232,9 +232,6 @@ def test_dart_normalization_multi_output_eta() -> None:
             "base_score": 0.0,
             "reg_lambda": 0.0,
             "min_child_weight": 0.0,
-            "rate_drop": 0.0,
-            "one_drop": True,
-            "normalize_type": "tree",
             "seed": 3,
         },
         Xy,

@@ -46,11 +46,12 @@ xgb.params(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
+  dropout_rate = NULL,
+  skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,
   rate_drop = NULL,
   one_drop = NULL,
-  skip_drop = NULL,
   feature_selector = NULL,
   top_k = NULL,
   num_class = NULL,
@@ -412,44 +413,22 @@ splits for preventing over-fitting.
 
 Version added: 1.7.0}
 
-\item{sample_type}{(for Dart Booster) (default= \code{"uniform"})
-Type of sampling algorithm.
-\itemize{
-\item \code{"uniform"}: dropped trees are selected uniformly.
-\item \code{"weighted"}: dropped trees are selected in proportion to weight.
-}}
+\item{dropout_rate}{(for tree boosters) (default=0.0)
+Probability of independently dropping each existing tree before gradient computation.
+Retained tree predictions are scaled by \code{1 / (1 - dropout_rate)} for an unbiased
+temporary margin. Committed trees are not reweighted.
 
-\item{normalize_type}{(for Dart Booster) (default= \code{"tree"})
-Type of normalization algorithm.
-\itemize{
-\item \code{"tree"}: new trees have the same weight of each of dropped trees.
-\itemize{
-\item Weight of new trees are \code{1 / (k + learning_rate)}.
-\item Dropped trees are scaled by a factor of \code{k / (k + learning_rate)}.
-}
-\item \code{"forest"}: new trees have the same weight of sum of dropped trees (forest).
-\itemize{
-\item Weight of new trees are \code{1 / (1 + learning_rate)}.
-\item Dropped trees are scaled by a factor of \code{1 / (1 + learning_rate)}.
-}
-}}
+range: \eqn{[0.0, 1.0)}}
 
-\item{rate_drop}{(for Dart Booster) (default=0.0)
-Dropout rate (a fraction of previous trees to drop during the dropout).
+\item{skip_drop}{Removed alias for \code{dropout_rate}. A warning is emitted.}
 
-range: \eqn{[0.0, 1.0]}}
+\item{sample_type}{Removed and ignored. A warning is emitted.}
 
-\item{one_drop}{(for Dart Booster) (default=0)
-When this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).}
+\item{normalize_type}{Removed and ignored. A warning is emitted.}
 
-\item{skip_drop}{(for Dart Booster) (default=0.0)
-Probability of skipping the dropout procedure during a boosting iteration.
-\itemize{
-\item If a dropout is skipped, new trees are added in the same manner as \code{"gbtree"}.
-\item Note that non-zero \code{skip_drop} has higher priority than \code{rate_drop} or \code{one_drop}.
-}
+\item{rate_drop}{Removed and ignored. A warning is emitted.}
 
-range: \eqn{[0.0, 1.0]}}
+\item{one_drop}{Removed and ignored. A warning is emitted.}
 
 \item{feature_selector}{(for Linear Booster) (default= \code{"cyclic"})
 Feature selection and ordering method

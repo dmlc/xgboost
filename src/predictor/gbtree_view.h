@@ -3,17 +3,28 @@
  */
 #pragma once
 
+#include <cstdint>  // for uint8_t
 #include <mutex>    // for mutex, lock_guard
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../gbm/gbtree_model.h"  // for GBTreeModel
-#include "../tree/tree_view.h"    // for MultiTargetTreeView, ScalarTreeView
+#include "../common/optional_weight.h"  // for OptionalWeights
+#include "../gbm/gbtree_model.h"        // for GBTreeModel
+#include "../tree/tree_view.h"          // for MultiTargetTreeView, ScalarTreeView
 #include "xgboost/base.h"         // for bst_tree_t, bst_target_t
 #include "xgboost/context.h"      // for DeviceOrd
 #include "xgboost/span.h"         // for Span
 
 namespace xgboost::predictor {
+struct MaskedTreeWeights {
+  common::OptionalWeights weights;
+  common::Span<std::uint8_t const> mask;
+
+  XGBOOST_DEVICE float operator[](std::size_t i) const {
+    return mask.empty() || mask[i] ? weights[i] : 0.0f;
+  }
+};
+
 /**
  * @brief A view for the boosted trees to ensure thread safety.
  *

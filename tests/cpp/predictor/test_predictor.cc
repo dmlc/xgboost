@@ -11,6 +11,7 @@
 #include <xgboost/predictor.h>           // for Predictor
 #include <xgboost/string_view.h>         // for StringView
 
+#include <cstdint>        // for uint8_t
 #include <limits>         // for numeric_limits
 #include <memory>         // for shared_ptr
 #include <unordered_map>  // for unordered_map
@@ -109,6 +110,14 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
   auto const &h_predt = weighted_predictions.ConstHostVector();
   for (auto v : h_predt) {
     ASSERT_EQ(v, 4.75f);
+  }
+
+  std::vector<std::uint8_t> tree_mask{1, 0};
+  HostDeviceVector<float> masked_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &masked_predictions, *model);
+  predictor->PredictBatch(dmat.get(), &masked_predictions, *model, 0, 0, &tree_mask);
+  for (auto v : masked_predictions.ConstHostVector()) {
+    ASSERT_EQ(v, 0.75f);
   }
 
   HostDeviceVector<float> ranged_predictions;

@@ -700,30 +700,17 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' splits for preventing over-fitting.
 #'
 #' Version added: 1.7.0
-#' @param sample_type (for Dart Booster) (default= `"uniform"`)
-#' Type of sampling algorithm.
-#' - `"uniform"`: dropped trees are selected uniformly.
-#' - `"weighted"`: dropped trees are selected in proportion to weight.
-#' @param normalize_type (for Dart Booster) (default= `"tree"`)
-#' Type of normalization algorithm.
-#' - `"tree"`: new trees have the same weight of each of dropped trees.
-#'   - Weight of new trees are `1 / (k + learning_rate)`.
-#'   - Dropped trees are scaled by a factor of `k / (k + learning_rate)`.
-#' - `"forest"`: new trees have the same weight of sum of dropped trees (forest).
-#'   - Weight of new trees are `1 / (1 + learning_rate)`.
-#'   - Dropped trees are scaled by a factor of `1 / (1 + learning_rate)`.
-#' @param rate_drop (for Dart Booster) (default=0.0)
-#' Dropout rate (a fraction of previous trees to drop during the dropout).
+#' @param dropout_rate (for tree boosters) (default=0.0)
+#' Probability of independently dropping each existing tree before gradient computation.
+#' Retained tree predictions are scaled by `1 / (1 - dropout_rate)` for an unbiased
+#' temporary margin. Committed trees are not reweighted.
 #'
-#' range: \eqn{[0.0, 1.0]}
-#' @param one_drop (for Dart Booster) (default=0)
-#' When this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).
-#' @param skip_drop (for Dart Booster) (default=0.0)
-#' Probability of skipping the dropout procedure during a boosting iteration.
-#' - If a dropout is skipped, new trees are added in the same manner as `"gbtree"`.
-#' - Note that non-zero `skip_drop` has higher priority than `rate_drop` or `one_drop`.
-#'
-#' range: \eqn{[0.0, 1.0]}
+#' range: \eqn{[0.0, 1.0)}
+#' @param skip_drop Removed alias for `dropout_rate`. A warning is emitted.
+#' @param sample_type Removed and ignored. A warning is emitted.
+#' @param normalize_type Removed and ignored. A warning is emitted.
+#' @param rate_drop Removed and ignored. A warning is emitted.
+#' @param one_drop Removed and ignored. A warning is emitted.
 #' @param feature_selector (for Linear Booster) (default= `"cyclic"`)
 #' Feature selection and ordering method
 #' - `"cyclic"`: Deterministic selection by cycling through features one at a time.
@@ -826,11 +813,12 @@ xgb.params <- function(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
+  dropout_rate = NULL,
+  skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,
   rate_drop = NULL,
   one_drop = NULL,
-  skip_drop = NULL,
   feature_selector = NULL,
   top_k = NULL,
   num_class = NULL,

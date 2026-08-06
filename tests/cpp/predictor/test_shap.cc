@@ -257,9 +257,7 @@ void CheckDartShapOutput(Context const* ctx) {
   learner->SetParams(Args{{"booster", "dart"},
                           {"objective", "binary:logistic"},
                           {"max_depth", "3"},
-                          {"rate_drop", "0.5"},
-                          {"sample_type", "uniform"},
-                          {"normalize_type", "tree"},
+                          {"dropout_rate", "0.5"},
                           {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   learner->Configure();
   for (size_t i = 0; i < 4; ++i) {

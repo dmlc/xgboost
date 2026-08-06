@@ -215,7 +215,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
           objective = "reg:squarederror",
           eval_metric = "rmse"),
         if (booster == "dart")
-          list(rate_drop = .01, one_drop = TRUE)),
+          list(dropout_rate = .01)),
       data = xgb.DMatrix(d, label = y, nthread = 1),
       nrounds = nrounds)
 

@@ -65,8 +65,7 @@ test_that("parameter validation works", {
     params <- list(
       max_depth = 2,
       booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      dropout_rate = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     )
@@ -77,8 +76,7 @@ test_that("parameter validation works", {
     params <- list(
       max_depth = 2,
       booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      dropout_rate = 0.5,
       objective = "reg:squarederror",
       nthread = n_threads,
       foo = "bar",
@@ -114,8 +112,7 @@ test_that("dart prediction works", {
     params = xgb.params(
       max_depth = 2,
       booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      dropout_rate = 0.5,
       learning_rate = 1,
       nthread = n_threads,
       objective = "reg:squarederror"
@@ -135,8 +132,7 @@ test_that("dart prediction works", {
       booster = "dart",
       max_depth = 2,
       learning_rate = 1,
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      dropout_rate = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     ),

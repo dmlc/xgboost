@@ -645,7 +645,7 @@ def run_mixed_strategy(device: Device, use_dart: bool) -> None:
         "base_score": 0,
     }
     if use_dart:
-        params.update({"rate_drop": 0.5, "one_drop": True})
+        params.update({"dropout_rate": 0.5})
     booster = train(
         params,
         num_boost_round=16,

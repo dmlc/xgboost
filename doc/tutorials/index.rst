@@ -13,7 +13,7 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   saving_model
   slicing_model
   learning_to_rank
-  dart
+  dropout
   monotonic
   feature_interaction_constraint
   aft_survival_analysis

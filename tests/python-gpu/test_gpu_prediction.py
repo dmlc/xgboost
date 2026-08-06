@@ -546,7 +546,7 @@ class TestGPUPredict:
                 "tree_method": "hist",
                 "device": "cuda:0",
                 "booster": "dart",
-                "rate_drop": 0.5,
+                "dropout_rate": 0.5,
                 "objective": "binary:logistic",
             }
         else:
@@ -554,7 +554,7 @@ class TestGPUPredict:
                 "tree_method": "hist",
                 "device": "cuda:0",
                 "booster": "dart",
-                "rate_drop": 0.5,
+                "dropout_rate": 0.5,
                 "objective": "multi:softprob",
                 "num_class": n_classes,
             }

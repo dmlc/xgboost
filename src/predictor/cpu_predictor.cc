@@ -158,7 +158,7 @@ template <bool use_array_tree_layout, bool any_missing>
 void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_offset,
                             common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                             linalg::MatrixView<float> out_predt, const std::vector<int> &tree_depth,
-                            common::OptionalWeights tree_weights) {
+                            MaskedTreeWeights tree_weights) {
   std::vector<bst_node_t> nidx;
   if constexpr (use_array_tree_layout) {
     nidx.resize(block_size, 0);
@@ -201,7 +201,7 @@ void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_of
 void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offset,
                          common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                          linalg::MatrixView<float> out_predt, const std::vector<int> &tree_depth,
-                         bool any_missing, common::OptionalWeights tree_weights) {
+                         bool any_missing, MaskedTreeWeights tree_weights) {
   auto n_trees = model.tree_end - model.tree_begin;
   CHECK_EQ(n_trees, model.Trees().size());
   /*
@@ -392,7 +392,7 @@ template <std::size_t kBlockOfRowsSize, typename DataView>
 void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
                                ThreadTmp<kBlockOfRowsSize> *p_fvec, std::int32_t n_threads,
                                bool any_missing, linalg::TensorView<float, 2> out_predt,
-                               common::OptionalWeights tree_weights) {
+                               MaskedTreeWeights tree_weights) {
   auto &fvec = *p_fvec;
   // Parallel over local batches
   auto const n_samples = batch.Size();
@@ -431,7 +431,7 @@ class CPUPredictor : public Predictor {
  protected:
   void PredictDMatrix(DMatrix *p_fmat, std::vector<float> *out_preds, gbm::GBTreeModel const &model,
                       bst_tree_t tree_begin, bst_tree_t tree_end,
-                      common::OptionalWeights tree_weights) const {
+                      MaskedTreeWeights tree_weights) const {
     auto const n_threads = this->ctx_->Threads();
 
     // Create a writable view on the output prediction vector.
@@ -458,19 +458,25 @@ class CPUPredictor : public Predictor {
 
   void PredictBatch(DMatrix *dmat, HostDeviceVector<float> *out_preds,
                     gbm::GBTreeModel const &model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const *tree_weights_override = nullptr) const override {
+                    std::vector<std::uint8_t> const *tree_mask = nullptr) const override {
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
-    auto const *tree_weights =
-        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
+    auto const *tree_weights = model.TreeWeights();
     auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
                                            : common::OptionalWeights{common::Span<float const>{
                                                  tree_weights->data() + tree_begin,
                                                  static_cast<std::size_t>(tree_end - tree_begin)}};
-    this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end, weights);
+    common::Span<std::uint8_t const> mask;
+    if (tree_mask != nullptr) {
+      CHECK_EQ(tree_mask->size(), model.trees.size());
+      mask = {tree_mask->data() + tree_begin,
+              static_cast<std::size_t>(tree_end - tree_begin)};
+    }
+    this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end,
+                         MaskedTreeWeights{weights, mask});
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
@@ -501,7 +507,8 @@ class CPUPredictor : public Predictor {
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
       PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
-                                                               any_missing, out_predt, weights);
+                                                               any_missing, out_predt,
+                                                               MaskedTreeWeights{weights, {}});
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;

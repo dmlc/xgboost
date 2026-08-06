@@ -82,11 +82,66 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
                     });
 }
 
+void ScaleTreeLeaves(RegTree* p_tree, float scale) {
+  if (!p_tree->IsMultiTarget()) {
+    for (bst_node_t nidx = 0; nidx < p_tree->NumNodes(); ++nidx) {
+      auto& node = (*p_tree)[nidx];
+      if (!node.IsDeleted() && node.IsLeaf()) {
+        node.SetLeaf(node.LeafValue() * scale, node.RightChild());
+      }
+    }
+    return;
+  }
+
+  auto const* tree = p_tree->GetMultiTargetTree();
+  std::vector<bst_node_t> leaves;
+  std::vector<float> values;
+  for (bst_node_t nidx = 0; nidx < static_cast<bst_node_t>(tree->Size()); ++nidx) {
+    if (tree->IsLeaf(nidx)) {
+      leaves.push_back(nidx);
+      auto leaf = tree->LeafValue(nidx);
+      for (auto value : leaf.Values()) {
+        values.push_back(value * scale);
+      }
+    }
+  }
+  p_tree->SetLeaves(std::move(leaves), values);
+}
+
+void FoldTreeWeights(GBTreeModel* model) {
+  CHECK_LE(model->weight_drop.size(), model->trees.size());
+  for (std::size_t i = 0; i < model->weight_drop.size(); ++i) {
+    ScaleTreeLeaves(model->trees[i].get(), model->weight_drop[i]);
+  }
+  model->weight_drop.clear();
+}
+
 }  // namespace
 
 void GBTree::Configure(Args const& cfg) {
   tparam_.UpdateAllowUnknown(cfg);
   dparam_.UpdateAllowUnknown(cfg);
+  auto has_param = [&cfg](std::string const& name) {
+    return std::any_of(cfg.cbegin(), cfg.cend(),
+                       [&name](auto const& arg) { return arg.first == name; });
+  };
+  auto has_dropout_rate = has_param("dropout_rate");
+  if (has_param("skip_drop")) {
+    if (!has_dropout_rate) {
+      dparam_.dropout_rate = dparam_.skip_drop;
+      LOG(WARNING) << "`skip_drop` has been removed and is interpreted as `dropout_rate`.";
+    } else {
+      LOG(WARNING) << "`skip_drop` has been removed and is ignored because `dropout_rate` is set.";
+    }
+  }
+  for (auto const* removed : {"rate_drop", "one_drop", "sample_type", "normalize_type"}) {
+    if (has_param(removed)) {
+      LOG(WARNING) << "`" << removed << "` has been removed and is ignored.";
+    }
+  }
+  CHECK_LT(dparam_.dropout_rate, 1.0f)
+      << "`dropout_rate` must be less than 1 so retained predictions can be scaled by "
+         "1 / (1 - dropout_rate).";
   tree_param_.UpdateAllowUnknown(cfg);
 
   model_.Configure(cfg);
@@ -185,14 +240,7 @@ void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpa
   }
 }
 
-/** Increment the prediction on GPU.
- *
- * \param out_predts Prediction for the whole model.
- * \param predts     Prediction for current tree.
- * \param tree_w     Tree weight.
- */
-void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_group_t,
-                       bst_group_t)
+void GPUScalePrediction(common::Span<float>, float)
 #if defined(XGBOOST_USE_CUDA)
     ;  // NOLINT
 #else
@@ -200,6 +248,16 @@ void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, 
   common::AssertGPUSupport();
 }
 #endif
+
+void ScalePrediction(Context const* ctx, HostDeviceVector<float>* predictions, float scale) {
+  if (ctx->IsCUDA()) {
+    predictions->SetDevice(ctx->Device());
+    GPUScalePrediction(predictions->DeviceSpan(), scale);
+    return;
+  }
+  auto& values = predictions->HostVector();
+  common::ParallelFor(values.size(), ctx->Threads(), [&](auto i) { values[i] *= scale; });
+}
 
 void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                      ObjFunction const*) {
@@ -294,7 +352,12 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
   }
 
   monitor_.Stop("BoostNewTrees");
-  this->CommitModel(std::move(new_trees));
+  model_.CommitModel(std::move(new_trees));
+  if (dparam_.HasDropout()) {
+    // The cache contains the sampled training margin plus the new tree. It is not a valid
+    // prefix of the fixed-weight inference model and must not be reused.
+    predt->Reset();
+  }
 }
 
 std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret) {
@@ -364,25 +427,6 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
   tree_param_.learning_rate = lr;
 }
 
-void GBTree::CommitModel(TreesOneIter&& new_trees) {
-  monitor_.Start("CommitModel");
-  auto n_old_trees = model_.trees.size();
-  auto has_tree_weights = !model_.weight_drop.empty();
-  auto dropout_configured = dparam_.HasDropout();
-  auto track_tree_weights = has_tree_weights || dropout_configured;
-  if (track_tree_weights && model_.weight_drop.size() < n_old_trees) {
-    model_.weight_drop.insert(model_.weight_drop.cend(), n_old_trees - model_.weight_drop.size(),
-                              1.0f);
-  }
-  auto n_new_trees = model_.CommitModel(std::forward<TreesOneIter>(new_trees));
-  if (track_tree_weights) {
-    auto num_drop = this->NormalizeTrees(n_new_trees);
-    LOG(INFO) << "drop " << num_drop << " trees, "
-              << "weight = " << model_.weight_drop.back();
-  }
-  monitor_.Stop("CommitModel");
-}
-
 void GBTree::LoadConfig(Json const& in) {
   auto name = get<String const>(in["name"]);
   CHECK(name == "gbtree" || name == "dart")
@@ -393,13 +437,24 @@ void GBTree::LoadConfig(Json const& in) {
   FromJson(config["tree_train_param"], &tree_param_);
   auto const& obj = get<Object const>(config);
   auto it = obj.find("dart_train_param");
+  bool has_dropout_rate{false};
   if (it != obj.cend()) {
+    auto const& dart_config = get<Object const>(it->second);
+    has_dropout_rate = dart_config.find("dropout_rate") != dart_config.cend();
     FromJson(it->second, &dparam_);
   } else if (name == "dart") {
+    auto const& dart_config = get<Object const>(in["dart_train_param"]);
+    has_dropout_rate = dart_config.find("dropout_rate") != dart_config.cend();
     FromJson(in["dart_train_param"], &dparam_);
   } else {
     dparam_ = {};
   }
+  if (!has_dropout_rate && dparam_.skip_drop != 0.0f) {
+    dparam_.dropout_rate = dparam_.skip_drop;
+    LOG(WARNING) << "`skip_drop` has been removed and is interpreted as `dropout_rate`.";
+  }
+  CHECK_LT(dparam_.dropout_rate, 1.0f)
+      << "`dropout_rate` must be less than 1 so retained predictions can be scaled.";
 
   // Process type cannot be kUpdate from loaded model
   // This would cause all trees to be pushed to trees_to_update
@@ -483,6 +538,7 @@ void GBTree::LoadModel(Json const& in) {
     }
   }
   CHECK_LE(model_.weight_drop.size(), model_.trees.size());
+  FoldTreeWeights(&model_);
 }
 
 void GBTree::SaveModel(Json* p_out) const {
@@ -492,98 +548,17 @@ void GBTree::SaveModel(Json* p_out) const {
   model_.SaveModel(&out["model"]);
 }
 
-std::vector<float> GBTree::DropTrees(bool is_training) {
-  if (!is_training) {
+std::vector<std::uint8_t> GBTree::DropoutMask(bool is_training) {
+  if (!is_training || !dparam_.HasDropout() || model_.trees.empty()) {
     return {};
   }
-  auto dropout_configured =
-      dparam_.rate_drop != 0.0f || dparam_.one_drop || dparam_.skip_drop != 0.0f;
-  if (model_.weight_drop.empty()) {
-    if (!dropout_configured || model_.trees.empty()) {
-      return {};
-    }
-    model_.weight_drop.resize(model_.trees.size(), 1.0f);
-  }
-  idx_drop_.clear();
-
   std::uniform_real_distribution<> runif(0.0, 1.0);
   auto& rnd = ctx_->Rng();
-  bool skip = false;
-  if (dparam_.skip_drop > 0.0) {
-    skip = (runif(rnd) < dparam_.skip_drop);
+  std::vector<std::uint8_t> dropout_mask(model_.trees.size());
+  for (std::size_t i = 0; i < dropout_mask.size(); ++i) {
+    dropout_mask[i] = runif(rnd) >= dparam_.dropout_rate;
   }
-  if (skip) {
-    return {};
-  }
-
-  if (dparam_.sample_type == DartSampleType::kWeighted) {
-    bst_float sum_weight = 0.0;
-    for (auto elem : model_.weight_drop) {
-      sum_weight += elem;
-    }
-    for (size_t i = 0; i < model_.weight_drop.size(); ++i) {
-      if (runif(rnd) <
-          dparam_.rate_drop * model_.weight_drop.size() * model_.weight_drop[i] / sum_weight) {
-        idx_drop_.push_back(i);
-      }
-    }
-    if (dparam_.one_drop && idx_drop_.empty() && !model_.weight_drop.empty()) {
-      size_t i = std::discrete_distribution<size_t>(
-          model_.weight_drop.size(), 0., static_cast<double>(model_.weight_drop.size()),
-          [this](double x) -> double { return model_.weight_drop[static_cast<size_t>(x)]; })(rnd);
-      idx_drop_.push_back(i);
-    }
-  } else {
-    for (size_t i = 0; i < model_.weight_drop.size(); ++i) {
-      if (runif(rnd) < dparam_.rate_drop) {
-        idx_drop_.push_back(i);
-      }
-    }
-    if (dparam_.one_drop && idx_drop_.empty() && !model_.weight_drop.empty()) {
-      size_t i = std::uniform_int_distribution<size_t>(0, model_.weight_drop.size() - 1)(rnd);
-      idx_drop_.push_back(i);
-    }
-  }
-
-  if (idx_drop_.empty()) {
-    return {};
-  }
-
-  auto dropped_weights = model_.weight_drop;
-  for (auto idx : idx_drop_) {
-    dropped_weights.at(idx) = 0.0f;
-  }
-  return dropped_weights;
-}
-
-[[nodiscard]] std::size_t GBTree::NormalizeTrees(std::size_t size_new_trees) {
-  CHECK(tree_param_.GetInitialised());
-  // Parallel trees each use eta / num_parallel_tree, so the complete layer uses eta.
-  auto lr = tree_param_.learning_rate;
-  size_t num_drop = idx_drop_.size();
-  if (num_drop == 0) {
-    for (size_t i = 0; i < size_new_trees; ++i) {
-      model_.weight_drop.push_back(1.0);
-    }
-  } else if (dparam_.normalize_type == 1) {
-    float factor = 1.0 / (1.0 + lr);
-    for (auto i : idx_drop_) {
-      model_.weight_drop[i] *= factor;
-    }
-    for (size_t i = 0; i < size_new_trees; ++i) {
-      model_.weight_drop.push_back(factor);
-    }
-  } else {
-    float factor = 1.0 * num_drop / (num_drop + lr);
-    for (auto i : idx_drop_) {
-      model_.weight_drop[i] *= factor;
-    }
-    for (size_t i = 0; i < size_new_trees; ++i) {
-      model_.weight_drop.push_back(1.0 / (num_drop + lr));
-    }
-  }
-  idx_drop_.clear();
-  return num_drop;
+  return dropout_mask;
 }
 
 void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GradientBooster* out,
@@ -639,38 +614,29 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
 
   p_gbtree->dparam_ = this->dparam_;
-  p_gbtree->idx_drop_.clear();
-  p_gbtree->model_.weight_drop.clear();
-  if (!this->model_.weight_drop.empty()) {
-    detail::SliceTrees(begin, end, step, model_, [&](auto in_tree_idx, auto const&) {
-      p_gbtree->model_.weight_drop.push_back(this->model_.weight_drop.at(in_tree_idx));
-    });
-  }
 }
 
 void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
                           bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
   auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
-  auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
-  auto dropped_weights = this->DropTrees(is_training);
-  if (!dropped_weights.empty()) {
-    tree_weights_override = &dropped_weights;
+  auto const* tree_mask = static_cast<std::vector<std::uint8_t> const*>(nullptr);
+  auto dropout_mask = this->DropoutMask(is_training);
+  auto apply_dropout = !dropout_mask.empty();
+  if (apply_dropout) {
+    tree_mask = &dropout_mask;
   }
 
-  // Unweighted prediction can reuse a cached prefix of the model output by tracking how many
-  // boosting iterations have already been accumulated in `cache->version`.
-  //
-  // Weighted prediction is used by DART and does not participate in this cache, since tree
-  // weights can change the accumulated output independently of the cached unweighted prefix.
+  // An ordinary prediction can reuse a cached prefix of the model output. A randomly masked
+  // training prediction cannot participate in this cache.
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
   }
 
   auto cache_version = cache->version;
   // We can preserve the cache only when:
-  // - prediction is unweighted
+  // - prediction is not randomly masked
   // - prediction starts from iteration 0, so the result is a cacheable prefix
-  auto preserve_cache = tree_weights_override == nullptr && model_.TreeWeights() == nullptr &&
+  auto preserve_cache = tree_mask == nullptr && model_.TreeWeights() == nullptr &&
                         p_fmat->Info().base_margin_.Empty() && layer_begin == 0;
   // We can reuse the existing cached prefix only when:
   // - the result itself is cacheable
@@ -698,11 +664,19 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     predictor->InitOutPredictions(p_fmat->Info(), &cache->predictions, model_);
   }
 
+  if (apply_dropout) {
+    // Protect the base score or base margin from the normalization applied below.
+    ScalePrediction(ctx_, &cache->predictions, 1.0f - dparam_.dropout_rate);
+  }
+
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
     predictor->PredictBatch(p_fmat.get(), &cache->predictions, model_, tree_begin, tree_end,
-                            tree_weights_override);
+                            tree_mask);
+  }
+  if (apply_dropout) {
+    ScalePrediction(ctx_, &cache->predictions, detail::DropoutScale(dparam_.dropout_rate));
   }
 
   if (!preserve_cache) {

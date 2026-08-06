@@ -204,7 +204,7 @@ template <typename Loader, typename Data, bool has_missing, typename EncAccessor
 __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees,
                               common::Span<float> d_out_predictions,
                               common::Span<bst_target_t const> d_tree_groups,
-                              common::OptionalWeights tree_weights, bst_feature_t num_features,
+                              MaskedTreeWeights tree_weights, bst_feature_t num_features,
                               bool use_shared, bst_target_t n_groups, float missing,
                               EncAccessor acc) {
   auto n_rows = data.NumRows();
@@ -318,7 +318,7 @@ class LaunchConfig {
   void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
                            DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
                            HostDeviceVector<float>* predictions,
-                           common::OptionalWeights tree_weights) {
+                           MaskedTreeWeights tree_weights) {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;
@@ -407,7 +407,7 @@ class GPUPredictor : public xgboost::Predictor {
  private:
   void PredictDMatrix(DMatrix* p_fmat, HostDeviceVector<float>* out_preds,
                       gbm::GBTreeModel const& model, bst_tree_t tree_begin, bst_tree_t tree_end,
-                      common::OptionalWeights tree_weights) const {
+                      MaskedTreeWeights tree_weights) const {
     if (tree_end - tree_begin == 0) {
       return;
     }
@@ -446,7 +446,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                     const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const* tree_weights_override = nullptr) const override {
+                    std::vector<std::uint8_t> const* tree_mask = nullptr) const override {
     xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
     if (tree_end == 0) {
@@ -454,22 +454,30 @@ class GPUPredictor : public xgboost::Predictor {
     }
     HostDeviceVector<float> weights;
     auto pred_weights = common::OptionalWeights{1.0f};
-    auto const* tree_weights =
-        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
+    auto const* tree_weights = model.TreeWeights();
     if (tree_weights != nullptr) {
       weights.SetDevice(ctx_->Device());
       weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
                                   tree_weights->cbegin() + tree_end);
       pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
     }
-    this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
+    HostDeviceVector<std::uint8_t> mask;
+    common::Span<std::uint8_t const> mask_view;
+    if (tree_mask != nullptr) {
+      CHECK_EQ(tree_mask->size(), model.trees.size());
+      mask.SetDevice(ctx_->Device());
+      mask.HostVector().assign(tree_mask->cbegin() + tree_begin, tree_mask->cbegin() + tree_end);
+      mask_view = mask.ConstDeviceSpan();
+    }
+    this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end,
+                         MaskedTreeWeights{pred_weights, mask_view});
   }
 
   template <typename Adapter>
   void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
                                 HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
-                                bst_tree_t tree_end, common::OptionalWeights tree_weights) const {
+                                bst_tree_t tree_end, MaskedTreeWeights tree_weights) const {
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
@@ -533,7 +541,7 @@ class GPUPredictor : public xgboost::Predictor {
         [&](auto x) {
           CheckProxyDMatrix(x, proxy, model.learner_model_param);
           this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end,
-                                         pred_weights);
+                                         MaskedTreeWeights{pred_weights, {}});
         },
         &type_error);
     return !type_error;

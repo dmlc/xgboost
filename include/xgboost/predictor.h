@@ -13,6 +13,7 @@
 #include <xgboost/linalg.h>
 #include <xgboost/span.h>
 
+#include <cstdint>     // for uint8_t
 #include <functional>  // for function
 #include <memory>      // for shared_ptr
 #include <string>
@@ -68,12 +69,12 @@ class Predictor {
    * \param           model       The model to predict from.
    * \param           tree_begin  The tree begin index.
    * \param           tree_end    The tree end index.
-   * \param           tree_weights_override Optional weights for temporary prediction overrides.
+   * \param           tree_mask Optional byte mask selecting trees for temporary prediction.
    */
   virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                             gbm::GBTreeModel const& model, bst_tree_t tree_begin,
                             bst_tree_t tree_end = 0,
-                            std::vector<float> const* tree_weights_override = nullptr) const = 0;
+                            std::vector<std::uint8_t> const* tree_mask = nullptr) const = 0;
 
   /**
    * \brief Inplace prediction.

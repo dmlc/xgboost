@@ -52,15 +52,6 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 ******************
 General Parameters
 ******************
-* ``booster`` [default= ``gbtree``]
-
-  - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
-  - Dropout parameters like ``rate_drop`` can be used directly with tree models. ``booster=dart`` remains supported for compatibility.
-
-  .. deprecated:: 3.3.0
-
-    ``booster=gblinear`` is deprecated and support will be removed in a future release.
-
 * ``device`` [default= ``cpu``]
 
   .. versionadded:: 2.0.0
@@ -305,47 +296,38 @@ These parameters are only used for training with categorical data. See
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
 
-Additional dropout parameters for tree boosters
-================================================
+Tree dropout parameter
+======================
 
-* ``sample_type`` [default= ``uniform``]
+* ``dropout_rate`` [default=0.0]
 
-  - Type of sampling algorithm.
+  - Probability of independently dropping each existing tree before gradient computation.
+  - Range: ``[0.0, 1.0)``.
 
-    - ``uniform``: dropped trees are selected uniformly.
-    - ``weighted``: dropped trees are selected in proportion to weight.
+For dropout probability :math:`p`, tree :math:`i` is retained with indicator
+:math:`I_i \sim \operatorname{Bernoulli}(1-p)`.  The temporary training margin is
 
-* ``normalize_type`` [default= ``tree``]
+.. math::
 
-  - Type of normalization algorithm.
+  \widetilde{F}(x) = F_0(x) + \sum_i \frac{I_i}{1-p} F_i(x),
 
-    - ``tree``: new trees have the same weight of each of dropped trees.
+where :math:`F_0` is the base score or base margin and is not dropped. Therefore
+:math:`\mathbb{E}[\widetilde{F}(x)] = F(x)`. The sampled margin is used to compute
+the next gradient, after which the new tree is committed normally. Existing and new
+trees are never reweighted, so model serialization and inference are the same as for
+an ordinary tree ensemble.
 
-      - Weight of new trees are ``1 / (k + learning_rate)``.
-      - Dropped trees are scaled by a factor of ``k / (k + learning_rate)``.
+For squared error, whose gradient is affine in the margin, this also gives exactly the
+same expected gradient as ordinary boosting. For nonlinear objectives, the margin is
+unbiased but the gradient need not be.
 
-    - ``forest``: new trees have the same weight of sum of dropped trees (forest).
+Legacy parameters
+-----------------
 
-      - Weight of new trees are ``1 / (1 + learning_rate)``.
-      - Dropped trees are scaled by a factor of ``1 / (1 + learning_rate)``.
+* ``skip_drop`` is accepted as an alias for ``dropout_rate`` and emits a removal warning.
+* ``sample_type``, ``normalize_type``, ``rate_drop``, and ``one_drop`` are accepted but
+  ignored and emit removal warnings.
 
-* ``rate_drop`` [default=0.0]
-
-  - Dropout rate (a fraction of previous trees to drop during the dropout).
-  - range: [0.0, 1.0]
-
-* ``one_drop`` [default=0]
-
-  - When this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).
-
-* ``skip_drop`` [default=0.0]
-
-  - Probability of skipping the dropout procedure during a boosting iteration.
-
-    - If a dropout is skipped, new trees are added in the same manner as ``gbtree``.
-    - Note that non-zero ``skip_drop`` has higher priority than ``rate_drop`` or ``one_drop``.
-
-  - range: [0.0, 1.0]
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================
