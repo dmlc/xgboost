@@ -155,21 +155,18 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
   CHECK_EQ(out->valid.predictions.Device(), ctx->Device());
   CHECK_EQ(out->valid.predictions.Size(), info.num_row_ * output_length);
 
-  // Init training prediction vector.
+  // Init training prediction vector. Like the validation cache, it's indexed by the
+  // global row index. The rows held out by a fold are padding, `GetGradient` reads back
+  // only the rows listed in the fold info.
   for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
     output_length = this->OutputLength(k);
     CHECK_EQ(info.labels.Shape(1), output_length);
 
-    // FIXME(jiamingy): Unify the code paths.
-    MetaInfo fold_info;
-    fold_info.num_row_ = finfo.FoldSize(k);
-    fold_info.num_col_ = info.num_col_;
-
     auto& predt = out->train.at(k);
     predt.Reset();
-    predictor->InitOutPredictions(fold_info, &predt.predictions, *models_.at(k));
+    predictor->InitOutPredictions(info, &predt.predictions, *models_.at(k));
     CHECK_EQ(predt.predictions.Device(), ctx->Device());
-    CHECK_EQ(predt.predictions.Size(), fold_info.num_row_ * output_length);
+    CHECK_EQ(predt.predictions.Size(), info.num_row_ * output_length);
   }
 }
 
@@ -346,6 +343,7 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
   auto p_out = std::make_unique<cv::FoldInfoBatches>();
   auto const& batch_ptr = p_ext_fmat->BatchPtr();
   auto const& info = p_ext_fmat->Info();
+  p_out->n_samples = info.num_row_;
 
   for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
     auto begin = batch_ptr[i - 1];

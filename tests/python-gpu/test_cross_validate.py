@@ -83,6 +83,9 @@ def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
     assert gpairs.handle.value is not None
     for k in range(k_folds):
         grad, hess = gpairs.get(k, copy=False)
+        # The gradient is indexed by the global row index, the validation rows of the fold
+        # are zeroed out.
+        assert grad.shape == (Xy.num_row(), 1)
         assert grad.shape == hess.shape
         assert grad.dtype == hess.dtype
         assert grad.data.ptr + ctypes.sizeof(ctypes.c_float) == hess.data.ptr
@@ -97,8 +100,10 @@ def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
         for batch_y, batch_w in zip(y, w):
             train_idx, _ = list(KFold(n_splits=k_folds).split(batch_y))[k]
             idx = cp.asarray(train_idx)
-            expected_labels.append(batch_y[idx])
-            expected_weights.append(batch_w[idx])
+            masked_w = cp.zeros_like(batch_w)
+            masked_w[idx] = batch_w[idx]
+            expected_labels.append(batch_y)
+            expected_weights.append(masked_w)
 
         expected_labels = (
             cp.concatenate(expected_labels).astype(cp.float32).reshape(grad.shape)
@@ -110,3 +115,47 @@ def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
         cp.testing.assert_allclose(hess, expected_weights)
 
     assert cv_folds.get_gradient(Xy, 1, folds, predts, out=gpairs) is gpairs
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
+@use_cuda_async_pool
+def test_cv_base_margin() -> None:
+    import cupy as cp
+    from sklearn.model_selection import KFold
+
+    k_folds = 3
+    X, y, w = tm.make_batches(16, 4, 2, use_cupy=True)
+    it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    # A distinct margin for every row, the gradient of a row must be calculated from the
+    # margin of that same row.
+    margin = cp.arange(Xy.num_row(), dtype=cp.float32) / Xy.num_row()
+    Xy.set_info(base_margin=margin)
+
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+    predts = xcv.FoldPredictions()
+    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
+    cv_folds.init_prediction(Xy, folds, out=predts)
+    gpairs = xcv.FoldGpairs()
+    cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs)
+
+    for k in range(k_folds):
+        grad, hess = gpairs.get(k, copy=False)
+
+        expected_weights = []
+        for batch_w in w:
+            train_idx, _ = list(KFold(n_splits=k_folds).split(batch_w))[k]
+            idx = cp.asarray(train_idx)
+            masked_w = cp.zeros_like(batch_w)
+            masked_w[idx] = batch_w[idx]
+            expected_weights.append(masked_w)
+
+        labels = cp.concatenate(y).astype(cp.float32).reshape(grad.shape)
+        weights = (
+            cp.concatenate(expected_weights).astype(cp.float32).reshape(hess.shape)
+        )
+        cp.testing.assert_allclose(
+            grad, (margin.reshape(grad.shape) - labels) * weights
+        )
+        cp.testing.assert_allclose(hess, weights)

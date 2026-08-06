@@ -84,14 +84,16 @@ GradientQuantiser BuildQuantiserFromPair(Pair const& p, std::size_t total_rows) 
 }  // anonymous namespace
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
-                                               linalg::MatrixView<GradientPair const> gpair) {
+                                               linalg::MatrixView<GradientPair const> gpair,
+                                               std::optional<bst_idx_t> p_n_samples) {
   auto n_targets = gpair.Shape(1);
   CHECK_GE(n_targets, 1);
 
   // Local reduction per target — these are fast device-local operations.
   using ReduceT = typename GradientPairPrecise::ValueT;
   std::vector<Pair> h_pairs(n_targets);
-  std::size_t n_samples = gpair.Shape(0);
+  std::size_t n_samples = p_n_samples.value_or(gpair.Shape(0));
+  CHECK_LE(n_samples, gpair.Shape(0));
   for (bst_target_t t = 0; t < n_targets; ++t) {
     h_pairs[t] = MakeQuantiserForTarget(ctx, gpair.Slice(linalg::All(), t));
   }

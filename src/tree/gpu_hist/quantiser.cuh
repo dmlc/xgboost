@@ -2,7 +2,8 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #pragma once
-#include <vector>  // for vector
+#include <optional>  // for optional
+#include <vector>    // for vector
 
 #include "../../common/deterministic.cuh"   // for CreateRoundingFactor
 #include "../../common/device_helpers.cuh"  // for ToSpan
@@ -97,8 +98,15 @@ class GradientQuantiserGroup {
   dh::DeviceUVector<GradientQuantiser> d_quantizers_;
 
  public:
-  /** @brief Construct from a gradient matrix (n_samples x n_targets). */
-  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair);
+  /**
+   * @brief Construct from a gradient matrix (n_samples x n_targets).
+   *
+   * @param n_samples Number of rows that can be accumulated into a single histogram bin,
+   *                  defaults to the number of rows in @p gpair . Cross-validation passes the
+   *                  size of the fold since the gradient of the held-out rows is zero.
+   */
+  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
+                         std::optional<bst_idx_t> n_samples = std::nullopt);
   /** @brief Convenience constructor from a vector (single-target). */
   GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair);
 
