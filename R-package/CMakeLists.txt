@@ -2,12 +2,16 @@ set(XGBOOST_R_INCLUDE_DIR "" CACHE PATH "R include directory provided by R")
 set(XGBOOST_R_LINK_FLAGS "" CACHE STRING "R package link flags provided by R")
 message(STATUS "R include directory: ${XGBOOST_R_INCLUDE_DIR}")
 message(STATUS "R link flags: ${XGBOOST_R_LINK_FLAGS}")
+message(STATUS "R CUDA flags: ${CMAKE_CUDA_FLAGS}")
+message(STATUS "R CUDA release flags: ${CMAKE_CUDA_FLAGS_RELEASE}")
 
 separate_arguments(
   r_link_libraries NATIVE_COMMAND "${XGBOOST_R_LINK_FLAGS}"
 )
 if(APPLE)
   # Re-assemble the -framework link flags broken by the `separate_arguments`.
+  #
+  #   R link flags:    -F/Library/Frameworks/R.framework/.. -framework R
   set(r_link_items)
   while(r_link_libraries)
     list(POP_FRONT r_link_libraries r_link_item)
