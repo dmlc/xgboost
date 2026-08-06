@@ -24,9 +24,8 @@ def run_model_param_check(name: str, booster: xgboost.Booster) -> None:
         # There's no `num_parallel_tree` in the model parameter in 1.0 (it was a
         # configuration instead of a model parameter).
         return
-    assert (
-        gradient_booster["model"]["gbtree_model_param"]["num_parallel_tree"]
-        == str(gm.kForests)
+    assert gradient_booster["model"]["gbtree_model_param"]["num_parallel_tree"] == str(
+        gm.kForests
     )
 
 

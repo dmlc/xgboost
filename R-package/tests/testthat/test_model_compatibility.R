@@ -33,9 +33,9 @@ get_num_tree <- function(booster) {
 
 run_booster_check <- function(booster, model_file) {
   config <- xgb.config(booster)
-  model_json <- jsonlite::fromJSON(
-    rawToChar(xgb.save.raw(booster, raw_format = "json"))
-  )
+  model_json <- rawToChar(xgb.save.raw(booster, raw_format = "json"))
+  model_json <- gsub("NaN", "null", model_json, fixed = TRUE)
+  model_json <- jsonlite::fromJSON(model_json)
   run_model_param_check(config, model_json)
   is_model <- function(typ) {
     grepl(typ, model_file, fixed = TRUE)
