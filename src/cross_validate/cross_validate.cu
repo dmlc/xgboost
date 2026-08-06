@@ -127,7 +127,9 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
       auto output_length = this->OutputLength(k);
       CHECK_EQ(fold_info.labels.Shape(1), output_length);
       CHECK_EQ(fold_info.labels.Size(), ridxs.size() * output_length);
-      auto preds = GatherPrediction(ctx, predts.Prediction(k), ridxs, output_length);
+      auto const& fold_preds = predts.Prediction(k);
+      CHECK_EQ(fold_preds.Size(), info.num_row_ * output_length);
+      auto preds = GatherPrediction(ctx, fold_preds, ridxs, output_length);
 
       linalg::Matrix<GradientPair> batch_gpair;
       this->Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
