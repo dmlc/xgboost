@@ -128,7 +128,7 @@ we drop the column "class" and only keeps the feature columns and the transforme
 The ``fit`` and ``transform`` are two key operations in MLLIB. Basically, ``fit`` produces a "transformer", e.g. StringIndexer,
 and each transformer applies ``transform`` method on DataFrame to add new column(s) containing transformed features/labels or
 prediction results, etc. To understand more about ``fit`` and ``transform``, You can find more details in
-`here <http://spark.apache.org/docs/latest/ml-pipeline.html#pipeline-components>`_.
+`here <https://spark.apache.org/docs/latest/ml-pipeline.html#pipeline-components>`_.
 
 Similarly, we can use another transformer, `VectorAssembler <https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/feature/VectorAssembler.html>`_,
 to assemble feature columns "sepal length", "sepal width", "petal length" and "petal width" as a vector.
@@ -507,7 +507,7 @@ This parameter controls how many parallel workers we want to have when training 
 
 Gang Scheduling
 ===============
-XGBoost uses `AllReduce <http://mpitutorial.com/tutorials/mpi-reduce-and-allreduce/>`_.
+XGBoost uses `AllReduce <https://mpitutorial.com/tutorials/mpi-reduce-and-allreduce/>`_.
 algorithm to synchronize the stats, e.g. histogram values, of each worker during training. Therefore XGBoost4J-Spark requires
 that all of ``nthread * numWorkers`` cores should be available before the training runs.
 

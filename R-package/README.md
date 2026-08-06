@@ -1,8 +1,8 @@
 XGBoost R Package
 =================
 
-[![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
-[![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](https://cran.rstudio.com/web/packages/xgboost/index.html)
+[![CRAN Status Badge](https://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
+[![CRAN Downloads](https://cranlogs.r-pkg.org/badges/xgboost)](https://cran.rstudio.com/web/packages/xgboost/index.html)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org/en/latest/R-package/index.html)
 
 Resources

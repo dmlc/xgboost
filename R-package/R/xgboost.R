@@ -1561,7 +1561,7 @@ print.xgboost <- function(x, ...) {
 #' <https://archive.ics.uci.edu/ml/datasets/Mushroom>
 #'
 #' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
-#' <http://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
+#' <https://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
 #' School of Information and Computer Science.
 #'
 #' @docType data
@@ -1585,7 +1585,7 @@ NULL
 #' <https://archive.ics.uci.edu/ml/datasets/Mushroom>
 #'
 #' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
-#' <http://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
+#' <https://archive.ics.uci.edu/ml>. Irvine, CA: University of California,
 #' School of Information and Computer Science.
 #'
 #' @docType data
