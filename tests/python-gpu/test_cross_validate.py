@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING
+from functools import wraps
+from typing import TYPE_CHECKING, Callable
 
 import pytest
 import xgboost as xgb
@@ -19,7 +20,17 @@ if TYPE_CHECKING:
 type XywExtQdm = tuple[cp.ndarray, cp.ndarray, cp.ndarray, xgb.ExtMemQuantileDMatrix]
 
 
+def use_cuda_async_pool[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
+    @wraps(fn)
+    def impl(*args: P.args, **kwargs: P.kwargs) -> R:
+        with xgb.config_context(use_cuda_async_pool=True):
+            return fn(*args, **kwargs)
+
+    return impl
+
+
 @fixture(scope="module")
+@use_cuda_async_pool
 def xyw_extqdm() -> XywExtQdm:
     X, y, w = tm.make_batches(16, 4, 2, use_cupy=True)
     it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
@@ -28,6 +39,7 @@ def xyw_extqdm() -> XywExtQdm:
 
 
 @pytest.mark.skipif(**tm.no_cupy())
+@use_cuda_async_pool
 def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     X, y, w, Xy = xyw_extqdm
     k_folds = 3
@@ -47,6 +59,7 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())
+@use_cuda_async_pool
 def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
     import cupy as cp
     from sklearn.model_selection import KFold
