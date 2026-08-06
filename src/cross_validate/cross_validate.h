@@ -8,6 +8,7 @@
 #include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
+#include "../gbm/gbtree.h"  // for PredictionCacheEntry
 #include "../gbm/gbtree_model.h"
 #include "../learner_model_param_legacy.h"
 #include "xgboost/base.h"                // for GradientPair
@@ -86,16 +87,16 @@ struct FoldInfoBatches {
 };
 
 struct FoldPredictions {
-  std::vector<PredictionCacheEntry> train;
-  PredictionCacheEntry valid;
+  std::vector<gbm::PredictionCacheEntry> train;
+  gbm::PredictionCacheEntry valid;
 
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->train.size(); }
-  [[nodiscard]] PredictionCacheEntry& Training(std::size_t fold_idx) { return train.at(fold_idx); }
-  [[nodiscard]] PredictionCacheEntry const& Training(std::size_t fold_idx) const {
+  [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) { return train.at(fold_idx); }
+  [[nodiscard]] gbm::PredictionCacheEntry const& Training(std::size_t fold_idx) const {
     return train.at(fold_idx);
   }
-  [[nodiscard]] PredictionCacheEntry& Validation() { return valid; }
-  [[nodiscard]] PredictionCacheEntry const& Validation() const { return valid; }
+  [[nodiscard]] gbm::PredictionCacheEntry& Validation() { return valid; }
+  [[nodiscard]] gbm::PredictionCacheEntry const& Validation() const { return valid; }
   [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const {
     return this->Training(fold_idx).predictions;
   }

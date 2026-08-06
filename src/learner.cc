@@ -26,7 +26,6 @@
 #include <stack>          // for stack
 #include <string>         // for basic_string, char_traits, operator<, string
 #include <system_error>   // for errc
-#include <unordered_map>  // for operator!=, unordered_map
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
@@ -41,6 +40,7 @@
 #include "common/param_array.h"           // for ParamArray
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
+#include "learner_model_param_legacy.h"   // for LearnerModelParamLegacy
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
