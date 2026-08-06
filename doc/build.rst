@@ -144,11 +144,8 @@ architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus
 Building Python Package from Source
 ***********************************
 
-The Python package is located at ``python-package/``.
-
-Building Python Package with Default Toolchains
-===============================================
-There are several ways to build and install the package from source:
+The Python package is located at ``python-package/``. There are several ways to build and
+install the package from source:
 
 1. Build C++ core with CMake first
 
