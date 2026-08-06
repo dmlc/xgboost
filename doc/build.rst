@@ -290,11 +290,9 @@ and by extension, can be installed through RStudio's build panel if one adds tha
 Building R package with GPU support (Linux)
 ===========================================
 
-The procedure and requirements are similar as in :ref:`build_gpu_support`, so make sure to
-read it first.
-
-On Linux, starting from the XGBoost directory, enable CUDA for the package build and let
-``R CMD INSTALL`` drive the complete installation:
+The requirements are similar as in :ref:`build_gpu_support`, so make sure to read it
+first. On Linux, starting from the XGBoost directory, enable CUDA for the package build
+and let ``R CMD INSTALL`` drive the complete installation:
 
 .. code-block:: bash
 
@@ -368,19 +366,4 @@ Additional System-dependent Features
 Building the Documentation
 **************************
 
-XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To
-build it locally, you need a installed XGBoost with all its dependencies along with:
-
-* System dependencies
-
-  - git
-  - graphviz
-
-* Python dependencies
-
-  Checkout the ``requirements.txt`` file under ``doc/``
-
-Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the
-format you want.  For a list of supported formats, run ``make help`` under the same
-directory. This builds a partial document for Python but not other language bindings. To
-build the full document, see :doc:`/contrib/docs`.
+See :doc:`/contrib/docs`.
