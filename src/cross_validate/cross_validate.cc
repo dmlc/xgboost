@@ -140,6 +140,7 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
                                 FoldInfoBatches const& finfo, FoldPredictions* out) const {
   CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
+  CHECK_EQ(finfo.n_samples, info.num_row_);
   if (out->train.empty()) {
     out->train.resize(this->KFolds());
   }
