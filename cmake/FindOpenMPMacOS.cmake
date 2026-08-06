@@ -26,14 +26,14 @@ macro(find_openmp_macos)
   endif()
 endmacro()
 
-# Patch libxgboost.dylib so that it depends on @rpath/libomp.dylib instead of
-# /opt/homebrew/opt/libomp/lib/libomp.dylib or other hard-coded paths.
+# Patch an XGBoost shared library so that it depends on @rpath/libomp.dylib
+# instead of /opt/homebrew/opt/libomp/lib/libomp.dylib or other hard-coded paths.
 # Doing so enables XGBoost to interoperate with multiple kinds of OpenMP
 # libraries. See https://github.com/lightgbm-org/LightGBM/pull/6391 for detailed
 # explanation. Adapted from https://github.com/lightgbm-org/LightGBM/pull/6391
 # by James Lamb.
 # MacOS only.
-function(patch_openmp_path_macos target target_default_output_name)
+function(patch_openmp_path_macos target)
   if(NOT APPLE)
     message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() must only be used on MacOS")
   endif()
@@ -56,39 +56,9 @@ function(patch_openmp_path_macos target target_default_output_name)
     ${__OpenMP_LIBRARY_LOCATION}
     DIRECTORY
   )
-  # Get the name of the XGBoost lib, e.g. libxgboost
-  get_target_property(
-    __LIBXGBOOST_OUTPUT_NAME
-    ${target}
-    OUTPUT_NAME
-  )
-  if(NOT __LIBXGBOOST_OUTPUT_NAME)
-    set(__LIBXGBOOST_OUTPUT_NAME "${target_default_output_name}")
-  endif()
-
-  # Get the file name of the XGBoost lib, e.g. libxgboost.dylib
-  if(CMAKE_SHARED_LIBRARY_SUFFIX_CXX)
-    set(
-      __LIBXGBOOST_FILENAME_${target} "${__LIBXGBOOST_OUTPUT_NAME}${CMAKE_SHARED_LIBRARY_SUFFIX_CXX}"
-      CACHE INTERNAL "Shared library filename ${target}"
-    )
-  else()
-    set(
-      __LIBXGBOOST_FILENAME_${target} "${__LIBXGBOOST_OUTPUT_NAME}.dylib"
-      CACHE INTERNAL "Shared library filename ${target}"
-    )
-  endif()
-
-  message(STATUS "Creating shared lib for target ${target}: ${__LIBXGBOOST_FILENAME_${target}}")
-
   # Override the absolute path to OpenMP with a relative one using @rpath.
   #
   # This also ensures that if a libomp.dylib has already been loaded, it'll just use that.
-  if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
-    set(__LIB_DIR ${xgboost_BINARY_DIR}/lib)
-  else()
-    set(__LIB_DIR ${xgboost_SOURCE_DIR}/lib)
-  endif()
   add_custom_command(
     TARGET ${target}
     POST_BUILD
@@ -97,11 +67,11 @@ function(patch_openmp_path_macos target target_default_output_name)
         -change
         ${__OpenMP_LIBRARY_LOCATION}
         "@rpath/${__OpenMP_LIBRARY_NAME}"
-        "${__LIBXGBOOST_FILENAME_${target}}"
-      WORKING_DIRECTORY ${__LIB_DIR}
+        "$<TARGET_FILE:${target}>"
+      VERBATIM
   )
   message(STATUS
-    "${__LIBXGBOOST_FILENAME_${target}}: "
+    "${target}: "
     "Replacing hard-coded OpenMP install_name with '@rpath/${__OpenMP_LIBRARY_NAME}'..."
   )
   # Add RPATH entries to ensure the loader looks in the following locations:

@@ -456,7 +456,7 @@ if(JVM_BINDINGS)
 endif()
 
 if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
-  patch_openmp_path_macos(xgboost libxgboost)
+  patch_openmp_path_macos(xgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
