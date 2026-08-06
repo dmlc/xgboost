@@ -677,10 +677,6 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' [instructions](https://xgboost.readthedocs.io/en/latest/install.html#r).
 #' @param disable_default_eval_metric (default= `FALSE`)
 #' Flag to disable default metric. Set to 1 or `TRUE` to disable.
-#' @param use_rmm Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-#' memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-#' (compiled) with the RMM plugin enabled. Valid values are `TRUE` and `FALSE`. See
-#' [Using XGBoost with RAPIDS Memory Manager (RMM) plugin](https://xgboost.readthedocs.io/en/latest/python/rmm-examples/index.html) for details.
 #' @param max_cached_hist_node (for Non-Exact Tree Methods) (default = 65536)
 #' Maximum number of cached nodes for histogram. This can be used with the `"hist"` and the
 #' `"approx"` tree methods.
@@ -822,7 +818,6 @@ xgb.params <- function(
   seed_per_iteration = NULL,
   device = NULL,
   disable_default_eval_metric = NULL,
-  use_rmm = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,

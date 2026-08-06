@@ -113,8 +113,8 @@ solely for the interest of documentation.
    faster than ``exact`` in some applications, but still slow in computation.  It was
    removed because it depended on Rabit's customized reduction function that handles all
    the data structure that can be serialized/deserialized into fixed size buffer, which is
-   not directly supported by NCCL or federated learning gRPC, making it hard to refactor
-   into a common allreducer interface.
+   not directly supported by NCCL, making it hard to refactor into a common allreducer
+   interface.
 
 **************
 Feature Matrix

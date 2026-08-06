@@ -21,10 +21,6 @@
 #include "../../../src/common/threading_utils.h"       // for NameThread
 #include "../helpers.h"                                // for FileExists
 
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../plugin/federated/test_worker.h"
-#endif  // defined(XGBOOST_USE_FEDERATED)
-
 namespace xgboost::collective {
 class WorkerForTest {
   std::string tracker_host_;

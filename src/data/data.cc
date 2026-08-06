@@ -19,7 +19,6 @@
 
 #include "../collective/allgather.h"          // for AllgatherStrings
 #include "../collective/allreduce.h"          // for Allreduce
-#include "../collective/communicator-inl.h"   // for GetRank, IsFederated
 #include "../common/algorithm.h"              // for StableSort
 #include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
 #include "../common/error_msg.h"              // for GroupSize, GroupWeight, InfInData

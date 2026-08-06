@@ -29,8 +29,3 @@ if(PLUGIN_SYCL)
   # Add all objects of plugin_sycl to objxgboost
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl>)
 endif()
-
-# Add the Federate Learning plugin if enabled.
-if(PLUGIN_FEDERATED)
-  add_subdirectory(federated)
-endif()
