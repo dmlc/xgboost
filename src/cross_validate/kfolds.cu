@@ -35,6 +35,7 @@ void KFold(Context const* ctx, std::size_t k_folds, bst_idx_t begin, bst_idx_t e
   auto d_out = out->DeviceSpan();
   dh::LaunchN(n_train, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
     auto ridx = static_cast<bst_idx_t>(i);
+    // Before and after the validation window.
     d_out[i] = ridx < valid_begin ? ridx : ridx + valid_size;
   });
 }

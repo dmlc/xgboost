@@ -91,7 +91,9 @@ struct FoldPredictions {
   gbm::PredictionCacheEntry valid;
 
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->train.size(); }
-  [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) { return train.at(fold_idx); }
+  [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) {
+    return train.at(fold_idx);
+  }
   [[nodiscard]] gbm::PredictionCacheEntry const& Training(std::size_t fold_idx) const {
     return train.at(fold_idx);
   }
