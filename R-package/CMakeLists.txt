@@ -70,7 +70,6 @@ if(r_link_libraries)
 endif()
 
 if(USE_OPENMP)
-  find_package(OpenMP REQUIRED)
   target_link_libraries(xgboost-r PUBLIC OpenMP::OpenMP_CXX OpenMP::OpenMP_C)
 endif()
 
