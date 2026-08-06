@@ -115,6 +115,7 @@ function(xgboost_cuda_wrap_host_compiler_options out_var)
   set(${out_var} "${wrapped}" PARENT_SCOPE)
 endfunction()
 
+# Map the `__FILE__` intrinsic to a different prefix.
 function(xgboost_enable_file_prefix_map source_dir)
   include(CheckCCompilerFlag)
   include(CheckCXXCompilerFlag)

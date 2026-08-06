@@ -298,7 +298,8 @@ linker settings from R's site and user ``Makevars`` files are forwarded to CMake
 Building R package with GPU support
 ===================================
 
-The procedure and requirements are similar as in :ref:`build_gpu_support`, so make sure to read it first.
+The procedure and requirements are similar as in :ref:`build_gpu_support`, so make sure to
+read it first.
 
 On Linux, starting from the XGBoost directory, enable CUDA for the package build and let
 ``R CMD INSTALL`` drive the complete installation:
@@ -308,8 +309,8 @@ On Linux, starting from the XGBoost directory, enable CUDA for the package build
   XGBOOST_USE_CUDA=ON MAKEFLAGS=-j$(nproc) R CMD INSTALL R-package
 
 This source build requires the CUDA toolkit. Release binaries are built from the assembled
-source package with ``R CMD INSTALL --build`` so that installing the resulting package does
-not require the toolkit.
+source package with ``R CMD INSTALL --build`` so that installing the resulting package
+does not require the toolkit.
 
 *********************
 Building JVM Packages

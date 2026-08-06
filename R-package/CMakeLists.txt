@@ -3,11 +3,8 @@ set(XGBOOST_R_LINK_FLAGS "" CACHE STRING "R package link flags provided by R")
 message(STATUS "R include directory: ${XGBOOST_R_INCLUDE_DIR}")
 message(STATUS "R link flags: ${XGBOOST_R_LINK_FLAGS}")
 message(STATUS "R CUDA flags: ${CMAKE_CUDA_FLAGS}")
-message(STATUS "R CUDA release flags: ${CMAKE_CUDA_FLAGS_RELEASE}")
 
-separate_arguments(
-  r_link_libraries NATIVE_COMMAND "${XGBOOST_R_LINK_FLAGS}"
-)
+separate_arguments(r_link_libraries NATIVE_COMMAND "${XGBOOST_R_LINK_FLAGS}")
 if(APPLE)
   # Re-assemble the -framework link flags broken by the `separate_arguments`.
   #
@@ -28,10 +25,10 @@ if(APPLE)
   set(r_link_libraries ${r_link_items})
 endif()
 
-file(
-  GLOB R_SOURCES
-  ${CMAKE_CURRENT_LIST_DIR}/src/*.cc
-  ${CMAKE_CURRENT_LIST_DIR}/src/*.c
+set(R_SOURCES
+  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_custom.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_R.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/init.c
 )
 
 # Use object library to expose symbols
