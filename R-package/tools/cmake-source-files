@@ -8,6 +8,7 @@ dmlc-core/CMakeLists.txt
 dmlc-core/cmake
 dmlc-core/src
 dmlc-core/include
+plugin/CMakeLists.txt
 R-package/CMakeLists.txt
 R-package/src/init.c
 R-package/src/xgboost_R.cc
