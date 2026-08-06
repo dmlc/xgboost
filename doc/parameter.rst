@@ -52,6 +52,16 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 ******************
 General Parameters
 ******************
+* ``booster`` [default= ``gbtree``]
+
+  - Which booster to use. Can be ``gbtree`` or ``gblinear``. The value ``dart`` is a
+    deprecated compatibility alias for ``gbtree``; configure tree dropout with
+    ``dropout_rate``.
+
+  .. deprecated:: 3.3.0
+
+    ``booster=gblinear`` is deprecated and support will be removed in a future release.
+
 * ``device`` [default= ``cpu``]
 
   .. versionadded:: 2.0.0

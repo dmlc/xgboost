@@ -317,8 +317,7 @@ class LaunchConfig {
   template <typename Loader, typename Data>
   void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
                            DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
-                           HostDeviceVector<float>* predictions,
-                           MaskedTreeWeights tree_weights) {
+                           HostDeviceVector<float>* predictions, MaskedTreeWeights tree_weights) {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;

@@ -555,8 +555,8 @@ std::vector<std::uint8_t> GBTree::DropoutMask(bool is_training) {
   std::uniform_real_distribution<> runif(0.0, 1.0);
   auto& rnd = ctx_->Rng();
   std::vector<std::uint8_t> dropout_mask(model_.trees.size());
-  for (std::size_t i = 0; i < dropout_mask.size(); ++i) {
-    dropout_mask[i] = runif(rnd) >= dparam_.dropout_rate;
+  for (auto& retained : dropout_mask) {
+    retained = runif(rnd) >= dparam_.dropout_rate;
   }
   return dropout_mask;
 }

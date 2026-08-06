@@ -9,6 +9,7 @@
 #include "xgboost/predictor.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <sycl/sycl.hpp>
 #include <vector>
@@ -174,12 +175,11 @@ class Predictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                     const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const* tree_weights_override = nullptr) const override {
-    if (tree_weights_override != nullptr || model.TreeWeights() != nullptr) {
-      LOG(WARNING) << "Weighted batch prediction is not yet implemented for SYCL. CPU Predictor "
-                      "is used.";
-      return cpu_predictor->PredictBatch(dmat, out_preds, model, tree_begin, tree_end,
-                                         tree_weights_override);
+                    std::vector<std::uint8_t> const* tree_mask = nullptr) const override {
+    if (tree_mask != nullptr || model.TreeWeights() != nullptr) {
+      LOG(WARNING) << "Weighted or masked batch prediction is not yet implemented for SYCL. CPU "
+                      "Predictor is used.";
+      return cpu_predictor->PredictBatch(dmat, out_preds, model, tree_begin, tree_end, tree_mask);
     }
 
     device_model.SetDevice(ctx_->Device());

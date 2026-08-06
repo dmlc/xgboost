@@ -22,7 +22,6 @@ void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_
 }
 
 void GPUScalePrediction(common::Span<float> predictions, float scale) {
-  dh::LaunchN(predictions.size(),
-              [=] XGBOOST_DEVICE(size_t i) { predictions[i] *= scale; });
+  dh::LaunchN(predictions.size(), [=] XGBOOST_DEVICE(size_t i) { predictions[i] *= scale; });
 }
 }  // namespace xgboost::gbm

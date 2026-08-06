@@ -130,9 +130,7 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 };
 
 namespace detail {
-inline float DropoutScale(float dropout_rate) {
-  return 1.0f / (1.0f - dropout_rate);
-}
+inline float DropoutScale(float dropout_rate) { return 1.0f / (1.0f - dropout_rate); }
 
 // From here on, layer becomes concrete trees.
 inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& model,

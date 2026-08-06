@@ -11,9 +11,9 @@
 #include "../common/optional_weight.h"  // for OptionalWeights
 #include "../gbm/gbtree_model.h"        // for GBTreeModel
 #include "../tree/tree_view.h"          // for MultiTargetTreeView, ScalarTreeView
-#include "xgboost/base.h"         // for bst_tree_t, bst_target_t
-#include "xgboost/context.h"      // for DeviceOrd
-#include "xgboost/span.h"         // for Span
+#include "xgboost/base.h"               // for bst_tree_t, bst_target_t
+#include "xgboost/context.h"            // for DeviceOrd
+#include "xgboost/span.h"               // for Span
 
 namespace xgboost::predictor {
 struct MaskedTreeWeights {

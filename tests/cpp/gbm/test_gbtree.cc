@@ -520,7 +520,7 @@ TEST(GBTree, DropoutParameters) {
   warning = testing::internal::GetCapturedStderr();
   EXPECT_NE(warning.find("`skip_drop` has been removed"), std::string::npos);
   for (auto const* removed : {"rate_drop", "one_drop", "sample_type", "normalize_type"}) {
-    EXPECT_NE(warning.find(std::string{"`"} + removed + "` has been removed"), std::string::npos);
+    EXPECT_NE(warning.find(std::string("`") + removed + "` has been removed"), std::string::npos);
   }
   gbm->SaveConfig(&config);
   EXPECT_EQ(get<String>(config["dart_train_param"]["dropout_rate"]), "0.5");
@@ -547,8 +547,7 @@ TEST(GBTree, DropoutPredictionIsUnbiased) {
       {1.0f, 2.0f, 3.0f}, {1.0f, -1.0f, 2.0f}, {10.0f, 0.1f, -0.2f}, {-2.0f, -1.0f, 4.0f}};
 
   for (auto const& contributions : cases) {
-    auto full_margin = kBase +
-                       std::accumulate(contributions.cbegin(), contributions.cend(), 0.0f);
+    auto full_margin = kBase + std::accumulate(contributions.cbegin(), contributions.cend(), 0.0f);
     double expected_margin{0.0};
     double expected_squared_error_gradient{0.0};
     auto n_masks = std::size_t{1} << contributions.size();

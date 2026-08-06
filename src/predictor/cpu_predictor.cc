@@ -472,8 +472,7 @@ class CPUPredictor : public Predictor {
     common::Span<std::uint8_t const> mask;
     if (tree_mask != nullptr) {
       CHECK_EQ(tree_mask->size(), model.trees.size());
-      mask = {tree_mask->data() + tree_begin,
-              static_cast<std::size_t>(tree_end - tree_begin)};
+      mask = {tree_mask->data() + tree_begin, static_cast<std::size_t>(tree_end - tree_begin)};
     }
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end,
                          MaskedTreeWeights{weights, mask});
