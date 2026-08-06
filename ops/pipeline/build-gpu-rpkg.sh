@@ -25,7 +25,7 @@ fi
 
 env \
   XGBOOST_USE_CUDA=ON \
-  MAKEFLAGS="-j$(nproc)" \
+  CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" \
   "${cmake_launcher_args[@]}" \
   R CMD INSTALL --build --clean --library="${gpu_r_lib}" xgboost/
 

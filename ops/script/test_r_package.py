@@ -94,7 +94,7 @@ def build_rpackage(path: str) -> str:
 
     env = os.environ.copy()
     print("Ncpus:", f"{os.cpu_count()}")
-    env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
+    env.update({"CMAKE_BUILD_PARALLEL_LEVEL": str(os.cpu_count() or 1)})
     subprocess.check_call([R, "CMD", "build", path], env=env)
 
     tarball = find_tarball()
@@ -143,7 +143,7 @@ def check_rpackage(path: str, *, print_install_log: bool = False) -> None:
     threshold = 2.5
     env.update(
         {
-            "MAKEFLAGS": f"-j{os.cpu_count()}",
+            "CMAKE_BUILD_PARALLEL_LEVEL": str(os.cpu_count() or 1),
             # cran specific environment variables
             "_R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(threshold),
             "_R_CHECK_TEST_TIMING_CPU_TO_ELAPSED_THRESHOLD_": str(threshold),
@@ -184,7 +184,7 @@ def check_rpackage(path: str, *, print_install_log: bool = False) -> None:
 def check_rmarkdown() -> None:
     assert system() != "Windows", "Document test doesn't support Windows."
     env = os.environ.copy()
-    env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
+    env.update({"CMAKE_BUILD_PARALLEL_LEVEL": str(os.cpu_count() or 1)})
     print("Checking R documentation.")
     bin_dir = os.path.dirname(R)
     rscript = os.path.join(bin_dir, "Rscript")
@@ -210,7 +210,7 @@ def test_rpackage_on_windows() -> None:
         package_dir = Path(ROOT) / pack_rpackage()
     cmd = [R, "CMD", "INSTALL", str(package_dir)]
     env = os.environ.copy()
-    env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
+    env.update({"CMAKE_BUILD_PARALLEL_LEVEL": str(os.cpu_count() or 1)})
     subprocess.check_call(cmd, env=env)
     subprocess.check_call(
         [R, "-q", "-e", "library(testthat); setwd('tests'); source('testthat.R')"]

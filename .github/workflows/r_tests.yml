@@ -102,6 +102,6 @@ jobs:
           if [ -d ./xgboost.Rcheck ] ; then
             rm -rf ./xgboost.Rcheck
           fi
-          MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
+          CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" R CMD INSTALL R-package/
           Rscript ops/script/lint_r.R $(pwd)
       - run: sccache --show-stats

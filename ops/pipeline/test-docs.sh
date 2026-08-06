@@ -28,7 +28,7 @@ echo "--- Install R package for documentation snippets"
 mkdir -p "${R_LIBS_USER}"
 export R_LIBS_USER
 MAKEFLAGS="-j$(nproc)" Rscript --vanilla R-package/tests/helper_scripts/install_deps.R doc-test
-MAKEFLAGS="-j$(nproc)" R CMD INSTALL -l "${R_LIBS_USER}" R-package
+CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" R CMD INSTALL -l "${R_LIBS_USER}" R-package
 
 echo "--- Run Sphinx doctest builder"
 python3 -m sphinx -b doctest -a -E doc doc/_build/doctest
