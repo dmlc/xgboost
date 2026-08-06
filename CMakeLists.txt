@@ -55,6 +55,7 @@ option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
 option(BUILD_WITH_SYSTEM_DMLC "Use system package for dmlc." OFF)
+option(BUILD_WITH_FILE_PREFIX_MAP "Remap source paths embedded by the compiler." ON)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -332,28 +333,6 @@ endif()
 # Exports some R specific definitions and objects
 if(R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
-  include(CheckCCompilerFlag)
-  include(CheckCXXCompilerFlag)
-  set(r_file_prefix_map "-ffile-prefix-map=${xgboost_SOURCE_DIR}=.")
-  check_c_compiler_flag("${r_file_prefix_map}" R_C_SUPPORTS_FILE_PREFIX_MAP)
-  check_cxx_compiler_flag("${r_file_prefix_map}" R_CXX_SUPPORTS_FILE_PREFIX_MAP)
-  if(R_C_SUPPORTS_FILE_PREFIX_MAP)
-    target_compile_options(xgboost-r PRIVATE $<$<COMPILE_LANGUAGE:C>:${r_file_prefix_map}>)
-  endif()
-
-  if(R_CXX_SUPPORTS_FILE_PREFIX_MAP)
-    set(r_file_prefix_targets xgboost-r objxgboost)
-    if(NOT BUILD_WITH_SYSTEM_DMLC)
-      list(APPEND r_file_prefix_targets dmlc)
-    endif()
-    foreach(r_target IN LISTS r_file_prefix_targets)
-      target_compile_options(${r_target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${r_file_prefix_map}>)
-    endforeach()
-    if(USE_CUDA)
-      xgboost_cuda_wrap_host_compiler_options(r_cuda_file_prefix_map ${r_file_prefix_map})
-      target_compile_options(objxgboost PRIVATE ${r_cuda_file_prefix_map})
-    endif()
-  endif()
 endif()
 
 # This creates its own shared library `xgboost4j'.
@@ -434,6 +413,19 @@ target_include_directories(xgboost
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
+
+if(BUILD_WITH_FILE_PREFIX_MAP)
+  set(file_prefix_targets xgboost objxgboost)
+  if(NOT BUILD_WITH_SYSTEM_DMLC)
+    list(APPEND file_prefix_targets dmlc)
+  endif()
+  foreach(optional_target IN ITEMS xgboost-r xgboost4j plugin_sycl)
+    if(TARGET ${optional_target})
+      list(APPEND file_prefix_targets ${optional_target})
+    endif()
+  endforeach()
+  xgboost_enable_file_prefix_map("${xgboost_SOURCE_DIR}" ${file_prefix_targets})
+endif()
 
 # Common setup for all targets
 foreach(target xgboost objxgboost)
