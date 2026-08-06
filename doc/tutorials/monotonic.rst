@@ -54,26 +54,54 @@ We see the effect of the constraint.  For each variable the general direction of
 Enforcing Monotonic Constraints in XGBoost
 ******************************************
 
-It is very simple to enforce monotonicity constraints in XGBoost.  Here we will give an example using Python, but the same general idea generalizes to other platforms.
+It is very simple to enforce monotonicity constraints in XGBoost. The following examples
+create datasets with the same two-feature relationship in Python and R, then fit a model
+without constraints.
 
-Suppose the following code fits your model without monotonicity constraints
+.. tabs::
+    .. code-tab:: py
 
-.. code-block:: python
+        import numpy as np
+        import xgboost as xgb
 
-  model_no_constraints = xgb.train(params, dtrain,
-                                   num_boost_round = 1000, evals = evallist,
-                                   early_stopping_rounds = 10)
+        rng = np.random.default_rng(0)
+        X = rng.uniform(size=(100, 2))
+        y = 5 * X[:, 0] - 5 * X[:, 1] + rng.normal(scale=0.01, size=100)
+        dtrain = xgb.DMatrix(X, label=y)
+        params = {"tree_method": "hist"}
+        model_no_constraints = xgb.train(params, dtrain, num_boost_round=10)
 
-Then fitting with monotonicity constraints only requires adding a single parameter
+    .. code-tab:: r R
 
-.. code-block:: python
+        library(xgboost)
 
-  params_constrained = params.copy()
-  params_constrained['monotone_constraints'] = (1,-1)
+        set.seed(0)
+        X <- matrix(runif(200), ncol = 2)
+        y <- 5 * X[, 1] - 5 * X[, 2] + rnorm(100, sd = 0.01)
+        dtrain <- xgb.DMatrix(X, label = y)
+        params <- xgb.params(tree_method = "hist")
+        model_no_constraints <- xgb.train(params, dtrain, nrounds = 10)
 
-  model_with_constraints = xgb.train(params_constrained, dtrain,
-                                     num_boost_round = 1000, evals = evallist,
-                                     early_stopping_rounds = 10)
+Fitting with monotonicity constraints only requires adding a single parameter.
+
+.. tabs::
+    .. code-tab:: py
+
+        params_constrained = params.copy()
+        params_constrained["monotone_constraints"] = (1, -1)
+
+        model_with_constraints = xgb.train(
+            params_constrained, dtrain, num_boost_round=10
+        )
+
+    .. code-tab:: r R
+
+        params_constrained <- params
+        params_constrained$monotone_constraints <- c(1, -1)
+
+        model_with_constraints <- xgb.train(
+          params_constrained, dtrain, nrounds = 10
+        )
 
 In this example the training data ``X`` has two columns, and by using the parameter values ``(1,-1)`` we are telling XGBoost to impose an increasing constraint on the first predictor and a decreasing constraint on the second.
 
