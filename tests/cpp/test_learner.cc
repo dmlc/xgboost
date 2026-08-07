@@ -476,20 +476,15 @@ class InitBaseScore : public ::testing::Test {
     learner->UpdateOneIter(0, Xy_);
     Json config{Object{}};
     learner->SaveConfig(&config);
-    auto const& learner_config = get<Object const>(config["learner"]);
-    ASSERT_EQ(learner_config.count("learner_model_param"), 0);
-
-    Json snapshot{Object{}};
-    learner->SaveModel(&snapshot);
-    auto base_score = GetBaseScore(snapshot);
+    auto base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
 
     // already initialized
     auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
     learner->UpdateOneIter(1, Xy1);
-    learner->SaveModel(&snapshot);
-    auto base_score1 = GetBaseScore(snapshot);
+    learner->SaveConfig(&config);
+    auto base_score1 = GetBaseScore(config);
     ASSERT_EQ(base_score, base_score1);
 
     Json model{Object{}};
@@ -498,8 +493,8 @@ class InitBaseScore : public ::testing::Test {
     learner->LoadModel(model);
     learner->Configure();
     learner->UpdateOneIter(2, Xy1);
-    learner->SaveModel(&snapshot);
-    auto base_score2 = GetBaseScore(snapshot);
+    learner->SaveConfig(&config);
+    auto base_score2 = GetBaseScore(config);
     ASSERT_EQ(base_score, base_score2);
   }
 
@@ -507,11 +502,11 @@ class InitBaseScore : public ::testing::Test {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
     learner->SetParam("objective", "reg:absoluteerror");
     learner->SetParam("base_score", "1.3");
-    Json model(Object{});
+    Json config(Object{});
     learner->Configure();
-    learner->SaveModel(&model);
+    learner->SaveConfig(&config);
 
-    auto base_score = GetBaseScore(model);
+    auto base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     // no change
     ASSERT_FLOAT_EQ(base_score[0], 1.3);
@@ -523,22 +518,22 @@ class InitBaseScore : public ::testing::Test {
       ASSERT_FLOAT_EQ(v, 1.3);
     }
     learner->UpdateOneIter(0, Xy_);
-    learner->SaveModel(&model);
-    base_score = GetBaseScore(model);
+    learner->SaveConfig(&config);
+    base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     // no change
     ASSERT_FLOAT_EQ(base_score[0], 1.3);
 
-    auto from_avg =
-        std::stoi(get<String const>(model["learner"]["learner_model_param"]["boost_from_average"]));
+    auto from_avg = std::stoi(
+        get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]));
     // from_avg is disabled when base score is set
     ASSERT_EQ(from_avg, 0);
     // in the future when we can deprecate the binary model, user can set the parameter directly.
     learner->SetParam("boost_from_average", "1");
     learner->Configure();
-    learner->SaveModel(&model);
-    from_avg =
-        std::stoi(get<String const>(model["learner"]["learner_model_param"]["boost_from_average"]));
+    learner->SaveConfig(&config);
+    from_avg = std::stoi(
+        get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]));
     ASSERT_EQ(from_avg, 1);
   }
 
@@ -556,14 +551,15 @@ class InitBaseScore : public ::testing::Test {
 
     learner.reset(Learner::Create({Xy_}));
     learner->LoadModel(model);
+    Json config(Object{});
     learner->Configure();
-    learner->SaveModel(&model);
-    base_score = GetBaseScore(model);
+    learner->SaveConfig(&config);
+    base_score = GetBaseScore(config);
     ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
 
     learner->UpdateOneIter(0, Xy_);
-    learner->SaveModel(&model);
-    base_score = GetBaseScore(model);
+    learner->SaveConfig(&config);
+    base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_FALSE(std::isnan(base_score[0]));
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
@@ -580,16 +576,16 @@ class InitBaseScore : public ::testing::Test {
       ASSERT_EQ(v, ObjFunction::DefaultBaseScore());
     }
 
-    Json model(Object{});
-    learner->SaveModel(&model);
-    auto base_score = GetBaseScore(model);
+    Json config(Object{});
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
 
     // since prediction is not used for trianing, the train procedure still runs estimation
     learner->UpdateOneIter(0, Xy_);
-    learner->SaveModel(&model);
-    base_score = GetBaseScore(model);
+    learner->SaveConfig(&config);
+    base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_FALSE(std::isnan(base_score[0]));
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
@@ -616,8 +612,9 @@ class InitBaseScore : public ::testing::Test {
     learner->SetParam("updater", "refresh");
     learner->UpdateOneIter(1, Xy1);
 
-    learner->SaveModel(&model);
-    auto base_score1 = GetBaseScore(model);
+    Json config(Object{});
+    learner->SaveConfig(&config);
+    auto base_score1 = GetBaseScore(config);
     ASSERT_EQ(base_score1.size(), 1);
     ASSERT_FALSE(std::isnan(base_score1[0]));
     ASSERT_EQ(base_score, base_score1);

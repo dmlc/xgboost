@@ -53,9 +53,9 @@ public class PredictFirstNtree {
     int round = 3;
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
-    // predict using the first boosting iteration
+    //predict use 1 tree
     float[][] predicts1 = booster.predict(testMat, false, 1);
-    // by default all boosting iterations are used for prediction
+    //by default all trees are used to do predict
     float[][] predicts2 = booster.predict(testMat);
 
     //use a simple evaluation class to check error result

@@ -1266,6 +1266,27 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle d
   API_END();
 }
 
+XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int option_mask,
+                             unsigned ntree_limit, int training, xgboost::bst_ulong *len,
+                             const bst_float **out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  auto &predictions = learner->GetThreadLocal().predictions;
+  auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
+  learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat), (option_mask & 1) != 0,
+                   &predictions, 0, iteration_end, static_cast<bool>(training),
+                   (option_mask & 2) != 0, (option_mask & 4) != 0, (option_mask & 8) != 0,
+                   (option_mask & 16) != 0, false);
+
+  xgboost_CHECK_C_ARG_PTR(len);
+  xgboost_CHECK_C_ARG_PTR(out_result);
+
+  *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
+  *len = static_cast<xgboost::bst_ulong>(predictions.Size());
+  API_END();
+}
+
 XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat,
                                         char const *c_json_config,
                                         xgboost::bst_ulong const **out_shape,
@@ -1288,8 +1309,15 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   auto iteration_begin = RequiredArg<Integer>(config, "iteration_begin", __func__);
   auto iteration_end = RequiredArg<Integer>(config, "iteration_end", __func__);
 
-  CHECK_EQ(get<Object const>(config).count("ntree_limit"), 0)
-      << "`ntree_limit` is no longer supported. Use `iteration_begin` and `iteration_end`.";
+  auto const &j_config = get<Object const>(config);
+  auto ntree_limit_it = j_config.find("ntree_limit");
+  if (ntree_limit_it != j_config.cend() && !IsA<Null>(ntree_limit_it->second) &&
+      get<Integer const>(ntree_limit_it->second) != 0) {
+    CHECK(iteration_end == 0)
+        << "Only one of the `ntree_limit` or `iteration_range` can be specified.";
+    LOG(WARNING) << "`ntree_limit` is deprecated, use `iteration_range` instead.";
+    iteration_end = GetIterationFromTreeLimit(get<Integer const>(ntree_limit_it->second), learner);
+  }
 
   bool approximate =
       type == PredictionType::kApproxContribution || type == PredictionType::kApproxInteraction;

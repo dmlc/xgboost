@@ -766,40 +766,28 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterPredictFromDMatrix
- * Signature: (JJII[[F)I
+ * Method:    XGBoosterPredict
+ * Signature: (JJIJ)[F
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDMatrix(
-    JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint jpredict_type, jint jiteration_end,
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict(
+    JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint joption_mask, jint jntree_limit,
     jobjectArray jout) {
-  API_BEGIN();
   auto handle = reinterpret_cast<BoosterHandle>(jhandle);
   auto dmat = reinterpret_cast<DMatrixHandle>(jdmat);
-
-  xgboost::Json config{xgboost::Object{}};
-  config["type"] = xgboost::Integer{static_cast<std::int32_t>(jpredict_type)};
-  config["iteration_begin"] = xgboost::Integer{0};
-  config["iteration_end"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(jiteration_end)};
-  config["training"] = xgboost::Boolean{false};
-  config["strict_shape"] = xgboost::Boolean{false};
-  auto s_config = xgboost::Json::Dump(config);
-
-  bst_ulong const *out_shape;
-  bst_ulong out_dim;
+  bst_ulong len;
   float const *result;
-  auto ret =
-      XGBoosterPredictFromDMatrix(handle, dmat, s_config.c_str(), &out_shape, &out_dim, &result);
+  int ret =
+      XGBoosterPredict(handle, dmat, joption_mask, (unsigned int)jntree_limit,
+                       /* training = */ 0,  // Currently this parameter is not supported by JVM
+                       &len, &result);
   JVM_CHECK_CALL(ret);
-
-  auto n = std::accumulate(
-      out_shape, out_shape + out_dim, std::size_t{1},
-      [](std::size_t acc, bst_ulong dim) { return acc * static_cast<std::size_t>(dim); });
-  if (n != 0) {
-    jfloatArray jarray = jenv->NewFloatArray(n);
-    jenv->SetFloatArrayRegion(jarray, 0, n, result);
+  if (len) {
+    jsize jlen = static_cast<jsize>(len);
+    jfloatArray jarray = jenv->NewFloatArray(jlen);
+    jenv->SetFloatArrayRegion(jarray, 0, jlen, result);
     jenv->SetObjectArrayElement(jout, 0, jarray);
   }
-  API_END();
+  return ret;
 }
 
 /*

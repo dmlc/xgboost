@@ -358,29 +358,29 @@ public class Booster implements Serializable, KryoSerializable {
    *
    * @param data         the test data for which prodictions are to be made
    * @param outputMargin output margin
-   * @param iterationEnd end of the boosting iteration range, 0 means all iterations
+   * @param treeLimit    limit number of trees, 0 means all trees.
    * @param predLeaf     prediction minimum to keep leafs
    * @param predContribs prediction feature contributions
    * @return predict two dimensional array of results, where each row corresponds to a prediction.
    */
   private float[][] predict(DMatrix data,
                             boolean outputMargin,
-                            int iterationEnd,
+                            int treeLimit,
                             boolean predLeaf,
                             boolean predContribs) throws XGBoostError {
-    int predictType = 0;
+    int optionMask = 0;
     if (outputMargin) {
-      predictType = 1;
+      optionMask = 1;
     }
     if (predLeaf) {
-      predictType = 6;
+      optionMask = 2;
     }
     if (predContribs) {
-      predictType = 2;
+      optionMask = 4;
     }
     float[][] rawPredicts = new float[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDMatrix(handle, data.getHandle(),
-        predictType, iterationEnd, rawPredicts));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
+            treeLimit, rawPredicts));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];
@@ -488,24 +488,24 @@ public class Booster implements Serializable, KryoSerializable {
    * Predict leaf indices given the data
    *
    * @param data The input data.
-   * @param iterationEnd End of the boosting iteration range, 0 means all iterations.
+   * @param treeLimit Number of trees to include, 0 means all trees.
    * @return The leaf indices of the instance.
    * @throws XGBoostError
    */
-  public float[][] predictLeaf(DMatrix data, int iterationEnd) throws XGBoostError {
-    return this.predict(data, false, iterationEnd, true, false);
+  public float[][] predictLeaf(DMatrix data, int treeLimit) throws XGBoostError {
+    return this.predict(data, false, treeLimit, true, false);
   }
 
   /**
    * Output feature contributions toward predictions of given data
    *
    * @param data The input data.
-   * @param iterationEnd End of the boosting iteration range, 0 means all iterations.
+   * @param treeLimit Number of trees to include, 0 means all trees.
    * @return The feature contributions and bias.
    * @throws XGBoostError
    */
-  public float[][] predictContrib(DMatrix data, int iterationEnd) throws XGBoostError {
-    return this.predict(data, false, iterationEnd, true, true);
+  public float[][] predictContrib(DMatrix data, int treeLimit) throws XGBoostError {
+    return this.predict(data, false, treeLimit, true, true);
   }
 
   /**
@@ -535,12 +535,11 @@ public class Booster implements Serializable, KryoSerializable {
    *
    * @param data         matrix storing the test input on which predictions are to be made
    * @param outputMargin output margin
-   * @param iterationEnd end of the boosting iteration range, 0 means all iterations
+   * @param treeLimit    limit number of trees, 0 means all trees.
    * @return predict The results of the prediction, where each row corresponds to a prediction.
    */
-  public float[][] predict(DMatrix data, boolean outputMargin, int iterationEnd)
-      throws XGBoostError {
-    return this.predict(data, outputMargin, iterationEnd, false, false);
+  public float[][] predict(DMatrix data, boolean outputMargin, int treeLimit) throws XGBoostError {
+    return this.predict(data, outputMargin, treeLimit, false, false);
   }
 
   /**

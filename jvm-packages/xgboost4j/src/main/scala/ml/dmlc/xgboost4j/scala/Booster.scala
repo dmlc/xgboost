@@ -179,39 +179,39 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    *
    * @param data         dmatrix storing the input
    * @param outPutMargin Whether to output the raw untransformed margin value.
-   * @param iterationEnd End of the boosting iteration range; 0 uses all iterations.
+   * @param treeLimit    Limit number of trees in the prediction; defaults to 0 (use all trees).
    * @return predict result
    */
   @throws(classOf[XGBoostError])
-  def predict(data: DMatrix, outPutMargin: Boolean = false, iterationEnd: Int = 0):
+  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0):
       Array[Array[Float]] = {
-    booster.predict(data.jDMatrix, outPutMargin, iterationEnd)
+    booster.predict(data.jDMatrix, outPutMargin, treeLimit)
   }
 
   /**
    * Predict the leaf indices
    *
-   * @param data         dmatrix storing the input
-   * @param iterationEnd End of the boosting iteration range; 0 uses all iterations.
+   * @param data      dmatrix storing the input
+   * @param treeLimit Limit number of trees in the prediction; defaults to 0 (use all trees).
    * @return predict result
    * @throws XGBoostError native error
    */
   @throws(classOf[XGBoostError])
-  def predictLeaf(data: DMatrix, iterationEnd: Int = 0): Array[Array[Float]] = {
-    booster.predictLeaf(data.jDMatrix, iterationEnd)
+  def predictLeaf(data: DMatrix, treeLimit: Int = 0): Array[Array[Float]] = {
+    booster.predictLeaf(data.jDMatrix, treeLimit)
   }
 
   /**
     * Output feature contributions toward predictions of given data
     *
-    * @param data         dmatrix storing the input
-    * @param iterationEnd End of the boosting iteration range; 0 uses all iterations.
+    * @param data      dmatrix storing the input
+    * @param treeLimit Limit number of trees in the prediction; defaults to 0 (use all trees).
     * @return The feature contributions and bias.
     * @throws XGBoostError native error
     */
   @throws(classOf[XGBoostError])
-  def predictContrib(data: DMatrix, iterationEnd: Int = 0) : Array[Array[Float]] = {
-    booster.predictContrib(data.jDMatrix, iterationEnd)
+  def predictContrib(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
+    booster.predictContrib(data.jDMatrix, treeLimit)
   }
 
   /**

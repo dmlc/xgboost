@@ -1025,11 +1025,9 @@ xgb.booster_type <- function(bst) {
 }
 
 xgb.num_class <- function(bst) {
-  model_json <- jsonlite::fromJSON(
-    rawToChar(xgb.save.raw(bst, raw_format = "json"))
-  )
-  num_class <- strtoi(model_json$learner$learner_model_param$num_class)
-  return(num_class)
+  config <- xgb.config(bst)
+  out <- strtoi(config$learner$learner_model_param$num_class)
+  return(out)
 }
 
 xgb.feature_names <- function(bst) {

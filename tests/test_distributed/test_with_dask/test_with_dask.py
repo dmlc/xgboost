@@ -577,11 +577,10 @@ def test_dask_regressor(model: str, client: "Client") -> None:
     assert isinstance(history, dict)
 
     assert list(history["validation_0"].keys())[0] == "rmse"
-    booster_model = json.loads(regressor.get_booster().save_raw(raw_format="json"))
     forest = int(
-        booster_model["learner"]["gradient_booster"]["model"]["gbtree_model_param"][
-            "num_parallel_tree"
-        ]
+        json.loads(regressor.get_booster().save_config())["learner"][
+            "gradient_booster"
+        ]["gbtree_model_param"]["num_parallel_tree"]
     )
 
     if model == "boosting":
@@ -642,16 +641,12 @@ def run_dask_classifier(
     assert list(history["validation_0"].keys())[0] == metric
     assert len(list(history["validation_0"])) == 1
 
-    booster = classifier.get_booster()
-    config = json.loads(booster.save_config())
+    config = json.loads(classifier.get_booster().save_config())
     n_threads = int(config["learner"]["generic_param"]["nthread"])
     assert n_threads != 0 and n_threads != os.cpu_count()
 
-    booster_model = json.loads(booster.save_raw(raw_format="json"))
     forest = int(
-        booster_model["learner"]["gradient_booster"]["model"]["gbtree_model_param"][
-            "num_parallel_tree"
-        ]
+        config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"]
     )
     if model == "boosting":
         assert len(history["validation_0"][metric]) == 2
@@ -1582,7 +1577,8 @@ class TestWithDask:
                     Xy,
                     num_boost_round=1,
                 )
-                base_score = get_basescore(booster)
+                config = json.loads(booster.save_config())
+                base_score = get_basescore(config)
                 mean = 250.0
                 residuals = np.array([mean, mean, mean, mean - 1000.0])
                 delta = np.mean(np.sqrt(np.abs(residuals))) ** 2
