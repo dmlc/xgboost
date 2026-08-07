@@ -119,8 +119,8 @@ public class XGBoostJNI {
   public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats,
       String[] evnames, String[] eval_info);
 
-  public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
-      int ntree_limit, float[][] predicts);
+  public final static native int XGBoosterPredictFromDMatrix(long handle, long dmat,
+      int predict_type, int iteration_end, float[][] predicts);
 
   public final static native int XGBoosterPredictFromDense(long handle, float[] data,
       long nrow, long ncol, float missing, int iteration_begin, int iteration_end, int predict_type, float[] margin,
