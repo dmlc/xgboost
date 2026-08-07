@@ -22,7 +22,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
         .set_default(0.7f)
         .describe(
             "Maximum delta step we allow each weight estimation to be."
-            " This parameter is required for possion regression.");
+            " This parameter is required for Poisson regression.");
   }
 };
 

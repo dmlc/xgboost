@@ -20,7 +20,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
     DMLC_DECLARE_FIELD(tweedie_variance_power)
         .set_range(1.0f, 2.0f)
         .set_default(1.5f)
-        .describe("Tweedie variance power.  Must be between in range [1, 2).");
+        .describe("Tweedie variance power. Must be in the range [1, 2).");
   }
 };
 
