@@ -269,6 +269,18 @@ class TestModels:
         for d in text_dump:
             assert d.find(r"feature \"2\"") != -1
 
+    def test_dump_model_dot_format(self, tmp_path: Path) -> None:
+        X, y, w = tm.make_regression(n_samples=128, n_features=3, use_cupy=False)
+        Xy = xgb.DMatrix(X, label=y)
+
+        booster = xgb.train({"objective": "reg:squarederror"}, Xy, num_boost_round=1)
+        out_path = tmp_path / "single_tree.dot"
+        booster.dump_model(out_path, dump_format="dot")
+        content = out_path.read_text()
+        assert content == booster.get_dump(dump_format="dot")[0]
+        assert content.startswith("digraph")
+        assert "booster[" not in content
+
     def run_slice(
         self,
         booster: xgb.Booster,
