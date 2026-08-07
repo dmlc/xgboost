@@ -7,6 +7,11 @@ if [[ -z "${R_LIBS_USER:-}" ]]; then
   export R_LIBS_USER=/tmp/xgboost-r-doc-test-lib
 fi
 
+if command -v sccache >/dev/null 2>&1; then
+  export CMAKE_C_COMPILER_LAUNCHER=sccache
+  export CMAKE_CXX_COMPILER_LAUNCHER=sccache
+fi
+
 echo "--- Build libxgboost for documentation snippets"
 cmake_args=(
   -S .
@@ -15,12 +20,6 @@ cmake_args=(
   -DUSE_OPENMP=ON
   -DCMAKE_BUILD_TYPE=Release
 )
-if command -v sccache >/dev/null 2>&1; then
-  cmake_args+=(
-    -DCMAKE_C_COMPILER_LAUNCHER=sccache
-    -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
-  )
-fi
 cmake "${cmake_args[@]}"
 cmake --build build/doc-test --target xgboost --parallel "$(nproc)"
 
