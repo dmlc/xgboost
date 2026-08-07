@@ -633,6 +633,7 @@ class LearnerConfiguration : public Intercept {
     auto& learner_parameters = out["learner"];
 
     learner_parameters["learner_train_param"] = ToJson(tparam_);
+    learner_parameters["learner_model_param"] = mparam_.ToJson();
     learner_parameters["gradient_booster"] = Object();
     auto& gradient_booster = learner_parameters["gradient_booster"];
     gbm_->SaveConfig(&gradient_booster);

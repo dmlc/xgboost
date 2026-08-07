@@ -1215,18 +1215,18 @@ class XGBModel(XGBModelBase):
 
         booster = self.get_booster()
 
-        model = json.loads(booster.save_raw(raw_format="json"))
-        learner_model_param = model["learner"]["learner_model_param"]
         self.objective = config["learner"]["objective"]["name"]
         self.booster = config["learner"]["gradient_booster"]["name"]
-        self.base_score = json.loads(learner_model_param["base_score"])
+        self.base_score = json.loads(
+            config["learner"]["learner_model_param"]["base_score"]
+        )
         self.feature_types = booster.feature_types
         self.enable_categorical = self.feature_types is not None and any(
             ft == CAT_T for ft in self.feature_types
         )
 
         if is_classifier(self):
-            self.n_classes_ = int(learner_model_param["num_class"])
+            self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
             # binary classification is treated as regression in XGBoost.
             self.n_classes_ = 2 if self.n_classes_ < 2 else self.n_classes_
 
@@ -1716,9 +1716,9 @@ class XGBModel(XGBModelBase):
         booster_config = self.get_xgb_params()["booster"]
         b = self.get_booster()
         if booster_config != "gblinear":  # gbtree, dart
-            model = json.loads(b.save_raw(raw_format="json"))
+            config = json.loads(b.save_config())
             intercept = json.loads(
-                model["learner"]["learner_model_param"]["base_score"]
+                config["learner"]["learner_model_param"]["base_score"]
             )
             return np.array(intercept, dtype=np.float32)
 

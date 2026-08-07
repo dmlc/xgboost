@@ -76,9 +76,9 @@ class TestL1MultiTarget : public ::testing::Test {
     }
     ASSERT_EQ(learner->Groups(), 3);
 
-    Json model{Object{}};
-    learner->SaveModel(&model);
-    auto base_score = GetBaseScore(model);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
 
     std::vector<float> split_scores;
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
@@ -89,9 +89,9 @@ class TestL1MultiTarget : public ::testing::Test {
                          {"device", ctx->DeviceName()}});
       sl->Configure();
       sl->UpdateOneIter(0, t_Xy);
-      Json s_model{Object{}};
-      sl->SaveModel(&s_model);
-      auto s_base_score = GetBaseScore(s_model);
+      Json s_config{Object{}};
+      sl->SaveConfig(&s_config);
+      auto s_base_score = GetBaseScore(s_config);
       ASSERT_EQ(s_base_score.size(), 1);
       split_scores.push_back(s_base_score[0]);
     }

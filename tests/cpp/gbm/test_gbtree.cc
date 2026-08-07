@@ -341,7 +341,8 @@ TEST(GBTree, JsonIO) {
   ASSERT_EQ(get<Array>(gbtree_model["trees"]).size(), 1ul);
   ASSERT_EQ(get<Integer>(get<Object>(get<Array>(gbtree_model["trees"]).front()).at("id")), 0);
   ASSERT_EQ(get<Array>(gbtree_model["tree_info"]).size(), 1ul);
-  ASSERT_EQ(get<Object const>(j_config).count("gbtree_model_param"), 0);
+  auto j_train_param = j_config["gbtree_model_param"];
+  ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 
   auto check_config = [](Json j_up_config) {
     auto colmaker = get<Array const>(j_up_config).front();
@@ -588,6 +589,16 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
     return obj.at("gbtree");
   };
 
+  auto get_gbtree_config = [](Json& model) -> Json& {
+    auto& booster = model["learner"]["gradient_booster"];
+    auto& obj = get<Object>(booster);
+    auto it = obj.find("gbtree_model_param");
+    if (it != obj.cend() && IsA<Object>(it->second)) {
+      return booster;
+    }
+    return obj.at("gbtree");
+  };
+
   auto get_shape = [&](Json const& model) {
     auto const& gbtree = get_gbtree(model);
     return get<Object const>(gbtree["model"]["gbtree_model_param"]);
@@ -598,7 +609,9 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
 
   Json sliced_config{Object()};
   sliced->SaveConfig(&sliced_config);
-  // Model shape is not part of the configuration.
+  // Only num trees is changed
+  auto& gradient_booster = get_gbtree_config(sliced_config);
+  gradient_booster["gbtree_model_param"]["num_trees"] = String("60");
   CHECK_EQ(sliced_config, config);
 
   auto get_trees = [&](Json const& model) {
