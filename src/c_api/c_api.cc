@@ -1288,8 +1288,10 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   auto iteration_begin = RequiredArg<Integer>(config, "iteration_begin", __func__);
   auto iteration_end = RequiredArg<Integer>(config, "iteration_end", __func__);
 
-  CHECK_EQ(get<Object const>(config).count("ntree_limit"), 0)
-      << "`ntree_limit` is no longer supported. Use `iteration_begin` and `iteration_end`.";
+  if (get<Object const>(config).count("ntree_limit") != 0) {
+    LOG(FATAL)
+        << "`ntree_limit` is no longer supported. Use `iteration_begin` and `iteration_end`.";
+  }
 
   bool approximate =
       type == PredictionType::kApproxContribution || type == PredictionType::kApproxInteraction;

@@ -356,7 +356,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * An advanced prediction function with all the options.
    *
-   * @param data         the test data for which prodictions are to be made
+   * @param data         the test data for which predictions are to be made
    * @param outputMargin output margin
    * @param iterationEnd end of the boosting iteration range, 0 means all iterations
    * @param predLeaf     prediction minimum to keep leafs
