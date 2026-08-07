@@ -8,15 +8,12 @@
 
 #include <limits>  // for numeric_limits
 
-#include "xgboost/base.h"                // for GradientPair, bst_target_t
-#include "xgboost/context.h"             // for Context
-#include "xgboost/data.h"                // for MetaInfo
-#include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/linalg.h"              // for Matrix
+#include "elementwise_objective.h"  // for elementwise::GradientKernel, elementwise::TransformKernel
+#include "xgboost/base.h"           // for GradientPair
 
 namespace xgboost::obj {
 struct HingeLoss {
-  XGBOOST_DEVICE static GradientPair Gradient(float margin, float label, float weight) {
+  XGBOOST_DEVICE GradientPair operator()(float margin, float label, float weight) const {
     auto y = label * 2.0f - 1.0f;
     if (margin * y < 1.0f) {
       return GradientPair{-y * weight, weight};
@@ -24,17 +21,11 @@ struct HingeLoss {
     return GradientPair{0.0f, std::numeric_limits<float>::min()};
   }
 
-  XGBOOST_DEVICE static float PredTransform(float margin) { return margin > 0.0f ? 1.0f : 0.0f; }
+  XGBOOST_DEVICE float operator()(float margin) const { return margin > 0.0f ? 1.0f : 0.0f; }
 };
 
-struct HingeGradientKernel {
-  using Signature = void(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
-                         bst_target_t, linalg::Matrix<GradientPair>*);
-};
-
-struct HingePredTransformKernel {
-  using Signature = void(Context const*, HostDeviceVector<float>*);
-};
+using HingeGradientKernel = elementwise::GradientKernel<HingeLoss>;
+using HingePredTransformKernel = elementwise::TransformKernel<HingeLoss>;
 
 }  // namespace xgboost::obj
 

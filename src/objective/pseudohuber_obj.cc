@@ -11,40 +11,18 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 
-#include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
-#include "../common/linalg_op.h"        // for ElementWiseKernel
-#include "../common/optional_weight.h"  // for OptionalWeights
-#include "../common/pseudo_huber.h"     // for PseudoHuberParam
-#include "init_estimation.h"            // for CheckInitInputs, FitIntercept
-#include "xgboost/json.h"               // for FromJson, Json, Object, String, ToJson
-#include "xgboost/objective.h"          // for ObjFunction
+#include "../common/kernel.h"        // for DispatchKernel
+#include "../common/pseudo_huber.h"  // for PseudoHuberParam
+#include "init_estimation.h"         // for CheckInitInputs, FitIntercept
+#include "xgboost/json.h"            // for FromJson, Json, Object, String, ToJson
+#include "xgboost/objective.h"       // for ObjFunction
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(pseudohuber_obj);
 
-namespace cpu_impl {
-void PseudoHuberGradient(Context const* ctx, HostDeviceVector<float> const& preds,
-                         MetaInfo const& info, bst_target_t n_targets, float slope,
-                         linalg::Matrix<GradientPair>* out_gpair) {
-  auto device = DeviceOrd::CPU();
-  auto predt = linalg::MakeTensorView(device, preds.ConstHostSpan(), info.num_row_, n_targets);
-  auto labels = info.labels.HostView();
-  common::OptionalWeights weights{info.weights_.ConstHostSpan()};
-
-  out_gpair->SetDevice(device);
-  out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->HostView();
-
-  linalg::cpu_impl::ElementWiseKernel(
-      gpair, ctx->Threads(), [=](std::size_t i, std::size_t j) mutable {
-        gpair(i, j) = PseudoHuberLoss::Gradient(predt(i, j), labels(i, j), weights[i], slope);
-      });
-}
-}  // namespace cpu_impl
-
 namespace {
-common::KernelRegistration<PseudoHuberGradientKernel> const kRegisterPseudoHuberGradientCpu{
-    DeviceOrd::kCPU, &cpu_impl::PseudoHuberGradient};
+auto const kRegisterPseudoHuberGradientCpu =
+    elementwise::RegisterGradientCpu<PseudoHuberGradient>();
 }  // namespace
 
 class PseudoHuberRegression : public FitIntercept {
@@ -63,8 +41,8 @@ class PseudoHuberRegression : public FitIntercept {
     CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
     auto slope = param_.huber_slope;
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
-    common::DispatchKernel<PseudoHuberGradientKernel>(ctx_, preds, info, this->Targets(info), slope,
-                                                      out_gpair);
+    common::DispatchKernel<PseudoHuberGradientKernel>(ctx_, preds, info, this->Targets(info),
+                                                      PseudoHuberGradient{slope}, out_gpair);
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mphe"; }

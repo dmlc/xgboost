@@ -8,15 +8,14 @@
 
 #include <cmath>  // for sqrtf
 
-#include "xgboost/base.h"                // for GradientPair, bst_target_t
-#include "xgboost/context.h"             // for Context
-#include "xgboost/data.h"                // for MetaInfo
-#include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/linalg.h"              // for Matrix
+#include "elementwise_objective.h"  // for elementwise::GradientKernel
+#include "xgboost/base.h"           // for GradientPair
 
 namespace xgboost::obj {
-struct PseudoHuberLoss {
-  XGBOOST_DEVICE static GradientPair Gradient(float predt, float label, float weight, float slope) {
+struct PseudoHuberGradient {
+  float slope;
+
+  XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
     auto z = predt - label;
     auto slope_sq = slope * slope;
     auto z_sq = z * z;
@@ -28,10 +27,7 @@ struct PseudoHuberLoss {
   }
 };
 
-struct PseudoHuberGradientKernel {
-  using Signature = void(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
-                         bst_target_t, float, linalg::Matrix<GradientPair>*);
-};
+using PseudoHuberGradientKernel = elementwise::GradientKernel<PseudoHuberGradient>;
 }  // namespace xgboost::obj
 
 #endif  // XGBOOST_OBJECTIVE_PSEUDOHUBER_OBJ_H_
