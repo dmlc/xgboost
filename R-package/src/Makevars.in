@@ -24,41 +24,43 @@ all: $(SHLIB)
 
 $(SHLIB): xgboost-cmake
 
+# Use unwrapped R compilers CC/CXX. Normally, we should forward the CMAKE_<LANG>_COMPILER
+# as-is, however, `CC` could be `cc --args0 --arg1 ..`.
 xgboost-cmake:
-	+@set -eu; \
-	xgboost_use_openmp=OFF; \
-	if test -n "$(SHLIB_OPENMP_CXXFLAGS)"; then xgboost_use_openmp=ON; fi; \
-	CC="$(CMAKE_C_COMPILER)" CXX="$(CMAKE_CXX_COMPILER)" \
-	"$(XGBOOST_CMAKE)" \
-	  -S "$(XGBOOST_CMAKE_SOURCE)" \
-	  -B "$(XGBOOST_CMAKE_BUILD)" \
-	  -G "Unix Makefiles" \
-	  -DR_LIB=ON \
-	  -DKEEP_BUILD_ARTIFACTS_IN_BINARY_DIR=ON \
-	  "-DXGBOOST_R_INCLUDE_DIR=$${XGBOOST_R_INCLUDE_DIR}" \
-	  "-DXGBOOST_R_LINK_FLAGS=$${XGBOOST_R_LINK_FLAGS}" \
-	  -DUSE_OPENMP=$${xgboost_use_openmp} \
-	  -DUSE_CUDA="$(XGBOOST_USE_CUDA)" \
-	  -DBUILD_WITH_FILE_PREFIX_MAP="$(XGBOOST_BUILD_WITH_FILE_PREFIX_MAP)" \
-	  -DCMAKE_BUILD_TYPE=Release \
-	  -DCMAKE_C_FLAGS_RELEASE= \
-	  -DCMAKE_CXX_FLAGS_RELEASE= \
-	  -DCMAKE_CUDA_FLAGS_RELEASE= \
-	  -DCMAKE_C_FLAGS="$(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SHLIB_OPENMP_CFLAGS)" \
-	  -DCMAKE_CXX_FLAGS="$(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(SHLIB_OPENMP_CXXFLAGS)" \
-	  -DCMAKE_CUDA_FLAGS="$(ALL_CPPFLAGS) $(ALL_CXXFLAGS)" \
-	  -DCMAKE_SHARED_LINKER_FLAGS="$(SHLIB_LDFLAGS) $(LDFLAGS) $(SHLIB_OPENMP_CXXFLAGS)" \
-	  -DCMAKE_OSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)" \
-	  -DCMAKE_MAKE_PROGRAM="$(MAKE)" \
-	  -DCMAKE_C_COMPILER_LAUNCHER="$(CMAKE_C_COMPILER_LAUNCHER)" \
-	  -DCMAKE_CXX_COMPILER_LAUNCHER="$(CMAKE_CXX_COMPILER_LAUNCHER)" \
-	  -DCMAKE_CUDA_COMPILER_LAUNCHER="$(CMAKE_CUDA_COMPILER_LAUNCHER)"
-	+@"$(XGBOOST_CMAKE)" --build "$(XGBOOST_CMAKE_BUILD)" --target xgboost
-	@"$(XGBOOST_CMAKE)" -E copy "$(XGBOOST_CMAKE_BUILD)/lib/$(SHLIB)" "$(SHLIB)"
+        +@set -eu; \
+        xgboost_use_openmp=OFF; \
+        if test -n "$(SHLIB_OPENMP_CXXFLAGS)"; then xgboost_use_openmp=ON; fi; \
+        CC="$(CMAKE_C_COMPILER)" CXX="$(CMAKE_CXX_COMPILER)" \
+        "$(XGBOOST_CMAKE)" \
+          -S "$(XGBOOST_CMAKE_SOURCE)" \
+          -B "$(XGBOOST_CMAKE_BUILD)" \
+          -G "Unix Makefiles" \
+          -DR_LIB=ON \
+          -DKEEP_BUILD_ARTIFACTS_IN_BINARY_DIR=ON \
+          "-DXGBOOST_R_INCLUDE_DIR=$${XGBOOST_R_INCLUDE_DIR}" \
+          "-DXGBOOST_R_LINK_FLAGS=$${XGBOOST_R_LINK_FLAGS}" \
+          -DUSE_OPENMP=$${xgboost_use_openmp} \
+          -DUSE_CUDA="$(XGBOOST_USE_CUDA)" \
+          -DBUILD_WITH_FILE_PREFIX_MAP="$(XGBOOST_BUILD_WITH_FILE_PREFIX_MAP)" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_FLAGS_RELEASE= \
+          -DCMAKE_CXX_FLAGS_RELEASE= \
+          -DCMAKE_CUDA_FLAGS_RELEASE= \
+          -DCMAKE_C_FLAGS="$(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SHLIB_OPENMP_CFLAGS)" \
+          -DCMAKE_CXX_FLAGS="$(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $(SHLIB_OPENMP_CXXFLAGS)" \
+          -DCMAKE_CUDA_FLAGS="$(ALL_CPPFLAGS) $(ALL_CXXFLAGS)" \
+          -DCMAKE_SHARED_LINKER_FLAGS="$(SHLIB_LDFLAGS) $(LDFLAGS) $(SHLIB_OPENMP_CXXFLAGS)" \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)" \
+          -DCMAKE_MAKE_PROGRAM="$(MAKE)" \
+          -DCMAKE_C_COMPILER_LAUNCHER="$(CMAKE_C_COMPILER_LAUNCHER)" \
+          -DCMAKE_CXX_COMPILER_LAUNCHER="$(CMAKE_CXX_COMPILER_LAUNCHER)" \
+          -DCMAKE_CUDA_COMPILER_LAUNCHER="$(CMAKE_CUDA_COMPILER_LAUNCHER)"
+        +@"$(XGBOOST_CMAKE)" --build "$(XGBOOST_CMAKE_BUILD)" --target xgboost
+        @"$(XGBOOST_CMAKE)" -E copy "$(XGBOOST_CMAKE_BUILD)/lib/$(SHLIB)" "$(SHLIB)"
 
 clean: xgboost-cmake-intermediates-clean
 
 shlib-clean: xgboost-cmake-intermediates-clean
 
 xgboost-cmake-intermediates-clean:
-	@"$(XGBOOST_CMAKE)" -E remove_directory "$(XGBOOST_CMAKE_BUILD)"
+        @"$(XGBOOST_CMAKE)" -E remove_directory "$(XGBOOST_CMAKE_BUILD)"
