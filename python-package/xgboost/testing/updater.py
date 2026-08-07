@@ -50,9 +50,8 @@ def get_basescore(
     if isinstance(model, dict):
         jintercept = model["learner"]["learner_model_param"]["base_score"]
     else:
-        jintercept = json.loads(model.save_config())["learner"]["learner_model_param"][
-            "base_score"
-        ]
+        model_json = json.loads(model.save_raw(raw_format="json"))
+        jintercept = model_json["learner"]["learner_model_param"]["base_score"]
     return json.loads(jintercept)
 
 

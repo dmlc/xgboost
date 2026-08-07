@@ -622,6 +622,19 @@ TEST(CAPI, PredictReuseProxy) {
     ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, fmat_hdl), 0);
   }
 
+  {
+    auto legacy_config = config;
+    legacy_config["ntree_limit"] = Integer{1};
+    auto s_legacy_config = Json::Dump(legacy_config);
+    bst_ulong const *outshape{nullptr};
+    bst_ulong outdim{0};
+    float const *result{nullptr};
+    ASSERT_EQ(XGBoosterPredictFromDMatrix(booster_hdl, fmat_hdl, s_legacy_config.c_str(), &outshape,
+                                          &outdim, &result),
+              -1);
+    ASSERT_NE(std::string{XGBGetLastError()}.find("ntree_limit"), std::string::npos);
+  }
+
   // Create a proxy that can be reused.
   DMatrixHandle proxy_hdl{nullptr};
   ASSERT_EQ(XGProxyDMatrixCreate(&proxy_hdl), 0);

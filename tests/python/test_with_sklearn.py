@@ -431,10 +431,10 @@ def test_num_parallel_tree():
     dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 4
 
-    config = json.loads(bst.get_booster().save_config())
+    model = json.loads(bst.get_booster().save_raw(raw_format="json"))
     assert (
         int(
-            config["learner"]["gradient_booster"]["gbtree_model_param"][
+            model["learner"]["gradient_booster"]["model"]["gbtree_model_param"][
                 "num_parallel_tree"
             ]
         )
@@ -1260,7 +1260,7 @@ def test_multilabel_classification() -> None:
     clf = xgb.XGBClassifier(tree_method="hist")
     clf.fit(X, y)
     booster = clf.get_booster()
-    learner = json.loads(booster.save_config())["learner"]
+    learner = json.loads(booster.save_raw(raw_format="json"))["learner"]
     assert int(learner["learner_model_param"]["num_target"]) == 5
 
     np.testing.assert_allclose(clf.predict(X), y)

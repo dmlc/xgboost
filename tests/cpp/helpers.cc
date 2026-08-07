@@ -202,8 +202,8 @@ double GetMultiMetricEval(xgboost::Metric* metric,
 }
 
 namespace xgboost {
-[[nodiscard]] std::vector<float> GetBaseScore(Json const& config) {
-  auto str = get<String const>(config["learner"]["learner_model_param"]["base_score"]);
+[[nodiscard]] std::vector<float> GetBaseScore(Json const& model) {
+  auto str = get<String const>(model["learner"]["learner_model_param"]["base_score"]);
   auto jintercept = Json::Load(str);
   auto const& array = get<Array const>(jintercept);
   std::vector<float> results;

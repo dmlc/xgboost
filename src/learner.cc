@@ -633,7 +633,6 @@ class LearnerConfiguration : public Intercept {
     auto& learner_parameters = out["learner"];
 
     learner_parameters["learner_train_param"] = ToJson(tparam_);
-    learner_parameters["learner_model_param"] = mparam_.ToJson();
     learner_parameters["gradient_booster"] = Object();
     auto& gradient_booster = learner_parameters["gradient_booster"];
     gbm_->SaveConfig(&gradient_booster);
@@ -1282,8 +1281,8 @@ class LearnerImpl : public LearnerIO {
    * \brief get un-transformed prediction
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
-   * \param ntree_limit limit number of trees used for boosted tree
-   *   predictor, when it equals 0, this means we are using all the trees
+   * \param layer_begin Beginning of the boosting iteration range.
+   * \param layer_end End of the boosting iteration range. Zero uses all iterations.
    * \param training allow dropout when the DART booster is being used
    */
   void PredictRaw(std::shared_ptr<DMatrix> data, HostDeviceVector<float>* out_preds, bool training,

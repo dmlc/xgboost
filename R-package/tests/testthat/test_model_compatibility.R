@@ -9,8 +9,8 @@ metadata <- list(
   kClasses = 3
 )
 
-run_model_param_check <- function(config) {
-  testthat::expect_equal(config$learner$learner_model_param$num_feature, "4")
+run_model_param_check <- function(config, model_json) {
+  testthat::expect_equal(model_json$learner$learner_model_param$num_feature, "4")
   testthat::expect_equal(config$learner$learner_train_param$booster, "gbtree")
 }
 
@@ -33,7 +33,10 @@ get_num_tree <- function(booster) {
 
 run_booster_check <- function(booster, model_file) {
   config <- xgb.config(booster)
-  run_model_param_check(config)
+  model_json <- rawToChar(xgb.save.raw(booster, raw_format = "json"))
+  model_json <- gsub("NaN", "null", model_json, fixed = TRUE)
+  model_json <- jsonlite::fromJSON(model_json)
+  run_model_param_check(config, model_json)
   is_model <- function(typ) {
     grepl(typ, model_file, fixed = TRUE)
   }
@@ -42,18 +45,18 @@ run_booster_check <- function(booster, model_file) {
     testthat::expect_equal(
       get_num_tree(booster), metadata$kForests * n_rounds * metadata$kClasses
     )
-    testthat::expect_equal(get_basescore(config), c(0.5, 0.5, 0.5))  # nolint
+    testthat::expect_equal(get_basescore(model_json), c(0.5, 0.5, 0.5))  # nolint
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "multi:softmax"
     )
     testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$num_class),
+      as.numeric(model_json$learner$learner_model_param$num_class),
       metadata$kClasses
     )
   } else if (is_model("logitraw")) {
     testthat::expect_equal(get_num_tree(booster), metadata$kForests * n_rounds)
     testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$num_class), 0
+      as.numeric(model_json$learner$learner_model_param$num_class), 0
     )
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "binary:logitraw"
@@ -61,7 +64,7 @@ run_booster_check <- function(booster, model_file) {
   } else if (is_model("logit")) {
     testthat::expect_equal(get_num_tree(booster), metadata$kForests * n_rounds)
     testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$num_class), 0
+      as.numeric(model_json$learner$learner_model_param$num_class), 0
     )
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "binary:logistic"
@@ -79,7 +82,7 @@ run_booster_check <- function(booster, model_file) {
   } else {
     testthat::expect_true(is_model("reg"))
     testthat::expect_equal(get_num_tree(booster), metadata$kForests * n_rounds)
-    testthat::expect_equal(get_basescore(config), 0.5)  # nolint
+    testthat::expect_equal(get_basescore(model_json), 0.5)  # nolint
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "reg:squarederror"
     )
