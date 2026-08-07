@@ -14,19 +14,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cmake_launcher_args=()
+cmake_launcher_env=()
 if command -v sccache >/dev/null 2>&1; then
-  cmake_launcher_args=(
-    XGBOOST_CMAKE_C_COMPILER_LAUNCHER=sccache
-    XGBOOST_CMAKE_CXX_COMPILER_LAUNCHER=sccache
-    XGBOOST_CMAKE_CUDA_COMPILER_LAUNCHER=sccache
+  cmake_launcher_env=(
+    CMAKE_C_COMPILER_LAUNCHER=sccache
+    CMAKE_CXX_COMPILER_LAUNCHER=sccache
+    CMAKE_CUDA_COMPILER_LAUNCHER=sccache
   )
 fi
 
 env \
   XGBOOST_USE_CUDA=ON \
   CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" \
-  "${cmake_launcher_args[@]}" \
+  "${cmake_launcher_env[@]}" \
   R CMD INSTALL --build --clean --library="${gpu_r_lib}" xgboost/
 
 shopt -s nullglob
