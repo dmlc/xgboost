@@ -336,7 +336,8 @@ class GBTree : public GradientBooster {
       LOG(FATAL)
           << "`strict_shape` with predict leaf is not supported when vector leaf trees are used.";
     }
-    this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -345,8 +346,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
-                                                   approximate);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictContribution(p_fmat, out_contribs, model_, tree_end, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -355,8 +356,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                               tree_end, approximate);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -374,7 +375,7 @@ class GBTree : public GradientBooster {
 
   std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
 
-  [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
+  [[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
       DMatrix* f_dmat = nullptr) const;
 
@@ -391,12 +392,6 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // Predictors
-  std::unique_ptr<Predictor> cpu_predictor_;
-  std::unique_ptr<Predictor> gpu_predictor_{nullptr};
-#if defined(XGBOOST_USE_SYCL)
-  std::unique_ptr<Predictor> sycl_predictor_;
-#endif  // defined(XGBOOST_USE_SYCL)
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
   mutable PredictionContainer prediction_cache_;
