@@ -11,7 +11,7 @@ from platform import system
 try:
     import pandas as pd
 except ImportError:
-    pd = None
+    pd = None  # type: ignore
 
 from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
