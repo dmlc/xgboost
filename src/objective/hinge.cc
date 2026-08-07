@@ -49,9 +49,9 @@ void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds) {
 }  // namespace cpu_impl
 
 namespace {
-common::KernelRegistration<HingeGradientKernel> const register_hinge_gradient_cpu{
+common::KernelRegistration<HingeGradientKernel> const kRegisterHingeGradientCpu{
     DeviceOrd::kCPU, &cpu_impl::HingeGradient};
-common::KernelRegistration<HingePredTransformKernel> const register_hinge_pred_transform_cpu{
+common::KernelRegistration<HingePredTransformKernel> const kRegisterHingePredTransformCpu{
     DeviceOrd::kCPU, &cpu_impl::HingePredTransform};
 }  // namespace
 
