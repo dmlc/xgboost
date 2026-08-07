@@ -7,7 +7,6 @@ XGBOOST_CMAKE_SOURCE = @XGBOOST_CMAKE_SOURCE@
 XGBOOST_CMAKE_BUILD = cmake-build
 XGBOOST_USE_CUDA ?= OFF
 XGBOOST_BUILD_WITH_FILE_PREFIX_MAP ?= ON
-CMAKE_BUILD_TYPE ?= Release
 # Preserve unwrapped R compilers while dependencies use launcher-wrapped CC/CXX.  If
 # `XGBOOST_R_CC` is not specified by the environment, it's original compiler cmd supplied
 # by R (like cl/g++).
@@ -18,11 +17,13 @@ CMAKE_BUILD_TYPE ?= Release
 XGBOOST_R_CC ?= $(CC)
 XGBOOST_R_CXX ?= $(CXX)
 # Forwarding is not necessary, just stated here to make things a bit more explicit.
+CMAKE_BUILD_TYPE ?= Release
 CMAKE_C_COMPILER_LAUNCHER ?=
 CMAKE_CXX_COMPILER_LAUNCHER ?=
 CMAKE_CUDA_COMPILER_LAUNCHER ?=
-
-# Preserve R's quoting while forwarding these values as CMake arguments.
+# Preserve R's quoting using the shell while forwarding these values as CMake
+# arguments. If we don't export them first, make expansion (instead of shell) could
+# discard the quotes.
 export XGBOOST_R_INCLUDE_DIR = $(R_INCLUDE_DIR)
 export XGBOOST_R_LINK_FLAGS = $(ALL_LIBS)
 
