@@ -51,8 +51,7 @@ class FoldModels {
   void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
                       FoldPredictions* out) const;
   void GetGradient(Context const* ctx, MetaInfo const& info, FoldPredictions const& predts,
-                   FoldInfoBatches const& finfo, std::vector<bst_idx_t> const& batch_ptr,
-                   std::int32_t iter, FoldGpairs* out) const;
+                   FoldInfoBatches const& finfo, std::int32_t iter, FoldGpairs* out) const;
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
 
@@ -60,6 +59,8 @@ class FoldModels {
   void SaveModel(Json* out) const;
 };
 
+// Training rows of each fold within a single data batch. All row indices are global,
+// namely indices into the full dataset instead of the batch that owns them.
 struct FoldInfo {
   std::vector<HostDeviceVector<bst_idx_t>> ridxs;
 
@@ -70,8 +71,11 @@ struct FoldInfo {
 
 struct FoldInfoBatches {
   std::vector<FoldInfo> batches;
+  // Number of rows in the full dataset, which is the size of the global index space.
+  bst_idx_t n_samples{0};
 
   [[nodiscard]] std::size_t Size() const { return batches.size(); }
+  // Number of training rows in the k^th fold.
   [[nodiscard]] std::size_t FoldSize(std::size_t k) const {
     std::size_t acc = 0;
     for (auto const& batch : this->batches) {
@@ -86,12 +90,17 @@ struct FoldInfoBatches {
   }
 };
 
+// Prediction caches for all folds, both indexed by the global row index. `train` holds one
+// cache per fold, in which the rows held out by that fold are unused padding. `valid` is a
+// single cache holding the out-of-fold prediction of every row.
 struct FoldPredictions {
   std::vector<gbm::PredictionCacheEntry> train;
   gbm::PredictionCacheEntry valid;
 
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->train.size(); }
-  [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) { return train.at(fold_idx); }
+  [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) {
+    return train.at(fold_idx);
+  }
   [[nodiscard]] gbm::PredictionCacheEntry const& Training(std::size_t fold_idx) const {
     return train.at(fold_idx);
   }
@@ -102,6 +111,9 @@ struct FoldPredictions {
   }
 };
 
+// Gradient of each fold, indexed by the global row index. The rows held out by a fold are
+// zeroed rather than left as padding: this buffer is consumed whole, so a stale value would
+// leak into the fold's root sum and histograms.
 struct FoldGpairs {
   std::vector<linalg::Matrix<GradientPair>> gpairs;
 

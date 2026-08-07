@@ -11,48 +11,43 @@
 #include "../c_api/c_api_error.h"
 #include "../c_api/c_api_utils.h"        // for CastDMatrixHandle
 #include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/linalg_op.cuh"       // for tcbegin, tcend, tbegin
+#include "../common/device_helpers.cuh"  // for LaunchN
 #include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
 #include "cross_validate.h"
 #include "xgboost/json.h"  // for Json
 
 namespace xgboost::cv {
 namespace {
-[[nodiscard]] HostDeviceVector<bst_idx_t> GlobalTrainingRows(Context const* ctx,
-                                                             FoldInfo const& batch,
-                                                             std::size_t fold,
-                                                             bst_idx_t batch_begin) {
-  auto d_local = batch.ridxs.at(fold).ConstDeviceSpan();
-  HostDeviceVector<bst_idx_t> d_global(d_local.size(), 0ul, ctx->Device());
-  thrust::transform(ctx->CUDACtx()->CTP(), dh::tcbegin(d_local), dh::tcend(d_local),
-                    dh::tbegin(d_global.DeviceSpan()),
-                    [=] __device__(std::size_t i) { return i + batch_begin; });
-  return d_global;
-}
-
-[[nodiscard]] HostDeviceVector<float> BatchPrediction(Context const* ctx,
-                                                      HostDeviceVector<float> const& predt,
-                                                      std::size_t begin, std::size_t size) {
-  HostDeviceVector<float> out(size, 0.0f, ctx->Device());
-  auto d_predt = predt.ConstDeviceSpan().subspan(begin, size);
+// Gather the predictions of the rows listed in `ridxs` into a dense buffer that the objective
+// function can consume.
+[[nodiscard]] HostDeviceVector<float> GatherPrediction(Context const* ctx,
+                                                       HostDeviceVector<float> const& predt,
+                                                       common::Span<bst_idx_t const> ridxs,
+                                                       bst_target_t n_columns) {
+  HostDeviceVector<float> out(ridxs.size() * n_columns, 0.0f, ctx->Device());
+  auto d_predt = predt.ConstDeviceSpan();
   auto d_out = out.DeviceSpan();
-  thrust::copy(ctx->CUDACtx()->CTP(), dh::tcbegin(d_predt), dh::tcend(d_predt), dh::tbegin(d_out));
+  dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
+    auto ridx = ridxs[i / n_columns];
+    d_out[i] = d_predt[ridx * n_columns + (i % n_columns)];
+  });
   return out;
 }
 
-void CopyBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batch_gpair,
-                    bst_idx_t begin, bst_idx_t end, linalg::Matrix<GradientPair>* out_gpairs) {
-  CHECK_EQ(batch_gpair.Shape(0), end - begin);
-  CHECK(batch_gpair.Shape(1) == out_gpairs->Shape(1) || out_gpairs->Shape(1) <= 1);
-
-  if (out_gpairs->Shape(0) < end) {
-    out_gpairs->Reshape(end, batch_gpair.Shape(1));
-  }
+// Scatter the gradient of a batch back into the global gradient buffer of a fold.
+void ScatterBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batch_gpair,
+                       common::Span<bst_idx_t const> ridxs,
+                       linalg::Matrix<GradientPair>* out_gpairs) {
+  CHECK_EQ(batch_gpair.Shape(0), ridxs.size());
+  CHECK_EQ(batch_gpair.Shape(1), out_gpairs->Shape(1));
 
   auto d_batch_gpair = batch_gpair.View(ctx->Device());
-  auto d_out = out_gpairs->View(ctx->Device()).Slice(linalg::Range(begin, end), linalg::All());
-  thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_batch_gpair), linalg::tcend(d_batch_gpair),
-               linalg::tbegin(d_out));
+  auto d_out = out_gpairs->View(ctx->Device());
+  dh::LaunchN(d_batch_gpair.Size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                auto [ridx, target_idx] = linalg::UnravelIndex(i, d_batch_gpair.Shape());
+                d_out(ridxs[ridx], target_idx) = d_batch_gpair(ridx, target_idx);
+              });
 }
 
 void CalcRootSumFolds(Context const* ctx,
@@ -94,11 +89,10 @@ void CheckNoUnknownParams(Args const& unknown) {
 
 void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
                              FoldPredictions const& predts, FoldInfoBatches const& finfo,
-                             std::vector<bst_idx_t> const& batch_ptr, std::int32_t iter,
-                             FoldGpairs* out) const {
+                             std::int32_t iter, FoldGpairs* out) const {
   CHECK(!finfo.Empty());
   CHECK(out);
-  CHECK_EQ(batch_ptr.size(), finfo.Size() + 1);
+  CHECK_EQ(finfo.n_samples, info.num_row_);
 
   auto k_folds = finfo.KFolds();
   CHECK_EQ(this->KFolds(), k_folds);
@@ -110,40 +104,37 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
   }
   CHECK_EQ(gpairs.size(), k_folds);
 
-  std::vector<bst_idx_t> cursors(k_folds, 0ul);
+  // The gradient is indexed by the global row index. Zero out the buffer first, the
+  // validation rows of a fold are never written to and must not contribute to its
+  // histograms.
+  for (std::size_t k = 0; k < k_folds; ++k) {
+    auto& fold_gpair = gpairs.at(k);
+    fold_gpair.SetDevice(ctx->Device());
+    fold_gpair.Reshape(info.num_row_, this->OutputLength(k));
+    fold_gpair.Data()->Fill(GradientPair{});
+  }
 
   for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
     auto const& batch = finfo.batches.at(i);
     CHECK_EQ(batch.KFolds(), k_folds);
-    auto batch_begin = batch_ptr.at(i);
-    CHECK_LE(batch_ptr.at(i + 1), info.num_row_);
 
     for (std::size_t k = 0; k < k_folds; ++k) {
-      auto ridxs = GlobalTrainingRows(ctx, batch, k, batch_begin);
+      auto ridxs = batch.TrainingFold(k);
 
       constexpr std::size_t kNnz = 0;  // fixme
-      auto fold_info = info.Slice(ctx, ridxs.ConstDeviceSpan(), kNnz);
+      auto fold_info = info.Slice(ctx, ridxs, kNnz);
 
-      auto const& fold_preds = predts.Prediction(k);
       auto output_length = this->OutputLength(k);
       CHECK_EQ(fold_info.labels.Shape(1), output_length);
-      auto n_predts = ridxs.Size() * output_length;
-      CHECK_EQ(fold_info.labels.Size(), n_predts);
-      auto pred_begin = cursors[k] * output_length;
-      CHECK_LE(pred_begin + n_predts, fold_preds.Size());
-      auto preds = BatchPrediction(ctx, fold_preds, pred_begin, n_predts);
+      CHECK_EQ(fold_info.labels.Size(), ridxs.size() * output_length);
+      auto const& fold_preds = predts.Prediction(k);
+      CHECK_EQ(fold_preds.Size(), info.num_row_ * output_length);
+      auto preds = GatherPrediction(ctx, fold_preds, ridxs, output_length);
 
       linalg::Matrix<GradientPair> batch_gpair;
       this->Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
-
-      auto prev = cursors[k];
-      cursors[k] += ridxs.Size();
-      CopyBatchGpair(ctx, batch_gpair, prev, cursors[k], &gpairs.at(k));
+      ScatterBatchGpair(ctx, batch_gpair, ridxs, &gpairs.at(k));
     }
-  }
-
-  for (std::size_t k = 0; k < k_folds; ++k) {
-    CHECK_EQ(finfo.FoldSize(k), out->gpairs.at(k).Shape(0));
   }
 }
 
@@ -213,8 +204,9 @@ class FoldTreeMethod {
     bst_target_t n_split_targets{0};
     for (std::size_t k = 0; k < k_folds; ++k) {
       auto const& fold_gpair = gpairs.gpairs.at(k);
-      CHECK_EQ(finfo.FoldSize(k), fold_gpair.Shape(0));
-      CHECK_GT(fold_gpair.Shape(0), 0) << "Empty training folds are not supported.";
+      CHECK_EQ(finfo.n_samples, fold_gpair.Shape(0));
+      auto n_train = finfo.FoldSize(k);
+      CHECK_GT(n_train, 0) << "Empty training folds are not supported.";
       CHECK_GT(fold_gpair.Shape(1), 0);
 
       auto in_gpair = fold_gpair.View(ctx->Device());
@@ -224,7 +216,8 @@ class FoldTreeMethod {
       }
       CHECK_EQ(n_split_targets, in_gpair.Shape(1));
 
-      this->quantizers_[k] = std::make_unique<tree::GradientQuantiserGroup>(ctx, in_gpair);
+      // Only the training rows of the fold are accumulated, the rest of the buffer is zero.
+      this->quantizers_[k] = std::make_unique<tree::GradientQuantiserGroup>(ctx, in_gpair, n_train);
       tree::CalcQuantizedGpairs(ctx, in_gpair, this->quantizers_[k]->DeviceSpan(),
                                 &this->quantized_gpairs_[k]);
 
@@ -346,12 +339,11 @@ XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandl
   auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
   auto const& info = p_fmat->Info();
-  auto const& batch_ptr = p_fmat->BatchPtr();
   CHECK(!fold_info->batches.empty());
   CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
 
   auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
-  cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, *fold_info, batch_ptr, iter, fold_gpairs);
+  cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, *fold_info, iter, fold_gpairs);
 
   API_END();
 }
