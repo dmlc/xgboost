@@ -13,12 +13,12 @@ if (file.exists(makevars)) {
 }
 
 dir.create(dirname(makevars), recursive = TRUE, showWarnings = FALSE)
-# `:=` captures the original compilers before the later sccache assignments. Assign CMake
-# compiler first, then re-assign CC.
+# Capture the original (unwrapped) compilers before replacing CC/CXX with sccache
+# wrappers.
 writeLines(
   c(
-    "CMAKE_C_COMPILER := $(CC)",
-    "CMAKE_CXX_COMPILER := $(CXX)",
+    "XGBOOST_R_CC := $(CC)",
+    "XGBOOST_R_CXX := $(CXX)",
     "CC := sccache $(CC)",
     "CXX := sccache $(CXX)",
     "CXX11 := sccache $(CXX11)",

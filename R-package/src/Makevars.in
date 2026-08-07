@@ -7,8 +7,15 @@ XGBOOST_CMAKE_SOURCE = @XGBOOST_CMAKE_SOURCE@
 XGBOOST_CMAKE_BUILD = cmake-build
 XGBOOST_USE_CUDA ?= OFF
 XGBOOST_BUILD_WITH_FILE_PREFIX_MAP ?= ON
-CMAKE_C_COMPILER ?= $(CC)
-CMAKE_CXX_COMPILER ?= $(CXX)
+# Preserve unwrapped R compilers while dependencies use launhcer-wrapped CC/CXX.  If
+# `XGBOOST_R_CC` is not specified by the environment, it's plain compiler cmd (like
+# cl/g++).
+#
+# If one needs to wrap the `CC` for a launcher, like `sccache g++`, then we need the
+# `XGBOOST_R_CC` to preserve the original `g++` to avoid conflict with the
+# `CMAKE_<lang>_COMPILER_LAUNCHER`.
+XGBOOST_R_CC ?= $(CC)
+XGBOOST_R_CXX ?= $(CXX)
 # Forwarding is not necessary, just stated here to make things a bit more explicit.
 CMAKE_C_COMPILER_LAUNCHER ?=
 CMAKE_CXX_COMPILER_LAUNCHER ?=
@@ -24,13 +31,19 @@ all: $(SHLIB)
 
 $(SHLIB): xgboost-cmake
 
-# Use unwrapped R compilers CC/CXX. Normally, we should forward the CMAKE_<LANG>_COMPILER
-# as-is, however, `CC` could be `cc --args0 --arg1 ..`.
+# Pass original R compiler commands through `CC/CXX` environment variables, instead of
+# using the CMake `-DCMAKE_CXX_COMPILER`. The `CC/CXX` might include additional args (like
+# `clang++ --arg0 --arg1`), whereas the CMake CLI flag uses a different syntax (separated
+# by `;` instead of space).
+#
+# Also, since we support CUDA build, we cannot use the R's `CC/CXX` as is and has to route
+# through the `XGBOOST_R_CC`. Otherwise, `sscache g++` could become the CMake CUDA host
+# compiler.
 xgboost-cmake:
         +@set -eu; \
         xgboost_use_openmp=OFF; \
         if test -n "$(SHLIB_OPENMP_CXXFLAGS)"; then xgboost_use_openmp=ON; fi; \
-        CC="$(CMAKE_C_COMPILER)" CXX="$(CMAKE_CXX_COMPILER)" \
+        CC="$(XGBOOST_R_CC)" CXX="$(XGBOOST_R_CXX)" \
         "$(XGBOOST_CMAKE)" \
           -S "$(XGBOOST_CMAKE_SOURCE)" \
           -B "$(XGBOOST_CMAKE_BUILD)" \
