@@ -172,17 +172,16 @@ class Predictor : public xgboost::Predictor {
       : xgboost::Predictor::Predictor{context},
         cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {}
 
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
-                    bst_tree_t tree_begin, bst_tree_t tree_end = 0,
+  void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
+                    const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const* tree_weights_override = nullptr) const override {
     if (tree_weights_override != nullptr || model.TreeWeights() != nullptr) {
       LOG(WARNING) << "Weighted batch prediction is not yet implemented for SYCL. CPU Predictor "
                       "is used.";
-      return cpu_predictor->PredictBatch(dmat, predts, model, tree_begin, tree_end,
+      return cpu_predictor->PredictBatch(dmat, out_preds, model, tree_begin, tree_end,
                                          tree_weights_override);
     }
 
-    auto* out_preds = &predts->predictions;
     device_model.SetDevice(ctx_->Device());
     qu_ = device_manager.GetQueue(ctx_->Device());
     if (device_ != ctx_->Device()) {
@@ -206,7 +205,7 @@ class Predictor : public xgboost::Predictor {
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
-                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
+                      HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
                       bst_tree_t tree_end) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);

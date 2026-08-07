@@ -1,9 +1,7 @@
 /**
  * Copyright 2023-2024, XGBoost contributors
  *
- * Higher level functions built on top the Communicator API, taking care of behavioral differences
- * between distributed training and federated collective communication
- * learning.
+ * Higher-level functions built on top of the communicator API.
  */
 #pragma once
 #include <array>

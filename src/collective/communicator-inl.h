@@ -41,13 +41,6 @@ void Finalize();
 [[nodiscard]] bool IsDistributed() noexcept;
 
 /**
- * @brief Get if the communicator is federated.
- *
- * @return True if the communicator is federated.
- */
-[[nodiscard]] bool IsFederated();
-
-/**
  * @brief Print the message to the communicator.
  *
  * This function can be used to communicate the information of the progress to the user who monitors

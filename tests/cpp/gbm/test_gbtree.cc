@@ -67,35 +67,64 @@ TEST(GBTree, PredictionCache) {
 
   GradientContainer gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
-  PredictionCacheEntry out_predictions;
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
+  HostDeviceVector<float> out_predictions;
+  gbtree.DoBoost(p_m, &gpair, nullptr);
 
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
-  ASSERT_EQ(1, out_predictions.version);
-  std::vector<float> first_iter = out_predictions.predictions.HostVector();
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
+  std::vector<float> first_iter = out_predictions.HostVector();
   // Add 1 more boosted round
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
-  ASSERT_EQ(2, out_predictions.version);
+  gbtree.DoBoost(p_m, &gpair, nullptr);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // Update the cache for all rounds
-  out_predictions.version = 0;
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
-  ASSERT_EQ(2, out_predictions.version);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
 
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
+  gbtree.DoBoost(p_m, &gpair, nullptr);
   // drop the cache.
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 2);
-  ASSERT_EQ(0, out_predictions.version);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // half open set [1, 3)
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 3);
-  ASSERT_EQ(0, out_predictions.version);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 3);
+  ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // iteration end
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 2);
-  ASSERT_EQ(2, out_predictions.version);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 2);
+  ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // restart the cache when end iteration is smaller than cache version
-  gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 1);
-  ASSERT_EQ(1, out_predictions.version);
-  ASSERT_EQ(out_predictions.predictions.HostVector(), first_iter);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 1);
+  ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
+  ASSERT_EQ(out_predictions.HostVector(), first_iter);
+}
+
+TEST(GBTree, PredictionCacheWithBaseMargin) {
+  size_t constexpr kRows = 16, kCols = 4;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
+
+  gbtree.Configure({{"tree_method", "hist"}});
+  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+
+  HostDeviceVector<float> out_predictions;
+  p_m->Info().base_margin_.Reshape(kRows, 1);
+  p_m->Info().base_margin_.Data()->HostVector().assign(kRows, 1.0f);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  auto first = out_predictions.HostVector();
+  ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
+
+  p_m->Info().base_margin_.Data()->HostVector().assign(kRows, 2.0f);
+  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  auto second = out_predictions.HostVector();
+  ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
+
+  for (size_t i = 0; i < kRows; ++i) {
+    ASSERT_NEAR(second[i] - first[i], 1.0f, kRtEps);
+  }
 }
 
 TEST(GBTree, WrongUpdater) {

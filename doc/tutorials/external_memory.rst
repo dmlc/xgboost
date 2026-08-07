@@ -176,8 +176,8 @@ data placement and memory usage.
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
 the GPU. It's crucial to use an asynchronous memory pool for all memory allocations when
 training with external memory. XGBoost relies on the asynchronous memory pool to reduce
-the overhead of data fetching. Use the CUDA driver's built-in async memory pool, which
-avoids additional dependencies such as RMM.
+the overhead of data fetching. Use the CUDA driver's built-in async memory pool through
+the ``use_cuda_async_pool`` global configuration.
 
 =====================
 Using CUDA Async Pool
@@ -187,9 +187,6 @@ The CUDA async pool uses the driver's default memory pool with a configured rele
 threshold. See :ref:`global_config` for the parameter `use_cuda_async_pool`.
 
   .. versionadded:: 3.2.0
-
-  .. warning:: This is an experimental feature and is subject to change without
-               notice. Windows is not supported yet.
 
 .. code-block:: python
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Python wheels targeting MacOS (no federated learning)
+# Build Python wheels targeting macOS
 
 set -euox pipefail
 

@@ -68,7 +68,6 @@ class NCCLComm : public Comm {
     return Fail("Undefined.");
   }
   ~NCCLComm() override;
-  [[nodiscard]] bool IsFederated() const override { return false; }
   [[nodiscard]] curt::StreamRef Stream() const { return stream_.View(); }
   [[nodiscard]] Result Block() const override {
     auto rc = this->Stream().Sync(false);

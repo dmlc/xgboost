@@ -654,7 +654,6 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,
                                                   Context const* ctx) {
-  auto caches = std::make_shared<PredictionContainer>();
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -672,9 +671,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};
   }
 
-  PredictionCacheEntry predts;
-
-  gbm->DoBoost(p_dmat.get(), &gpair, &predts, nullptr);
+  gbm->DoBoost(p_dmat, &gpair, nullptr);
 
   return gbm;
 }

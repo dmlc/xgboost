@@ -201,8 +201,9 @@ void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, 
 }
 #endif
 
-void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
+void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                      ObjFunction const*) {
+  auto predt = prediction_cache_.Cache(p_fmat, ctx_->Device());
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
@@ -231,7 +232,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   }
 
   predt->predictions.SetDevice(ctx_->Device());
-  auto const& predictor = this->GetPredictor(false, &predt->predictions, p_fmat);
+  auto const& predictor = this->GetPredictor(false, &predt->predictions, p_fmat.get());
   if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(predt->version, 0);
     predictor->InitOutPredictions(p_fmat->Info(), &predt->predictions, model_);
@@ -243,9 +244,9 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
   std::vector<HostDeviceVector<bst_node_t>> node_position;
-  auto update_prediction_cache = [&](std::vector<HostDeviceVector<bst_node_t>>& positions,
-                                     TreesOneGroup const& trees,
-                                     linalg::MatrixView<float> out_preds) {
+  auto predict_from_node_positions = [&](std::vector<HostDeviceVector<bst_node_t>>& positions,
+                                         TreesOneGroup const& trees,
+                                         linalg::MatrixView<float> out_preds) {
     CHECK_EQ(positions.size(), trees.size());
     for (auto& position : positions) {
       if (out_preds.Shape(0) != 0 && position.Size() != out_preds.Shape(0)) {
@@ -262,19 +263,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     return true;
   };
 
-  if (model_.learner_model_param->IsVectorLeaf()) {
-    // Multi-target, vector leaf
+  if (model_.learner_model_param->IsVectorLeaf() ||
+      model_.learner_model_param->OutputLength() == 1u) {
     TreesOneGroup ret;
-    BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    if (update_prediction_cache(node_position, ret, out)) {
-      predt->Update(1);
-    }
-    new_trees.push_back(std::move(ret));
-  } else if (model_.learner_model_param->OutputLength() == 1u) {
-    // Single target
-    TreesOneGroup ret;
-    BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-    if (update_prediction_cache(node_position, ret, out)) {
+    BoostNewTrees(in_gpair, p_fmat.get(), 0, &node_position, &ret);
+    if (predict_from_node_positions(node_position, ret, out)) {
       predt->Update(1);
     }
     new_trees.push_back(std::move(ret));
@@ -290,9 +283,9 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
       node_position.clear();
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
-      BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
+      BoostNewTrees(&tmp, p_fmat.get(), gid, &node_position, &ret);
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
-      cache_updated = update_prediction_cache(node_position, ret, v_predt) && cache_updated;
+      cache_updated = predict_from_node_positions(node_position, ret, v_predt) && cache_updated;
       new_trees.push_back(std::move(ret));
     }
     if (cache_updated) {
@@ -655,11 +648,17 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   }
 }
 
-void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                              bst_layer_t layer_begin, bst_layer_t layer_end,
-                              std::vector<float> const* tree_weights_override) const {
+void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
+                          bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
+  auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
+  auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
+  auto dropped_weights = this->DropTrees(is_training);
+  if (!dropped_weights.empty()) {
+    tree_weights_override = &dropped_weights;
+  }
+
   // Unweighted prediction can reuse a cached prefix of the model output by tracking how many
-  // boosting iterations have already been accumulated in `out_preds->version`.
+  // boosting iterations have already been accumulated in `cache->version`.
   //
   // Weighted prediction is used by DART and does not participate in this cache, since tree
   // weights can change the accumulated output independently of the cached unweighted prefix.
@@ -667,12 +666,12 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
     layer_end = this->BoostedRounds();
   }
 
-  auto cache_version = out_preds->version;
+  auto cache_version = cache->version;
   // We can preserve the cache only when:
   // - prediction is unweighted
   // - prediction starts from iteration 0, so the result is a cacheable prefix
-  auto preserve_cache =
-      tree_weights_override == nullptr && model_.TreeWeights() == nullptr && layer_begin == 0;
+  auto preserve_cache = tree_weights_override == nullptr && model_.TreeWeights() == nullptr &&
+                        p_fmat->Info().base_margin_.Empty() && layer_begin == 0;
   // We can reuse the existing cached prefix only when:
   // - the result itself is cacheable
   // - the requested range does not move backwards past the cached version
@@ -684,57 +683,54 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
   auto prediction_begin = reuse_cache ? cache_version : layer_begin;
 
   if (!reuse_cache) {
-    out_preds->version = 0;
+    cache->version = 0;
     cache_version = 0;
   }
 
-  if (out_preds->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
-    CHECK_EQ(out_preds->version, 0);
+  if (cache->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
+    CHECK_EQ(cache->version, 0);
   }
 
-  auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
+  auto const& predictor = GetPredictor(is_training, &cache->predictions, p_fmat.get());
   if (initialize_output) {
-    // out_preds->Size() can be non-zero as it's initialized here before any
+    // cache->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
-    predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
+    predictor->InitOutPredictions(p_fmat->Info(), &cache->predictions, model_);
   }
 
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end, tree_weights_override);
+    predictor->PredictBatch(p_fmat.get(), &cache->predictions, model_, tree_begin, tree_end,
+                            tree_weights_override);
   }
 
   if (!preserve_cache) {
-    out_preds->version = 0;
+    cache->version = 0;
   } else {
-    out_preds->Update(layer_end - cache_version);
+    cache->Update(layer_end - cache_version);
   }
-}
 
-void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                          bst_layer_t layer_begin, bst_layer_t layer_end) {
-  auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
-  auto dropped_weights = this->DropTrees(is_training);
-  if (!dropped_weights.empty()) {
-    tree_weights_override = &dropped_weights;
-  }
-  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end,
-                         tree_weights_override);
+  out_preds->SetDevice(ctx_->Device());
+  out_preds->Resize(cache->predictions.Size());
+  out_preds->Copy(cache->predictions);
 }
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
-                            PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
+                            HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
                             bst_layer_t layer_end) const {
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {
     error::MismatchedDevices(this->ctx_, p_m->Ctx());
-    CHECK_EQ(out_preds->version, 0);
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    this->PredictBatchImpl(p_fmat.get(), out_preds, false, layer_begin, layer_end, nullptr);
+    auto const& predictor = GetPredictor(false, out_preds, p_fmat.get());
+    predictor->InitOutPredictions(p_fmat->Info(), out_preds, model_);
+    if (tree_end > tree_begin) {
+      predictor->PredictBatch(p_fmat.get(), out_preds, model_, tree_begin, tree_end);
+    }
     return;
   }
 

@@ -22,15 +22,15 @@ Making a Release
 4. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
 5. Create a tag on release branch, either on GitHub or locally.
 6. Make a release on GitHub tag page, which might be done with previous step if the tag is created on GitHub.
-7. Submit pip, R-universe, CRAN, and Maven packages.
+7. Submit PyPI, R-universe, CRAN, and Maven packages. Update RTD stable branch if needed.
 
-   There are helper scripts for automating the process in ``xgboost/dev/``.
+   There are helper scripts for automating the process in ``xgboost/ops/script/``.
 
    + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
    + The CRAN package and the R-universe packages are maintained by `Jiaming Yuan <https://github.com/trivialfis>`__.
 
-   + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
+   + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`__, `Hyunsu Cho <https://github.com/hcho3>`_, and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
 
 R Universe Packages

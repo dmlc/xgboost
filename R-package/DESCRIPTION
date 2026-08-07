@@ -73,4 +73,4 @@ Imports:
 Roxygen: list(markdown = TRUE)
 Encoding: UTF-8
 SystemRequirements: GNU make, C++17
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
