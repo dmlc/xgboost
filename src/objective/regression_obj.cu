@@ -18,7 +18,6 @@
 #include "../common/linalg_op.h"             // for ElementWiseKernel
 #include "../common/numeric.h"               // for Reduce
 #include "../common/optional_weight.h"       // for MakeOptionalWeights
-#include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
@@ -324,74 +323,6 @@ class SquaredLogErrorRegression : public FitIntercept {
 XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
     .describe("Root mean squared log error.")
     .set_body([]() { return new SquaredLogErrorRegression(); });
-
-class PseudoHuberRegression : public FitIntercept {
-  PseudoHuberParam param_;
-
- public:
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
-  [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
-  [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
-    return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
-  }
-
-  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int /*iter*/,
-                   linalg::Matrix<GradientPair>* out_gpair) override {
-    CheckRegInputs(info, preds);
-    auto slope = param_.huber_slope;
-    CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
-    auto labels = info.labels.View(ctx_->Device());
-
-    out_gpair->SetDevice(ctx_->Device());
-    out_gpair->Reshape(info.num_row_, this->Targets(info));
-    auto gpair = out_gpair->View(ctx_->Device());
-
-    preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
-
-    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    linalg::ElementWiseKernel(
-        ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-          float z = predt(i, j) - labels(i, j);
-          float scale_sqrt = std::sqrt(1 + common::Sqr(z) / common::Sqr(slope));
-          float grad = z / scale_sqrt;
-
-          auto scale = common::Sqr(slope) + common::Sqr(z);
-          float hess = common::Sqr(slope) / (scale * scale_sqrt);
-
-          auto w = weight[i];
-          gpair(i, j) = {grad * w, hess * w};
-        });
-  }
-
-  [[nodiscard]] const char* DefaultEvalMetric() const override { return "mphe"; }
-
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("reg:pseudohubererror");
-    out["pseudo_huber_param"] = ToJson(param_);
-  }
-
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    if (config.find("pseudo_huber_param") == config.cend()) {
-      // The parameter is added in 1.6.
-      return;
-    }
-    FromJson(in["pseudo_huber_param"], &param_);
-  }
-  [[nodiscard]] Json DefaultMetricConfig() const override {
-    CHECK(param_.GetInitialised());
-    Json config{Object{}};
-    config["name"] = String{this->DefaultEvalMetric()};
-    config["pseudo_huber_param"] = ToJson(param_);
-    return config;
-  }
-};
-
-XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
-    .describe("Regression Pseudo Huber error.")
-    .set_body([]() { return new PseudoHuberRegression(); });
 
 class ExpectileRegression : public FitIntercept {
   common::ExpectileLossParam param_;

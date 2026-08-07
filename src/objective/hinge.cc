@@ -12,47 +12,17 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 
-#include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
-#include "../common/linalg_op.h"        // for ElementWiseKernel
-#include "../common/optional_weight.h"  // for OptionalWeights
-#include "../common/threading_utils.h"  // for ParallelFor
-#include "init_estimation.h"            // for FitIntercept
-#include "xgboost/json.h"               // for Json
-#include "xgboost/objective.h"          // for ObjFunction
+#include "../common/kernel.h"   // for DispatchKernel
+#include "init_estimation.h"    // for FitIntercept
+#include "xgboost/json.h"       // for Json
+#include "xgboost/objective.h"  // for ObjFunction
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(hinge_obj);
 
-namespace cpu_impl {
-void HingeGradient(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
-                   bst_target_t n_targets, linalg::Matrix<GradientPair>* out_gpair) {
-  auto device = DeviceOrd::CPU();
-  auto predt = linalg::MakeTensorView(device, preds.ConstHostSpan(), info.num_row_, n_targets);
-  auto labels = info.labels.HostView();
-  common::OptionalWeights weights{info.weights_.ConstHostSpan()};
-
-  out_gpair->SetDevice(device);
-  out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->HostView();
-
-  linalg::cpu_impl::ElementWiseKernel(
-      gpair, ctx->Threads(), [=](std::size_t i, std::size_t j) mutable {
-        gpair(i, j) = HingeLoss::Gradient(predt(i, j), labels(i, j), weights[i]);
-      });
-}
-
-void HingePredTransform(Context const* ctx, HostDeviceVector<float>* preds) {
-  auto values = preds->HostSpan();
-  common::ParallelFor(values.size(), ctx->Threads(),
-                      [=](std::size_t i) { values[i] = HingeLoss::PredTransform(values[i]); });
-}
-}  // namespace cpu_impl
-
 namespace {
-common::KernelRegistration<HingeGradientKernel> const kRegisterHingeGradientCpu{
-    DeviceOrd::kCPU, &cpu_impl::HingeGradient};
-common::KernelRegistration<HingePredTransformKernel> const kRegisterHingePredTransformCpu{
-    DeviceOrd::kCPU, &cpu_impl::HingePredTransform};
+auto const kRegisterHingeGradientCpu = elementwise::RegisterGradientCpu<HingeLoss>();
+auto const kRegisterHingePredTransformCpu = elementwise::RegisterTransformCpu<HingeLoss>();
 }  // namespace
 
 class HingeObj : public FitIntercept {
@@ -70,11 +40,12 @@ class HingeObj : public FitIntercept {
     CheckInitInputs(info);
     CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 
-    common::DispatchKernel<HingeGradientKernel>(ctx_, preds, info, this->Targets(info), out_gpair);
+    common::DispatchKernel<HingeGradientKernel>(ctx_, preds, info, this->Targets(info), HingeLoss{},
+                                                out_gpair);
   }
 
   void PredTransform(HostDeviceVector<float>* io_preds) const override {
-    common::DispatchKernel<HingePredTransformKernel>(ctx_, io_preds);
+    common::DispatchKernel<HingePredTransformKernel>(ctx_, io_preds, HingeLoss{});
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "error"; }
