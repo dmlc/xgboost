@@ -1,6 +1,8 @@
 # pylint: disable=unused-import
 """For compatibility and optional dependencies."""
 
+from __future__ import annotations
+
 import functools
 import importlib.util
 import logging
@@ -255,9 +257,11 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
     if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
+        import pandas as pd
         from pandas import concat as pd_concat
 
-        return pd_concat(value, axis=0)
+        value_pd = cast(Sequence[pd.DataFrame | pd.Series], value)
+        return cast(_T, pd_concat(value_pd, axis=0))
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):

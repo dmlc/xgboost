@@ -8,11 +8,6 @@ from io import StringIO
 from pathlib import Path
 from platform import system
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None  # type: ignore
-
 from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
 
@@ -103,6 +98,11 @@ def build_rpackage(path: str) -> str:
 
 
 def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+
     with open(rcheck_dir / "xgboost-Ex.timings", "r") as fd:
         timings = fd.readlines()
         newlines = []
@@ -183,8 +183,7 @@ def check_rpackage(path: str) -> None:
     if check_log.find("Examples with CPU time") != -1:
         print(msg)
         raise ValueError("Suspicious NOTE.")
-    if pd is not None:
-        check_example_timing(rcheck_dir, threshold)
+    check_example_timing(rcheck_dir, threshold)
 
 
 @cd(R_PACKAGE)

@@ -19,6 +19,7 @@ from typing import (
     TypeAlias,
     TypeGuard,
     Union,
+    cast,
 )
 
 import numpy as np
@@ -80,6 +81,7 @@ if TYPE_CHECKING:
     import pyarrow as pa
     from pandas import DataFrame as PdDataFrame
     from pandas import Series as PdSeries
+    from pandas.arrays import SparseArray as PdSparseArray
 
     from .core import DMatrix, _ProxyDMatrix
 
@@ -534,7 +536,7 @@ def pandas_transform_data(
     np_dtypes = _lazy_has_npdtypes()
 
     def cat_codes(ser: "PdSeries") -> DfCatAccessor:
-        return ser.cat
+        return cast(DfCatAccessor, ser.cat)
 
     def nu_type(ser: "PdSeries") -> np.ndarray:
         # Avoid conversion when possible
@@ -580,8 +582,7 @@ def pandas_transform_data(
         elif is_nullable_dtype(dtype):
             result.append(nu_type(data[col]))
         elif is_pd_sparse_dtype(dtype):
-            arr = data[col].values
-            arr = arr.to_dense()
+            arr = cast("PdSparseArray", data[col].values).to_dense()
             if _is_np_array_like(arr):
                 arr, _ = _ensure_np_dtype(arr, arr.dtype)
             result.append(arr)
