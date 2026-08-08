@@ -394,11 +394,13 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
-  # Provide versioned shared object
+  # R installs the library itself and expects an unversioned regular file.
   add_library(xgboost SHARED)
-  set_target_properties(xgboost PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+  if(NOT R_LIB)
+    set_target_properties(xgboost PROPERTIES
+      VERSION ${PROJECT_VERSION}
+      SOVERSION ${PROJECT_VERSION_MAJOR})
+  endif()
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -413,6 +415,7 @@ foreach(target xgboost objxgboost)
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
+
 if(NOT BUILD_WITH_SYSTEM_DMLC)
   xgboost_target_properties(dmlc)
   xgboost_target_link_libraries(dmlc)
@@ -426,7 +429,7 @@ if(JVM_BINDINGS)
 endif()
 
 if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
-  patch_openmp_path_macos(xgboost libxgboost)
+  patch_openmp_path_macos(xgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
@@ -435,15 +438,12 @@ else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif()
 
-#-- Installing XGBoost
+#-- R shared library naming
 if(R_LIB)
-  include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
   if(APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif()
-  setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif()
 if(MINGW)
   set_target_properties(xgboost PROPERTIES PREFIX "")

@@ -94,8 +94,7 @@ build, one should see a shared object under the ``xgboost/lib`` directory.
 Building with GPU support
 =========================
 
-XGBoost can be built with GPU support for both Linux and Windows using CMake. See
-`Building R package with GPU support`_ for special instructions for R.
+XGBoost can be built with GPU support for both Linux and Windows using CMake.
 
 An up-to-date version of the CUDA toolkit is required.
 
@@ -145,11 +144,8 @@ architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus
 Building Python Package from Source
 ***********************************
 
-The Python package is located at ``python-package/``.
-
-Building Python Package with Default Toolchains
-===============================================
-There are several ways to build and install the package from source:
+The Python package is located at ``python-package/``. There are several ways to build and
+install the package from source:
 
 1. Build C++ core with CMake first
 
@@ -258,14 +254,15 @@ Building R Package From Source
 ******************************
 
 By default, the package installed by running ``install.packages`` is built from source
-using the package from `CRAN <https://cran.r-project.org/>`__.  Here we list some other
-options for installing development version.
+using the package from the `R-universe <https://dmlc.r-universe.dev/xgboost>`__ or `CRAN
+<https://cran.r-project.org/>`__.  Here we list some other options for installing the
+development version.
 
-Installing the development version (Linux / Mac OSX)
-====================================================
+Installing the development version
+==================================
 
-Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
-sections for requirements of building C++ core).
+Make sure you have installed git, CMake, and a recent C++ compiler supporting C++17 (see
+the earlier sections for requirements of building the C++ core).
 
 Due to the use of git-submodules, ``remotes::install_github()`` cannot be used to
 install the latest version of R package. Thus, one has to run git to check out the code
@@ -277,52 +274,32 @@ simplest way to install the R package after obtaining the source code is:
   cd R-package
   R CMD INSTALL .
 
-Use the environment variable ``MAKEFLAGS=-j$(nproc)`` if you want to speedup the build. As
-an alternative, the package can also be loaded through ``devtools::load_all()`` from the
-same subfolder ``R-package`` in the repository's root, and by extension, can be installed
-through RStudio's build panel if one adds that folder ``R-package`` as an R package
-project in the RStudio IDE.
+Use the environment variable ``CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)`` if you want to speed
+up the build. As an alternative, the package can also be loaded through
+``devtools::load_all()`` from the same subfolder ``R-package`` in the repository's root,
+and by extension, can be installed through RStudio's build panel if one adds that folder
+``R-package`` as an R package project in the RStudio IDE.
 
 .. code-block:: R
 
   library(devtools)
   devtools::load_all(path = "/path/to/xgboost/R-package")
 
-On Linux, if you want to use the CMake build for greater flexibility around compile flags,
-the earlier snippet can be replaced by:
+
+Building R package with GPU support (Linux)
+===========================================
+
+The requirements are similar as in :ref:`build_gpu_support`, so make sure to read it
+first. On Linux, starting from the XGBoost directory, enable CUDA for the package build
+and let ``R CMD INSTALL`` drive the complete installation:
 
 .. code-block:: bash
 
-  cmake -B build -S . -DR_LIB=ON -GNinja
-  cd build && ninja install
+  XGBOOST_USE_CUDA=ON CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) R CMD INSTALL R-package
 
-.. warning::
-
-   MSVC is not supported for the R package as it has difficulty handling R C
-   headers. CMake build is not supported either.
-
-Note in this case that ``cmake`` will not take configurations from your regular
-``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
-configurations such as compilers to use and flags need to be set through CMake variables
-like ``-DCMAKE_CXX_COMPILER``.
-
-
-.. _r_gpu_support:
-
-Building R package with GPU support
-===================================
-
-The procedure and requirements are similar as in :ref:`build_gpu_support`, so make sure to read it first.
-
-On Linux, starting from the XGBoost directory type:
-
-.. code-block:: bash
-
-  cmake -B build -S . -DUSE_CUDA=ON -DR_LIB=ON
-  cmake --build build --target install -j$(nproc)
-
-When default target is used, an R package shared library would be built in the ``build`` area.
-The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
+This source build requires the CUDA toolkit. Release binaries are built from the assembled
+source package with ``R CMD INSTALL --build`` so that installing the resulting package
+does not require the toolkit. Windows is not supported.
 
 *********************
 Building JVM Packages
@@ -387,19 +364,4 @@ Additional System-dependent Features
 Building the Documentation
 **************************
 
-XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To
-build it locally, you need a installed XGBoost with all its dependencies along with:
-
-* System dependencies
-
-  - git
-  - graphviz
-
-* Python dependencies
-
-  Checkout the ``requirements.txt`` file under ``doc/``
-
-Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the
-format you want.  For a list of supported formats, run ``make help`` under the same
-directory. This builds a partial document for Python but not other language bindings. To
-build the full document, see :doc:`/contrib/docs`.
+See :doc:`/contrib/docs`.
