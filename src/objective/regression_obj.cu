@@ -263,10 +263,6 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
         "before logistic transformation.")
     .set_body([]() { return new RegLossObj<LogisticRaw>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(GammaRegression, GammaDeviance::Name())
-    .describe("Gamma regression using the gamma deviance loss with log link.")
-    .set_body([]() { return new RegLossObj<GammaDeviance>(); });
-
 // Deprecated functions
 XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     .describe("Regression with squared error.")
@@ -275,54 +271,6 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
       return new RegLossObj<LinearSquareLoss>();
     });
 // End deprecated
-
-class SquaredLogErrorRegression : public FitIntercept {
- public:
-  static auto Name() { return SquaredLogError::Name(); }
-
-  void Configure(Args const&) override {}
-  [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
-  [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
-    return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
-  }
-  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info,
-                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
-    CheckRegInputs(info, preds);
-    if (iter == 0) {
-      ValidateLabel<SquaredLogError>(this->ctx_, info);
-    }
-    auto labels = info.labels.View(ctx_->Device());
-
-    out_gpair->SetDevice(ctx_->Device());
-    out_gpair->Reshape(info.num_row_, this->Targets(info));
-    auto gpair = out_gpair->View(ctx_->Device());
-
-    preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
-
-    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    linalg::ElementWiseKernel(this->ctx_, labels,
-                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-                                auto p = predt(i, j);
-                                auto y = labels(i, j);
-                                auto w = weight[i];
-                                auto grad = SquaredLogError::FirstOrderGradient(p, y);
-                                auto hess = SquaredLogError::SecondOrderGradient(p, y);
-                                gpair(i, j) = {grad * w, hess * w};
-                              });
-  }
-  [[nodiscard]] const char* DefaultEvalMetric() const override { return "rmsle"; }
-
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String(Name());
-  }
-  void LoadConfig(Json const&) override {}
-};
-
-XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
-    .describe("Root mean squared log error.")
-    .set_body([]() { return new SquaredLogErrorRegression(); });
 
 class ExpectileRegression : public FitIntercept {
   common::ExpectileLossParam param_;

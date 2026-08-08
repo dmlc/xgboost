@@ -32,34 +32,6 @@ struct LinearSquareLoss {
   static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
 };
 
-struct SquaredLogError {
-  XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
-  XGBOOST_DEVICE static bool CheckLabel(bst_float label) { return label > -1; }
-  XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
-    predt = fmaxf(predt, -1 + 1e-6);  // ensure correct value for log1p
-    return (std::log1p(predt) - std::log1p(label)) / (predt + 1);
-  }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    predt = fmaxf(predt, -1 + 1e-6);
-    float res = (-std::log1p(predt) + std::log1p(label) + 1) / std::pow(predt + 1, 2);
-    res = fmaxf(res, 1e-6f);
-    return res;
-  }
-
-  XGBOOST_DEVICE static float ProbToMargin(float base_score) { return base_score; }
-  constexpr static StringView InterceptErrorMsg() { return ""; }
-  XGBOOST_DEVICE static bool CheckIntercept(float) { return true; }
-
-  static const char* LabelErrorMsg() {
-    return "label must be greater than -1 for rmsle so that log(label + 1) can be valid.";
-  }
-  static const char* DefaultEvalMetric() { return "rmsle"; }
-
-  static const char* Name() { return "reg:squaredlogerror"; }
-
-  static ObjInfo Info() { return ObjInfo::kRegression; }
-};
-
 // logistic loss for probability regression task
 struct LogisticRegression {
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
@@ -122,26 +94,6 @@ struct LogisticRaw : public LogisticRegression {
   static const char* Name() { return "binary:logitraw"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
-};
-
-// gamma deviance loss.
-class GammaDeviance {
- public:
-  XGBOOST_DEVICE static float PredTransform(float x) { return std::exp(x); }
-
-  XGBOOST_DEVICE static float ProbToMargin(float x) { return std::log(x); }
-  constexpr static StringView InterceptErrorMsg() {
-    return "`base_score` must be greater than 0 for gamma regression";
-  }
-  XGBOOST_DEVICE static bool CheckIntercept(float base_score) { return base_score > 0; }
-
-  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) { return 1.0f - y / p; }
-  XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
-  static ObjInfo Info() { return ObjInfo::kRegression; }
-  static const char* Name() { return "reg:gamma"; }
-  static const char* DefaultEvalMetric() { return "gamma-deviance"; }
-  XGBOOST_DEVICE static bool CheckLabel(float x) { return x > 0.0f; }
-  static const char* LabelErrorMsg() { return "label must be positive for gamma regression."; }
 };
 
 // Label validation for Poisson regression (labels must be non-negative)
