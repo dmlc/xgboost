@@ -84,7 +84,7 @@ jobs:
       - name: Test R
         shell: bash -l {0}
         run: |
-          python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=check
+          python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=check --print-install-log
       - uses: dorny/paths-filter@v4
         # Run the document check if there are changes in the R package.
         id: changes
