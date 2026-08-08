@@ -107,7 +107,10 @@ def plot_importance(
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
-        # pylint: disable=invalid-unary-operand-type
+        if max_num_features <= 0:
+            raise ValueError(
+                f"`max_num_features` must be a positive integer, got {max_num_features}."
+            )
         tuples = sorted(tuples, key=lambda _x: _x[1])[-max_num_features:]
     else:
         tuples = sorted(tuples, key=lambda _x: _x[1])
