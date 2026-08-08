@@ -1,7 +1,9 @@
 """Tests for dask shared by different test modules."""
 
+from __future__ import annotations
+
 import json
-from typing import Any, List, Literal, Tuple, Type, Union, cast, overload
+from typing import TYPE_CHECKING, Any, List, Literal, Tuple, Type, Union, cast, overload
 
 import numpy as np
 import pandas as pd
@@ -25,6 +27,12 @@ from .data import make_categorical as make_cat_local
 from .multi_target import LsObj1, LsObj2
 from .ordinal import make_recoded
 from .utils import Device, assert_allclose
+
+if TYPE_CHECKING:
+    import cudf
+
+    DF_union = Union[pd.DataFrame, cudf.DataFrame]
+    DF_T_union = Union[Type[pd.DataFrame], Type[cudf.DataFrame]]
 
 
 def check_init_estimation_clf(tree_method: str, device: Device, client: Client) -> None:
@@ -386,11 +394,13 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     n_samples_per_worker = n_samples // len(workers)
 
     if device == "cpu":
-        from pandas import DataFrame as DF
+        DF: DF_T_union = pd.DataFrame
     else:
-        from cudf import DataFrame as DF
+        from cudf import DataFrame as CudfDataFrame
 
-    def make(n: int, seed: int) -> pd.DataFrame:
+        DF = CudfDataFrame
+
+    def make(n: int, seed: int) -> DF_union:
         rng = np.random.default_rng(seed)
         X, y = make_classification(
             n,

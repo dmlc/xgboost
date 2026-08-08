@@ -8,11 +8,6 @@ from io import StringIO
 from pathlib import Path
 from platform import system
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None  # type: ignore
-
 from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
 
@@ -108,6 +103,11 @@ def emit_r_log(name: str, log: str) -> None:
 
 
 def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+
     with open(rcheck_dir / "xgboost-Ex.timings", "r") as fd:
         timings = fd.readlines()
         newlines = []
@@ -133,6 +133,7 @@ def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
 
     print(offending)
     raise ValueError("There are examples using too many threads")
+
 
 
 @cd(ROOT)
@@ -175,8 +176,7 @@ def check_rpackage(path: str, *, print_install_log: bool = False) -> None:
         emit_r_log("Check", check_log)
         raise ValueError(error)
 
-    if pd is not None:
-        check_example_timing(rcheck_dir, threshold)
+    check_example_timing(rcheck_dir, threshold)
 
 
 @cd(R_PACKAGE)

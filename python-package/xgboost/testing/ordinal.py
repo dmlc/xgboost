@@ -123,8 +123,6 @@ def run_cat_container(device: Device) -> None:
 # pylint: disable=too-many-statements
 def run_cat_container_mixed(device: Device) -> None:
     """Run checks with mixed types."""
-    import pandas as pd
-
     try:
         is_cudf_cat = _lazy_load_cudf_is_cat()
     except ImportError:
@@ -134,7 +132,7 @@ def run_cat_container_mixed(device: Device) -> None:
 
     n_samples = int(2**10)
 
-    def check(Xy: DMatrix, X: pd.DataFrame) -> None:
+    def check(Xy: DMatrix, X: Any) -> None:
         cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
         cats_di = dict(cats)
@@ -556,8 +554,8 @@ def make_recoded(device: Device, *, n_features: int = 4096) -> Tuple:
     n_samples = 1024
 
     # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
-    old_cats = ["a", "b", "c", "d"]
-    new_cats = ["b", "a", "c", "d"]
+    old_cats = pd.Index(["a", "b", "c", "d"])
+    new_cats = pd.Index(["b", "a", "c", "d"])
     mapping = {0: 1, 1: 0}
 
     rng = np.random.default_rng(2025)
@@ -567,17 +565,16 @@ def make_recoded(device: Device, *, n_features: int = 4096) -> Tuple:
         low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
     )
 
-    df = {}  # avoid fragmentation warning from pandas
+    df: dict[str, Any] = {}  # avoid fragmentation warning from pandas
     for c in range(n_features):
         if c % 2 == 0:
-            col = col_numeric[:, c // 2]
+            df[f"f{c}"] = col_numeric[:, c // 2]
         else:
             codes = col_categorical[:, c // 2]
-            col = pd.Categorical.from_codes(
+            df[f"f{c}"] = pd.Categorical.from_codes(
                 categories=old_cats,
                 codes=codes,
             )
-        df[f"f{c}"] = col
 
     enc = Df(df)
     y = rng.normal(size=n_samples)
@@ -605,8 +602,8 @@ def run_specified_cat(  # pylint: disable=too-many-locals
     import pandas as pd
 
     # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
-    old_cats = ["a", "b", "c", "d"]
-    new_cats = ["b", "a", "c", "d"]
+    old_cats = pd.Index(["a", "b", "c", "d"])
+    new_cats = pd.Index(["b", "a", "c", "d"])
 
     col0 = np.arange(0, 9)
     col1 = pd.Categorical.from_codes(
@@ -691,8 +688,8 @@ def run_recode_dmatrix(device: Device) -> None:
     Df, _ = get_df_impl(device)
 
     # String index
-    old_cats = ["café", "猫", "c", "🐍"]
-    new_cats = ["猫", "café", "c", "🐍"]
+    old_cats = pd.Index(["café", "猫", "c", "🐍"])
+    new_cats = pd.Index(["猫", "café", "c", "🐍"])
 
     col0 = np.arange(0, 9)
     col1 = pd.Categorical.from_codes(
@@ -721,12 +718,12 @@ def run_recode_dmatrix(device: Device) -> None:
     assert predictor_equal(Xy_0, Xy_1)
 
     # Numeric index
-    col0 = pd.Categorical.from_codes(
-        categories=[5, 6, 7, 8],
+    cat_col = pd.Categorical.from_codes(
+        categories=pd.Index([5, 6, 7, 8]),
         codes=[0, 0, 2, 3, 1, 2, 2, 3, 1],
     )
     Df, _ = get_df_impl(device)
-    df = Df({"cat": col0})
+    df = Df({"cat": cat_col})
     for DMatrixT in (DMatrix, QuantileDMatrix):
         Xy = DMatrixT(df, enable_categorical=True)
         cats_0 = Xy.get_categories(export_to_arrow=True)

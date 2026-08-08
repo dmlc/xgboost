@@ -305,10 +305,10 @@ class TestGPUPredict:
         cols = 10
         rng = np.random.RandomState(1994)
         cp.cuda.runtime.setDevice(0)
-        X = rng.randn(rows, cols)
-        X = pd.DataFrame(X)
+        X_np = rng.randn(rows, cols)
+        X_pd = pd.DataFrame(X_np)
         y = rng.randn(rows)
-        X = cudf.from_pandas(X)
+        X = cudf.from_pandas(X_pd)
 
         dtrain = xgb.DMatrix(X, y)
 
