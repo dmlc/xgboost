@@ -308,8 +308,9 @@ jobs:
       - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Install dependencies
         shell: bash -l {0}
-        run: |
-          Rscript --vanilla R-package/tests/helper_scripts/install_deps.R imports
+        run: Rscript --vanilla R-package/tests/helper_scripts/install_deps.R imports
+      - name: Configure GPU R build to use CMake sccache launchers
+        run: Rscript --vanilla ops/script/setup_r_sccache.R --cmake
       - run: bash ops/pipeline/build-gpu-rpkg.sh
       - run: sccache --show-stats
       - name: Upload R package tarball

@@ -155,6 +155,7 @@ jobs:
           environment-name: xgboost_docs
           environment-file: doc/xgboost_doc.yml
       - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Test Sphinx documentation snippets
         run: bash ops/pipeline/test-docs.sh
       - run: sccache --show-stats
