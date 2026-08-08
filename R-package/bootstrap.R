@@ -31,6 +31,14 @@ copy_cmake_source <- function(relative_path) {
 
 invisible(lapply(manifest, copy_cmake_source))
 
+## Remove original R sources
+r_source_prefix <- "R-package/src/"
+r_sources <- manifest[startsWith(manifest, r_source_prefix)]
+r_sources <- file.path("src", substring(r_sources, nchar(r_source_prefix) + 1L))
+if (length(r_sources) && !all(file.remove(r_sources))) {
+  stop("Failed to remove original R sources after embedding them")
+}
+
 ## license
 file.copy("../LICENSE", "./LICENSE")
 
