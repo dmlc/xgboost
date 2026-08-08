@@ -135,7 +135,6 @@ def check_example_timing(rcheck_dir: Path, threshold: float) -> None:
     raise ValueError("There are examples using too many threads")
 
 
-
 @cd(ROOT)
 @record_time
 def check_rpackage(path: str, *, print_install_log: bool = False) -> None:
