@@ -27,7 +27,7 @@ def read_cmake_source_manifest() -> list[Path]:
 
 def copy_cmake_source_tree(dest: Path) -> None:
     """Copy the minimal top-level CMake graph into an assembled R package."""
-    embedded_root = dest / "src" / "xgboost"
+    embedded_root = dest / "src"
     for relative_path in read_cmake_source_manifest():
         source = Path(ROOT) / relative_path
         target = embedded_root / relative_path
@@ -39,14 +39,6 @@ def copy_cmake_source_tree(dest: Path) -> None:
             shutil.copytree(source, target)
         else:
             shutil.copyfile(source, target)
-
-
-def remove_original_r_sources(dest: Path) -> None:
-    """Remove R sources after embedding them in the CMake source tree."""
-    source_prefix = Path("R-package") / "src"
-    for relative_path in read_cmake_source_manifest():
-        if relative_path.is_relative_to(source_prefix):
-            (dest / relative_path.relative_to("R-package")).unlink()
 
 
 @cd(ROOT)
@@ -71,7 +63,6 @@ def pack_rpackage() -> Path:
     shutil.copytree("R-package", dest)
     os.remove(dest / "bootstrap.R")
     copy_cmake_source_tree(dest)
-    remove_original_r_sources(dest)
     shutil.copyfile("LICENSE", dest / "LICENSE")
     rwsp = Path("R-package") / "remove_warning_suppression_pragma.sh"
     if system() != "Windows":

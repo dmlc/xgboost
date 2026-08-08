@@ -3,11 +3,11 @@
 set -e
 set -x
 package_dir=${1:-.}
-for file in "${package_dir}"/src/xgboost/dmlc-core/include/dmlc/*.h
+for file in "${package_dir}"/src/dmlc-core/include/dmlc/*.h
 do
   sed -i.bak -e 's/^.*#pragma GCC diagnostic.*$//' -e 's/^.*#pragma clang diagnostic.*$//' -e 's/^.*#pragma warning.*$//' "${file}"
 done
-for file in "${package_dir}"/src/xgboost/dmlc-core/include/dmlc/*.h.bak
+for file in "${package_dir}"/src/dmlc-core/include/dmlc/*.h.bak
 do
   rm "${file}"
 done

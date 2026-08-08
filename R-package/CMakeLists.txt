@@ -25,10 +25,16 @@ if(APPLE)
   set(r_link_libraries ${r_link_items})
 endif()
 
+set(r_source_dir "${CMAKE_CURRENT_LIST_DIR}/src")
+# The assembled R package uses its src directory as the top-level CMake source.
+if(EXISTS "${xgboost_SOURCE_DIR}/xgboost_R.cc")
+  set(r_source_dir "${xgboost_SOURCE_DIR}")
+endif()
+
 set(R_SOURCES
-  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_custom.cc
-  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_R.cc
-  ${CMAKE_CURRENT_LIST_DIR}/src/init.c
+  ${r_source_dir}/xgboost_custom.cc
+  ${r_source_dir}/xgboost_R.cc
+  ${r_source_dir}/init.c
 )
 
 # Use object library to expose symbols

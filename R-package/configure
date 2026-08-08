@@ -5,8 +5,8 @@ set -eu
 cmake_bin=${CMAKE:-cmake}
 
 # The assembled source package takes precedence when it is located inside a repository checkout.
-if test -f src/xgboost/CMakeLists.txt; then
-  cmake_source=xgboost
+if test -f src/CMakeLists.txt; then
+  cmake_source=.
 else
   cmake_source=../..
 fi
