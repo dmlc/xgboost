@@ -12,6 +12,7 @@ embedded_root <- file.path("src", "xgboost")
 copy_cmake_source <- function(relative_path) {
   source <- file.path("..", relative_path)
   target <- file.path(embedded_root, relative_path)
+  print(paste0("copy: ", source, " -> ", target))
   if (!file.exists(source) && !dir.exists(source)) {
     stop("Missing CMake source manifest entry: ", source)
   }

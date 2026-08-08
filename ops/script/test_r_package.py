@@ -35,8 +35,10 @@ def copy_cmake_source_tree(dest: Path) -> None:
             raise FileNotFoundError(f"Missing CMake source manifest entry: {source}")
         target.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir():
+            print(f"{source} -> {target}")
             shutil.copytree(source, target)
         else:
+            print(f"{source} -> {target}")
             shutil.copyfile(source, target)
 
 

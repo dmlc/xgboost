@@ -1,5 +1,6 @@
 set(XGBOOST_R_INCLUDE_DIR "" CACHE PATH "R include directory provided by R")
 set(XGBOOST_R_LINK_FLAGS "" CACHE STRING "R package link flags provided by R")
+set(XGBOOST_R_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/src" CACHE PATH "R wrapper source directory")
 message(STATUS "R include directory: ${XGBOOST_R_INCLUDE_DIR}")
 message(STATUS "R link flags: ${XGBOOST_R_LINK_FLAGS}")
 message(STATUS "R CUDA flags: ${CMAKE_CUDA_FLAGS}")
@@ -26,9 +27,9 @@ if(APPLE)
 endif()
 
 set(R_SOURCES
-  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_custom.cc
-  ${CMAKE_CURRENT_LIST_DIR}/src/xgboost_R.cc
-  ${CMAKE_CURRENT_LIST_DIR}/src/init.c
+  ${XGBOOST_R_SOURCE_DIR}/xgboost_custom.cc
+  ${XGBOOST_R_SOURCE_DIR}/xgboost_R.cc
+  ${XGBOOST_R_SOURCE_DIR}/init.c
 )
 
 # Use object library to expose symbols
