@@ -55,7 +55,6 @@ option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
 option(BUILD_WITH_SYSTEM_DMLC "Use system package for dmlc." OFF)
-option(BUILD_WITH_FILE_PREFIX_MAP "Remap source paths embedded by the compiler." ON)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -416,19 +415,6 @@ target_include_directories(xgboost
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
-
-if(BUILD_WITH_FILE_PREFIX_MAP)
-  set(file_prefix_targets xgboost objxgboost)
-  if(NOT BUILD_WITH_SYSTEM_DMLC)
-    list(APPEND file_prefix_targets dmlc)
-  endif()
-  foreach(optional_target IN ITEMS xgboost-r xgboost4j plugin_sycl)
-    if(TARGET ${optional_target})
-      list(APPEND file_prefix_targets ${optional_target})
-    endif()
-  endforeach()
-  xgboost_enable_file_prefix_map("${xgboost_SOURCE_DIR}" ${file_prefix_targets})
-endif()
 
 # Common setup for all targets
 foreach(target xgboost objxgboost)

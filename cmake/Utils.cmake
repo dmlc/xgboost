@@ -115,36 +115,6 @@ function(xgboost_cuda_wrap_host_compiler_options out_var)
   set(${out_var} "${wrapped}" PARENT_SCOPE)
 endfunction()
 
-# Map the `__FILE__` intrinsic to a different prefix.
-function(xgboost_enable_file_prefix_map source_dir)
-  include(CheckCCompilerFlag)
-  include(CheckCXXCompilerFlag)
-
-  set(file_prefix_map "-ffile-prefix-map=${source_dir}=.")
-  check_c_compiler_flag("${file_prefix_map}" XGBOOST_C_SUPPORTS_FILE_PREFIX_MAP)
-  check_cxx_compiler_flag("${file_prefix_map}" XGBOOST_CXX_SUPPORTS_FILE_PREFIX_MAP)
-
-  set(file_prefix_compile_options)
-  if(XGBOOST_C_SUPPORTS_FILE_PREFIX_MAP)
-    list(APPEND file_prefix_compile_options $<$<COMPILE_LANGUAGE:C>:${file_prefix_map}>)
-  endif()
-  if(XGBOOST_CXX_SUPPORTS_FILE_PREFIX_MAP)
-    list(APPEND file_prefix_compile_options $<$<COMPILE_LANGUAGE:CXX>:${file_prefix_map}>)
-    if(USE_CUDA)
-      xgboost_cuda_wrap_host_compiler_options(cuda_file_prefix_map ${file_prefix_map})
-      list(APPEND file_prefix_compile_options ${cuda_file_prefix_map})
-    endif()
-  endif()
-
-  if(NOT file_prefix_compile_options)
-    return()
-  endif()
-
-  foreach(target IN LISTS ARGN)
-    target_compile_options(${target} PRIVATE ${file_prefix_compile_options})
-  endforeach()
-endfunction()
-
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
   set(cuda_compile_options "")
