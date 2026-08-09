@@ -154,20 +154,13 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   void SaveModel(Json* out) const override = 0;
 
   /*!
-   * \brief Set multiple parameters at once.
+   * \brief Set and apply multiple parameters as one configuration step.
    *
-   * \param args parameters.
+   * A successful return guarantees that no configuration is pending.
+   *
+   * \param args Ordered parameter batch. Repeated parameters are preserved.
    */
   virtual void SetParams(Args const& args) = 0;
-  /*!
-   * \brief Set parameter for booster
-   *
-   *  The property will NOT be saved along with booster
-   *
-   * \param key   The key of parameter
-   * \param value The value of parameter
-   */
-  virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
   /**
    * @brief Get the number of features of the booster.

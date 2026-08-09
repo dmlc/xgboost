@@ -131,10 +131,10 @@ TEST(MultiStrategy, Configure) {
   p_fmat->Info().labels.Reshape(p_fmat->Info().num_row_, 2);
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
   learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
-  learner->Configure();
   ASSERT_EQ(learner->Groups(), 2);
 
-  learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}});
-  ASSERT_THROW({ learner->Configure(); }, dmlc::Error);
+  ASSERT_THROW(
+      learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}}),
+      dmlc::Error);
 }
 }  // namespace xgboost

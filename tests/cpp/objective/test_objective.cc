@@ -69,20 +69,20 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_)};
 
-    learner->SetParam("objective", objective);
+    Args args{{"objective", objective}};
     if (objective.find("multi") != std::string::npos) {
-      learner->SetParam("num_class", "3");
+      args.emplace_back("num_class", "3");
       objfn->Configure(Args{{"num_class", "3"}});
     } else if (objective.find("quantile") != std::string::npos) {
-      learner->SetParam("quantile_alpha", "0.5");
+      args.emplace_back("quantile_alpha", "0.5");
       objfn->Configure(Args{{"quantile_alpha", "0.5"}});
     } else if (objective.find("expectile") != std::string::npos) {
-      learner->SetParam("expectile_alpha", "0.5");
+      args.emplace_back("expectile_alpha", "0.5");
       objfn->Configure(Args{{"expectile_alpha", "0.5"}});
     } else {
       objfn->Configure(Args{});
     }
-    learner->Configure();
+    learner->SetParams(args);
     learner->UpdateOneIter(0, Xy);
     learner->EvalOneIter(0, {Xy}, {"train"});
     Json config{Object{}};

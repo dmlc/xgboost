@@ -652,21 +652,20 @@ class LearnerConfiguration : public Intercept {
     learner_parameters["generic_param"] = ctx_.ToJson();
   }
 
-  void SetParam(const std::string& key, const std::string& value) override {
-    this->need_configuration_ = true;
-    if (key == kEvalMetric) {
-      if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) == metric_names_.cend()) {
-        metric_names_.emplace_back(value);
-      }
-    } else {
-      cfg_[key] = value;
-    }
-  }
-  // Short hand for setting multiple parameters
+  // Apply a complete parameter batch before returning.
   void SetParams(std::vector<std::pair<std::string, std::string>> const& args) override {
+    this->need_configuration_ = true;
     for (auto const& kv : args) {
-      this->SetParam(kv.first, kv.second);
+      if (kv.first == kEvalMetric) {
+        if (std::find(metric_names_.cbegin(), metric_names_.cend(), kv.second) ==
+            metric_names_.cend()) {
+          metric_names_.emplace_back(kv.second);
+        }
+      } else {
+        cfg_[kv.first] = kv.second;
+      }
     }
+    this->Configure();
   }
 
   uint32_t GetNumFeature() const override { return learner_model_param_.num_feature; }

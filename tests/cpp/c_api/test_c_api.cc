@@ -93,6 +93,31 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   ASSERT_NE(msg.find("Column-wise data split has been removed"), std::string::npos);
 }
 
+TEST(CAPI, SetParams) {
+  auto p_dmat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+  std::array<DMatrixHandle, 1> mats{&p_dmat};
+  BoosterHandle booster;
+  ASSERT_EQ(XGBoosterCreate(mats.data(), mats.size(), &booster), 0);
+
+  char const *config =
+      R"({"params":[["objective","reg:absoluteerror"],["eval_metric","mae"],["eval_metric","rmse"]]})";
+  ASSERT_EQ(XGBoosterSetParams(booster, config), 0);
+
+  auto learner = static_cast<Learner *>(booster);
+  EXPECT_TRUE(learner->GetConfigurationArguments().empty());
+  Json saved_config{Object{}};
+  learner->SaveConfig(&saved_config);
+  EXPECT_EQ(get<String const>(saved_config["learner"]["objective"]["name"]), "reg:absoluteerror");
+  EXPECT_EQ(get<Array const>(saved_config["learner"]["metrics"]).size(), 2);
+
+  ASSERT_EQ(XGBoosterSetParam(booster, "objective", "reg:squarederror"), 0);
+  EXPECT_TRUE(learner->GetConfigurationArguments().empty());
+  Json single_config{Object{}};
+  learner->SaveConfig(&single_config);
+  EXPECT_EQ(get<String const>(single_config["learner"]["objective"]["name"]), "reg:squarederror");
+  EXPECT_EQ(XGBoosterFree(booster), 0);
+}
+
 TEST(CAPI, ConfigIO) {
   size_t constexpr kRows = 10;
   auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();

@@ -30,12 +30,12 @@ class TestPredictionCache : public ::testing::Test {
   void RunLearnerTest(Context const* ctx, std::string updater_name, float subsample,
                       std::string const& grow_policy, std::string const& strategy) {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("device", ctx->DeviceName());
-    learner->SetParam("updater", updater_name);
-    learner->SetParam("multi_strategy", strategy);
-    learner->SetParam("grow_policy", grow_policy);
-    learner->SetParam("subsample", std::to_string(subsample));
-    learner->SetParam("nthread", "0");
+    learner->SetParams({{"device", ctx->DeviceName()}});
+    learner->SetParams({{"updater", updater_name}});
+    learner->SetParams({{"multi_strategy", strategy}});
+    learner->SetParams({{"grow_policy", grow_policy}});
+    learner->SetParams({{"subsample", std::to_string(subsample)}});
+    learner->SetParams({{"nthread", "0"}});
     learner->Configure();
 
     for (size_t i = 0; i < 8; ++i) {

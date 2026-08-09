@@ -260,7 +260,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     // Set the model to device
     for (auto const& [key, value] : args) {
       if (key == "device") {
-        learner->SetParam(key, value);
+        learner->SetParams({{key, value}});
       }
     }
 

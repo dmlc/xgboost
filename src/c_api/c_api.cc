@@ -1056,8 +1056,38 @@ XGB_DLL int XGBoosterReset(BoosterHandle handle) {
 
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle, const char *name, const char *value) {
   API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(name);
+  xgboost_CHECK_C_ARG_PTR(value);
+  Json config{Object{}};
+  std::vector<Json> pair;
+  pair.emplace_back(String{std::string{name}});
+  pair.emplace_back(String{std::string{value}});
+  std::vector<Json> params;
+  params.emplace_back(Array{std::move(pair)});
+  config["params"] = Array{std::move(params)};
+  std::string s_config;
+  Json::Dump(config, &s_config);
+  return XGBoosterSetParams(handle, s_config.c_str());
+  API_END();
+}
+
+XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config) {
+  API_BEGIN();
   CHECK_HANDLE();
-  static_cast<Learner *>(handle)->SetParam(name, value);
+  xgboost_CHECK_C_ARG_PTR(config);
+  Json j_config{Json::Load(StringView{config})};
+  CHECK(IsA<Object>(j_config)) << "Booster parameter configuration must be a JSON object.";
+  auto const &params = get<Array const>(j_config["params"]);
+
+  Args args;
+  args.reserve(params.size());
+  for (auto const &j_param : params) {
+    CHECK(IsA<Array>(j_param)) << "Each booster parameter must be a JSON array.";
+    auto const &pair = get<Array const>(j_param);
+    CHECK_EQ(pair.size(), 2) << "Each booster parameter must contain a name and value.";
+    args.emplace_back(get<String const>(pair[0]), get<String const>(pair[1]));
+  }
+  static_cast<Learner *>(handle)->SetParams(args);
   API_END();
 }
 

@@ -225,7 +225,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
 
   learner.reset(Learner::Create({}));
   learner->LoadModel(model);
-  learner->SetParam("device", ctx->DeviceName());
+  learner->SetParams({{"device", ctx->DeviceName()}});
   learner->Configure();
 
   HostDeviceVector<float> from_full;
@@ -247,16 +247,16 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
 
   std::unique_ptr<Learner> learner{Learner::Create({m})};
 
-  learner->SetParam("num_parallel_tree", "4");
-  learner->SetParam("num_class", std::to_string(kClasses));
-  learner->SetParam("seed", "0");
-  learner->SetParam("subsample", "0.5");
-  learner->SetParam("tree_method", "hist");
+  learner->SetParams({{"num_parallel_tree", "4"}});
+  learner->SetParams({{"num_class", std::to_string(kClasses)}});
+  learner->SetParams({{"seed", "0"}});
+  learner->SetParams({{"subsample", "0.5"}});
+  learner->SetParams({{"tree_method", "hist"}});
   for (int32_t it = 0; it < 4; ++it) {
     learner->UpdateOneIter(it, m);
   }
 
-  learner->SetParam("device", ctx->DeviceName());
+  learner->SetParams({{"device", ctx->DeviceName()}});
   learner->Configure();
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
@@ -294,7 +294,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
     ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - base_score.at(j), kRtEps);
   }
 
-  learner->SetParam("device", "cpu");
+  learner->SetParams({{"device", "cpu"}});
   learner->Configure();
 }
 
@@ -346,7 +346,7 @@ void TestPredictionDeviceAccess() {
   {
     ASSERT_TRUE(from_cpu.Device().IsCPU());
     Context cpu_ctx;
-    learner->SetParam("device", cpu_ctx.DeviceName());
+    learner->SetParams({{"device", cpu_ctx.DeviceName()}});
     learner->Predict(m_test, false, &from_cpu, 0, 0);
     ASSERT_TRUE(from_cpu.HostCanWrite());
     ASSERT_FALSE(from_cpu.DeviceCanRead());
@@ -356,7 +356,7 @@ void TestPredictionDeviceAccess() {
   HostDeviceVector<float> from_cuda;
   {
     Context cuda_ctx = MakeCUDACtx(0);
-    learner->SetParam("device", cuda_ctx.DeviceName());
+    learner->SetParams({{"device", cuda_ctx.DeviceName()}});
     learner->Predict(m_test, false, &from_cuda, 0, 0);
     ASSERT_EQ(from_cuda.Device(), DeviceOrd::CUDA(0));
     ASSERT_TRUE(from_cuda.DeviceCanWrite());
@@ -510,11 +510,11 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
 
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
-  learner->SetParam("device", ctx->DeviceName());
+  learner->SetParams({{"device", ctx->DeviceName()}});
   learner->Configure();
   if (!ctx->IsCPU()) {
-    learner->SetParam("tree_method", "hist");
-    learner->SetParam("device", ctx->Device().Name());
+    learner->SetParams({{"tree_method", "hist"}});
+    learner->SetParams({{"device", ctx->Device().Name()}});
   }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
@@ -530,8 +530,8 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
     }
   }
 
-  learner->SetParam("tree_method", "hist");
-  learner->SetParam("device", "cpu");
+  learner->SetParams({{"tree_method", "hist"}});
+  learner->SetParams({{"device", "cpu"}});
   // Xcode_12.4 doesn't compile with `std::make_shared`.
   auto dense = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
   auto array_interface = GetArrayInterface(&with_nan, kRows, kCols);

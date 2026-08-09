@@ -27,17 +27,17 @@ class TestGrowPolicy : public ::testing::Test {
             true);
 
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-    learner->SetParam("tree_method", tree_method);
-    learner->SetParam("device", ctx->DeviceName());
+    learner->SetParams({{"tree_method", tree_method}});
+    learner->SetParams({{"device", ctx->DeviceName()}});
     if (max_leaves >= 0) {
-      learner->SetParam("max_leaves", std::to_string(max_leaves));
+      learner->SetParams({{"max_leaves", std::to_string(max_leaves)}});
     }
     if (max_depth >= 0) {
-      learner->SetParam("max_depth", std::to_string(max_depth));
+      learner->SetParams({{"max_depth", std::to_string(max_depth)}});
     }
-    learner->SetParam("grow_policy", policy);
+    learner->SetParams({{"grow_policy", policy}});
     if (n_targets > 1) {
-      learner->SetParam("multi_strategy", "multi_output_tree");
+      learner->SetParams({{"multi_strategy", "multi_output_tree"}});
     }
 
     auto check_max_leave = [&]() {

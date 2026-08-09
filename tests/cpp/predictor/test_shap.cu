@@ -52,12 +52,12 @@ TEST(GPUPredictor, CompareCPUShap) {
 
   std::unique_ptr<Learner> learner_gpu{Learner::Create({})};
   learner_gpu->LoadModel(model);
-  learner_gpu->SetParam("device", ctx.DeviceName());
+  learner_gpu->SetParams({{"device", ctx.DeviceName()}});
   learner_gpu->Configure();
 
   std::unique_ptr<Learner> learner_cpu{Learner::Create({})};
   learner_cpu->LoadModel(model);
-  learner_cpu->SetParam("device", cpu_ctx.DeviceName());
+  learner_cpu->SetParams({{"device", cpu_ctx.DeviceName()}});
   learner_cpu->Configure();
 
   learner_gpu->Predict(dmat, false, &predictions, 0, 0, false, false, true, false, false);

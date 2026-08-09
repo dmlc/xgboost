@@ -140,8 +140,8 @@ TEST(GBTree, WrongUpdater) {
   learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
   // Prune can not be used for learning new tree.
-  learner->SetParams(Args{{"tree_method", "prune"}, {"process_type", "default"}});
-  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+  ASSERT_THROW(learner->SetParams(Args{{"tree_method", "prune"}, {"process_type", "default"}}),
+               dmlc::Error);
 }
 
 #ifdef XGBOOST_USE_CUDA
@@ -207,11 +207,11 @@ TEST(GBTree, ChooseTreeMethod) {
                          std::optional<std::string> tree_method) {
     auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
     if (tree_method.has_value()) {
-      learner->SetParam("tree_method", tree_method.value());
+      learner->SetParams({{"tree_method", tree_method.value()}});
     }
     if (device.has_value()) {
       auto const& d = device.value();
-      learner->SetParam("device", d);
+      learner->SetParams({{"device", d}});
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -227,11 +227,11 @@ TEST(GBTree, ChooseTreeMethod) {
   auto with_boost = [&](std::optional<std::string> device, std::optional<std::string> tree_method) {
     auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
     if (tree_method.has_value()) {
-      learner->SetParam("tree_method", tree_method.value());
+      learner->SetParams({{"tree_method", tree_method.value()}});
     }
     if (device.has_value()) {
       auto const& d = device.value();
-      learner->SetParam("device", d);
+      learner->SetParams({{"device", d}});
     }
     learner->Configure();
     Context ctx;
@@ -498,14 +498,14 @@ class Dart : public testing::TestWithParam<char const*> {
     p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kRows));
 
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
-    learner->SetParam("booster", "dart");
-    learner->SetParam("rate_drop", "0.5");
+    learner->SetParams({{"booster", "dart"}});
+    learner->SetParams({{"rate_drop", "0.5"}});
     learner->Configure();
 
     for (size_t i = 0; i < 16; ++i) {
       learner->UpdateOneIter(i, p_mat);
     }
-    learner->SetParam("device", ctx.DeviceName());
+    learner->SetParams({{"device", ctx.DeviceName()}});
 
     HostDeviceVector<float> predts_training;
     learner->Predict(p_mat, false, &predts_training, 0, 0, true);
@@ -688,7 +688,7 @@ TEST(GBTree, FeatureScore) {
   auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
   std::unique_ptr<Learner> learner{Learner::Create({m})};
-  learner->SetParam("num_class", std::to_string(n_classes));
+  learner->SetParams({{"num_class", std::to_string(n_classes)}});
 
   learner->Configure();
   for (size_t i = 0; i < 2; ++i) {
@@ -725,7 +725,7 @@ TEST(GBTree, PredictRange) {
   auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
   std::unique_ptr<Learner> learner{Learner::Create({m})};
-  learner->SetParam("num_class", std::to_string(n_classes));
+  learner->SetParams({{"num_class", std::to_string(n_classes)}});
 
   learner->Configure();
   for (size_t i = 0; i < 2; ++i) {
