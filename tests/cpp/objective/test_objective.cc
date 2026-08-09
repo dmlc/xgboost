@@ -90,8 +90,8 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     auto jobj = get<Object const>(config["learner"]["objective"]);
 
     ASSERT_TRUE(jobj.find("name") != jobj.cend());
-    // FIXME(jiamingy): We should have the following check, but some legacy parameter like
-    // "pos_weight", "delta_step" in objectives are not in metrics.
+    // FIXME(jiamingy): We should have the following check, but the legacy "pos_weight" objective
+    // parameter is not in metrics.
 
     // if (jobj.size() > 1) {
     //   ASSERT_FALSE(IsA<Null>(objfn->DefaultMetricConfig()));

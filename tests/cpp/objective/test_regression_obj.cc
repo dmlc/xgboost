@@ -146,21 +146,20 @@ void TestPoissonRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
-  args.emplace_back("max_delta_step", "0.1f");
   obj->Configure(args);
   // clang-format off
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
-                   {   1,    1,    1,    1,    1,    1,    1,    1},
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
+                   {   1,     1,     1,    1,    1,     1,     1,    1},
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   { .14f,  .37f,     1, 2.71f,     1,      2,     3,     4});
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
                    {},  // Empty weight
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   { .14f,  .37f,     1, 2.71f,     1,      2,     3,     4});
   // clang-format on
 }
 
@@ -169,7 +168,9 @@ void TestPoissonRegressionBasic(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
   obj->Configure(args);
-  CheckConfigReload(obj, "count:poisson");
+  auto config = CheckConfigReload(obj, "count:poisson");
+  auto const& config_obj = get<Object const>(config);
+  ASSERT_EQ(config_obj.size(), 1);
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))

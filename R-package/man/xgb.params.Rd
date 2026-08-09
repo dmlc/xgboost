@@ -93,7 +93,6 @@ Version added: 2.0.0
 \item \code{"binary:logitraw"}: logistic regression for binary classification, output score before logistic transformation
 \item \code{"binary:hinge"}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 \item \code{"count:poisson"}: Poisson regression for count data, output mean of Poisson distribution.
-\code{"max_delta_step"} is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 \item \code{"survival:cox"}: Cox regression for right censored survival time data (negative values are considered right censored).
 
 Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function \code{h(t) = h0(t) * HR}).

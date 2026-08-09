@@ -6,31 +6,26 @@
 #ifndef XGBOOST_OBJECTIVE_POISSON_OBJ_H_
 #define XGBOOST_OBJECTIVE_POISSON_OBJ_H_
 
-#include <cmath>  // for expf, log
+#include <cmath>  // for expf, fmaxf, log
 
 #include "elementwise_objective.h"  // for elementwise kernels
 #include "regression_loss.h"        // for PoissonLabel
 #include "xgboost/base.h"           // for GradientPair
-#include "xgboost/parameter.h"      // for XGBoostParameter
 
 namespace xgboost::obj {
-struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
-  float max_delta_step;
-  DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
-    DMLC_DECLARE_FIELD(max_delta_step)
-        .set_lower_bound(0.0f)
-        .set_default(0.7f)
-        .describe(
-            "Maximum delta step we allow each weight estimation to be."
-            " This parameter is required for Poisson regression.");
-  }
-};
-
 struct PoissonGradient {
-  float max_delta_step;
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    auto grad = (expf(predt) - label) * weight;
-    auto hess = expf(predt + max_delta_step) * weight;
+    auto mu = expf(predt);
+    auto grad = (mu - label) * weight;
+    // For one leaf, let M = sum(w_i * mu_i), Y = sum(w_i * y_i), and
+    // H = sum(w_i * max(mu_i, y_i)). For non-negative row weights,
+    // H >= max(M, Y), so the unregularized update d = (Y - M) / H obeys,
+    // for M, Y > 0:
+    //   Y >= M: 0 <= d <= 1 - M / Y <= log(Y / M)
+    //   Y <= M: log(Y / M) <= Y / M - 1 <= d <= 0.
+    // Thus 0 <= eta <= 1 moves toward the exact leaf optimum log(Y / M)
+    // without crossing it. L1/L2 regularization can only reduce |d|.
+    auto hess = fmaxf(mu, label) * weight;
     return {grad, hess};
   }
 };
