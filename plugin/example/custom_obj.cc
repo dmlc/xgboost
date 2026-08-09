@@ -30,7 +30,9 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 // Implement the interface.
 class MyLogistic : public ObjFunction {
  public:
-  void Configure(const Args& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 

@@ -28,11 +28,12 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_coordinate);
 class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
  public:
   // set training parameter
-  void Configure(Args const &args) override {
-    tparam_.UpdateAllowUnknown(args);
-    coord_param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const &args) override {
+    auto used = UpdateAndGetUsedParameters(&tparam_, args);
+    used.merge(UpdateAndGetUsedParameters(&coord_param_, args));
     selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("GPUCoordinateUpdater");
+    return used;
   }
 
   void LoadConfig(Json const& in) override {

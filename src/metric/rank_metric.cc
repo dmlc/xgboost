@@ -339,16 +339,19 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
 
-  void Configure(Args const& args) override {
+  std::set<std::string> Configure(Args const& args) override {
     // do not configure, otherwise the ndcg param like top-k will be forced into the same
     // as the one in objective. The metric has its own syntax for parameter.
+    std::set<std::string> used;
     for (auto const& [key, value] : args) {
       // Make a special case for the exp gain parameter, which is not exposed in the
       // metric configuration syntax.
       if (key == "ndcg_exp_gain") {
         this->param_.UpdateAllowUnknown(Args{{key, value}});
+        used.insert(key);
       }
     }
+    return used;
   }
 
   double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,

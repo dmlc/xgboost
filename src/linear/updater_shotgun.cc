@@ -13,14 +13,15 @@ DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     if (param_.feature_selector != kCyclic &&
         param_.feature_selector != kShuffle) {
       LOG(FATAL) << "Unsupported feature selector for shotgun updater.\n"
                  << "Supported options are: {cyclic, shuffle}";
     }
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
+    return used;
   }
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);

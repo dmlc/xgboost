@@ -51,7 +51,7 @@ class ConsoleLogger : public BaseLogger {
   LogVerbosity cur_verbosity_;
 
  public:
-  static void Configure(Args const& args);
+  static std::set<std::string> Configure(Args const& args);
 
   static LogVerbosity GlobalVerbosity();
   static LogVerbosity DefaultVerbosity();

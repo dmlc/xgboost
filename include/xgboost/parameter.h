@@ -98,6 +98,36 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
   }
   bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
 };
+
+/**
+ * @brief Return the supplied parameter names that don't appear in the unknown arguments.
+ */
+template <typename Container, typename Unknown>
+std::set<std::string> GetUsedParameters(Container const& args, Unknown const& unknown) {
+  std::set<std::string> unknown_keys;
+  for (auto const& arg : unknown) {
+    unknown_keys.insert(arg.first);
+  }
+
+  std::set<std::string> used;
+  for (auto const& arg : args) {
+    if (unknown_keys.find(arg.first) == unknown_keys.end()) {
+      used.insert(arg.first);
+    }
+  }
+  return used;
+}
+
+/**
+ * @brief Update a parameter and return the names it consumed.
+ *
+ * The names retain the spelling supplied by the caller, including aliases.
+ */
+template <typename Parameter, typename Container>
+std::set<std::string> UpdateAndGetUsedParameters(Parameter* parameter, Container const& args) {
+  auto unknown = parameter->UpdateAllowUnknown(args);
+  return GetUsedParameters(args, unknown);
+}
 }  // namespace xgboost
 
 #endif  // XGBOOST_PARAMETER_H_

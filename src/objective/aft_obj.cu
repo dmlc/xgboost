@@ -31,8 +31,8 @@ DMLC_REGISTRY_FILE_TAG(aft_obj_gpu);
 
 class AFTObj : public ObjFunction {
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
   }
 
   ObjInfo Task() const override { return ObjInfo::kSurvival; }

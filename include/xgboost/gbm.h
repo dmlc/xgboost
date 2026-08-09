@@ -46,8 +46,9 @@ class GradientBooster : public Model, public Configurable {
    *  User must call configure once before InitModel and Training.
    *
    * @param cfg configurations on both training and model parameters.
+   * @return Names of parameters consumed by the booster and its components.
    */
-  virtual void Configure(Args const& cfg) = 0;
+  virtual std::set<std::string> Configure(Args const& cfg) = 0;
 
   /**
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees

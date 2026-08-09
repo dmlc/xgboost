@@ -37,8 +37,9 @@ class ObjFunction : public Configurable {
    * @brief Configure the objective with the specified parameters.
    *
    * @param args arguments to the objective function.
+   * @return Names of parameters consumed by the objective.
    */
-  virtual void Configure(Args const& args) = 0;
+  virtual std::set<std::string> Configure(Args const& args) = 0;
   /**
    * @brief Get gradient over each of predictions, given existing information.
    *

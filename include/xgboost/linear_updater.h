@@ -37,8 +37,9 @@ class LinearUpdater : public Configurable {
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
+   * \return Names of parameters consumed by the updater.
    */
-  virtual void Configure(
+  virtual std::set<std::string> Configure(
       const std::vector<std::pair<std::string, std::string> >& args) = 0;
 
   /**

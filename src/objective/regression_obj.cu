@@ -96,10 +96,11 @@ class ExpectileRegression : public FitIntercept {
   }
 
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     alpha_.HostVector() = param_.expectile_alpha.Get();
+    return used;
   }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
@@ -274,7 +275,7 @@ XGBOOST_REGISTER_OBJECTIVE(ExpectileRegression, "reg:expectileerror")
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public FitIntercept {
  public:
-  void Configure(Args const&) override {}
+  std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
@@ -378,7 +379,7 @@ XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
  */
 class MeanAbsoluteError : public ObjFunction {
  public:
-  void Configure(Args const&) override {}
+  std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));

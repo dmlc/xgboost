@@ -44,9 +44,9 @@ bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
          verbosity == LV::kIgnore;
 }
 
-void ConsoleLogger::Configure(Args const& args) {
+std::set<std::string> ConsoleLogger::Configure(Args const& args) {
   auto& param = *GlobalConfigThreadLocalStore::Get();
-  param.UpdateAllowUnknown(args);
+  return UpdateAndGetUsedParameters(&param, args);
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {

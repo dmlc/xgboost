@@ -34,9 +34,12 @@ class Metric : public Configurable {
   /*!
    * \brief Configure the Metric with the specified parameters.
    * \param args arguments to the objective function.
+   * \return Names of parameters consumed by the metric.
    */
-  virtual void Configure(
-      const std::vector<std::pair<std::string, std::string> >&) {}
+  virtual std::set<std::string> Configure(
+      const std::vector<std::pair<std::string, std::string> >&) {
+    return {};
+  }
   /*!
    * \brief Load configuration from JSON object
    * By default, metric has no internal configuration;

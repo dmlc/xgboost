@@ -80,6 +80,42 @@ TEST(Learner, ParameterValidation) {
   ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
 }
 
+TEST(Learner, ParameterValidationUsesConsumedParameters) {
+  auto p_mat = RandomDataGenerator{1, 1, 0}.GenerateDMatrix(true);
+  auto configure = [&p_mat](Args params) {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+    params.emplace_back("validate_parameters", "1");
+    params.emplace_back("verbosity", "1");
+    learner->SetParams(params);
+
+    testing::internal::CaptureStderr();
+    learner->Configure();
+    return testing::internal::GetCapturedStderr();
+  };
+
+  // Report the spelling supplied by the user, including aliases.
+  auto output = configure({{"eta", "0.3"},
+                           {"lambda", "1.0"},
+                           {"alpha", "0.0"},
+                           {"gamma", "0.0"},
+                           {"random_state", "0"},
+                           {"n_jobs", "1"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
+
+  // Collect parameters from the active model and updater recursively.
+  output = configure({{"tree_method", "hist"}, {"num_parallel_tree", "2"}, {"max_bin", "64"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
+
+  // A parameter for an inactive component is not consumed.
+  output = configure({{"booster", "gblinear"}, {"max_depth", "3"}});
+  EXPECT_NE(output.find(R"(Parameters: { "max_depth" })"), std::string::npos);
+
+  // More than one active component can consume the same parameter.
+  output = configure(
+      {{"objective", "reg:quantileerror"}, {"eval_metric", "quantile"}, {"quantile_alpha", "0.5"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
+}
+
 TEST(Learner, DeprecatedGblinearBooster) {
   auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
 
