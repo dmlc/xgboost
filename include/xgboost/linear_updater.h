@@ -14,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-
 namespace xgboost {
 
 class Json;
@@ -64,16 +63,14 @@ class LinearUpdater : public Configurable {
  * \brief Registry entry for linear updater.
  */
 struct LinearUpdaterReg
-    : public dmlc::FunctionRegEntryBase<LinearUpdaterReg,
-                                        std::function<LinearUpdater*()> > {};
+    : public dmlc::FunctionRegEntryBase<LinearUpdaterReg, std::function<LinearUpdater*()> > {};
 
 /*!
  * \brief Macro to register linear updater.
  */
-#define XGBOOST_REGISTER_LINEAR_UPDATER(UniqueId, Name)                        \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::LinearUpdaterReg&                    \
-      __make_##LinearUpdaterReg##_##UniqueId##__ =                             \
-          ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->__REGISTER__( \
-              Name)
+#define XGBOOST_REGISTER_LINEAR_UPDATER(UniqueId, Name)     \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::LinearUpdaterReg& \
+      __make_##LinearUpdaterReg##_##UniqueId##__ =          \
+          ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost

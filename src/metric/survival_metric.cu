@@ -156,7 +156,9 @@ struct EvalIntervalRegressionAccuracy {
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
-  std::set<std::string> Configure(const Args& args) { return UpdateAndGetUsedParameters(&param_, args); }
+  std::set<std::string> Configure(const Args& args) {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
 
   [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
 

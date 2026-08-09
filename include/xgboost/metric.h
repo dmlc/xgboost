@@ -88,9 +88,7 @@ class Metric : public Configurable {
  *  For example, metric map@3, then: param == "3".
  */
 struct MetricReg
-    : public dmlc::FunctionRegEntryBase<MetricReg,
-                                        std::function<Metric* (const char*)> > {
-};
+    : public dmlc::FunctionRegEntryBase<MetricReg, std::function<Metric*(const char*)> > {};
 
 /*!
  * \brief Macro to register metric.
@@ -105,8 +103,8 @@ struct MetricReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_METRIC(UniqueId, Name)                         \
-  ::xgboost::MetricReg&  __make_ ## MetricReg ## _ ## UniqueId ## __ =  \
+#define XGBOOST_REGISTER_METRIC(UniqueId, Name)               \
+  ::xgboost::MetricReg& __make_##MetricReg##_##UniqueId##__ = \
       ::dmlc::Registry< ::xgboost::MetricReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_METRIC_H_
