@@ -48,9 +48,11 @@ OBJECTS= \
     $(PKGROOT)/src/objective/regression_obj.o \
     $(PKGROOT)/src/objective/multiclass_obj.o \
     $(PKGROOT)/src/objective/lambdarank_obj.o \
+    $(PKGROOT)/src/objective/gamma_obj.o \
     $(PKGROOT)/src/objective/hinge.o \
     $(PKGROOT)/src/objective/poisson_obj.o \
     $(PKGROOT)/src/objective/pseudohuber_obj.o \
+    $(PKGROOT)/src/objective/squared_log_obj.o \
     $(PKGROOT)/src/objective/tweedie_obj.o \
     $(PKGROOT)/src/objective/aft_obj.o \
     $(PKGROOT)/src/objective/init_estimation.o \
