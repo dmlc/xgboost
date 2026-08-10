@@ -650,13 +650,14 @@ class GPUHistMaker : public TreeUpdater {
       : TreeUpdater(ctx),
         task_{task},
         column_sampler_{std::make_shared<common::ColumnSampler>()} {};
-  void Configure(const Args& args) override {
+  std::set<std::string> Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
-    hist_maker_param_.UpdateAllowUnknown(args);
+    auto used = UpdateAndGetUsedParameters(&hist_maker_param_, args);
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
+    return used;
   }
 
   void LoadConfig(Json const& in) override {
@@ -764,13 +765,14 @@ class GPUGlobalApproxMaker : public TreeUpdater {
       : TreeUpdater(ctx),
         column_sampler_{std::make_shared<common::ColumnSampler>()},
         task_{task} {};
-  void Configure(Args const& args) override {
+  std::set<std::string> Configure(Args const& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
-    hist_maker_param_.UpdateAllowUnknown(args);
+    auto used = UpdateAndGetUsedParameters(&hist_maker_param_, args);
     initialised_ = false;
 
     monitor_.Init(this->Name());
+    return used;
   }
 
   void LoadConfig(Json const& in) override {

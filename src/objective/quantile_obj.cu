@@ -263,10 +263,11 @@ class QuantileRegression : public ObjFunction {
     double n_workers = collective::GetWorldSize();
     linalg::VecScaDiv(ctx_, intercept, n_workers);
   }
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     this->alpha_.HostVector() = param_.quantile_alpha.Get();
+    return used;
   }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
   static char const* Name() { return "reg:quantileerror"; }

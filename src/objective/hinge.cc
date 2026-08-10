@@ -27,7 +27,7 @@ auto const kRegisterHingePredTransformCpu = elementwise::RegisterTransformCpu<Hi
 
 class HingeObj : public FitIntercept {
  public:
-  void Configure(Args const&) override {}
+  std::set<std::string> Configure(Args const&) override { return {}; }
   ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {

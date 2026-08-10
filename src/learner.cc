@@ -23,7 +23,6 @@
 #include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
 #include <mutex>          // for mutex, lock_guard
 #include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <stack>          // for stack
 #include <string>         // for basic_string, char_traits, operator<, string
 #include <system_error>   // for errc
 #include <unordered_map>  // for operator!=, unordered_map
@@ -533,15 +532,16 @@ class LearnerConfiguration : public Intercept {
     monitor_.Start("Configure");
     auto old_tparam = tparam_;
     Args args = {cfg_.cbegin(), cfg_.cend()};
+    auto provided = args;
 
-    tparam_.UpdateAllowUnknown(args);
-    mparam_.UpdateAllowUnknown(args);
+    auto used = UpdateAndGetUsedParameters(&tparam_, args);
+    used.merge(UpdateAndGetUsedParameters(&mparam_, args));
 
     auto initialized = ctx_.GetInitialised();
     auto old_seed = ctx_.seed;
-    ctx_.UpdateAllowUnknown(args);
+    used.merge(UpdateAndGetUsedParameters(&ctx_, args));
 
-    ConsoleLogger::Configure(args);
+    used.merge(ConsoleLogger::Configure(args));
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
@@ -551,18 +551,18 @@ class LearnerConfiguration : public Intercept {
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args);
+    used.merge(this->ConfigureObjective(old_tparam, &args));
 
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
-    this->ConfigureGBM(old_tparam, args);
+    used.merge(this->ConfigureGBM(old_tparam, args));
 
     this->InitModelUserParam(this->tparam_, this->cache_data_);
 
-    this->ConfigureMetrics(args);
+    used.merge(this->ConfigureMetrics(args));
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
-      this->ValidateParameters();
+      this->ValidateParameters(provided, used);
     }
 
     cfg_.clear();
@@ -721,70 +721,20 @@ class LearnerConfiguration : public Intercept {
   Context const* Ctx() const override { return &ctx_; }
 
  private:
-  void ValidateParameters() {
-    Json config{Object()};
-    this->SaveConfig(&config);
-    std::stack<Json> stack;
-    stack.push(config);
-    std::string const postfix{"_param"};
-
-    auto is_parameter = [&postfix](std::string const& key) {
-      return key.size() > postfix.size() &&
-             std::equal(postfix.rbegin(), postfix.rend(), key.rbegin());
-    };
-
-    // Extract all parameters
-    std::vector<std::string> keys;
-    // First global parameters
-    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
-    for (auto const& items : get<Object const>(global_config)) {
-      keys.emplace_back(items.first);
-    }
-    // Parameters in various xgboost components.
-    while (!stack.empty()) {
-      auto j_obj = stack.top();
-      stack.pop();
-      auto const& obj = get<Object const>(j_obj);
-
-      for (auto const& kv : obj) {
-        if (is_parameter(kv.first)) {
-          auto parameter = get<Object const>(kv.second);
-          std::transform(
-              parameter.begin(), parameter.end(), std::back_inserter(keys),
-              [](std::pair<std::string const&, Json const&> const& kv) { return kv.first; });
-        } else if (IsA<Object>(kv.second)) {
-          stack.push(kv.second);
-        } else if (IsA<Array>(kv.second)) {
-          auto const& array = get<Array const>(kv.second);
-          for (auto const& v : array) {
-            if (IsA<Object>(v) || IsA<Array>(v)) {
-              stack.push(v);
-            }
-          }
-        }
-      }
-    }
-
-    // FIXME(trivialfis): Make eval_metric a training parameter.
-    keys.emplace_back(kEvalMetric);
-    keys.emplace_back("num_output_group");
-
-    std::sort(keys.begin(), keys.end());
-
-    std::vector<std::string> provided;
-    for (auto const& kv : cfg_) {
+  void ValidateParameters(Args const& args, std::set<std::string> const& used) {
+    std::set<std::string> provided;
+    for (auto const& kv : args) {
       if (std::any_of(kv.first.cbegin(), kv.first.cend(),
                       [](char ch) { return std::isspace(ch); })) {
         LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
       }
-      provided.push_back(kv.first);
+      provided.insert(kv.first);
     }
-    std::sort(provided.begin(), provided.end());
 
     std::vector<std::string> diff;
-    std::set_difference(provided.begin(), provided.end(), keys.begin(), keys.end(),
+    std::set_difference(provided.begin(), provided.end(), used.begin(), used.end(),
                         std::back_inserter(diff));
-    if (diff.size() != 0) {
+    if (!diff.empty()) {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
@@ -825,7 +775,7 @@ class LearnerConfiguration : public Intercept {
         << "0 feature is supplied.  Are you using raw Booster interface?";
   }
 
-  void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
+  std::set<std::string> ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     tparam_.booster = CanonicalizeBoosterName(tparam_.booster);
     if (tparam_.booster == "gblinear") {
       LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
@@ -835,10 +785,10 @@ class LearnerConfiguration : public Intercept {
     if (gbm_ == nullptr || old_booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
-    gbm_->Configure(args);
+    return gbm_->Configure(args);
   }
 
-  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+  std::set<std::string> ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
     // Once binary IO is gone, NONE of these config is useful.
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
         tparam_.objective != "multi:softprob") {
@@ -864,13 +814,15 @@ class LearnerConfiguration : public Intercept {
     cfg_["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+    auto used = obj_->Configure(args);
     if (!has_nc) {
       cfg_.erase("num_class");
     }
+    return used;
   }
 
-  void ConfigureMetrics(Args const& args) {
+  std::set<std::string> ConfigureMetrics(Args const& args) {
+    std::set<std::string> used;
     for (auto const& name : metric_names_) {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
         return m->Name() != name;
@@ -881,8 +833,9 @@ class LearnerConfiguration : public Intercept {
     }
 
     for (auto& p_metric : metrics_) {
-      p_metric->Configure(args);
+      used.merge(p_metric->Configure(args));
     }
+    return used;
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {

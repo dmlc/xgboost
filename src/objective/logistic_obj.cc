@@ -36,7 +36,9 @@ enum class LogisticKind { kRegression, kClassification, kRaw };
 template <LogisticKind kKind>
 class LogisticObjective : public FitInterceptGlmLike {
  public:
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   [[nodiscard]] ObjInfo Task() const override {
     if constexpr (kKind == LogisticKind::kClassification) {
       return ObjInfo::kBinary;

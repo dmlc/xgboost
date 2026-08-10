@@ -30,7 +30,9 @@ auto const kRegisterSquaredErrorGradientCpu =
 
 class SquaredErrorRegression : public FitInterceptGlmLike {
  public:
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true}; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));

@@ -45,7 +45,7 @@ class QuantileHistMaker : public TreeUpdater {
   QuantileHistMaker(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx), task_{task} {
     updater_monitor_.Init("SYCLQuantileHistMaker");
   }
-  void Configure(const Args& args) override;
+  std::set<std::string> Configure(const Args& args) override;
 
   void Update(xgboost::tree::TrainParam const* param, GradientContainer* in_gpair, DMatrix* dmat,
               xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
