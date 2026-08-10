@@ -42,9 +42,13 @@ jobs:
         run: bash ops/pipeline/test-python-sdist.sh
 
   python-tests-on-macos:
-    name: Test XGBoost Python package on macos-15-intel
-    runs-on: macos-15-intel
+    name: Test XGBoost Python package on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-14]
     steps:
       - uses: actions/checkout@v7.0.1
         with:
