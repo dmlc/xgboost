@@ -153,19 +153,25 @@ void TestPoissonRegressionGPair(const Context* ctx) {
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {   1,     1,     1,    1,    1,     1,     1,    1},
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   { .14f,  .37f,     1, 2.71f,     1,      2,     3,     4});
+                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
   CheckObjFunction(obj,
                    {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {},  // Empty weight
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   { .14f,  .37f,     1, 2.71f,     1,      2,     3,     4});
+                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
   // clang-format on
 }
 
 void TestPoissonRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"count:poisson"};
+  legacy_config["poisson_regression_param"] = Object{};
+  legacy_config["poisson_regression_param"]["max_delta_step"] = String{"7E-1"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
 
   obj->Configure(args);
   auto config = CheckConfigReload(obj, "count:poisson");

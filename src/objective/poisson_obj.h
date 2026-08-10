@@ -6,7 +6,7 @@
 #ifndef XGBOOST_OBJECTIVE_POISSON_OBJ_H_
 #define XGBOOST_OBJECTIVE_POISSON_OBJ_H_
 
-#include <cmath>  // for expf, fmaxf, log
+#include <cmath>  // for expf, log
 
 #include "elementwise_objective.h"  // for elementwise kernels
 #include "regression_loss.h"        // for PoissonLabel
@@ -17,15 +17,14 @@ struct PoissonGradient {
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
     auto mu = expf(predt);
     auto grad = (mu - label) * weight;
-    // For one leaf, let M = sum(w_i * mu_i), Y = sum(w_i * y_i), and
-    // H = sum(w_i * max(mu_i, y_i)). For non-negative row weights,
-    // H >= max(M, Y), so the unregularized update d = (Y - M) / H obeys,
-    // for M, Y > 0:
-    //   Y >= M: 0 <= d <= 1 - M / Y <= log(Y / M)
-    //   Y <= M: log(Y / M) <= Y / M - 1 <= d <= 0.
-    // Thus 0 <= eta <= 1 moves toward the exact leaf optimum log(Y / M)
-    // without crossing it. L1/L2 regularization can only reduce |d|.
-    auto hess = fmaxf(mu, label) * weight;
+    // For one leaf, let M = sum(w_i * mu_i) and Y = sum(w_i * y_i). The score after
+    // adding leaf value d is f(d) = M * exp(d) - Y. At d = 0, f = M - Y and
+    // f' = f'' = M, so Halley's root update is
+    //   d = -2 * f * f' / (2 * f'^2 - f * f'') = 2 * (Y - M) / (Y + M).
+    // Using the positive pseudo-Hessian h_i = w_i * (mu_i + y_i) / 2 makes the
+    // unregularized leaf calculation -sum(g_i) / sum(h_i) produce this update. For M, Y > 0,
+    // it is also 2 * tanh(log(Y / M) / 2), so it moves toward the exact optimum without crossing.
+    auto hess = 0.5f * (mu + label) * weight;
     return {grad, hess};
   }
 };
