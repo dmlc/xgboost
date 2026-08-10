@@ -1813,7 +1813,10 @@ class Booster:
         else:
             params_processed["validate_parameters"] = True
 
-        prepared = self._prepare_parameters(params_processed or {})
+        if isinstance(params_processed, dict):
+            prepared = self._prepare_parameters(params_processed.items())
+        else:
+            prepared = self._prepare_parameters(params_processed)
         if cache or model_file is not None or params:
             self._set_params(prepared)
 
