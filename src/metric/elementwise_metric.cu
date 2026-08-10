@@ -170,7 +170,9 @@ class PseudoErrorLoss : public MetricNoCache {
 
  public:
   const char* Name() const override { return "mphe"; }
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
@@ -414,10 +416,11 @@ class QuantileError : public MetricNoCache {
   common::QuantileLossParam param_;
 
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     alpha_.HostVector() = param_.quantile_alpha.Get();
+    return used;
   }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
@@ -501,10 +504,11 @@ class ExpectileError : public MetricNoCache {
   common::ExpectileLossParam param_;
 
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     alpha_.HostVector() = param_.expectile_alpha.Get();
+    return used;
   }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {

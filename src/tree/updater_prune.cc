@@ -31,7 +31,7 @@ class TreePruner : public TreeUpdater {
   explicit TreePruner(Context const* ctx) : TreeUpdater(ctx) { pruner_monitor_.Init("TreePruner"); }
   [[nodiscard]] char const* Name() const override { return "prune"; }
   // set training parameter
-  void Configure(const Args&) override {}
+  std::set<std::string> Configure(const Args&) override { return {}; }
 
   void LoadConfig(Json const&) override {}
   void SaveConfig(Json*) const override {}

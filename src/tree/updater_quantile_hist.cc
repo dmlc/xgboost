@@ -580,7 +580,9 @@ class QuantileHistMaker : public TreeUpdater {
   explicit QuantileHistMaker(Context const *ctx, ObjInfo const *)
       : TreeUpdater{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()} {}
 
-  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const &args) override {
+    return UpdateAndGetUsedParameters(&hist_param_, args);
+  }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
