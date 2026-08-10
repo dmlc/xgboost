@@ -13,8 +13,21 @@
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for Matrix
+#include "xgboost/span.h"                // for Span
 
 namespace xgboost::obj {
+XGBOOST_DEVICE inline void SortQuantilePredictions(common::Span<float> predictions) {
+  for (std::size_t i{1}; i < predictions.size(); ++i) {
+    auto value = predictions[i];
+    auto pos = i;
+    while (pos > 0 && predictions[pos - 1] > value) {
+      predictions[pos] = predictions[pos - 1];
+      --pos;
+    }
+    predictions[pos] = value;
+  }
+}
+
 struct QuantileGradientKernel {
   using Signature = void(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
                          bst_target_t, HostDeviceVector<float> const&,
