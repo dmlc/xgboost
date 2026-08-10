@@ -118,7 +118,9 @@ auto const kRegisterMulticlassCenterCpu = elementwise::RegisterTransformCpu<Mult
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
   explicit SoftmaxMultiClassObj(bool output_prob) : output_prob_{output_prob} {}
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   ObjInfo Task() const override { return ObjInfo::kClassification; }
 
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
