@@ -215,7 +215,7 @@ TEST(GpuHist, MaxDepth) {
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
-  learner->SetParams({{"max_depth", "32"}});
+  learner->Configure({{"max_depth", "32"}});
   learner->Configure();
 
   ASSERT_THROW({ learner->UpdateOneIter(0, p_mat); }, dmlc::Error);

@@ -82,7 +82,7 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     } else {
       objfn->Configure(Args{});
     }
-    learner->SetParams(args);
+    learner->Configure(args);
     learner->UpdateOneIter(0, Xy);
     learner->EvalOneIter(0, {Xy}, {"train"});
     Json config{Object{}};

@@ -53,8 +53,8 @@ TEST(Categorical, MinimalSet) {
       RandomDataGenerator{kRows, kCols, 0.0}.Type(types).MaxCategory(kCat).GenerateDMatrix(true);
 
   std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  learner->SetParams({{"max_depth", "1"}});
-  learner->SetParams({{"tree_method", "hist"}});
+  learner->Configure({{"max_depth", "1"}});
+  learner->Configure({{"tree_method", "hist"}});
   learner->Configure();
   learner->UpdateOneIter(0, Xy);
 

@@ -1087,7 +1087,7 @@ XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config) {
     CHECK_EQ(pair.size(), 2) << "Each booster parameter must contain a name and value.";
     args.emplace_back(get<String const>(pair[0]), get<String const>(pair[1]));
   }
-  static_cast<Learner *>(handle)->SetParams(args);
+  static_cast<Learner *>(handle)->Configure(args);
   API_END();
 }
 
