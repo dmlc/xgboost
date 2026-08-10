@@ -19,6 +19,7 @@
 #include <xgboost/tree_model.h>          // for RegTree
 
 #include <functional>  // for function
+#include <set>         // for set
 #include <string>      // for string
 #include <vector>      // for vector
 

@@ -11,6 +11,9 @@
 #include <dmlc/parameter.h>
 #include <xgboost/base.h>
 
+#include <algorithm>
+#include <iterator>
+#include <set>
 #include <string>
 #include <type_traits>
 
@@ -102,17 +105,19 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
  */
 template <typename Container, typename Unknown>
 std::set<std::string> GetUsedParameters(Container const& args, Unknown const& unknown) {
+  std::set<std::string> supplied;
+  for (auto const& arg : args) {
+    supplied.insert(arg.first);
+  }
+
   std::set<std::string> unknown_keys;
   for (auto const& arg : unknown) {
     unknown_keys.insert(arg.first);
   }
 
   std::set<std::string> used;
-  for (auto const& arg : args) {
-    if (unknown_keys.find(arg.first) == unknown_keys.end()) {
-      used.insert(arg.first);
-    }
-  }
+  std::set_difference(supplied.cbegin(), supplied.cend(), unknown_keys.cbegin(),
+                      unknown_keys.cend(), std::inserter(used, used.end()));
   return used;
 }
 

@@ -10,6 +10,7 @@
 #include <xgboost/model.h>
 
 #include <functional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>

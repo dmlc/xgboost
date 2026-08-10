@@ -17,6 +17,7 @@
 
 #include <cstdint>  // for int32_t
 #include <functional>
+#include <set>
 #include <string>  // for string
 
 namespace xgboost {

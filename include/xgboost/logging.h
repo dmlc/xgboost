@@ -15,6 +15,7 @@
 #include <xgboost/parameter.h>
 
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <utility>

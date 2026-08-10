@@ -15,6 +15,7 @@
 
 #include <functional>
 #include <memory>  // shared_ptr
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>

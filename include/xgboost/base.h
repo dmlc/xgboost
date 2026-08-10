@@ -12,7 +12,6 @@
 
 #include <cstdint>  // for int32_t, uint64_t, int16_t
 #include <ostream>  // for ostream
-#include <set>      // for set
 #include <string>   // for string
 #include <utility>  // for pair
 #include <vector>   // for vector
