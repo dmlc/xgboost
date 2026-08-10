@@ -6,7 +6,8 @@
 #ifndef XGBOOST_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
 #define XGBOOST_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
 
-#include <cstddef>  // for size_t
+#include <algorithm>  // for all_of
+#include <cstddef>    // for size_t
 
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/linalg_op.h"         // for ElementWiseKernel
@@ -28,6 +29,11 @@ struct GradientKernel {
 template <typename TransformFn>
 struct TransformKernel {
   using Signature = void(Context const*, HostDeviceVector<float>*, TransformFn);
+};
+
+template <typename CheckFn>
+struct ValidationKernel {
+  using Signature = bool(Context const*, linalg::Matrix<float> const&, CheckFn);
 };
 
 namespace detail {
@@ -56,6 +62,12 @@ void TransformCpu(Context const* ctx, HostDeviceVector<float>* preds, TransformF
   common::ParallelFor(values.size(), ctx->Threads(),
                       [=](std::size_t i) { values[i] = transform(values[i]); });
 }
+
+template <typename CheckFn>
+bool ValidationCpu(Context const*, linalg::Matrix<float> const& values, CheckFn check) {
+  auto view = values.HostView();
+  return std::all_of(linalg::cbegin(view), linalg::cend(view), check);
+}
 }  // namespace detail
 
 template <typename GradientFn>
@@ -68,6 +80,12 @@ template <typename TransformFn>
 auto RegisterTransformCpu() {
   using Kernel = TransformKernel<TransformFn>;
   return common::KernelRegistration<Kernel>{DeviceOrd::kCPU, &detail::TransformCpu<TransformFn>};
+}
+
+template <typename CheckFn>
+auto RegisterValidationCpu() {
+  using Kernel = ValidationKernel<CheckFn>;
+  return common::KernelRegistration<Kernel>{DeviceOrd::kCPU, &detail::ValidationCpu<CheckFn>};
 }
 }  // namespace xgboost::obj::elementwise
 
