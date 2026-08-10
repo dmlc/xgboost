@@ -80,9 +80,49 @@ void AbsoluteErrorGradientCpu(Context const* ctx, HostDeviceVector<float> const&
       });
 }
 
+void AbsoluteErrorInitEstimationCpu(Context const* ctx, MetaInfo const& info,
+                                    bst_target_t n_targets, linalg::Vector<float>* base_score) {
+  double sum_weight = info.weights_.Empty() ? static_cast<double>(info.num_row_)
+                                            : common::Reduce(ctx, info.weights_);
+  collective::SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(&sum_weight, std::size_t{1})));
+  if (common::CloseTo(sum_weight, 0.0)) {
+    LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
+    *base_score = linalg::Zeros<float>(ctx, n_targets);
+    return;
+  }
+
+  linalg::Vector<float> mean;
+  if (info.weights_.Empty()) {
+    common::SampleMean(ctx, info.labels, &mean);
+  } else {
+    common::WeightedSampleMean(ctx, info.labels, info.weights_, &mean);
+  }
+  CHECK_EQ(mean.Size(), n_targets);
+
+  HostDeviceVector<float> predt(info.labels.Size(), 0.0f, DeviceOrd::CPU());
+  auto predt_h =
+      linalg::MakeTensorView(DeviceOrd::CPU(), predt.HostSpan(), info.num_row_, n_targets);
+  auto mean_h = mean.HostView();
+  linalg::cpu_impl::ElementWiseKernel(
+      predt_h, ctx->Threads(),
+      [=](std::size_t i, std::size_t target) mutable { predt_h(i, target) = mean_h(target); });
+
+  linalg::Matrix<GradientPair> gpair;
+  AbsoluteErrorGradientCpu(ctx, predt, info, n_targets, &gpair);
+  tree::FitStump(ctx, gpair, n_targets, base_score);
+
+  auto out = base_score->HostView();
+  for (bst_target_t target{0}; target < n_targets; ++target) {
+    out(target) += mean_h(target);
+  }
+}
+
 auto const kRegisterAbsoluteErrorGradientCpu =
     common::KernelRegistration<AbsoluteErrorGradientKernel>{DeviceOrd::kCPU,
                                                             &AbsoluteErrorGradientCpu};
+auto const kRegisterAbsoluteErrorInitEstimationCpu =
+    common::KernelRegistration<AbsoluteErrorInitEstimationKernel>{DeviceOrd::kCPU,
+                                                                  &AbsoluteErrorInitEstimationCpu};
 }  // namespace
 
 class MeanAbsoluteError : public ObjFunction {
@@ -103,45 +143,8 @@ class MeanAbsoluteError : public ObjFunction {
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     CheckInitInputs(info);
-    auto n_targets = this->Targets(info);
-    base_score->Reshape(n_targets);
-
-    double sum_weight = info.weights_.Empty() ? static_cast<double>(info.num_row_)
-                                              : common::Reduce(ctx_, info.weights_);
-    auto cpu_ctx = ctx_->MakeCPU();
-    collective::SafeColl(
-        collective::GlobalSum(&cpu_ctx, linalg::MakeVec(&sum_weight, std::size_t{1})));
-    if (common::CloseTo(sum_weight, 0.0)) {
-      LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
-      *base_score = linalg::Zeros<float>(ctx_, n_targets);
-      return;
-    }
-
-    linalg::Vector<float> mean;
-    if (info.weights_.Empty()) {
-      common::SampleMean(ctx_, info.labels, &mean);
-    } else {
-      common::WeightedSampleMean(ctx_, info.labels, info.weights_, &mean);
-    }
-    CHECK_EQ(mean.Size(), n_targets);
-
-    auto mean_h = mean.HostView();
-    HostDeviceVector<float> predt(info.labels.Size());
-    auto predt_h = predt.HostSpan();
-    for (std::size_t i{0}; i < info.num_row_; ++i) {
-      for (bst_target_t target{0}; target < n_targets; ++target) {
-        predt_h[i * n_targets + target] = mean_h(target);
-      }
-    }
-
-    linalg::Matrix<GradientPair> gpair;
-    common::DispatchKernel<AbsoluteErrorGradientKernel>(ctx_, predt, info, n_targets, &gpair);
-    tree::FitStump(ctx_, gpair, n_targets, base_score);
-
-    auto out = base_score->HostView();
-    for (bst_target_t target{0}; target < n_targets; ++target) {
-      out(target) += mean_h(target);
-    }
+    common::DispatchKernel<AbsoluteErrorInitEstimationKernel>(ctx_, info, this->Targets(info),
+                                                              base_score);
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mae"; }
