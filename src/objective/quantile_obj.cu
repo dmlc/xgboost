@@ -1,31 +1,26 @@
 /**
  * Copyright 2023-2026, XGBoost contributors
  */
-#include <cmath>    // std::abs, std::sqrt
-#include <cstddef>  // std::size_t
-#include <cstdint>  // std::int32_t
-#include <vector>   // std::vector
+#include <algorithm>  // std::max
+#include <cmath>      // std::abs, std::sqrt
+#include <cstddef>    // std::size_t
+#include <cstdint>    // std::int32_t
+#include <vector>     // std::vector
 
 #include "../collective/aggregator.h"
-#include "../collective/communicator-inl.h"
-#include "../common/linalg_op.h"            // ElementWiseKernel,cbegin,cend
+#include "../common/linalg_op.h"            // ElementWiseKernel
 #include "../common/math.h"                 // CloseTo
 #include "../common/numeric.h"              // Reduce
 #include "../common/optional_weight.h"      // MakeOptionalWeights,SumOptionalWeights
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
-#include "../common/stats.h"                // Quantile,WeightedQuantile
 #include "../common/transform.h"            // Transform
-#include "init_estimation.h"                // CheckInitInputs
+#include "init_estimation.h"                // CheckInitInputs,FitIntercept
 #include "xgboost/base.h"                   // GradientPair,XGBOOST_DEVICE,bst_target_t
 #include "xgboost/data.h"                   // MetaInfo
 #include "xgboost/host_device_vector.h"     // HostDeviceVector
 #include "xgboost/json.h"                   // Json,String,ToJson,FromJson
 #include "xgboost/linalg.h"                 // Tensor,MakeTensorView,MakeVec
 #include "xgboost/objective.h"              // ObjFunction
-
-#if defined(XGBOOST_USE_CUDA)
-#include "../common/stats.cuh"  // SegmentedQuantile
-#endif                          // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::obj {
 namespace {
@@ -73,7 +68,7 @@ constexpr float kMinSurrogateRatio{3.0e-4f};
  * Logistic smoothing of quantile loss: https://doi.org/10.1016/j.jeconom.2021.07.010.
  * Quadratic majorization of log-cosh: https://doi.org/10.1016/j.csda.2009.01.002.
  */
-class QuantileRegression : public ObjFunction {
+class QuantileRegression : public FitIntercept {
   common::QuantileLossParam param_;
   HostDeviceVector<float> alpha_;
 
@@ -197,72 +192,6 @@ class QuantileRegression : public ObjFunction {
         .Eval(io_preds);
   }
 
-  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    CHECK(!alpha_.Empty());
-
-    auto n_targets = this->Targets(info);
-    base_score->SetDevice(ctx_->Device());
-    base_score->Reshape(n_targets);
-
-    if (ctx_->IsCUDA()) {
-#if defined(XGBOOST_USE_CUDA)
-      alpha_.SetDevice(ctx_->Device());
-      auto d_alpha = alpha_.ConstDeviceSpan();
-      auto d_labels = info.labels.View(ctx_->Device());
-      auto seg_it = dh::MakeTransformIterator<std::size_t>(
-          thrust::make_counting_iterator(0ul),
-          [=] XGBOOST_DEVICE(std::size_t i) { return i * d_labels.Shape(0); });
-      CHECK_EQ(d_labels.Shape(1), 1);
-      auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                     [=] XGBOOST_DEVICE(std::size_t i) {
-                                                       auto sample_idx = i % d_labels.Shape(0);
-                                                       return d_labels(sample_idx, 0);
-                                                     });
-      auto n = d_labels.Size() * d_alpha.size();
-      CHECK_EQ(base_score->Size(), d_alpha.size());
-      if (info.weights_.Empty()) {
-        common::SegmentedQuantile(ctx_, d_alpha.data(), seg_it, seg_it + d_alpha.size() + 1, val_it,
-                                  val_it + n, base_score->Data());
-      } else {
-        info.weights_.SetDevice(ctx_->Device());
-        auto d_weights = info.weights_.ConstDeviceSpan();
-        auto weight_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                          [=] XGBOOST_DEVICE(std::size_t i) {
-                                                            auto sample_idx = i % d_labels.Shape(0);
-                                                            return d_weights[sample_idx];
-                                                          });
-        common::SegmentedWeightedQuantile(ctx_, d_alpha.data(), seg_it, seg_it + d_alpha.size() + 1,
-                                          val_it, val_it + n, weight_it, weight_it + n,
-                                          base_score->Data());
-      }
-#else
-      common::AssertGPUSupport();
-#endif  // defined(XGBOOST_USE_CUDA)
-    } else {
-      auto quantiles = base_score->HostView();
-      auto h_weights = info.weights_.ConstHostVector();
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        auto alpha = param_.quantile_alpha[t];
-        auto h_labels = info.labels.HostView();
-        if (h_weights.empty()) {
-          quantiles(t) =
-              common::Quantile(ctx_, alpha, linalg::cbegin(h_labels), linalg::cend(h_labels));
-        } else {
-          CHECK_EQ(h_weights.size(), h_labels.Size());
-          quantiles(t) = common::WeightedQuantile(ctx_, alpha, linalg::cbegin(h_labels),
-                                                  linalg::cend(h_labels), std::cbegin(h_weights));
-        }
-      }
-    }
-
-    // Global mean. There's no strong preference on whether weighted mean should be used
-    // with weighted quantiles. The proper way to do this might be using an approximated
-    // quantile algorithm with stream inputs, but it's also much more expensive.
-    auto intercept = base_score->View(this->ctx_->Device());
-    collective::SafeColl(collective::GlobalSum(ctx_, intercept));
-    double n_workers = collective::GetWorldSize();
-    linalg::VecScaDiv(ctx_, intercept, n_workers);
-  }
   void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
