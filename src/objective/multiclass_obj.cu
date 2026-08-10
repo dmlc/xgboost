@@ -10,10 +10,13 @@
 #include <cstddef>  // for size_t
 #include <limits>   // for numeric_limits
 
+#include "../collective/aggregator.h"    // for GlobalSum
 #include "../common/device_helpers.cuh"  // for LaunchN
 #include "../common/kernel.h"            // for KernelRegistration
+#include "../common/linalg_op.cuh"       // for SmallHistogram, vector operations
 #include "../common/math.h"              // for FindMaxIndex, Softmax
 #include "../common/optional_weight.h"   // for MakeOptionalWeights
+#include "../common/stats.h"             // for Mean
 #include "../common/transform.h"         // for Transform
 #include "elementwise_objective.cuh"     // for CUDA elementwise kernels
 #include "multiclass_obj.h"
@@ -84,8 +87,32 @@ void MulticlassTransformCuda(Context const* ctx, HostDeviceVector<float>* predic
   }
 }
 
+void MulticlassInitEstimationCuda(Context const* ctx, MetaInfo const& info, std::int64_t n_classes,
+                                  linalg::Vector<float>* base_score) {
+  auto device = ctx->Device();
+  CHECK(device.IsCUDA());
+  *base_score = linalg::Zeros<float>(ctx, n_classes);
+  auto labels = info.labels.View(device);
+  auto weights = common::MakeOptionalWeights(device, info.weights_);
+  auto intercept = base_score->View(device);
+  linalg::SmallHistogram(ctx, labels, weights, intercept);
+  auto sum_weight = common::SumOptionalWeights(ctx, weights, info.labels.Size());
+  collective::SafeColl(collective::GlobalSum(ctx, intercept, &sum_weight));
+  CHECK_GE(sum_weight, kRtEps);
+  linalg::VecScaDiv(ctx, intercept, sum_weight);
+  linalg::LogE(ctx, intercept, kRtEps);
+  linalg::Vector<float> mean;
+  common::Mean(ctx, intercept, &mean);
+  auto mean_d = mean.View(device);
+  dh::LaunchN(intercept.Size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) mutable { intercept(i) -= mean_d(0); });
+}
+
 auto const kRegisterMulticlassGradientCuda =
     common::KernelRegistration<MulticlassGradientKernel>{DeviceOrd::kCUDA, &MulticlassGradientCuda};
+auto const kRegisterMulticlassInitEstimationCuda =
+    common::KernelRegistration<MulticlassInitEstimationKernel>{DeviceOrd::kCUDA,
+                                                               &MulticlassInitEstimationCuda};
 auto const kRegisterMulticlassTransformCuda = common::KernelRegistration<MulticlassTransformKernel>{
     DeviceOrd::kCUDA, &MulticlassTransformCuda};
 auto const kRegisterMulticlassValidationCuda =

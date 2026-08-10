@@ -34,6 +34,10 @@ struct MulticlassGradientKernel {
                          std::int64_t, linalg::Matrix<GradientPair>*);
 };
 
+struct MulticlassInitEstimationKernel {
+  using Signature = void(Context const*, MetaInfo const&, std::int64_t, linalg::Vector<float>*);
+};
+
 struct MulticlassTransformKernel {
   using Signature = void(Context const*, HostDeviceVector<float>*, std::int32_t, bool);
 };

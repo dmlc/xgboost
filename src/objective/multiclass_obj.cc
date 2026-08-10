@@ -17,6 +17,7 @@
 
 #include "../collective/aggregator.h"   // for GlobalSum
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
+#include "../common/linalg_op.h"        // for SmallHistogram, vector operations
 #include "../common/math.h"             // for FindMaxIndex, Softmax
 #include "../common/optional_weight.h"  // for OptionalWeights
 #include "../common/stats.h"            // for Mean
@@ -84,8 +85,29 @@ void MulticlassTransformCpu(Context const* ctx, HostDeviceVector<float>* predict
   }
 }
 
+void MulticlassInitEstimationCpu(Context const* ctx, MetaInfo const& info, std::int64_t n_classes,
+                                 linalg::Vector<float>* base_score) {
+  *base_score = linalg::Zeros<float>(ctx, n_classes);
+  auto labels = info.labels.HostView();
+  common::OptionalWeights weights{info.weights_.ConstHostSpan()};
+  auto intercept = base_score->HostView();
+  linalg::SmallHistogram(ctx, labels, weights, intercept);
+  auto sum_weight = common::SumOptionalWeights(ctx, weights, info.labels.Size());
+  collective::SafeColl(collective::GlobalSum(ctx, intercept, &sum_weight));
+  CHECK_GE(sum_weight, kRtEps);
+  linalg::VecScaDiv(ctx, intercept, sum_weight);
+  linalg::LogE(ctx, intercept, kRtEps);
+  linalg::Vector<float> mean;
+  common::Mean(ctx, intercept, &mean);
+  common::DispatchKernel<MulticlassCenterKernel>(ctx, base_score->Data(),
+                                                 MulticlassCenter{mean.HostView()(0)});
+}
+
 auto const kRegisterMulticlassGradientCpu =
     common::KernelRegistration<MulticlassGradientKernel>{DeviceOrd::kCPU, &MulticlassGradientCpu};
+auto const kRegisterMulticlassInitEstimationCpu =
+    common::KernelRegistration<MulticlassInitEstimationKernel>{DeviceOrd::kCPU,
+                                                               &MulticlassInitEstimationCpu};
 auto const kRegisterMulticlassTransformCpu =
     common::KernelRegistration<MulticlassTransformKernel>{DeviceOrd::kCPU, &MulticlassTransformCpu};
 auto const kRegisterMulticlassValidationCpu =
@@ -153,21 +175,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     CHECK(valid)
         << "SoftmaxMultiClassObj: label must be discrete values in the range of [0, num_class).";
 
-    *base_score = linalg::Zeros<float>(ctx_, n_classes);
-    auto labels = info.labels.View(ctx_->Device());
-    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    auto intercept = base_score->View(ctx_->Device());
-    linalg::SmallHistogram(ctx_, labels, weights, intercept);
-    auto sum_weight = common::SumOptionalWeights(ctx_, weights, info.labels.Size());
-    collective::SafeColl(collective::GlobalSum(ctx_, intercept, &sum_weight));
-    CHECK_GE(sum_weight, kRtEps);
-    linalg::VecScaDiv(ctx_, intercept, sum_weight);
-    linalg::LogE(ctx_, intercept, kRtEps);
-    linalg::Vector<float> mean;
-    common::Mean(ctx_, intercept, &mean);
-    auto mean_h = mean.HostView();
-    common::DispatchKernel<MulticlassCenterKernel>(ctx_, base_score->Data(),
-                                                   MulticlassCenter{mean_h(0)});
+    common::DispatchKernel<MulticlassInitEstimationKernel>(ctx_, info, n_classes, base_score);
   }
 
  private:
