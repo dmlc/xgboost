@@ -169,8 +169,6 @@ class FoldTreeMethod {
   std::vector<linalg::Matrix<GradientPairInt64>> quantized_gpairs_;
   std::vector<std::unique_ptr<tree::cuda_impl::MultiHistEvaluator>> evaluators_;
   std::vector<tree::RowPartitionerBatches> partitioners_;
-  // Scratch buffer for the leaf position of each row, reused by every fold.
-  dh::DeviceUVector<bst_node_t> positions_;
 
   // Fusion guard. The number of passes over the Ellpack pages must not depend on the number
   // of folds. Both are reset at the top of Update.
@@ -483,9 +481,12 @@ class FoldTreeMethod {
                              std::vector<RegTree*> const& trees) {
     auto k_folds = trees.size();
     auto n_samples = finfo.n_samples;
+
     // A single scratch buffer is enough, a fold is finished before the next one starts.
-    this->positions_.resize(n_samples);
-    auto d_pos = dh::ToSpan(this->positions_);
+    // Scratch buffer for the leaf position of each row, reused by every fold.
+    dh::DeviceUVector<bst_node_t> positions;
+    positions.resize(n_samples);
+    auto d_pos = dh::ToSpan(positions);
 
     for (std::size_t k = 0; k < k_folds; ++k) {
       auto& predt = predts->Training(k);
@@ -500,8 +501,10 @@ class FoldTreeMethod {
       for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
         auto base_ridx = this->batch_ptr_[i];
         auto n_batch_samples = this->batch_ptr_.at(i + 1) - base_ridx;
-        // A partitioner with more nodes than the tree would return an internal node below,
-        // whose `LeafValue` reads past the leaf weights.
+        // The partitioner and the tree must have grown in lockstep. With fewer nodes than
+        // the tree, the partitioner returns a node the tree has since split, reading the
+        // wrong leaf or past the weights. With more, it returns a node the tree does not
+        // have.
         CHECK_EQ(this->partitioners_[k].At(i)->GetNumNodes(), trees[k]->NumNodes());
         this->partitioners_[k].At(i)->FinalisePosition(
             ctx_, d_pos.subspan(base_ridx, n_batch_samples), base_ridx,
