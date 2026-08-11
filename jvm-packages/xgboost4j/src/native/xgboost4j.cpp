@@ -670,6 +670,27 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParam(
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterSetParams
+ * Signature: (JLjava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParams(JNIEnv *jenv,
+                                                                                 jclass jcls,
+                                                                                 jlong jhandle,
+                                                                                 jstring jconfig) {
+  auto handle = reinterpret_cast<BoosterHandle>(jhandle);
+  std::unique_ptr<char const, Deleter<char const>> config{
+      jenv->GetStringUTFChars(jconfig, nullptr), [&](char const *ptr) {
+        if (ptr) {
+          jenv->ReleaseStringUTFChars(jconfig, ptr);
+        }
+      }};
+  int ret = XGBoosterSetParams(handle, config.get());
+  JVM_CHECK_CALL(ret);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterUpdateOneIter
  * Signature: (JIJ)V
  */

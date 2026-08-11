@@ -190,10 +190,11 @@ class QuantileRegression : public FitIntercept {
     common::DispatchKernel<QuantileTransformKernel>(ctx_, predictions, alpha_.Size());
   }
 
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     this->alpha_.HostVector() = param_.quantile_alpha.Get();
+    return used;
   }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
   static char const* Name() { return "reg:quantileerror"; }

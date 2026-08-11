@@ -25,12 +25,12 @@ DMLC_REGISTRY_FILE_TAG(updater_quantile_hist_sycl);
 
 DMLC_REGISTER_PARAMETER(HistMakerTrainParam);
 
-void QuantileHistMaker::Configure(const Args &args) {
+std::set<std::string> QuantileHistMaker::Configure(const Args &args) {
   const DeviceOrd device_spec = ctx_->Device();
   qu_ = device_manager.GetQueue(device_spec);
 
-  param_.UpdateAllowUnknown(args);
-  hist_maker_param_.UpdateAllowUnknown(args);
+  auto used = UpdateAndGetUsedParameters(&param_, args);
+  used.merge(UpdateAndGetUsedParameters(&hist_maker_param_, args));
 
   bool has_fp64_support = qu_->get_device().has(::sycl::aspect::fp64);
   if (hist_maker_param_.single_precision_histogram || !has_fp64_support) {
@@ -41,6 +41,7 @@ void QuantileHistMaker::Configure(const Args &args) {
   } else {
     hist_precision_ = HistPrecision::fp64;
   }
+  return used;
 }
 
 template <typename GradientSumT>

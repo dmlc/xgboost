@@ -23,7 +23,6 @@
 #include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
 #include <mutex>          // for mutex, lock_guard
 #include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <stack>          // for stack
 #include <string>         // for basic_string, char_traits, operator<, string
 #include <system_error>   // for errc
 #include <unordered_map>  // for operator!=, unordered_map
@@ -493,7 +492,6 @@ class LearnerConfiguration : public Intercept {
 
  protected:
   std::atomic<bool> need_configuration_;
-  std::map<std::string, std::string> cfg_;
   // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
   // Name of each feature, usually set from DMatrix.
@@ -519,29 +517,48 @@ class LearnerConfiguration : public Intercept {
     }
   }
 
-  // Configuration before data is known.
-  void Configure() override {
+  void Configure(Args const& args = {}) override {
+    bool has_args = !args.empty();
+    if (has_args) {
+      this->need_configuration_ = true;
+    }
+
     // Varient of double checked lock
-    if (!this->need_configuration_) {
+    if (!has_args && !this->need_configuration_) {
       return;
     }
     std::lock_guard<std::mutex> guard(config_lock_);
-    if (!this->need_configuration_) {
+    if (!has_args && !this->need_configuration_) {
       return;
     }
 
     monitor_.Start("Configure");
     auto old_tparam = tparam_;
-    Args args = {cfg_.cbegin(), cfg_.cend()};
+    std::map<std::string, std::string> config;
+    std::set<std::string> used;
 
-    tparam_.UpdateAllowUnknown(args);
-    mparam_.UpdateAllowUnknown(args);
+    for (auto const& [key, value] : args) {
+      if (key == kEvalMetric) {
+        used.insert(kEvalMetric);
+        if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) ==
+            metric_names_.cend()) {
+          metric_names_.emplace_back(value);
+        }
+      } else {
+        config[key] = value;
+      }
+    }
+
+    Args config_args{config.cbegin(), config.cend()};
+
+    used.merge(UpdateAndGetUsedParameters(&tparam_, config_args));
+    used.merge(UpdateAndGetUsedParameters(&mparam_, config_args));
 
     auto initialized = ctx_.GetInitialised();
     auto old_seed = ctx_.seed;
-    ctx_.UpdateAllowUnknown(args);
+    used.merge(UpdateAndGetUsedParameters(&ctx_, config_args));
 
-    ConsoleLogger::Configure(args);
+    used.merge(ConsoleLogger::Configure(config_args));
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
@@ -550,26 +567,25 @@ class LearnerConfiguration : public Intercept {
 
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args);
+    used.merge(this->ConfigureObjective(old_tparam, &config, &config_args));
 
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
-    this->ConfigureGBM(old_tparam, args);
+    used.merge(this->ConfigureGBM(old_tparam, config_args));
 
     this->InitModelUserParam(this->tparam_, this->cache_data_);
 
-    this->ConfigureMetrics(args);
+    used.merge(this->ConfigureMetrics(config_args));
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
-      this->ValidateParameters();
+      this->ValidateParameters(args, used);
     }
 
-    cfg_.clear();
     monitor_.Stop("Configure");
   }
 
-  void LoadConfig(Json const& in) override {
+ protected:
+  void LoadConfigImpl(Json const& in) {
     // If configuration is loaded, ensure that the model came from the same version
     CHECK(IsA<Object>(in));
     auto origin_version = Version::Load(in);
@@ -624,6 +640,12 @@ class LearnerConfiguration : public Intercept {
     this->need_configuration_ = true;
   }
 
+ public:
+  void LoadConfig(Json const& in) override {
+    this->LoadConfigImpl(in);
+    this->Configure();
+  }
+
   void SaveConfig(Json* p_out) const override {
     CHECK(!this->need_configuration_) << "Call Configure before saving model.";
     Version::Save(p_out);
@@ -650,23 +672,6 @@ class LearnerConfiguration : public Intercept {
     learner_parameters["metrics"] = Array(std::move(metrics));
 
     learner_parameters["generic_param"] = ctx_.ToJson();
-  }
-
-  void SetParam(const std::string& key, const std::string& value) override {
-    this->need_configuration_ = true;
-    if (key == kEvalMetric) {
-      if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) == metric_names_.cend()) {
-        metric_names_.emplace_back(value);
-      }
-    } else {
-      cfg_[key] = value;
-    }
-  }
-  // Short hand for setting multiple parameters
-  void SetParams(std::vector<std::pair<std::string, std::string>> const& args) override {
-    for (auto const& kv : args) {
-      this->SetParam(kv.first, kv.second);
-    }
   }
 
   uint32_t GetNumFeature() const override { return learner_model_param_.num_feature; }
@@ -714,77 +719,23 @@ class LearnerConfiguration : public Intercept {
     return out;
   }
 
-  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
-    return cfg_;
-  }
-
   Context const* Ctx() const override { return &ctx_; }
 
  private:
-  void ValidateParameters() {
-    Json config{Object()};
-    this->SaveConfig(&config);
-    std::stack<Json> stack;
-    stack.push(config);
-    std::string const postfix{"_param"};
-
-    auto is_parameter = [&postfix](std::string const& key) {
-      return key.size() > postfix.size() &&
-             std::equal(postfix.rbegin(), postfix.rend(), key.rbegin());
-    };
-
-    // Extract all parameters
-    std::vector<std::string> keys;
-    // First global parameters
-    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
-    for (auto const& items : get<Object const>(global_config)) {
-      keys.emplace_back(items.first);
-    }
-    // Parameters in various xgboost components.
-    while (!stack.empty()) {
-      auto j_obj = stack.top();
-      stack.pop();
-      auto const& obj = get<Object const>(j_obj);
-
-      for (auto const& kv : obj) {
-        if (is_parameter(kv.first)) {
-          auto parameter = get<Object const>(kv.second);
-          std::transform(
-              parameter.begin(), parameter.end(), std::back_inserter(keys),
-              [](std::pair<std::string const&, Json const&> const& kv) { return kv.first; });
-        } else if (IsA<Object>(kv.second)) {
-          stack.push(kv.second);
-        } else if (IsA<Array>(kv.second)) {
-          auto const& array = get<Array const>(kv.second);
-          for (auto const& v : array) {
-            if (IsA<Object>(v) || IsA<Array>(v)) {
-              stack.push(v);
-            }
-          }
-        }
-      }
-    }
-
-    // FIXME(trivialfis): Make eval_metric a training parameter.
-    keys.emplace_back(kEvalMetric);
-    keys.emplace_back("num_output_group");
-
-    std::sort(keys.begin(), keys.end());
-
-    std::vector<std::string> provided;
-    for (auto const& kv : cfg_) {
+  void ValidateParameters(Args const& args, std::set<std::string> const& used) {
+    std::set<std::string> provided;
+    for (auto const& kv : args) {
       if (std::any_of(kv.first.cbegin(), kv.first.cend(),
                       [](char ch) { return std::isspace(ch); })) {
         LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
       }
-      provided.push_back(kv.first);
+      provided.insert(kv.first);
     }
-    std::sort(provided.begin(), provided.end());
 
     std::vector<std::string> diff;
-    std::set_difference(provided.begin(), provided.end(), keys.begin(), keys.end(),
+    std::set_difference(provided.begin(), provided.end(), used.begin(), used.end(),
                         std::back_inserter(diff));
-    if (diff.size() != 0) {
+    if (!diff.empty()) {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
@@ -825,7 +776,7 @@ class LearnerConfiguration : public Intercept {
         << "0 feature is supplied.  Are you using raw Booster interface?";
   }
 
-  void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
+  std::set<std::string> ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     tparam_.booster = CanonicalizeBoosterName(tparam_.booster);
     if (tparam_.booster == "gblinear") {
       LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
@@ -835,42 +786,47 @@ class LearnerConfiguration : public Intercept {
     if (gbm_ == nullptr || old_booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
-    gbm_->Configure(args);
+    return gbm_->Configure(args);
   }
 
-  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+  std::set<std::string> ConfigureObjective(LearnerTrainParam const& old,
+                                           std::map<std::string, std::string>* p_config,
+                                           Args* p_args) {
+    auto& config = *p_config;
     // Once binary IO is gone, NONE of these config is useful.
-    if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
+    if (config.find("num_class") != config.cend() && config.at("num_class") != "0" &&
         tparam_.objective != "multi:softprob") {
-      cfg_["num_output_group"] = cfg_["num_class"];
-      if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
+      config["num_output_group"] = config["num_class"];
+      if (atoi(config["num_class"].c_str()) > 1 && config.count("objective") == 0) {
         tparam_.objective = "multi:softmax";
       }
     }
 
-    if (cfg_.find("max_delta_step") == cfg_.cend() && cfg_.find("objective") != cfg_.cend() &&
-        tparam_.objective == "count:poisson") {
+    if (config.find("max_delta_step") == config.cend() &&
+        config.find("objective") != config.cend() && tparam_.objective == "count:poisson") {
       // max_delta_step is a duplicated parameter in Poisson regression and tree param.
       // Rename one of them once binary IO is gone.
-      cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
+      config["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
 
-    bool has_nc{cfg_.find("num_class") != cfg_.cend()};
+    bool has_nc{config.find("num_class") != config.cend()};
     // Inject num_class into configuration.
     // FIXME(jiamingy): Remove the duplicated parameter in softmax
-    cfg_["num_class"] = std::to_string(mparam_.num_class);
+    config["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+    args = {config.cbegin(), config.cend()};
+    auto used = obj_->Configure(args);
     if (!has_nc) {
-      cfg_.erase("num_class");
+      config.erase("num_class");
     }
+    return used;
   }
 
-  void ConfigureMetrics(Args const& args) {
+  std::set<std::string> ConfigureMetrics(Args const& args) {
+    std::set<std::string> used;
     for (auto const& name : metric_names_) {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
         return m->Name() != name;
@@ -881,8 +837,9 @@ class LearnerConfiguration : public Intercept {
     }
 
     for (auto& p_metric : metrics_) {
-      p_metric->Configure(args);
+      used.merge(p_metric->Configure(args));
     }
+    return used;
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
@@ -901,7 +858,8 @@ class LearnerIO : public LearnerConfiguration {
  public:
   explicit LearnerIO(std::vector<std::shared_ptr<DMatrix>> cache) : LearnerConfiguration{cache} {}
 
-  void LoadModel(Json const& in) override {
+ protected:
+  void LoadModelImpl(Json const& in) {
     CHECK(IsA<Object>(in));
     auto version = Version::Load(in);
     if (std::get<0>(version) == 1 && std::get<1>(version) < 6) {
@@ -951,6 +909,12 @@ class LearnerIO : public LearnerConfiguration {
 
     this->need_configuration_ = true;
     this->ClearCaches();
+  }
+
+ public:
+  void LoadModel(Json const& in) override {
+    this->LoadModelImpl(in);
+    this->Configure();
   }
 
   void SaveModel(Json* p_out) const override {
@@ -1024,8 +988,9 @@ class LearnerIO : public LearnerConfiguration {
       LOG(FATAL) << "Invalid serialization file.";
     }
 
-    this->LoadModel(memory_snapshot["Model"]);
-    this->LoadConfig(memory_snapshot["Config"]);
+    this->LoadModelImpl(memory_snapshot["Model"]);
+    this->LoadConfigImpl(memory_snapshot["Config"]);
+    this->Configure();
   }
 };
 
@@ -1176,7 +1141,7 @@ class LearnerImpl : public LearnerIO {
       if (!IsA<Null>(config)) {
         metrics_.back()->LoadConfig(config);
       }
-      metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
+      metrics_.back()->Configure({});
     }
 
     for (size_t i = 0; i < data_sets.size(); ++i) {
@@ -1271,10 +1236,6 @@ class LearnerImpl : public LearnerIO {
     this->CheckModelInitialized();
 
     gbm_->FeatureScore(importance_type, trees, features, scores);
-  }
-
-  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
-    return cfg_;
   }
 
  protected:
