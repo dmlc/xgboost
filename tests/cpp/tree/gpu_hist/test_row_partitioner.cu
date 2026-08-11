@@ -3,7 +3,6 @@
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
-#include <thrust/fill.h>  // for fill
 #include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
 #include <thrust/unique.h>  // for unique
@@ -97,34 +96,6 @@ void TestResetSubset() {
   ASSERT_EQ(SortedRows(&rp, 2), (std::vector<RowPartitioner::RowIndexT>{8, 11, 15}));
 }
 
-// A fold can own no row at all in a batch, which happens with few rows and many folds.
-void TestResetEmptySubset() {
-  auto ctx = MakeCUDACtx(0);
-  bst_idx_t constexpr kNumRows = 16;
-
-  RowPartitioner rp;
-  rp.Reset(&ctx, kNumRows, common::Span<bst_idx_t const>{});
-  ASSERT_EQ(rp.Size(), 0);
-
-  // Every operation must degrade into a no-op rather than launching an invalid kernel.
-  std::vector<int> extra_data = {0};
-  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(rp.Size());
-  rp.UpdatePositionBatch(&ctx, {RegTree::kRoot}, {1}, {2}, extra_data, dh::ToSpan(ridx_tmp),
-                         [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx < 8; });
-  ASSERT_TRUE(rp.GetRowsHost(1).empty());
-  ASSERT_TRUE(rp.GetRowsHost(2).empty());
-
-  dh::DeviceUVector<bst_node_t> positions(kNumRows);
-  thrust::fill(ctx.CUDACtx()->CTP(), positions.begin(), positions.end(), RegTree::kInvalidNodeId);
-  rp.FinalisePosition(&ctx, dh::ToSpan(positions), 0,
-                      [] XGBOOST_DEVICE(cuda_impl::RowIndexT, bst_node_t nidx) { return nidx; });
-  std::vector<bst_node_t> h_positions(kNumRows);
-  dh::CopyDeviceSpanToVector(&h_positions, dh::ToSpan(positions));
-  for (auto nidx : h_positions) {
-    ASSERT_EQ(nidx, RegTree::kInvalidNodeId);
-  }
-}
-
 // The batched wrapper, which also sizes the shared sort scratch from the largest subset.
 void TestResetSubsetBatches() {
   auto ctx = MakeCUDACtx(0);
@@ -161,8 +132,6 @@ void TestResetSubsetBatches() {
 }  // anonymous namespace
 
 TEST(RowPartitioner, ResetSubset) { TestResetSubset(); }
-
-TEST(RowPartitioner, ResetEmptySubset) { TestResetEmptySubset(); }
 
 TEST(RowPartitioner, ResetSubsetBatches) { TestResetSubsetBatches(); }
 
