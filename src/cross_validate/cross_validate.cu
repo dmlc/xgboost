@@ -410,20 +410,14 @@ class FoldTreeMethod {
     return entries;
   }
 
-  // Push the rows of every fold through the splits that were just applied. Fused: a single
-  // sweep over the pages serves all folds.
-  // Whether the pages of the partition pass are worth copying to the device. Mirrors
-  // `GPUHistMakerDevice::NeedCopy`, except that the rows are counted across the folds too: the
-  // pass reads every page once per active fold, so the copy amortizes that many times better
-  // here than it does for a single model.
-  [[nodiscard]] bool NeedCopy(std::vector<std::size_t> const& active,
+  [[nodiscard]] bool NeedCopy(std::vector<std::size_t> const& active_folds,
                               std::vector<PartitionNodes> const& nodes) const {
     if (this->p_fmat_->SingleColBlock()) {
       return true;  // Use the default for in-core data.
     }
     bst_idx_t n_visits = 0;
-    for (std::size_t i = 0; i < active.size(); ++i) {
-      for (auto const& part : this->partitioners_[active[i]]) {
+    for (std::size_t i = 0; i < active_folds.size(); ++i) {
+      for (auto const& part : this->partitioners_[active_folds[i]]) {
         for (auto nidx : nodes[i].nidx) {
           n_visits += part->GetRows(nidx).size();
         }
@@ -437,26 +431,26 @@ class FoldTreeMethod {
                              std::vector<RegTree*> const& trees) {
     // A fold whose split had no gain has nothing to partition. Skipping it here also
     // skips the tree view, whose construction copies the tree to the device.
-    std::vector<std::size_t> active;
+    std::vector<std::size_t> active_folds;
     std::vector<PartitionNodes> nodes;
     std::vector<tree::MultiTargetTreeView> views;
     for (std::size_t k = 0, k_folds = trees.size(); k < k_folds; ++k) {
       if (expand_sets[k].empty()) {
         continue;
       }
-      active.push_back(k);
+      active_folds.push_back(k);
       nodes.emplace_back(HistMaker::CreatePartitionNodes(trees[k], expand_sets[k]));
       views.emplace_back(ctx_->Device(), false, trees[k]);
     }
 
     std::int32_t batch_idx = 0;
     for (auto const& page :
-         p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(this->NeedCopy(active, nodes)))) {
+         p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(this->NeedCopy(active_folds, nodes)))) {
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_acc) {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
-        for (std::size_t i = 0; i < active.size(); ++i) {
+        for (std::size_t i = 0; i < active_folds.size(); ++i) {
           auto go_left = GoLeftOp<Acc>{d_acc, views[i]};
-          this->partitioners_[active[i]].UpdatePositionBatch(
+          this->partitioners_[active_folds[i]].UpdatePositionBatch(
               ctx_, batch_idx, nodes[i].nidx, nodes[i].left_nidx, nodes[i].right_nidx,
               nodes[i].split_data, tree::cuda_impl::GoLeftWrapperOp<GoLeftOp<Acc>>{go_left});
 
