@@ -250,7 +250,9 @@ class LambdaRankObj : public FitIntercept {
   }
 
  public:
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());

@@ -61,7 +61,9 @@ class ColMaker : public TreeUpdater {
  public:
   explicit ColMaker(Context const *ctx)
       : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()} {}
-  void Configure(const Args &args) override { colmaker_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args &args) override {
+    return UpdateAndGetUsedParameters(&colmaker_param_, args);
+  }
 
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);

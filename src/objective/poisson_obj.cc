@@ -31,7 +31,7 @@ auto const kRegisterPoissonValidationCpu = elementwise::RegisterValidationCpu<Po
 
 class PoissonRegression : public FitInterceptGlmLike {
  public:
-  void Configure(Args const&) override {}
+  std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));

@@ -44,6 +44,7 @@ extern SEXP XGBoosterPredictFromColumnar_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSaveModel_R(SEXP, SEXP);
 extern SEXP XGBoosterSetAttr_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSetParam_R(SEXP, SEXP, SEXP);
+extern SEXP XGBoosterSetParams_R(SEXP, SEXP);
 extern SEXP XGBoosterUpdateOneIter_R(SEXP, SEXP, SEXP);
 extern SEXP XGCheckNullPtr_R(SEXP);
 extern SEXP XGSetArrayDimNamesInplace_R(SEXP, SEXP);
@@ -108,6 +109,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"XGBoosterSaveModel_R", (DL_FUNC)&XGBoosterSaveModel_R, 2},
     {"XGBoosterSetAttr_R", (DL_FUNC)&XGBoosterSetAttr_R, 3},
     {"XGBoosterSetParam_R", (DL_FUNC)&XGBoosterSetParam_R, 3},
+    {"XGBoosterSetParams_R", (DL_FUNC)&XGBoosterSetParams_R, 2},
     {"XGBoosterUpdateOneIter_R", (DL_FUNC)&XGBoosterUpdateOneIter_R, 3},
     {"XGCheckNullPtr_R", (DL_FUNC)&XGCheckNullPtr_R, 1},
     {"XGSetArrayDimNamesInplace_R", (DL_FUNC)&XGSetArrayDimNamesInplace_R, 2},

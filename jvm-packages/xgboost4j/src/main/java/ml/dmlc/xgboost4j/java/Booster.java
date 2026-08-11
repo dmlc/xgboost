@@ -16,6 +16,7 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoSerializable;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -119,10 +122,23 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void setParams(Map<String, Object> params) throws XGBoostError {
-    if (params != null) {
-      for (Map.Entry<String, Object> entry : params.entrySet()) {
-        setParam(entry.getKey(), entry.getValue().toString());
-      }
+    if (params == null || params.isEmpty()) {
+      return;
+    }
+
+    List<List<String>> entries = new ArrayList<>(params.size());
+    for (Map.Entry<String, Object> entry : params.entrySet()) {
+      entries.add(Arrays.asList(entry.getKey(), entry.getValue().toString()));
+    }
+    Map<String, Object> config = new HashMap<>();
+    config.put("params", entries);
+
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String json = mapper.writeValueAsString(config);
+      XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetParams(handle, json));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to encode booster parameters.", ex);
     }
   }
 

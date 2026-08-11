@@ -62,11 +62,11 @@ class GBLinear : public GradientBooster {
     monitor_.Init(__func__);
   }
 
-  void Configure(const Args& cfg) override {
+  std::set<std::string> Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.Configure(cfg);
     }
-    param_.UpdateAllowUnknown(cfg);
+    auto used = UpdateAndGetUsedParameters(&param_, cfg);
     if (param_.updater == "gpu_coord_descent") {
       LOG(FATAL) << error::DeprecatedFunc("gpu_coord_descent", "2.0.0",
                                           R"(device="cuda", updater="coord_descent")");
@@ -80,7 +80,8 @@ class GBLinear : public GradientBooster {
     LOG(INFO) << "Using the updater:" << name;
 
     updater_.reset(LinearUpdater::Create(name, ctx_));
-    updater_->Configure(cfg);
+    used.merge(updater_->Configure(cfg));
+    return used;
   }
 
   int32_t BoostedRounds() const override { return model_.num_boosted_rounds; }

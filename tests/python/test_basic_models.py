@@ -169,6 +169,17 @@ class TestModels:
         assert len(evals_result["eval"]) == 3
         assert set(evals_result["eval"].keys()) == {"auc", "error", "logloss"}
 
+    def test_set_param_batch(self) -> None:
+        dtrain, _ = tm.load_agaricus(__file__)
+        booster = xgb.Booster(cache=[dtrain])
+
+        booster.set_param([("eval_metric", "mae"), ("eval_metric", "rmse")])
+        config = json.loads(booster.save_config())
+        assert len(config["learner"]["metrics"]) == 2
+
+        with pytest.raises(xgb.core.XGBoostError, match="Invalid Input"):
+            booster.set_param({"tree_method": "prune", "process_type": "default"})
+
     def test_fpreproc(self):
         param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
         num_round = 2

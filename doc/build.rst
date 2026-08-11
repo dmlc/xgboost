@@ -196,7 +196,6 @@ There are several ways to build and install the package from source:
   - ``USE_DLOPEN_NCCL`` — load NCCL dynamically at runtime
   - ``HIDE_CXX_SYMBOLS`` — hide all C++ symbols in the shared library
   - ``USE_OPENMP`` — build with OpenMP (defaults to ON)
-  - ``XGBOOST_USE_SYSTEM_LIBXGBOOST`` — see Item 4 below
 
   .. note:: Verbose flag recommended
 
@@ -223,7 +222,7 @@ There are several ways to build and install the package from source:
     cd ../python-package
     pip install -e .
 
-4. Reuse the ``libxgboost.so`` on system path.
+4. Reuse ``libxgboost.so`` from the system prefix.
 
   This option is useful for package managers that wish to separately package
   ``libxgboost.so`` and the XGBoost Python package. For example, Conda
@@ -239,12 +238,14 @@ There are several ways to build and install the package from source:
     libpath = pathlib.Path(sys.base_prefix).joinpath("lib", "libxgboost.so")
     assert libpath.exists()
 
-  Then pass ``cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON`` to ``pip install``:
+  Then disable CMake with scikit-build-core's ``wheel.cmake`` setting. This packages the
+  Python sources without building or bundling a shared library; scikit-build-core targets
+  ``purelib`` by default in this mode.
 
   .. code-block:: bash
 
     cd python-package
-    pip install . --config-settings cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON
+    pip install . --config-settings wheel.cmake=false
 
 
 .. note::
