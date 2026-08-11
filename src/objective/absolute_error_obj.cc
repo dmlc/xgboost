@@ -125,6 +125,18 @@ auto const kRegisterAbsoluteErrorInitEstimationCpu =
                                                                   &AbsoluteErrorInitEstimationCpu};
 }  // namespace
 
+/**
+ * @brief Smooth MM approximation to the mean absolute error.
+ *
+ * At each boosting iteration and for each target, choose the automatic scale
+ *
+ *   delta = E_w[sqrt(abs(prediction - label))]^2.
+ *
+ * For residual r, q = sqrt(1 + (r / delta)^2), the pseudo-Huber gradient is r / q.
+ * We use 1 / q as the Hessian instead of the exact pseudo-Huber Hessian 1 / q^3. This is
+ * the majorization curvature that produces a stable IRLS update while approaching the L1
+ * gradient as the residual scale contracts.
+ */
 class MeanAbsoluteError : public ObjFunction {
  public:
   std::set<std::string> Configure(Args const&) override { return {}; }
