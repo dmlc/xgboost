@@ -105,7 +105,7 @@ void QuantileGradientCpu(Context const* ctx, HostDeviceVector<float> const& pred
 
   std::vector<float> scale(n_targets, 0.0f);
   for (bst_target_t target{0}; target < n_targets; ++target) {
-    if (!common::CloseTo(scale_stats.back(), 0.0)) {
+    if (scale_stats.back() != 0.0) {
       auto root_mean = scale_stats[target] / scale_stats.back();
       scale[target] = static_cast<float>(root_mean * root_mean);
     }
