@@ -62,6 +62,19 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             xgb.DMatrix(data)
 
+    def test_dmatrix_numpy_non_native_byte_order(self):
+        data = np.arange(1, 7, dtype=np.float32).reshape(2, 3)
+        labels = np.arange(1, 3, dtype=np.float32)
+        swapped_data = data.astype(data.dtype.newbyteorder("S"))
+        swapped_labels = labels.astype(labels.dtype.newbyteorder("S"))
+        assert not swapped_data.dtype.isnative
+        assert not swapped_labels.dtype.isnative
+
+        dmat = xgb.DMatrix(swapped_data, label=swapped_labels)
+
+        np.testing.assert_array_equal(dmat.get_data().toarray(), data)
+        np.testing.assert_array_equal(dmat.get_label(), labels)
+
     def test_np_view(self):
         # Sliced Float32 array
         y = np.array([12, 34, 56], np.float32)[::2]
