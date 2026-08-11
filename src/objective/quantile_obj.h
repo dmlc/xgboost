@@ -16,6 +16,8 @@
 #include "xgboost/span.h"                // for Span
 
 namespace xgboost::obj {
+// quantile_alpha is validated in ascending order. Sort each row of predictions directly to
+// prevent crossing. This insertion sort is simple and device portable.
 XGBOOST_DEVICE inline void SortQuantilePredictions(common::Span<float> predictions) {
   for (std::size_t i{1}; i < predictions.size(); ++i) {
     auto value = predictions[i];
