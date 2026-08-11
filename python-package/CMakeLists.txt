@@ -13,8 +13,9 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 #      tree. Used by `pip install python-package/` when no prebuilt lib
 #      is available, and by sdist-driven installs (where the C++ tree
 #      lives in cpp_src/ next to this file, staged by prepare_sdist.py).
+#
 # Starting in LANGUAGES NONE so CMake doesn't probe for a compiler when
-# we reuse a prebuilt library (the dominant CI path).
+# we reuse a prebuilt library.
 project(xgboost_python LANGUAGES NONE)
 
 # ---------------------------------------------------------------------------
