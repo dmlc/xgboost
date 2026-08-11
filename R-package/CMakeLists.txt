@@ -44,13 +44,19 @@ if(ENABLE_ALL_WARNINGS)
   target_compile_options(xgboost-r PRIVATE -Wall -Wextra)
 endif()
 
-target_compile_definitions(
-  xgboost-r PUBLIC
-  -DXGBOOST_STRICT_R_MODE=1
+set(r_dmlc_definitions
   -DDMLC_LOG_BEFORE_THROW=0
   -DDMLC_DISABLE_STDIN=1
   -DDMLC_LOG_CUSTOMIZE=1
 )
+target_compile_definitions(
+  xgboost-r PUBLIC
+  -DXGBOOST_STRICT_R_MODE=1
+  ${r_dmlc_definitions}
+)
+if(NOT BUILD_WITH_SYSTEM_DMLC)
+  target_compile_definitions(dmlc PRIVATE ${r_dmlc_definitions})
+endif()
 
 target_include_directories(
   xgboost-r PRIVATE
