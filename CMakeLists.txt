@@ -314,7 +314,7 @@ endif()
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 # dmlc-core
-if(BUILD_WTIH_SYSTEM_DMLC)
+if(BUILD_WITH_SYSTEM_DMLC)
   target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
 else()
   target_link_libraries(objxgboost PUBLIC dmlc)
