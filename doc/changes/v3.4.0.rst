@@ -1,0 +1,129 @@
+###################
+3.4.0 (Aug 4, 2026)
+###################
+
+XGBoost 3.4.0 completes the vector-leaf implementation for the ``hist`` tree method,
+revises the quantile regression and mean absolute error (MAE) objectives, removes
+column-split support, and fixes issues across multiple components.
+
+***********************************
+Vector Leaf and Multi-output Models
+***********************************
+
+The vector-leaf implementation for the ``hist`` tree method is now feature-complete and
+classified as experimental rather than work in progress. Key changes include:
+
+- Categorical features on CPU and GPU, DART, monotonic and interaction constraints, and
+  ``min_child_weight``. (:pr:`12305`, :pr:`12299`, :pr:`12276`, :pr:`12340`, :pr:`12341`, :pr:`12294`, :pr:`12325`, :pr:`12296`)
+- Distributed training and Dask multi-label estimators, including AUC and SHAP support,
+  plus tree dumping and DataFrame conversion. (:pr:`12292`, :pr:`12369`, :pr:`12313`, :pr:`12314`, :pr:`12293`)
+- Batched split application, reduced-gradient sampling, shared histogram building and
+  split evaluation, additional validation, and external-memory fixes. (:pr:`12365`, :pr:`12321`,
+  :pr:`12397`, :pr:`12387`, :pr:`12336`, :pr:`12330`, :pr:`12320`, :pr:`12312`)
+
+**************************************
+Quantile Regression and Absolute Error
+**************************************
+
+Quantile regression and mean absolute error now use smooth approximations instead of line
+searches to determine leaf values. (:pr:`12391`, :pr:`12386`, :pr:`12373`, :pr:`12346`)
+
+*********************************
+Breaking Changes and Deprecations
+*********************************
+
+- Column-split support has been removed. (:pr:`12333`, :pr:`12363`, :pr:`12354`)
+- The federated learning plugin is no longer included in Python binary wheels. (:pr:`12376`)
+- The random-forest wrappers are deprecated. Use ``num_parallel_tree`` directly for
+  random-forest models. (:pr:`12324`, :pr:`12342`)
+- The deprecated ``XGDMatrixCreateFromFile`` function has been removed. (:pr:`12297`)
+- The CUDA asynchronous memory pool is now recommended for external-memory training.
+  (:pr:`12337`)
+
+******************
+Build and Platform
+******************
+
+- The default `xgboost <https://pypi.org/project/xgboost/>`__ binaries for the Python and
+  JVM packages are now built with CUDA 13.3 on Linux and Windows. Python users who need CUDA
+  12.9 can install `xgboost-cu12 <https://pypi.org/project/xgboost-cu12/>`__ from PyPI or
+  build from source. (:pr:`12384`, :pr:`12394`)
+- Both the `xgboost <https://pypi.org/project/xgboost/>`__ and `xgboost-cpu
+  <https://pypi.org/project/xgboost-cpu/>`__ packages support Windows on
+  AArch64. (:pr:`12394`)
+
+*************
+Optimizations
+*************
+
+- Reduce allocations in the JSON text parser. (:pr:`12317`)
+- Skip per-tree depth computation for single-row prediction. (:pr:`12307`)
+- Avoid rebuilding the regular expression when parsing the device parameter. (:pr:`12306`)
+- Extend the depth bucket used by GPU Quadrature TreeSHAP. (:pr:`12290`)
+
+*********
+Bug Fixes
+*********
+
+The following fixes affect all interfaces. Interface-specific fixes are listed in the
+corresponding package sections.
+
+- Fix an issue where ``min_child_weight`` could produce an empty root node. Also, this
+  release fixes its interaction with ``max_delta_step``. (:pr:`12322`, :pr:`12296`)
+- Preserve tiny positive Hessians during GPU quantization. (:pr:`12266`)
+- Fix compatibility with RMM 26.08. (:pr:`12316`, :pr:`12269`)
+- Fix learning-to-rank pair sampling when continuing training. (:pr:`12332`)
+- Fix GPU SHAP on CUDA SM120. (:pr:`12368`)
+- Fix the recoder's handling of UTF-8 data and pandas nullable categorical indexes, and
+  add overflow checks. (:pr:`12371`)
+
+**************
+Python Package
+**************
+
+- Migrate Python package builds to scikit-build-core and include license files in both
+  installed packages and wheel metadata. (:pr:`12219`, :pr:`12349`, :pr:`12280`)
+- :py:meth:`~xgboost.Booster.trees_to_dataframe` now uses pandas ``NA`` for unavailable
+  vector-leaf values instead of a mix of ``np.nan`` and ``None``. (:pr:`12293`)
+- Correct scikit-learn input tags and raise ``ValueError`` when ``qid`` is omitted from
+  :py:meth:`~xgboost.XGBRanker.score`. (:pr:`12383`, :pr:`12335`)
+- Pass Graphviz keyword arguments through :py:func:`~xgboost.plotting.to_graphviz`. (:pr:`12359`)
+- Fix shape reporting for empty array-interface results and SciPy CSC input handling.
+  (:pr:`12381`, :pr:`12378`)
+- Fix :py:func:`~xgboost.collective.allreduce` always returning a flattened
+  one-dimensional array.  (:pr:`12377`)
+- Code cleanup. (:pr:`12331`)
+
+*********
+R Package
+*********
+
+- Fix ``early_stopping_rounds`` handling in ``xgboost()``. (:pr:`12370`)
+- Remove an obsolete 32-bit Windows ``thread_local`` workaround. (:pr:`12352`)
+- Test and lint fixes. (:pr:`12309`, :pr:`12259`)
+
+************
+JVM Packages
+************
+
+- Fix potential resource leaks in native error paths and make floating-point serialization
+  locale-independent. (:pr:`12286`, :pr:`12235`)
+- Update the Maven Central publishing plugin and release tooling, including support for
+  local testing. (:pr:`12255`, :pr:`12254`, :pr:`12253`)
+
+***********************
+Documentation and Demos
+***********************
+
+- Add the second-place solution from the Tabular Playground Series. (:pr:`12392`)
+- Fix typos and update external links. (:pr:`12400`, :pr:`12401`, :pr:`12357`, :pr:`12358`, :pr:`12328`)
+
+******************
+CI and Maintenance
+******************
+
+- Update GitHub Actions. (:pr:`12375`, :pr:`12338`, :pr:`12300`, :pr:`12263`, :pr:`12274`)
+- Add a stale pull request cleanup workflow. (:pr:`12318`)
+- Clean up the NCCL discovery script. (:pr:`12262`)
+- Refactor and clean up code. (:pr:`12345`, :pr:`12275`, :pr:`12385`, :pr:`12271`)
+- Release maintenance. (:pr:`12252`)

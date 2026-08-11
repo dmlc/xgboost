@@ -23,15 +23,15 @@
 #include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
 #include <mutex>          // for mutex, lock_guard
 #include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <stack>          // for stack
 #include <string>         // for basic_string, char_traits, operator<, string
 #include <system_error>   // for errc
 #include <unordered_map>  // for operator!=, unordered_map
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
-#include "collective/aggregator.h"        // for ApplyWithLabels
-#include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
+#include "collective/allreduce.h"         // for Allreduce, SafeColl
+#include "collective/broadcast.h"         // for Broadcast
+#include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
@@ -52,7 +52,6 @@
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
 #include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
 
@@ -350,7 +349,7 @@ std::string CanonicalizeBoosterName(std::string booster) {
  * @brief Handler for the `n_targets` property and the intercept.
  */
 class Intercept : public Learner {
-  using CacheT = common::GetValueT<decltype(std::declval<PredictionContainer>().Container())>;
+  using CacheT = std::vector<std::weak_ptr<DMatrix>>;
 
  protected:
   /**
@@ -375,8 +374,7 @@ class Intercept : public Learner {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 
   [[nodiscard]] bool NeedFit() const {
@@ -408,11 +406,15 @@ class Intercept : public Learner {
   void GetNumTargets(CacheT const& cache) {
     CHECK(this->obj_);
     bst_target_t n_targets = 1;
-    for (auto const& d : cache) {
+    for (auto const& weak : cache) {
+      auto d = weak.lock();
+      if (!d) {
+        continue;
+      }
       if (n_targets == 1) {
-        n_targets = this->obj_->Targets(d.first.ptr->Info());
+        n_targets = this->obj_->Targets(d->Info());
       } else {
-        auto t = this->obj_->Targets(d.first.ptr->Info());
+        auto t = this->obj_->Targets(d->Info());
         CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
       }
     }
@@ -490,7 +492,6 @@ class LearnerConfiguration : public Intercept {
 
  protected:
   std::atomic<bool> need_configuration_;
-  std::map<std::string, std::string> cfg_;
   // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
   // Name of each feature, usually set from DMatrix.
@@ -501,7 +502,7 @@ class LearnerConfiguration : public Intercept {
   common::Monitor monitor_;
   LearnerTrainParam tparam_;
   // Initial prediction.
-  PredictionContainer prediction_container_;
+  std::vector<std::weak_ptr<DMatrix>> cache_data_;
 
   std::vector<std::string> metric_names_;
 
@@ -511,34 +512,53 @@ class LearnerConfiguration : public Intercept {
     monitor_.Init("Learner");
     for (std::shared_ptr<DMatrix> const& d : cache) {
       if (d) {
-        prediction_container_.Cache(d, DeviceOrd::CPU());
+        cache_data_.emplace_back(d);
       }
     }
   }
 
-  // Configuration before data is known.
-  void Configure() override {
+  void Configure(Args const& args = {}) override {
+    bool has_args = !args.empty();
+    if (has_args) {
+      this->need_configuration_ = true;
+    }
+
     // Varient of double checked lock
-    if (!this->need_configuration_) {
+    if (!has_args && !this->need_configuration_) {
       return;
     }
     std::lock_guard<std::mutex> guard(config_lock_);
-    if (!this->need_configuration_) {
+    if (!has_args && !this->need_configuration_) {
       return;
     }
 
     monitor_.Start("Configure");
     auto old_tparam = tparam_;
-    Args args = {cfg_.cbegin(), cfg_.cend()};
+    std::map<std::string, std::string> config;
+    std::set<std::string> used;
 
-    tparam_.UpdateAllowUnknown(args);
-    mparam_.UpdateAllowUnknown(args);
+    for (auto const& [key, value] : args) {
+      if (key == kEvalMetric) {
+        used.insert(kEvalMetric);
+        if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) ==
+            metric_names_.cend()) {
+          metric_names_.emplace_back(value);
+        }
+      } else {
+        config[key] = value;
+      }
+    }
+
+    Args config_args{config.cbegin(), config.cend()};
+
+    used.merge(UpdateAndGetUsedParameters(&tparam_, config_args));
+    used.merge(UpdateAndGetUsedParameters(&mparam_, config_args));
 
     auto initialized = ctx_.GetInitialised();
     auto old_seed = ctx_.seed;
-    ctx_.UpdateAllowUnknown(args);
+    used.merge(UpdateAndGetUsedParameters(&ctx_, config_args));
 
-    ConsoleLogger::Configure(args);
+    used.merge(ConsoleLogger::Configure(config_args));
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
@@ -547,26 +567,25 @@ class LearnerConfiguration : public Intercept {
 
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args);
+    used.merge(this->ConfigureObjective(old_tparam, &config, &config_args));
 
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
-    this->ConfigureGBM(old_tparam, args);
+    used.merge(this->ConfigureGBM(old_tparam, config_args));
 
-    this->InitModelUserParam(this->tparam_, this->prediction_container_.Container());
+    this->InitModelUserParam(this->tparam_, this->cache_data_);
 
-    this->ConfigureMetrics(args);
+    used.merge(this->ConfigureMetrics(config_args));
 
     this->need_configuration_ = false;
     if (ctx_.validate_parameters) {
-      this->ValidateParameters();
+      this->ValidateParameters(args, used);
     }
 
-    cfg_.clear();
     monitor_.Stop("Configure");
   }
 
-  void LoadConfig(Json const& in) override {
+ protected:
+  void LoadConfigImpl(Json const& in) {
     // If configuration is loaded, ensure that the model came from the same version
     CHECK(IsA<Object>(in));
     auto origin_version = Version::Load(in);
@@ -621,6 +640,12 @@ class LearnerConfiguration : public Intercept {
     this->need_configuration_ = true;
   }
 
+ public:
+  void LoadConfig(Json const& in) override {
+    this->LoadConfigImpl(in);
+    this->Configure();
+  }
+
   void SaveConfig(Json* p_out) const override {
     CHECK(!this->need_configuration_) << "Call Configure before saving model.";
     Version::Save(p_out);
@@ -647,23 +672,6 @@ class LearnerConfiguration : public Intercept {
     learner_parameters["metrics"] = Array(std::move(metrics));
 
     learner_parameters["generic_param"] = ctx_.ToJson();
-  }
-
-  void SetParam(const std::string& key, const std::string& value) override {
-    this->need_configuration_ = true;
-    if (key == kEvalMetric) {
-      if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) == metric_names_.cend()) {
-        metric_names_.emplace_back(value);
-      }
-    } else {
-      cfg_[key] = value;
-    }
-  }
-  // Short hand for setting multiple parameters
-  void SetParams(std::vector<std::pair<std::string, std::string>> const& args) override {
-    for (auto const& kv : args) {
-      this->SetParam(kv.first, kv.second);
-    }
   }
 
   uint32_t GetNumFeature() const override { return learner_model_param_.num_feature; }
@@ -711,77 +719,23 @@ class LearnerConfiguration : public Intercept {
     return out;
   }
 
-  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
-    return cfg_;
-  }
-
   Context const* Ctx() const override { return &ctx_; }
 
  private:
-  void ValidateParameters() {
-    Json config{Object()};
-    this->SaveConfig(&config);
-    std::stack<Json> stack;
-    stack.push(config);
-    std::string const postfix{"_param"};
-
-    auto is_parameter = [&postfix](std::string const& key) {
-      return key.size() > postfix.size() &&
-             std::equal(postfix.rbegin(), postfix.rend(), key.rbegin());
-    };
-
-    // Extract all parameters
-    std::vector<std::string> keys;
-    // First global parameters
-    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
-    for (auto const& items : get<Object const>(global_config)) {
-      keys.emplace_back(items.first);
-    }
-    // Parameters in various xgboost components.
-    while (!stack.empty()) {
-      auto j_obj = stack.top();
-      stack.pop();
-      auto const& obj = get<Object const>(j_obj);
-
-      for (auto const& kv : obj) {
-        if (is_parameter(kv.first)) {
-          auto parameter = get<Object const>(kv.second);
-          std::transform(
-              parameter.begin(), parameter.end(), std::back_inserter(keys),
-              [](std::pair<std::string const&, Json const&> const& kv) { return kv.first; });
-        } else if (IsA<Object>(kv.second)) {
-          stack.push(kv.second);
-        } else if (IsA<Array>(kv.second)) {
-          auto const& array = get<Array const>(kv.second);
-          for (auto const& v : array) {
-            if (IsA<Object>(v) || IsA<Array>(v)) {
-              stack.push(v);
-            }
-          }
-        }
-      }
-    }
-
-    // FIXME(trivialfis): Make eval_metric a training parameter.
-    keys.emplace_back(kEvalMetric);
-    keys.emplace_back("num_output_group");
-
-    std::sort(keys.begin(), keys.end());
-
-    std::vector<std::string> provided;
-    for (auto const& kv : cfg_) {
+  void ValidateParameters(Args const& args, std::set<std::string> const& used) {
+    std::set<std::string> provided;
+    for (auto const& kv : args) {
       if (std::any_of(kv.first.cbegin(), kv.first.cend(),
                       [](char ch) { return std::isspace(ch); })) {
         LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
       }
-      provided.push_back(kv.first);
+      provided.insert(kv.first);
     }
-    std::sort(provided.begin(), provided.end());
 
     std::vector<std::string> diff;
-    std::set_difference(provided.begin(), provided.end(), keys.begin(), keys.end(),
+    std::set_difference(provided.begin(), provided.end(), used.begin(), used.end(),
                         std::back_inserter(diff));
-    if (diff.size() != 0) {
+    if (!diff.empty()) {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
@@ -799,12 +753,16 @@ class LearnerConfiguration : public Intercept {
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
       unsigned num_feature = 0;
-      for (auto const& matrix : prediction_container_.Container()) {
-        CHECK(matrix.first.ptr);
-        CHECK(!matrix.second.ref.expired());
-        const uint64_t num_col = matrix.first.ptr->Info().num_col_;
+      for (auto it = cache_data_.begin(); it != cache_data_.end();) {
+        auto matrix = it->lock();
+        if (!matrix) {
+          it = cache_data_.erase(it);
+          continue;
+        }
+        const uint64_t num_col = matrix->Info().num_col_;
         error::MaxFeatureSize(num_col);
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
+        ++it;
       }
 
       auto rc =
@@ -818,7 +776,7 @@ class LearnerConfiguration : public Intercept {
         << "0 feature is supplied.  Are you using raw Booster interface?";
   }
 
-  void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
+  std::set<std::string> ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     tparam_.booster = CanonicalizeBoosterName(tparam_.booster);
     if (tparam_.booster == "gblinear") {
       LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
@@ -828,42 +786,47 @@ class LearnerConfiguration : public Intercept {
     if (gbm_ == nullptr || old_booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
-    gbm_->Configure(args);
+    return gbm_->Configure(args);
   }
 
-  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+  std::set<std::string> ConfigureObjective(LearnerTrainParam const& old,
+                                           std::map<std::string, std::string>* p_config,
+                                           Args* p_args) {
+    auto& config = *p_config;
     // Once binary IO is gone, NONE of these config is useful.
-    if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
+    if (config.find("num_class") != config.cend() && config.at("num_class") != "0" &&
         tparam_.objective != "multi:softprob") {
-      cfg_["num_output_group"] = cfg_["num_class"];
-      if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
+      config["num_output_group"] = config["num_class"];
+      if (atoi(config["num_class"].c_str()) > 1 && config.count("objective") == 0) {
         tparam_.objective = "multi:softmax";
       }
     }
 
-    if (cfg_.find("max_delta_step") == cfg_.cend() && cfg_.find("objective") != cfg_.cend() &&
-        tparam_.objective == "count:poisson") {
+    if (config.find("max_delta_step") == config.cend() &&
+        config.find("objective") != config.cend() && tparam_.objective == "count:poisson") {
       // max_delta_step is a duplicated parameter in Poisson regression and tree param.
       // Rename one of them once binary IO is gone.
-      cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
+      config["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
 
-    bool has_nc{cfg_.find("num_class") != cfg_.cend()};
+    bool has_nc{config.find("num_class") != config.cend()};
     // Inject num_class into configuration.
     // FIXME(jiamingy): Remove the duplicated parameter in softmax
-    cfg_["num_class"] = std::to_string(mparam_.num_class);
+    config["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+    args = {config.cbegin(), config.cend()};
+    auto used = obj_->Configure(args);
     if (!has_nc) {
-      cfg_.erase("num_class");
+      config.erase("num_class");
     }
+    return used;
   }
 
-  void ConfigureMetrics(Args const& args) {
+  std::set<std::string> ConfigureMetrics(Args const& args) {
+    std::set<std::string> used;
     for (auto const& name : metric_names_) {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
         return m->Name() != name;
@@ -874,15 +837,15 @@ class LearnerConfiguration : public Intercept {
     }
 
     for (auto& p_metric : metrics_) {
-      p_metric->Configure(args);
+      used.merge(p_metric->Configure(args));
     }
+    return used;
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 };
 
@@ -890,12 +853,13 @@ std::string const LearnerConfiguration::kEvalMetric{"eval_metric"};  // NOLINT
 
 class LearnerIO : public LearnerConfiguration {
  protected:
-  void ClearCaches() { this->prediction_container_ = PredictionContainer{}; }
+  void ClearCaches() { this->cache_data_.clear(); }
 
  public:
   explicit LearnerIO(std::vector<std::shared_ptr<DMatrix>> cache) : LearnerConfiguration{cache} {}
 
-  void LoadModel(Json const& in) override {
+ protected:
+  void LoadModelImpl(Json const& in) {
     CHECK(IsA<Object>(in));
     auto version = Version::Load(in);
     if (std::get<0>(version) == 1 && std::get<1>(version) < 6) {
@@ -945,6 +909,12 @@ class LearnerIO : public LearnerConfiguration {
 
     this->need_configuration_ = true;
     this->ClearCaches();
+  }
+
+ public:
+  void LoadModel(Json const& in) override {
+    this->LoadModelImpl(in);
+    this->Configure();
   }
 
   void SaveModel(Json* p_out) const override {
@@ -1018,8 +988,9 @@ class LearnerIO : public LearnerConfiguration {
       LOG(FATAL) << "Invalid serialization file.";
     }
 
-    this->LoadModel(memory_snapshot["Model"]);
-    this->LoadConfig(memory_snapshot["Config"]);
+    this->LoadModelImpl(memory_snapshot["Model"]);
+    this->LoadConfigImpl(memory_snapshot["Config"]);
+    this->Configure();
   }
 };
 
@@ -1101,7 +1072,7 @@ class LearnerImpl : public LearnerIO {
     this->Load(&fs);
 
     // Learner self cache. Prediction is cleared in the load method
-    CHECK(this->prediction_container_.Container().empty());
+    CHECK(this->cache_data_.empty());
     this->gpair_ = decltype(this->gpair_){};
   }
 
@@ -1117,19 +1088,19 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
-    auto predt = prediction_container_.Cache(train, ctx_.Device());
+    HostDeviceVector<float> predt;
 
     monitor_.Start("PredictRaw");
-    this->PredictRaw(train.get(), predt.get(), true, 0, 0);
-    TrainingObserver::Instance().Observe(predt->predictions, "Predictions");
+    this->PredictRaw(train, &predt, true, 0, 0);
+    TrainingObserver::Instance().Observe(predt, "Predictions");
     monitor_.Stop("PredictRaw");
 
     monitor_.Start("GetGradient");
-    GetGradient(predt->predictions, train->Info(), iter, &gpair_.gpair);
+    GetGradient(predt, train->Info(), iter, &gpair_.gpair);
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_.Grad()->Data(), "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, predt.get(), obj_.get());
+    gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -1151,8 +1122,7 @@ class LearnerImpl : public LearnerIO {
           << "The number of columns in gradient should be equal to the number of "
              "targets/classes in the model.";
     }
-    auto predt = prediction_container_.Cache(train, ctx_.Device());
-    this->gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
+    this->gbm_->DoBoost(train, in_gpair, obj_.get());
     this->monitor_.Stop(__func__);
   }
 
@@ -1171,18 +1141,14 @@ class LearnerImpl : public LearnerIO {
       if (!IsA<Null>(config)) {
         metrics_.back()->LoadConfig(config);
       }
-      metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
+      metrics_.back()->Configure({});
     }
 
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
-      auto predt = prediction_container_.Cache(m, ctx_.Device());
       this->ValidateDMatrix(m.get(), false);
-      this->PredictRaw(m.get(), predt.get(), false, 0, 0);
-
-      auto& out = output_predictions_.Cache(m, ctx_.Device())->predictions;
-      out.Resize(predt->predictions.Size());
-      out.Copy(predt->predictions);
+      HostDeviceVector<float> out;
+      this->PredictRaw(m, &out, false, 0, 0);
 
       obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
@@ -1218,12 +1184,7 @@ class LearnerImpl : public LearnerIO {
       this->ValidateDMatrix(data.get(), false);
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
     } else {
-      auto predt = prediction_container_.Cache(data, ctx_.Device());
-      this->PredictRaw(data.get(), predt.get(), training, layer_begin, layer_end);
-      // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(ctx_.Device());
-      out_preds->Resize(predt->predictions.Size());
-      out_preds->Copy(predt->predictions);
+      this->PredictRaw(data, out_preds, training, layer_begin, layer_end);
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
@@ -1254,19 +1215,19 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     this->CheckModelInitialized();
 
-    auto& out_predictions = this->GetThreadLocal().prediction_entry;
-    out_predictions.Reset();
+    auto& out_predictions = this->GetThreadLocal().predictions;
+    out_predictions.Resize(0);
 
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
 
     if (type == PredictionType::kValue) {
-      obj_->PredTransform(&out_predictions.predictions);
+      obj_->PredTransform(&out_predictions);
     } else if (type == PredictionType::kMargin) {
       // do nothing
     } else {
       LOG(FATAL) << "Unsupported prediction type:" << static_cast<int>(type);
     }
-    *out_preds = &out_predictions.predictions;
+    *out_preds = &out_predictions;
   }
 
   void CalcFeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
@@ -1277,24 +1238,20 @@ class LearnerImpl : public LearnerIO {
     gbm_->FeatureScore(importance_type, trees, features, scores);
   }
 
-  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
-    return cfg_;
-  }
-
  protected:
   /*!
    * \brief get un-transformed prediction
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
-   * \param ntree_limit limit number of trees used for boosted tree
-   *   predictor, when it equals 0, this means we are using all the trees
+   * \param layer_begin Beginning of the boosting iteration range.
+   * \param layer_end End of the boosting iteration range. Zero uses all iterations.
    * \param training allow dropout when the DART booster is being used
    */
-  void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds, bool training,
+  void PredictRaw(std::shared_ptr<DMatrix> data, HostDeviceVector<float>* out_preds, bool training,
                   unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
-    this->ValidateDMatrix(data, false);
+    this->ValidateDMatrix(data.get(), false);
     gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
@@ -1324,17 +1281,13 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    obj_->GetGradient(preds, info, iter, out_gpair);
   }
 
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
   GradientContainer gpair_;
-  /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
-   *  objective function */
-  PredictionContainer output_predictions_;
 };
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;

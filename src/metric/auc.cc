@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../common/algorithm.h"  // ArgSort
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
@@ -121,7 +122,7 @@ double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo c
 
   // We have 2 averages going in here, first among workers, then among outputs.
   // Allreduce sums up fp/tp/auc for each output.
-  auto rc = collective::GlobalSum(ctx, info, results);
+  auto rc = collective::GlobalSum(ctx, results);
   collective::SafeColl(rc);
 
   double auc_sum{0};
@@ -281,14 +282,12 @@ class EvalAUC : public MetricNoCache {
     // Use global metadata so empty workers enter the same metric path as nonempty workers.
     std::array<bst_idx_t, 4> meta{info.labels.Size(), preds.Size(), info.labels.Shape(1),
                                   !info.group_ptr_.empty()};
-    if (!info.IsVerticalFederated()) {
-      auto rc = collective::Allreduce(
-          ctx_,
-          linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{meta.data(), meta.size()},
-                                 meta.size()),
-          collective::Op::kMax);
-      collective::SafeColl(rc);
-    }
+    auto rc = collective::Allreduce(
+        ctx_,
+        linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{meta.data(), meta.size()},
+                               meta.size()),
+        collective::Op::kMax);
+    collective::SafeColl(rc);
     auto [n_labels, n_predts, n_targets, is_ranking] = meta;
 
     if (n_labels == 0) {
@@ -317,7 +316,7 @@ class EvalAUC : public MetricNoCache {
         InvalidGroupAUC();
       }
 
-      auc = collective::GlobalRatio(ctx_, info, auc, static_cast<double>(valid_groups));
+      auc = collective::GlobalRatio(ctx_, auc, static_cast<double>(valid_groups));
       if (!std::isnan(auc)) {
         CHECK_LE(auc, 1.0 + kRtEps) << "Total AUC across groups: " << auc * valid_groups
                                     << ", valid groups: " << valid_groups;
@@ -327,8 +326,6 @@ class EvalAUC : public MetricNoCache {
         LOG(FATAL) << "AUC and AUCPR do not support multi-target-multi-class classification.";
       }
       CHECK_EQ(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
-      CHECK(!info.IsColumnSplit())
-          << "AUC and AUCPR do not support column-split data for multi-label classification.";
       auc = static_cast<Curve *>(this)->EvalMultiLabel(preds, info, n_targets);
     } else if (n_predts != n_labels) {
       /**
@@ -345,7 +342,7 @@ class EvalAUC : public MetricNoCache {
       if (!(preds.Empty() || info.labels.Size() == 0)) {
         std::tie(fp, tp, auc) = static_cast<Curve *>(this)->EvalBinary(preds, info);
       }
-      auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
+      auc = collective::GlobalRatio(ctx_, auc, fp * tp);
       if (!std::isnan(auc)) {
         CHECK_LE(auc, 1.0 + kRtEps);
         auc = std::min(auc, 1.0);

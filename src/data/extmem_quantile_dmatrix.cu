@@ -53,8 +53,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    */
   auto cuts = std::make_shared<common::HistogramCuts>(0);
   ExternalDataInfo ext_info;
-  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->info_,
-                          &ext_info);
+  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   /**

@@ -7,7 +7,7 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
-#include <algorithm>
+#include <algorithm>  // for copy, any_of
 #include <cmath>
 #include <cstring>
 #include <string>
@@ -205,15 +205,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     CHECK_GT(n_nodes, 0);
     return n_nodes;
   }
-};
 
-inline void NoMonotoneConstraints(TrainParam const *param, StringView name) {
-  if (!param->monotone_constraints.empty() &&
-      std::any_of(param->monotone_constraints.cbegin(), param->monotone_constraints.cend(),
-                  [](auto v) { return v != 0; })) {
-    LOG(FATAL) << "Monotonic constraint is not supported by the " << name << ".";
+  [[nodiscard]] bool HasMonotone() const {
+    return std::any_of(this->monotone_constraints.cbegin(), this->monotone_constraints.cend(),
+                       [](auto v) { return v != 0; });
   }
-}
+};
 
 /**
  * @brief Whether both children satisfy the Hessian requirement for a split.
@@ -225,8 +222,6 @@ XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_h
   return left_hess > 0.0 && right_hess > 0.0 && left_hess >= p.min_child_weight &&
          right_hess >= p.min_child_weight;
 }
-
-/*! \brief Loss functions */
 
 /**
  * @brief Function for L1 cost
@@ -408,59 +403,6 @@ struct SplitEntryContainer {
     return os;
   }
 
-  /**
-   * @brief Copy primitive fields into this, and collect cat_bits into a vector.
-   *
-   * This is used for allgather.
-   *
-   * @param that The other entry to copy from
-   * @param collected_cat_bits The vector to collect cat_bits
-   * @param cat_bits_sizes The sizes of the collected cat_bits
-   */
-  void CopyAndCollect(SplitEntryContainer<GradientT> const &that,
-                      std::vector<uint32_t> *collected_cat_bits,
-                      std::vector<std::size_t> *cat_bits_sizes) {
-    loss_chg = that.loss_chg;
-    sindex = that.sindex;
-    split_value = that.split_value;
-    is_cat = that.is_cat;
-    static_assert(std::is_trivially_copyable_v<GradientT>);
-    left_sum = that.left_sum;
-    right_sum = that.right_sum;
-    collected_cat_bits->insert(collected_cat_bits->end(), that.cat_bits.cbegin(),
-                               that.cat_bits.cend());
-    cat_bits_sizes->emplace_back(that.cat_bits.size());
-  }
-
-  /**
-   * @brief Copy primitive fields into this, and collect cat_bits and gradient sums into vectors.
-   *
-   * This is used for allgather.
-   *
-   * @param that The other entry to copy from
-   * @param collected_cat_bits The vector to collect cat_bits
-   * @param cat_bits_sizes The sizes of the collected cat_bits
-   * @param collected_gradients The vector to collect gradients
-   */
-  template <typename G>
-  void CopyAndCollect(SplitEntryContainer<GradientT> const &that,
-                      std::vector<uint32_t> *collected_cat_bits,
-                      std::vector<std::size_t> *cat_bits_sizes,
-                      std::vector<G> *collected_gradients) {
-    loss_chg = that.loss_chg;
-    sindex = that.sindex;
-    split_value = that.split_value;
-    is_cat = that.is_cat;
-    collected_cat_bits->insert(collected_cat_bits->end(), that.cat_bits.cbegin(),
-                               that.cat_bits.cend());
-    cat_bits_sizes->emplace_back(that.cat_bits.size());
-    static_assert(!std::is_trivially_copyable_v<GradientT>);
-    collected_gradients->insert(collected_gradients->end(), that.left_sum.cbegin(),
-                                that.left_sum.cend());
-    collected_gradients->insert(collected_gradients->end(), that.right_sum.cbegin(),
-                                that.right_sum.cend());
-  }
-
   /*!\return feature index to split on */
   [[nodiscard]] bst_feature_t SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */
@@ -491,7 +433,7 @@ struct SplitEntryContainer {
    * \param e candidate split solution
    * \return whether the proposed split is better and can replace current split
    */
-  inline bool Update(const SplitEntryContainer &e) {
+  bool Update(const SplitEntryContainer &e) {
     if (this->NeedReplace(e.loss_chg, e.SplitIndex())) {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;

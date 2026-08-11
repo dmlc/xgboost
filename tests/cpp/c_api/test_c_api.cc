@@ -82,27 +82,37 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   Json::Dump(data_arr, &sdata);
   Json config{Object{}};
   config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
-  config["data_split_mode"] = Integer{static_cast<int64_t>(DataSplitMode::kCol)};
+  config["data_split_mode"] = Integer{static_cast<int64_t>(1)};
   Json::Dump(config, &sconfig);
 
   DMatrixHandle handle;
-  XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), 3, sconfig.c_str(),
-                         &handle);
-  bst_ulong n;
-  ASSERT_EQ(XGDMatrixNumRow(handle, &n), 0);
-  ASSERT_EQ(n, 1);
-  ASSERT_EQ(XGDMatrixNumCol(handle, &n), 0);
-  ASSERT_EQ(n, 3);
-  ASSERT_EQ(XGDMatrixNumNonMissing(handle, &n), 0);
-  ASSERT_EQ(n, 3);
-  ASSERT_EQ(XGDMatrixDataSplitMode(handle, &n), 0);
-  ASSERT_EQ(n, static_cast<int64_t>(DataSplitMode::kCol));
+  ASSERT_NE(XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), 3,
+                                   sconfig.c_str(), &handle),
+            0);
+  auto msg = std::string{XGBGetLastError()};
+  ASSERT_NE(msg.find("Column-wise data split has been removed"), std::string::npos);
+}
 
-  std::shared_ptr<xgboost::DMatrix> *pp_fmat =
-      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  ASSERT_EQ((*pp_fmat)->Ctx()->Threads(), AllThreadsForTest());
+TEST(CAPI, SetParams) {
+  auto p_dmat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+  std::array<DMatrixHandle, 1> mats{&p_dmat};
+  BoosterHandle booster;
+  ASSERT_EQ(XGBoosterCreate(mats.data(), mats.size(), &booster), 0);
 
-  XGDMatrixFree(handle);
+  char const *config =
+      R"({"params":[["objective","reg:absoluteerror"],["eval_metric","mae"],["eval_metric","rmse"]]})";
+  ASSERT_EQ(XGBoosterSetParams(booster, config), 0);
+
+  Json saved_config{Object{}};
+  static_cast<Learner *>(booster)->SaveConfig(&saved_config);
+  EXPECT_EQ(get<String const>(saved_config["learner"]["objective"]["name"]), "reg:absoluteerror");
+  EXPECT_EQ(get<Array const>(saved_config["learner"]["metrics"]).size(), 2);
+
+  ASSERT_EQ(XGBoosterSetParam(booster, "objective", "reg:squarederror"), 0);
+  Json single_config{Object{}};
+  static_cast<Learner *>(booster)->SaveConfig(&single_config);
+  EXPECT_EQ(get<String const>(single_config["learner"]["objective"]["name"]), "reg:squarederror");
+  EXPECT_EQ(XGBoosterFree(booster), 0);
 }
 
 TEST(CAPI, ConfigIO) {
@@ -632,6 +642,19 @@ TEST(CAPI, PredictReuseProxy) {
 
   for (std::int32_t i = 0; i < 3; ++i) {
     ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, fmat_hdl), 0);
+  }
+
+  {
+    auto legacy_config = config;
+    legacy_config["ntree_limit"] = Integer{1};
+    auto s_legacy_config = Json::Dump(legacy_config);
+    bst_ulong const *outshape{nullptr};
+    bst_ulong outdim{0};
+    float const *result{nullptr};
+    ASSERT_EQ(XGBoosterPredictFromDMatrix(booster_hdl, fmat_hdl, s_legacy_config.c_str(), &outshape,
+                                          &outdim, &result),
+              -1);
+    ASSERT_NE(std::string{XGBGetLastError()}.find("ntree_limit"), std::string::npos);
   }
 
   // Create a proxy that can be reused.

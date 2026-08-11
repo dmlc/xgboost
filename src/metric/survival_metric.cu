@@ -12,6 +12,7 @@
 #include <numeric>  // for accumulate
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../common/survival_util.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
@@ -139,7 +140,7 @@ class ElementWiseSurvivalMetricsReduction {
 };
 
 struct EvalIntervalRegressionAccuracy {
-  void Configure(const Args&) {}
+  std::set<std::string> Configure(const Args&) { return {}; }
 
   [[nodiscard]] const char* Name() const { return "interval-regression-accuracy"; }
 
@@ -155,7 +156,9 @@ struct EvalIntervalRegressionAccuracy {
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
-  void Configure(const Args& args) { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args& args) {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
 
   [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
 
@@ -176,10 +179,11 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
   explicit EvalEWiseSurvivalBase(Context const* ctx) { ctx_ = ctx; }
   EvalEWiseSurvivalBase() = default;
 
-  void Configure(const Args& args) override {
-    policy_.Configure(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = policy_.Configure(args);
     reducer_.Configure(policy_);
     CHECK(ctx_);
+    return used;
   }
 
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
@@ -191,7 +195,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
                                   info.labels_upper_bound_, preds);
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
@@ -214,8 +218,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
     return metric_->Eval(preds, info);
   }
 
-  void Configure(const Args& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     switch (param_.aft_loss_distribution) {
       case common::ProbabilityDistributionType::kNormal:
         metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
@@ -230,7 +234,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
       default:
         LOG(FATAL) << "Unknown probability distribution";
     }
-    metric_->Configure(args);
+    used.merge(metric_->Configure(args));
+    return used;
   }
 
   void SaveConfig(Json* p_out) const override {

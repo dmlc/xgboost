@@ -160,7 +160,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
         std::int32_t nidx_in_batch;
         std::size_t item_idx;
         AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
-        auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
+        auto go_left = op(ridx[item_idx], batch_info_itr[nidx_in_batch].data);
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
       }));

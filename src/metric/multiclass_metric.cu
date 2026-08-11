@@ -11,6 +11,7 @@
 #include <cmath>
 #include <numeric>  // for accumulate
 
+#include "../collective/aggregator.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
@@ -151,6 +152,8 @@ class MultiClassMetricsReduction {
  */
 template <typename Derived>
 struct EvalMClassBase : public MetricNoCache {
+  ~EvalMClassBase() noexcept override = default;
+
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
     CheckRowWeights(info);
     if (info.labels.Size() == 0) {
@@ -169,7 +172,7 @@ struct EvalMClassBase : public MetricNoCache {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Derived::GetFinal(dat[0], dat[1]);
   }

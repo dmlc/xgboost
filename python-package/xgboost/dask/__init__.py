@@ -69,6 +69,7 @@ from typing import (
     List,
     Optional,
     ParamSpec,
+    Self,
     Sequence,
     Set,
     Tuple,
@@ -98,9 +99,9 @@ from ..collective import _ArgVals as CollArgsVals
 from ..compat import _is_cudf_df, _is_cudf_ser, _is_cupy_alike
 from ..core import (
     Booster,
+    CustomObj,
     DMatrix,
     Metric,
-    PlainObj,
     XGBoostError,
     _check_distributed_params,
     _deprecate_positional_args,
@@ -108,11 +109,11 @@ from ..core import (
 )
 from ..sklearn import (
     XGBClassifier,
-    XGBClassifierBase,
+    XGBClassifierMixIn,
     XGBModel,
     XGBRanker,
     XGBRankerMixIn,
-    XGBRegressorBase,
+    XGBRegressorMixIn,
     _can_use_qdm,
     _check_rf_callback,
     _cls_predict_proba,
@@ -728,7 +729,7 @@ async def _train_async(
     dtrain: DaskDMatrix,
     num_boost_round: int,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]],
-    obj: Optional[PlainObj],
+    obj: Optional[CustomObj],
     early_stopping_rounds: Optional[int],
     verbose_eval: Union[int, bool],
     xgb_model: Optional[Booster],
@@ -836,7 +837,7 @@ def train(  # pylint: disable=unused-argument
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]] = None,
-    obj: Optional[PlainObj] = None,
+    obj: Optional[CustomObj] = None,
     early_stopping_rounds: Optional[int] = None,
     xgb_model: Optional[Booster] = None,
     verbose_eval: Union[int, bool] = True,
@@ -981,16 +982,14 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
                 new_axis = list(range(len(output_shape) - 2))
             else:
                 new_axis = [i + 2 for i in range(len(output_shape) - 2)]
-        if len(output_shape) == 2:
-            # Somehow dask fail to infer output shape change for 2-dim prediction, and
-            #  `chunks = (None, output_shape[1])` doesn't work due to None is not
-            #  supported in map_blocks.
-
-            # data must be an array here as dataframe + 2-dim output predict will return
-            # a dataframe instead.
-            chunks: Optional[List[Tuple]] = list(data.chunks)
-            assert isinstance(chunks, list)
-            chunks[1] = (output_shape[1],)
+        if len(output_shape) >= 2:
+            # Dask cannot infer changed or newly introduced output dimensions.
+            # `None` is not supported for chunks in map_blocks, so use the inferred
+            # prediction shape for every non-row dimension.
+            assert isinstance(data, da.Array)
+            output_chunks: List[Tuple] = [data.chunks[0]]
+            output_chunks.extend((size,) for size in output_shape[1:])
+            chunks: Optional[List[Tuple]] = output_chunks
         else:
             chunks = None
         predictions = da.map_blocks(
@@ -1586,7 +1585,7 @@ class DaskScikitLearnBase(XGBModel):
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost.""", ["estimators", "model"]
 )
-class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
+class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
     """dummy doc string to workaround pylint, replaced by the decorator."""
 
     async def _fit_async(
@@ -1602,7 +1601,7 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-    ) -> _DaskCollection:
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights
@@ -1631,7 +1630,7 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
         )
 
         if callable(self.objective):
-            obj: Optional[Callable] = _objective_decorator(self.objective)
+            obj: Optional[CustomObj] = _objective_decorator(self.objective)
         else:
             obj = None
         results = await self.client.sync(
@@ -1680,7 +1679,7 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
+class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
@@ -1695,7 +1694,7 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-    ) -> "DaskXGBClassifier":
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights
@@ -1724,16 +1723,41 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         )
 
         # pylint: disable=attribute-defined-outside-init
-        if isinstance(y, da.Array):
-            self.classes_ = await self.client.compute(da.unique(y))
+        if isinstance(y, dd.Series) or (
+            isinstance(y, dd.DataFrame) and len(y.columns) == 1
+        ):
+            labels_series = y if isinstance(y, dd.Series) else y[y.columns[0]]
+            # The result is collected on the client, so avoid a distributed shuffle
+            # using only 1 output partition.
+            classes = labels_series.drop_duplicates(split_out=1)
         else:
-            self.classes_ = await self.client.compute(y.drop_duplicates())
-        if _is_cudf_ser(self.classes_):
-            self.classes_ = self.classes_.to_cupy()
-        if _is_cupy_alike(self.classes_):
-            self.classes_ = self.classes_.get()
-        self.classes_ = numpy.array(self.classes_)
-        self.n_classes_ = len(self.classes_)
+            labels = y if isinstance(y, da.Array) else y.to_dask_array()
+            if labels.ndim == 2:
+                n_columns = labels.shape[1]
+                assert isinstance(n_columns, int)
+                row_chunks = tuple(chunk * n_columns for chunk in labels.chunks[0])
+
+                def flatten(block: Any) -> Any:
+                    return block.reshape(-1)
+
+                # Use map_blocks to keep the computation lazy, so that we don't go
+                # through the data twice (shape and unique).
+                labels = da.map_blocks(
+                    flatten,
+                    labels,
+                    chunks=(row_chunks,),
+                    drop_axis=1,
+                    dtype=labels.dtype,
+                )
+            classes = da.unique(labels)
+        classes = await self.client.compute(classes)
+
+        if _is_cudf_ser(classes):
+            classes = classes.to_cupy()
+        if _is_cupy_alike(classes):
+            classes = classes.get()
+        classes = numpy.unique(numpy.asarray(classes))
+        self.n_classes_ = len(classes)
 
         if self.n_classes_ > 2:
             params["objective"] = "multi:softprob"
@@ -1742,7 +1766,7 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
             params["objective"] = "binary:logistic"
 
         if callable(self.objective):
-            obj: Optional[Callable] = _objective_decorator(self.objective)
+            obj: Optional[CustomObj] = _objective_decorator(self.objective)
         else:
             obj = None
         results = await self.client.sync(
@@ -1854,13 +1878,17 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         else:
             assert len(pred_probs.shape) == 2
             assert isinstance(pred_probs, da.Array)
-            # when using da.argmax directly, dask will construct a numpy based return
-            # array, which runs into error when computing GPU based prediction.
+            if self.n_classes_ != 2:
+                # when using da.argmax directly, dask will construct a numpy based return
+                # array, which runs into error when computing GPU based prediction.
 
-            def _argmax(x: Any) -> Any:
-                return x.argmax(axis=1)
+                def _argmax(x: Any) -> Any:
+                    return x.argmax(axis=1)
 
-            preds = da.map_blocks(_argmax, pred_probs, drop_axis=1)
+                preds = da.map_blocks(_argmax, pred_probs, drop_axis=1)
+            else:
+                # Multi-label classification has one binary output per target.
+                preds = (pred_probs > 0.5).astype(int)
         return preds
 
 
@@ -1923,7 +1951,7 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         verbose: Union[int, bool],
         xgb_model: Optional[Union[XGBModel, Booster]],
         feature_weights: Optional[_DaskCollection],
-    ) -> "DaskXGBRanker":
+    ) -> Self:
         params = self.get_xgb_params()
         model, metric, params, feature_weights = self._configure_fit(
             xgb_model, params, feature_weights

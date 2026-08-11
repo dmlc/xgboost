@@ -31,8 +31,8 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
  *   shape(grad_sum) == (n_leaves, n_targets)
  *   shape(out_weights) == (n_leaves, n_targets)
  */
-void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
-                TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+void LeafWeight(Context const* ctx, EvalParam const& param,
+                TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                 common::Span<bst_node_t const> nidx,
                 common::Span<GradientQuantiser const> roundings,
                 linalg::MatrixView<GradientPairInt64 const> grad_sum,

@@ -3,7 +3,6 @@ if(PLUGIN_SYCL)
   file(GLOB_RECURSE SYCL_SOURCES "sycl/*.cc")
     list(APPEND SYCL_SOURCES
     ${xgboost_SOURCE_DIR}/src/objective/regression_obj.cc
-    ${xgboost_SOURCE_DIR}/src/objective/hinge.cc
     ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc
     ${xgboost_SOURCE_DIR}/src/objective/multiclass_obj.cc)
   add_library(plugin_sycl OBJECT ${SYCL_SOURCES})
@@ -28,9 +27,4 @@ if(PLUGIN_SYCL)
   target_link_libraries(objxgboost PUBLIC plugin_sycl)
   # Add all objects of plugin_sycl to objxgboost
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl>)
-endif()
-
-# Add the Federate Learning plugin if enabled.
-if(PLUGIN_FEDERATED)
-  add_subdirectory(federated)
 endif()

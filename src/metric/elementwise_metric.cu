@@ -12,6 +12,7 @@
 #include <cmath>
 #include <numeric>  // for accumulate
 
+#include "../collective/aggregator.h"
 #include "../common/expectile_loss_utils.h"  // ExpectileLossParam
 #include "../common/math.h"
 #include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
@@ -169,7 +170,9 @@ class PseudoErrorLoss : public MetricNoCache {
 
  public:
   const char* Name() const override { return "mphe"; }
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const& args) override {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
   void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
@@ -198,7 +201,7 @@ class PseudoErrorLoss : public MetricNoCache {
           return std::make_tuple(v, wt);
         });
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
@@ -353,7 +356,7 @@ struct EvalEWiseBase : public MetricNoCache {
         });
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
@@ -413,10 +416,11 @@ class QuantileError : public MetricNoCache {
   common::QuantileLossParam param_;
 
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     alpha_.HostVector() = param_.quantile_alpha.Get();
+    return used;
   }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
@@ -427,7 +431,7 @@ class QuantileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
-      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
       collective::SafeColl(rc);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
@@ -468,7 +472,7 @@ class QuantileError : public MetricNoCache {
         },
         alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];
@@ -500,10 +504,11 @@ class ExpectileError : public MetricNoCache {
   common::ExpectileLossParam param_;
 
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     param_.Validate();
     alpha_.HostVector() = param_.expectile_alpha.Get();
+    return used;
   }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
@@ -514,7 +519,7 @@ class ExpectileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
-      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
       collective::SafeColl(rc);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
@@ -553,7 +558,7 @@ class ExpectileError : public MetricNoCache {
         },
         alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];

@@ -5,7 +5,7 @@ Tree Methods
 For training boosted tree models, there are 2 parameters used for choosing algorithms,
 namely ``updater`` and ``tree_method``.  XGBoost has 3 builtin tree methods, namely
 ``exact``, ``approx`` and ``hist``.  Along with these tree methods, there are also some
-free standing updaters including ``refresh``, ``prune`` and ``sync``.  The parameter
+free standing updaters including ``refresh`` and ``prune``.  The parameter
 ``updater`` is more primitive than ``tree_method`` as the latter is just a
 pre-configuration of the former.  The difference is mostly due to historical reasons that
 each updater requires some specific configurations and might have missing features.  As we
@@ -113,8 +113,8 @@ solely for the interest of documentation.
    faster than ``exact`` in some applications, but still slow in computation.  It was
    removed because it depended on Rabit's customized reduction function that handles all
    the data structure that can be serialized/deserialized into fixed size buffer, which is
-   not directly supported by NCCL or federated learning gRPC, making it hard to refactor
-   into a common allreducer interface.
+   not directly supported by NCCL, making it hard to refactor into a common allreducer
+   interface.
 
 **************
 Feature Matrix
@@ -138,8 +138,9 @@ Following table summarizes some differences in supported features between 4 tree
 +------------------+-----------+---------------------+------------------------+------------------------+
 | Distributed      | F         | T                   | T                      | T                      |
 +------------------+-----------+---------------------+------------------------+------------------------+
+| Vector leaf      | F         | F                   | F                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
 
 Features/parameters that are not mentioned here are universally supported for all 3 tree
-methods (for instance, column sampling and constraints).  The `P` in external memory means
-special handling.  Please note that both categorical data and external memory are
-experimental.
+methods (for instance, column sampling and constraints). The `P` in external memory means
+supported but not recommended due to performance reasons.

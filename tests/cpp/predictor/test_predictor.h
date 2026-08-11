@@ -55,7 +55,6 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
 
   std::unique_ptr<Predictor> predictor =
       std::unique_ptr<Predictor>(CreatePredictorForTest(&cuda_ctx));
-  predictor->Configure({});
 
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, kClasses);
   auto const& model = *p_model;
@@ -63,17 +62,16 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
   {
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
 
-    PredictionCacheEntry approx_out_predictions;
-    predictor->InitOutPredictions(p_hist->Info(), &approx_out_predictions.predictions, model);
+    HostDeviceVector<float> approx_out_predictions;
+    predictor->InitOutPredictions(p_hist->Info(), &approx_out_predictions, model);
     predictor->PredictBatch(p_hist.get(), &approx_out_predictions, model, 0);
 
-    PredictionCacheEntry precise_out_predictions;
-    predictor->InitOutPredictions(p_precise->Info(), &precise_out_predictions.predictions, model);
+    HostDeviceVector<float> precise_out_predictions;
+    predictor->InitOutPredictions(p_precise->Info(), &precise_out_predictions, model);
     predictor->PredictBatch(p_precise.get(), &precise_out_predictions, model, 0);
 
     for (size_t i = 0; i < rows; ++i) {
-      CHECK_EQ(approx_out_predictions.predictions.HostVector()[i],
-               precise_out_predictions.predictions.HostVector()[i]);
+      CHECK_EQ(approx_out_predictions.HostVector()[i], precise_out_predictions.HostVector()[i]);
     }
   }
 
@@ -82,8 +80,8 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
     // histogram index from training data is valid and predictor doesn't known which
     // matrix is used for training.
     auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
-    PredictionCacheEntry precise_out_predictions;
-    predictor->InitOutPredictions(p_dmat->Info(), &precise_out_predictions.predictions, model);
+    HostDeviceVector<float> precise_out_predictions;
+    predictor->InitOutPredictions(p_dmat->Info(), &precise_out_predictions, model);
     predictor->PredictBatch(p_dmat.get(), &precise_out_predictions, model, 0);
     CHECK(!p_dmat->PageExists<Page>());
   }
@@ -104,19 +102,13 @@ void TestPredictionWithLesserFeatures(Context const* ctx);
 
 void TestPredictionDeviceAccess();
 
-void TestCategoricalPrediction(bool use_gpu, bool is_column_split);
+void TestCategoricalPrediction(bool use_gpu);
 
-void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu);
-
-void TestCategoricalPredictLeaf(Context const* ctx, bool is_column_split);
+void TestCategoricalPredictLeaf(Context const* ctx);
 
 void TestIterationRange(Context const* ctx);
 
-void TestIterationRangeColumnSplit(int world_size, bool use_gpu);
-
 void TestSparsePrediction(Context const* ctx, float sparsity);
-
-void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsity);
 
 void TestVectorLeafPrediction(Context const* ctx);
 

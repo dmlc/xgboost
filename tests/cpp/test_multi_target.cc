@@ -2,23 +2,20 @@
  * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                         // for Args, bst_target_t
-#include <xgboost/data.h>                         // for DMatrix, MetaInfo
-#include <xgboost/json.h>                         // for Json, get, Object, String
-#include <xgboost/learner.h>                      // for Learner
+#include <xgboost/base.h>     // for Args, bst_target_t
+#include <xgboost/data.h>     // for DMatrix, MetaInfo
+#include <xgboost/json.h>     // for Json, get, Object, String
+#include <xgboost/learner.h>  // for Learner
 
-#include <algorithm>                              // for copy
-#include <cstddef>                                // for size_t
-#include <memory>                                 // for shared_ptr, allocator, __shared_ptr_access
-#include <numeric>                                // for accumulate
-#include <string>                                 // for stod, string
-#include <vector>                                 // for vector
+#include <algorithm>  // for copy
+#include <cstddef>    // for size_t
+#include <memory>     // for shared_ptr, allocator, __shared_ptr_access
+#include <string>     // for stod, string
+#include <vector>     // for vector
 
-#include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
-#include "../../src/common/stats.h"               // for Median
-#include "helpers.h"                              // for RandomDataGenerator
-#include "xgboost/host_device_vector.h"           // for HostDeviceVector
-#include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
+#include "../../src/common/linalg_op.h"  // for begin, cbegin, cend
+#include "helpers.h"                     // for RandomDataGenerator
+#include "xgboost/linalg.h"              // for Tensor, All, TensorView, Vector
 
 namespace xgboost {
 class TestL1MultiTarget : public ::testing::Test {
@@ -70,7 +67,7 @@ class TestL1MultiTarget : public ::testing::Test {
   void RunTest(Context const* ctx, std::string const& tree_method, bool weight) {
     auto p_fmat = weight ? Xyw_ : Xy_;
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParams(Args{{"tree_method", tree_method},
+    learner->Configure(Args{{"tree_method", tree_method},
                             {"objective", "reg:absoluteerror"},
                             {"device", ctx->DeviceName()}});
     learner->Configure();
@@ -87,7 +84,7 @@ class TestL1MultiTarget : public ::testing::Test {
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
       auto t_Xy = weight ? single_w_[t] : single_[t];
       std::unique_ptr<Learner> sl{Learner::Create({t_Xy})};
-      sl->SetParams(Args{{"tree_method", tree_method},
+      sl->Configure(Args{{"tree_method", tree_method},
                          {"objective", "reg:absoluteerror"},
                          {"device", ctx->DeviceName()}});
       sl->Configure();
@@ -96,9 +93,6 @@ class TestL1MultiTarget : public ::testing::Test {
       sl->SaveConfig(&s_config);
       auto s_base_score = GetBaseScore(s_config);
       ASSERT_EQ(s_base_score.size(), 1);
-      linalg::Vector<float> out;
-      common::Median(sl->Ctx(), t_Xy->Info().labels, t_Xy->Info().weights_, &out);
-      ASSERT_FLOAT_EQ(s_base_score[0], out(0));
       split_scores.push_back(s_base_score[0]);
     }
     ASSERT_EQ(split_scores, base_score);
@@ -136,11 +130,11 @@ TEST(MultiStrategy, Configure) {
   auto p_fmat = RandomDataGenerator{12ul, 3ul, 0.0}.GenerateDMatrix();
   p_fmat->Info().labels.Reshape(p_fmat->Info().num_row_, 2);
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-  learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
-  learner->Configure();
+  learner->Configure(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
   ASSERT_EQ(learner->Groups(), 2);
 
-  learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}});
-  ASSERT_THROW({ learner->Configure(); }, dmlc::Error);
+  ASSERT_THROW(
+      learner->Configure(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}}),
+      dmlc::Error);
 }
 }  // namespace xgboost

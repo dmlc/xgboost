@@ -34,26 +34,16 @@ jobs:
         with:
           environment-name: sdist_test
           environment-file: ops/conda_env/sdist_test.yml
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-${{ matrix.os }}
       - name: Install extra package for MacOS
         run: |
           mamba install -c conda-forge llvm-openmp
         if: matrix.os == 'macos-15-intel'
       - name: Build and install XGBoost
         run: bash ops/pipeline/test-python-sdist.sh
-
-  python-tests-on-macos:
-    name: Test XGBoost Python package on macos-15-intel
-    runs-on: macos-15-intel
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          submodules: 'true'
-      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
-        with:
-          environment-name: macos_cpu_test
-          environment-file: ops/conda_env/macos_cpu_test.yml
-      - run: bash ops/pipeline/test-python-macos.sh
+      - run: sccache --show-stats
 
   python-system-installation-on-ubuntu:
     name: Test XGBoost Python package System Installation on Ubuntu
@@ -66,4 +56,6 @@ jobs:
         uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - run: bash ops/pipeline/test-python-with-sysprefix.sh
+      - run: sccache --show-stats

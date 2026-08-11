@@ -8,6 +8,7 @@
 #include <algorithm>    // for max
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
+#include <limits>       // for numeric_limits
 #include <type_traits>  // for is_floating_point_v
 #include <vector>       // for vector
 
@@ -25,6 +26,17 @@
 #endif
 
 namespace xgboost::data {
+inline void CheckNonEmptyCategory(std::size_t n_categories) {
+  CHECK_GT(n_categories, 0) << "Categorical feature must have at least one category.";
+}
+
+inline std::size_t AddCatCount(std::size_t n_categories, std::size_t n_total_categories) {
+  constexpr auto kMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
+  CHECK_LE(n_total_categories, kMax) << "Maximum number of categories exceeded.";
+  CHECK_LE(n_categories, kMax - n_total_categories) << "Maximum number of categories exceeded.";
+  return n_total_categories + n_categories;
+}
+
 /**
  * @brief Get string-based category index from arrow.
  *
@@ -41,27 +53,22 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
   auto strbuf = ArrayInterface<1>(jstr);
 
   // Obtain the size of the string buffer using the offset
-  CHECK_GE(offset.n, 2);
+  CHECK_GE(offset.n, 1);
   auto offset_last_idx = offset.n - 1;
   if (ArrayInterfaceHandler::IsCudaPtr(offset.data)) {
     CHECK_EQ(strbuf.n, 0);  // Unknown
 #if defined(XGBOOST_USE_CUDA)
     DispatchDType(offset.type, [&](auto t) {
       using T = decltype(t);
-      if (!std::is_same_v<T, std::int32_t>) {
+      if constexpr (std::is_same_v<T, std::int32_t>) {
+        T back{0};
+        dh::safe_cuda(cudaMemcpy(&back, static_cast<T const*>(offset.data) + offset_last_idx,
+                                 sizeof(T), cudaMemcpyDeviceToHost));
+        CHECK_GE(back, 0) << "Invalid negative string offset from category index.";
+        strbuf.n = static_cast<std::size_t>(back);
+      } else {
         LOG(FATAL) << "Invalid type for the string offset from category index.";
       }
-#if defined(__CUDACC__) && !defined(__clang__)
-#pragma nv_diagnostic push
-#pragma nv_diag_suppress 20208  // long double is treated as double in device code
-#endif                          // defined(__CUDACC__) && !defined(__clang__)
-      T back{0};
-      dh::safe_cuda(cudaMemcpy(&back, static_cast<T const*>(offset.data) + offset_last_idx,
-                               sizeof(T), cudaMemcpyDeviceToHost));
-      strbuf.n = back;
-#if defined(__CUDACC__) && !defined(__clang__)
-#pragma nv_diagnostic pop
-#endif  // defined(__CUDACC__) && !defined(__clang__)
     });
 #else
     common::AssertGPUSupport();
@@ -69,11 +76,15 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
   } else {
     DispatchDType(offset.type, [&](auto t) {
       using T = decltype(t);
-      if (!std::is_same_v<T, std::int32_t>) {
+      if constexpr (std::is_same_v<T, std::int32_t>) {
+        T back = TypedIndex<T, 1>{offset}(offset_last_idx);
+        CHECK_GE(back, 0) << "Invalid negative string offset from category index.";
+        CHECK_LE(static_cast<std::size_t>(back), strbuf.n)
+            << "String offset exceeds the category values buffer.";
+        strbuf.n = static_cast<std::size_t>(back);
+      } else {
         LOG(FATAL) << "Invalid type for the string offset from category index.";
       }
-      auto back = offset(offset_last_idx);
-      strbuf.n = back;
     });
   }
 
@@ -100,6 +111,7 @@ template <typename CategoricalIndex, bool allow_mask>
   CHECK_EQ(tup.size(), 2);
 
   auto names = GetArrowNames(get<Object const>(tup[0]), p_cat_columns);
+  CheckNonEmptyCategory(names.size());
 
   // arrow Integer array for encoded categories
   auto const& jcodes = get<Object const>(tup[1]);
@@ -124,19 +136,19 @@ template <typename CategoricalIndex>
                                                std::vector<CategoricalIndex>* p_cat_columns,
                                                std::size_t* p_n_bytes) {
   auto names = ArrayInterface<1>{jnames};
+  CheckNonEmptyCategory(names.n);
   auto& n_bytes = *p_n_bytes;
   DispatchDType(names, device, [&](auto t) {
     using T = typename decltype(t)::value_type;
-    constexpr bool kKnownType = enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value;
-    CHECK(kKnownType) << "Unsupported categorical index type: `"
-                      << ArrayInterfaceHandler::TypeStr(names.type) << "`.";
     if constexpr (std::is_floating_point_v<T>) {
       LOG(FATAL) << error::NoFloatCat();
-    }
-    auto span = common::Span{t.Values().data(), t.Size()};
-    if constexpr (kKnownType) {
+    } else if constexpr (enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value) {
+      auto span = common::Span{t.Values().data(), t.Size()};
       p_cat_columns->emplace_back(span);
       n_bytes += span.size_bytes();
+    } else {
+      LOG(FATAL) << "Unsupported categorical index type: `"
+                 << ArrayInterfaceHandler::TypeStr(names.type) << "`.";
     }
   });
   return names.n;

@@ -166,6 +166,15 @@ def test_multioutput_reg() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+def test_multioutput_reduced_gradient_demo() -> None:
+    # Runs with the default `--device cpu`; `cupy` is only imported on the
+    # (unused here) `--device cuda` code paths.
+    script = os.path.join(PYTHON_DEMO_DIR, "multioutput_reduced_gradient.py")
+    cmd = [PYTHON, script]
+    subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_prediction_intervals() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "prediction_intervals.py")
     cmd = [PYTHON, script]

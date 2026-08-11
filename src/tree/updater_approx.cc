@@ -19,7 +19,7 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
-#include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
+#include "hist/evaluate_splits.h"            // for HistEvaluator
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
@@ -87,14 +87,12 @@ class GlobalApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                p_fmat->Info().IsColumnSplit());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       n_batches_++;
     }
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
-                             collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                             hist_param_);
+                             collective::IsDistributed(), hist_param_);
     monitor_->Stop(__func__);
   }
 
@@ -108,8 +106,8 @@ class GlobalApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                    linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
+    auto rc =
+        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
     collective::SafeColl(rc);
 
     std::vector<CPUExpandEntry> nodes{best};
@@ -124,21 +122,10 @@ class GlobalApproxBuilder {
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &nodes);
+    evaluator_.EvaluateSplits(histograms, feature_values_, ft, &nodes);
     monitor_->Stop(__func__);
 
     return nodes.front();
-  }
-
-  void UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
-                             linalg::MatrixView<float> out_preds) const {
-    monitor_->Start(__func__);
-    // Caching prediction seems redundant for approx tree method, as sketching takes up
-    // majority of training time.
-    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_);
-    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
-    monitor_->Stop(__func__);
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
@@ -177,6 +164,7 @@ class GlobalApproxBuilder {
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
                   RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
+    CHECK(!p_tree->IsMultiTarget()) << "approx" << MTNotImplemented();
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, p_tree, hess);
 
@@ -231,7 +219,7 @@ class GlobalApproxBuilder {
         auto const &histograms = histogram_builder_.Histogram(0);
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();
         monitor_->Start("EvaluateSplits");
-        evaluator_.EvaluateSplits(histograms, feature_values_, ft, *p_tree, &best_splits);
+        evaluator_.EvaluateSplits(histograms, feature_values_, ft, &best_splits);
         monitor_->Stop("EvaluateSplits");
       }
       driver.Push(best_splits.begin(), best_splits.end());
@@ -263,7 +251,9 @@ class GlobalApproxUpdater : public TreeUpdater {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const &args) override {
+    return UpdateAndGetUsedParameters(&hist_param_, args);
+  }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
@@ -309,21 +299,6 @@ class GlobalApproxUpdater : public TreeUpdater {
       ++t_idx;
     }
   }
-
-  bool UpdatePredictionCache(DMatrix const *p_fmat,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             linalg::MatrixView<float> out_preds) override {
-    if (p_fmat != cached_ || !pimpl_) {
-      return false;
-    }
-    if (out_position.size() > 1) {
-      return false;
-    }
-    this->pimpl_->UpdatePredictionCache(p_fmat, out_position.front().ConstHostSpan(), out_preds);
-    return true;
-  }
-
-  [[nodiscard]] bool HasNodePosition() const override { return true; }
 };
 
 DMLC_REGISTRY_FILE_TAG(grow_histmaker);

@@ -13,8 +13,6 @@
 
 #else
 
-#include "xgboost/windefs.h"  // for xgboost_IS_WIN
-
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #include <cuda.h>  // for CUmemGenericAllocationHandle
@@ -269,7 +267,6 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
     using other = ThrustAllocMrAdapter<U>;  // NOLINT(readability-identifier-naming)
   };
 
-
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
             rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
@@ -285,23 +282,15 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <typename T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-#if !defined(xgboost_IS_WIN)
-  // MSVC/NVCC optimizes this variable away, as a result, we disable the async pool
-  // entirely on Windows.
   std::int32_t use_async_pool_;
-#endif
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
   using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
   using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
 
-#if defined(xgboost_IS_WIN)
-  XGBAsyncPoolAllocator() = default;
-#else
   XGBAsyncPoolAllocator()
       : use_async_pool_{::xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
-#endif
 
   template <typename U>
   struct rebind {                            // NOLINT(readability-identifier-naming)
@@ -309,9 +298,6 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   };
 
   pointer allocate(std::size_t n) {  // NOLINT
-#if defined(xgboost_IS_WIN)
-    return Super::allocate(n);
-#else
     if (!this->use_async_pool_) {
       return Super::allocate(n);
     }
@@ -320,26 +306,19 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
     safe_cuda(cudaMallocAsync(&raw_ptr, n_bytes, xgboost::curt::DefaultStream()));
     return thrust::device_pointer_cast(raw_ptr);
-#endif
   }
 
   void deallocate(pointer ptr, std::size_t n) {  // NOLINT
-#if defined(xgboost_IS_WIN)
-    return Super::deallocate(ptr, n);
-#else
     if (!this->use_async_pool_) {
       return Super::deallocate(ptr, n);
     }
 
     safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), xgboost::curt::DefaultStream()));
-#endif
   }
 
   // Used for tests.
   void SetAsync(bool use_async_pool) {
-#if !defined(xgboost_IS_WIN)
     this->use_async_pool_ = use_async_pool;
-#endif
   }
 };
 
@@ -492,6 +471,9 @@ class DeviceUVectorImpl {
  public:
   DeviceUVectorImpl() = default;
   explicit DeviceUVectorImpl(std::size_t n) { this->resize(n); }
+  explicit DeviceUVectorImpl(std::size_t n, T v, ::xgboost::curt::StreamRef stream) {
+    this->resize(n, v, stream);
+  }
   DeviceUVectorImpl(DeviceUVectorImpl const &that) = delete;
   DeviceUVectorImpl &operator=(DeviceUVectorImpl const &that) = delete;
   DeviceUVectorImpl(DeviceUVectorImpl &&that) = default;
@@ -500,7 +482,8 @@ class DeviceUVectorImpl {
   [[nodiscard]] std::size_t Capacity() const { return this->capacity_; }
 
   // Resize without init.
-  void resize(std::size_t n) {  // NOLINT
+  void resize(std::size_t n,  // NOLINT
+              ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
     using ::xgboost::common::SizeBytes;
 
     if (n <= this->Capacity()) {
@@ -519,9 +502,8 @@ class DeviceUVectorImpl {
                             }};
     CHECK(new_ptr.get());
 
-    auto s = ::xgboost::curt::DefaultStream();
     safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, s));
+                              cudaMemcpyDefault, stream));
     this->size_ = n;
     this->capacity_ = n;
 
@@ -530,11 +512,12 @@ class DeviceUVectorImpl {
     // std::swap(this->data_, new_ptr);
   }
   // Resize with init
-  void resize(std::size_t n, T const &v) {  // NOLINT
+  void resize(std::size_t n, T const &v,  // NOLINT
+              ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
     auto orig = this->size();
-    this->resize(n);
+    this->resize(n, stream);
     if (orig < n) {
-      auto exec = thrust::cuda::par_nosync.on(::xgboost::curt::DefaultStream());
+      auto exec = thrust::cuda::par_nosync.on(stream);
       thrust::fill(exec, this->begin() + orig, this->end(), v);
     }
   }

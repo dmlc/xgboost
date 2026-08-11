@@ -61,7 +61,9 @@ class ColMaker : public TreeUpdater {
  public:
   explicit ColMaker(Context const *ctx)
       : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()} {}
-  void Configure(const Args &args) override { colmaker_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args &args) override {
+    return UpdateAndGetUsedParameters(&colmaker_param_, args);
+  }
 
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
@@ -93,7 +95,7 @@ class ColMaker : public TreeUpdater {
   }
 
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *dmat,
-              common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
@@ -115,11 +117,12 @@ class ColMaker : public TreeUpdater {
     // build tree
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
-    for (auto tree : trees) {
+    for (std::size_t i = 0; i < trees.size(); ++i) {
       CHECK(ctx_);
+      CHECK(!trees[i]->IsMultiTarget()) << "exact" << MTNotImplemented();
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
                       column_sampler_);
-      builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
+      builder.Update(gpair->Data()->ConstHostVector(), dmat, trees[i], &out_position[i]);
     }
   }
 
@@ -164,11 +167,12 @@ class ColMaker : public TreeUpdater {
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
           column_sampler_{std::move(column_sampler)},
-          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU()),
+          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU(), 1u),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
-    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree) {
+    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree,
+                HostDeviceVector<bst_node_t> *p_out_position) {
       this->InitData(gpair, *p_fmat);
       this->InitRoot(gpair, *p_fmat, *p_tree);
 
@@ -206,6 +210,14 @@ class ColMaker : public TreeUpdater {
         stat.base_weight = snode_[nid].weight;
         stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
+      CHECK(p_out_position);
+      auto &h_position = p_out_position->HostVector();
+      h_position.resize(position_.size());
+      CHECK_EQ(row_is_valid_.size(), position_.size());
+      for (std::size_t i = 0; i < position_.size(); ++i) {
+        h_position[i] =
+            SamplePosition::Encode(SamplePosition::Decode(position_[i]), row_is_valid_[i]);
+      }
     }
 
    protected:
@@ -216,9 +228,13 @@ class ColMaker : public TreeUpdater {
         position_.resize(gpair.size());
         CHECK_EQ(fmat.Info().num_row_, position_.size());
         std::fill(position_.begin(), position_.end(), 0);
+        row_is_valid_.assign(position_.size(), true);
         // mark delete for the deleted datas
         for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-          if (gpair[ridx].GetHess() < 0.0f) position_[ridx] = ~position_[ridx];
+          if (gpair[ridx].GetHess() < 0.0f) {
+            position_[ridx] = ~position_[ridx];
+            row_is_valid_[ridx] = false;
+          }
         }
         // mark subsample
         if (param_.subsample < 1.0f) {
@@ -228,8 +244,13 @@ class ColMaker : public TreeUpdater {
           std::bernoulli_distribution coin_flip(param_.subsample);
           auto &rnd = ctx_->Rng();
           for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-            if (gpair[ridx].GetHess() < 0.0f) continue;
-            if (!coin_flip(rnd)) position_[ridx] = ~position_[ridx];
+            if (!row_is_valid_[ridx]) {
+              continue;
+            }
+            if (!coin_flip(rnd)) {
+              position_[ridx] = ~position_[ridx];
+              row_is_valid_[ridx] = false;
+            }
           }
         }
       }
@@ -591,6 +612,9 @@ class ColMaker : public TreeUpdater {
     std::shared_ptr<common::ColumnSampler> column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
+    // Whether the row participates in training.  `position_` can be marked invalid internally
+    // after reaching a finished leaf, but the exported node positions should still include it.
+    std::vector<char> row_is_valid_;
     // PerThread x PerTreeNode: statistics for per thread construction
     std::vector<std::vector<ThreadEntry>> stemp_;
     /*! \brief TreeNode Data: statistics for each constructed node */

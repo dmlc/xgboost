@@ -62,11 +62,11 @@ class GBLinear : public GradientBooster {
     monitor_.Init(__func__);
   }
 
-  void Configure(const Args& cfg) override {
+  std::set<std::string> Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.Configure(cfg);
     }
-    param_.UpdateAllowUnknown(cfg);
+    auto used = UpdateAndGetUsedParameters(&param_, cfg);
     if (param_.updater == "gpu_coord_descent") {
       LOG(FATAL) << error::DeprecatedFunc("gpu_coord_descent", "2.0.0",
                                           R"(device="cuda", updater="coord_descent")");
@@ -80,7 +80,8 @@ class GBLinear : public GradientBooster {
     LOG(INFO) << "Using the updater:" << name;
 
     updater_.reset(LinearUpdater::Create(name, ctx_));
-    updater_->Configure(cfg);
+    used.merge(updater_->Configure(cfg));
+    return used;
   }
 
   int32_t BoostedRounds() const override { return model_.num_boosted_rounds; }
@@ -118,7 +119,7 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry*,
+  void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                ObjFunction const*) override {
     if (in_gpair->HasValueGrad()) {
       LOG(FATAL)
@@ -129,21 +130,20 @@ class GBLinear : public GradientBooster {
 
     CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");
     model_.LazyInitModel();
-    this->LazySumWeights(p_fmat);
+    this->LazySumWeights(p_fmat.get());
 
     if (!this->CheckConvergence()) {
-      updater_->Update(in_gpair->Grad(), p_fmat, &model_, sum_instance_weight_);
+      updater_->Update(in_gpair->Grad(), p_fmat.get(), &model_, sum_instance_weight_);
     }
     model_.num_boosted_rounds++;
     monitor_.Stop("DoBoost");
   }
 
-  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* predts, bool /*training*/,
-                    bst_layer_t layer_begin, bst_layer_t) override {
+  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
+                    bool /*training*/, bst_layer_t layer_begin, bst_layer_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
-    auto* out_preds = &predts->predictions;
-    this->PredictBatchInternal(p_fmat, &out_preds->HostVector());
+    this->PredictBatchInternal(p_fmat.get(), &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
   }
 

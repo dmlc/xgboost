@@ -65,11 +65,12 @@ struct GBTreeModel : public Model {
  public:
   explicit GBTreeModel(LearnerModelParam const* learner_model, Context const* ctx)
       : learner_model_param{learner_model}, ctx_{ctx} {}
-  void Configure(Args const& cfg) {
+  std::set<std::string> Configure(Args const& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
-      param.UpdateAllowUnknown(cfg);
+      return UpdateAndGetUsedParameters(&param, cfg);
     }
+    return {};
   }
   /** @brief Move existing trees into the update queue. */
   void InitTreesToUpdate();

@@ -139,23 +139,6 @@ architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus
   building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables
   XGBoost to load NCCL at runtime using ``dlopen``.
 
-Federated Learning
-==================
-
-The federated learning plugin requires ``grpc`` and ``protobuf``. To install grpc, refer
-to the `installation guide from the gRPC website
-<https://grpc.io/docs/languages/cpp/quickstart/>`_. Alternatively, one can use the
-``libgrpc`` and the ``protobuf`` package from conda forge if conda is available. After
-obtaining the required dependencies, enable the flag: ``-DPLUGIN_FEDERATED=ON`` when
-running CMake. Please note that only Linux is supported for the federated plugin.
-
-
-.. code-block:: bash
-
-  cmake -B build -S . -DPLUGIN_FEDERATED=ON -GNinja
-  cd build && ninja
-
-
 .. _build_python:
 
 ***********************************
@@ -206,17 +189,13 @@ There are several ways to build and install the package from source:
         --config-settings cmake.define.USE_CUDA=ON \
         --config-settings cmake.define.USE_NCCL=ON
 
-  Common CMake options
-  (see :ref:`building-the-shared-library` for the full list):
+  Common CMake options (see :ref:`build_shared_lib` for the full list):
 
   - ``USE_CUDA`` — build with CUDA / GPU acceleration
   - ``USE_NCCL`` — build with NCCL for distributed GPU training
   - ``USE_DLOPEN_NCCL`` — load NCCL dynamically at runtime
-  - ``PLUGIN_FEDERATED`` — enable the federated learning plugin
-  - ``PLUGIN_RMM`` — build with RAPIDS Memory Manager support
   - ``HIDE_CXX_SYMBOLS`` — hide all C++ symbols in the shared library
   - ``USE_OPENMP`` — build with OpenMP (defaults to ON)
-  - ``XGBOOST_USE_SYSTEM_LIBXGBOOST`` — see Item 4 below
 
   .. note:: Verbose flag recommended
 
@@ -243,7 +222,7 @@ There are several ways to build and install the package from source:
     cd ../python-package
     pip install -e .
 
-4. Reuse the ``libxgboost.so`` on system path.
+4. Reuse ``libxgboost.so`` from the system prefix.
 
   This option is useful for package managers that wish to separately package
   ``libxgboost.so`` and the XGBoost Python package. For example, Conda
@@ -259,12 +238,14 @@ There are several ways to build and install the package from source:
     libpath = pathlib.Path(sys.base_prefix).joinpath("lib", "libxgboost.so")
     assert libpath.exists()
 
-  Then pass ``cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON`` to ``pip install``:
+  Then disable CMake with scikit-build-core's ``wheel.cmake`` setting. This packages the
+  Python sources without building or bundling a shared library; scikit-build-core targets
+  ``purelib`` by default in this mode.
 
   .. code-block:: bash
 
     cd python-package
-    pip install . --config-settings cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON
+    pip install . --config-settings wheel.cmake=false
 
 
 .. note::
@@ -401,8 +382,7 @@ Additional System-dependent Features
 - OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
   -``mvn -Duse.openmp=OFF`` can be used to disable OpenMP support.
 - GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
-  install``. See :ref:`build_gpu_support` for more info. In addition, ``-Dplugin.rmm=ON``
-  can enable the optional RMM support.
+  install``. See :ref:`build_gpu_support` for more info.
 
 **************************
 Building the Documentation
