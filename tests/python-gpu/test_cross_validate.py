@@ -8,9 +8,8 @@ from functools import wraps
 from typing import TYPE_CHECKING, Callable
 
 import pytest
-from pytest import fixture
-
 import xgboost as xgb
+from pytest import fixture
 from xgboost import _cross_validation as xcv
 from xgboost import testing as tm
 
