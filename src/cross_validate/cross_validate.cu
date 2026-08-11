@@ -152,15 +152,11 @@ class FoldTreeMethod {
   tree::HistMakerTrainParam hist_param_;
   bool initialized_{false};
 
-  // Shared by all folds, none of these depend on the fold. Sharing the column sampler is
-  // only correct because `CheckSupportedParams` rejects column subsampling, otherwise every
-  // fold would draw the same features.
+  // FIXME(jiamingy): The columns_sampler_ cannot be shared between folds.
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::shared_ptr<common::HistogramCuts const> cuts_;
   std::unique_ptr<tree::FeatureGroups> feature_groups_;
   std::vector<bst_idx_t> batch_ptr_;
-  // Refreshed in every Reset, the device span of a HostDeviceVector can be invalidated by a
-  // reallocation.
   common::Span<FeatureType const> feature_types_;
 
   // Per-fold state.
@@ -220,8 +216,7 @@ class FoldTreeMethod {
   }
 
   [[nodiscard]] auto MakeSharedInputs(std::size_t k, bst_feature_t max_active_feature) const {
-    // Categorical features are rejected by CheckSupportedParams, hence no category storage.
-    std::size_t constexpr kCatStorageSize = 0;
+    std::size_t constexpr kCatStorageSize = 0;  // FIXME(jiamingy): Support categorical features.
     return tree::MultiEvaluateSplitSharedInputs{this->quantizers_.at(k)->DeviceSpan(),
                                                 this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                                 this->cuts_->cut_values_.ConstDevicePointer(),
@@ -234,11 +229,9 @@ class FoldTreeMethod {
 
  public:
   explicit FoldTreeMethod(std::shared_ptr<DMatrix> p_fmat)
-      : p_fmat_{std::move(p_fmat)}, column_sampler_{std::make_shared<common::ColumnSampler>()} {
-    CHECK(p_fmat_);
-    ctx_ = p_fmat_->Ctx();
-    CHECK(ctx_);
-  }
+      : p_fmat_{std::move(p_fmat)},
+        ctx_{p_fmat_->Ctx()},
+        column_sampler_{std::make_shared<common::ColumnSampler>()} {}
 
   void Configure(Args const& args) {
     CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
