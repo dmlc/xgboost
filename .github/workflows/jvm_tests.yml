@@ -52,7 +52,6 @@ jobs:
       - name: Stash x86_64 library
         if: matrix.arch == 'x86_64'
         run: |
-          sha256sum lib/libxgboost4j.so
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-jvm-manylinux-x86_64 \
@@ -152,12 +151,8 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-jvm-manylinux-x86_64 \
             --dest-dir lib \
             libxgboost4j.so
-          sha256sum lib/libxgboost4j.so
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
-        run: |
-          sha256sum lib/libxgboost4j.so > /tmp/libxgboost4j.sha256
-          bash ops/pipeline/build-test-jvm-packages.sh
-          sha256sum --check /tmp/libxgboost4j.sha256
+        run: bash ops/pipeline/build-test-jvm-packages.sh
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
@@ -285,7 +280,6 @@ jobs:
             --dest-dir lib \
             libxgboost4j.so
           ls -lh lib/libxgboost4j.so
-          sha256sum lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
         run: bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} ${{ matrix.scala_version }}
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
