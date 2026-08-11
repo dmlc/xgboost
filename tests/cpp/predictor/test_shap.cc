@@ -223,7 +223,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
 
   std::shared_ptr<DMatrix> p_dmat{dmat, [](DMatrix*) {}};
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
-  learner->SetParams(model_args);
+  learner->Configure(model_args);
   learner->Configure();
   for (size_t i = 0; i < 2; ++i) {
     learner->UpdateOneIter(i, p_dmat);
@@ -254,7 +254,7 @@ void CheckDartShapOutput(Context const* ctx) {
   SetLabels(dmat.get(), 1);
 
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(Args{{"booster", "dart"},
+  learner->Configure(Args{{"booster", "dart"},
                           {"objective", "binary:logistic"},
                           {"max_depth", "3"},
                           {"rate_drop", "0.5"},
@@ -442,7 +442,7 @@ TEST(Predictor, ApproxContribsBasic) {
   args.emplace_back("tree_method", "approx");
 
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(args);
+  learner->Configure(args);
   learner->Configure();
   for (size_t i = 0; i < 3; ++i) {
     learner->UpdateOneIter(i, dmat);
@@ -486,7 +486,7 @@ TEST(Predictor, ShapIterationRange) {
                   .Classes(kClasses)
                   .GenerateDMatrix(true);
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(Args{{"num_parallel_tree", std::to_string(kForest)},
+  learner->Configure(Args{{"num_parallel_tree", std::to_string(kForest)},
                           {"device", ctx.IsSycl() ? "cpu" : ctx.DeviceName()}});
   for (size_t i = 0; i < kIters; ++i) {
     learner->UpdateOneIter(i, dmat);

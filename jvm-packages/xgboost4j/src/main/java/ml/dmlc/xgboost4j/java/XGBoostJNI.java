@@ -111,6 +111,8 @@ public class XGBoostJNI {
 
   public final static native int XGBoosterSetParam(long handle, String name, String value);
 
+  public final static native int XGBoosterSetParams(long handle, String config);
+
   public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
 
   public final static native int XGBoosterTrainOneIter(long handle, long dtrain, int iter, float[] grad,

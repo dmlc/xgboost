@@ -20,7 +20,6 @@
 
 #include <algorithm>  // for max
 #include <cstdint>    // for int32_t, uint32_t, uint8_t
-#include <map>        // for map
 #include <memory>     // for shared_ptr, unique_ptr
 #include <string>     // for string
 #include <utility>    // for move
@@ -68,9 +67,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
   ~Learner() override;
   /*!
-   * \brief Configure Learner based on set parameters.
+   * \brief Configure Learner with a parameter batch.
+   * \param args Ordered parameter batch. Repeated parameters are preserved.
    */
-  virtual void Configure() = 0;
+  virtual void Configure(Args const& args = {}) = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.
@@ -152,22 +152,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
-
-  /*!
-   * \brief Set multiple parameters at once.
-   *
-   * \param args parameters.
-   */
-  virtual void SetParams(Args const& args) = 0;
-  /*!
-   * \brief Set parameter for booster
-   *
-   *  The property will NOT be saved along with booster
-   *
-   * \param key   The key of parameter
-   * \param value The value of parameter
-   */
-  virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
   /**
    * @brief Get the number of features of the booster.
@@ -264,11 +248,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Return the context object of this Booster.
    */
   virtual Context const* Ctx() const = 0;
-  /*!
-   * \brief Get configuration arguments currently stored by the learner
-   * \return Key-value pairs representing configuration arguments
-   */
-  virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
  protected:
   /*! \brief objective function */
