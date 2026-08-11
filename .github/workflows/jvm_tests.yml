@@ -25,15 +25,15 @@ jobs:
     with:
       tag-prefix: jvm-tests
 
-  build-jvm-manylinux2014:
+  build-jvm-manylinux:
     name: >-
-      Build libxgboost4j.so targeting glibc 2.17
+      Build libxgboost4j.so targeting glibc 2.28
       (arch ${{ matrix.arch }}, runner ${{ matrix.runner }})
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
-      - tag=jvm-tests-build-jvm-manylinux2014-${{ matrix.arch }}
+      - tag=jvm-tests-build-jvm-manylinux-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,14 @@ jobs:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
+      - run: bash ops/pipeline/build-jvm-manylinux.sh ${{ matrix.arch }}
+      - name: Stash x86_64 library
+        if: matrix.arch == 'x86_64'
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-manylinux-x86_64 \
+            lib/libxgboost4j.so
 
   build-jvm-gpu:
     name: Build libxgboost4j.so with CUDA
@@ -115,7 +122,7 @@ jobs:
 
   build-test-jvm-packages-linux:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
-    needs: ci-configure
+    needs: [ci-configure, build-jvm-manylinux]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -131,11 +138,19 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     env:
       SCALA_VERSION: ${{ matrix.scala_version }}
+      SKIP_NATIVE_BUILD: "1"
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
+      - name: Unstash x86_64 library
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-manylinux-x86_64 \
+            --dest-dir lib \
+            libxgboost4j.so
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
         run: bash ops/pipeline/build-test-jvm-packages.sh
       - name: Stash files
