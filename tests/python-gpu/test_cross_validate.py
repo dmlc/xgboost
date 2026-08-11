@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     import cupy as cp
 
 
-type XywExtQdm = tuple[cp.ndarray, cp.ndarray, cp.ndarray, xgb.ExtMemQuantileDMatrix]
+type XywExtQdm = tuple[list[cp.ndarray], list[cp.ndarray], list[cp.ndarray], xgb.ExtMemQuantileDMatrix]
 
 N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES = 16, 4, 2
 
