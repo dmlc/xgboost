@@ -408,6 +408,9 @@ def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
     """Ensure the np array has correct type and is contiguous."""
+    if not data.dtype.isnative:
+        data = data.astype(data.dtype.newbyteorder("="), copy=False)
+        dtype = data.dtype
     if array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
         dtype = np.float32
         data = data.astype(dtype, copy=False)
