@@ -1,10 +1,11 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <thrust/sequence.h>   // for sequence
 #include <thrust/transform.h>  // for transform
 
-#include <vector>  // for vector
+#include <cuda/functional>  // for proclaim_copyable_arguments
+#include <vector>           // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for CopyDeviceSpanToVector, ToSpan
@@ -43,11 +44,11 @@ void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_total_samples,
   ridx_segments_.emplace_back(
       NodePositionInfo{Segment{0, static_cast<cuda_impl::RowIndexT>(ridx.size())}});
 
-  thrust::transform(ctx->CUDACtx()->CTP(), dh::tcbegin(ridx), dh::tcend(ridx), ridx_.data(),
-                    [=] XGBOOST_DEVICE(bst_idx_t r) {
-                      KERNEL_CHECK(r < n_total_samples);
-                      return static_cast<cuda_impl::RowIndexT>(r);
-                    });
+  thrust::transform(
+      ctx->CUDACtx()->CTP(), dh::tcbegin(ridx), dh::tcend(ridx), ridx_.data(),
+      cuda::proclaim_copyable_arguments([=] XGBOOST_DEVICE(bst_idx_t r) -> cuda_impl::RowIndexT {
+        return static_cast<cuda_impl::RowIndexT>(r);
+      }));
 
   // Pre-allocate some host memory
   this->pinned_.GetSpan<std::int32_t>(1 << 11);
