@@ -431,8 +431,8 @@ class MultiTargetHistMaker {
           split_data(n_candidates) {}
   };
 
-  PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
-                                      std::vector<MultiExpandEntry> const& candidates) {
+  static PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
+                                             std::vector<MultiExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
     auto split_types = p_tree->GetSplitTypes(DeviceOrd::CPU());
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {

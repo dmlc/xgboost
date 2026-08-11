@@ -54,6 +54,15 @@ _LIB.XGBCvFoldModelsInitPrediction.argtypes = [
     ctypes.c_void_p,
 ]
 
+_LIB.XGBCvFoldPredictionsGet.restype = ctypes.c_int
+_LIB.XGBCvFoldPredictionsGet.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),
+    ctypes.POINTER(ctypes.c_size_t),
+    ctypes.POINTER(ctypes.c_size_t),
+]
+
 _LIB.XGBCvFoldPredictionsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldPredictionsFree.argtypes = [ctypes.c_void_p]
 
@@ -95,6 +104,7 @@ _LIB.XGBCvFoldTreeMethodFree.argtypes = [ctypes.c_void_p]
 
 _LIB.XGBCvFoldTreeMethodUpdate.restype = ctypes.c_int
 _LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
+    ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -230,12 +240,14 @@ class FoldTreeMethod:
             del self.handle
             _check_call(_LIB.XGBCvFoldTreeMethodFree(hdl))
 
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
     def update(
         self,
         cv_folds: FoldModels,
         data: ExtMemQuantileDMatrix,
         fold_info: FoldInfoBatches,
         gpairs: FoldGpairs,
+        predt: FoldPredictions,
     ) -> None:
         """Grow and commit one fused CV tree for each fold."""
 
@@ -246,6 +258,7 @@ class FoldTreeMethod:
                 data.handle,
                 fold_info.handle,
                 gpairs.handle,
+                predt.handle,
             )
         )
 
@@ -292,6 +305,42 @@ class FoldPredictions:
             hdl = self.handle
             del self.handle
             _check_call(_LIB.XGBCvFoldPredictionsFree(hdl))
+
+    def get(self, k: int, copy: bool = True) -> cp.ndarray:
+        """Retrieve the training prediction cache of the k^th fold.
+
+        The result is indexed by the global row index, the rows held out by the fold are
+        unused padding.
+
+        """
+        import cupy as cp
+
+        data = ctypes.POINTER(ctypes.c_float)()
+        n_rows = ctypes.c_size_t()
+        n_columns = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldPredictionsGet(
+                self.handle,
+                ctypes.c_size_t(k),
+                ctypes.byref(data),
+                ctypes.byref(n_rows),
+                ctypes.byref(n_columns),
+            )
+        )
+
+        shape = (int(n_rows.value), int(n_columns.value))
+        n_elems = shape[0] * shape[1]
+        if n_elems == 0:
+            return cp.empty(shape, dtype=cp.float32)
+
+        data_ptr = ctypes.cast(data, ctypes.c_void_p).value
+        assert data_ptr is not None
+        float_size = ctypes.sizeof(ctypes.c_float)
+        mem = cp.cuda.UnownedMemory(data_ptr, n_elems * float_size, self)
+        predt = cp.ndarray(
+            shape, dtype=cp.float32, memptr=cp.cuda.MemoryPointer(mem, 0)
+        )
+        return predt.copy() if copy else predt
 
 
 class FoldGpairs:

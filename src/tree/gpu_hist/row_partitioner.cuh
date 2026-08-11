@@ -289,6 +289,16 @@ class RowPartitioner {
    */
   RowPartitioner() = default;
   void Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
+  /**
+   * @brief Seed the partitioner with an explicit subset of rows.
+   *
+   * Used by cross-validation, where a fold owns only some of the rows of a batch.
+   *
+   * @param n_total_samples The number of samples in the full dataset, which bounds every
+   *                        value in @ref ridx .
+   * @param ridx Global row indices. Not shifted by any base row index.
+   */
+  void Reset(Context const* ctx, bst_idx_t n_total_samples, common::Span<bst_idx_t const> ridx);
 
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
@@ -454,25 +464,50 @@ class RowPartitionerBatches {
   // Partitioners for each batch.
   std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
+  // Ensure there are exactly `n_batches` partitioners. The existing ones are kept when the
+  // count already matches, which is the common case across boosting rounds.
+  void Alloc(std::size_t n_batches) {
+    if (partitioners_.size() != n_batches) {
+      partitioners_.clear();
+      for (std::size_t k = 0; k < n_batches; ++k) {
+        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
+      }
+    }
+  }
+
  public:
   void Reset(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
     CHECK_GE(batch_ptr.size(), 2);
     std::size_t n_batches = batch_ptr.size() - 1;
-    if (partitioners_.size() != n_batches) {
-      partitioners_.clear();
-    }
+    this->Alloc(n_batches);
 
     bst_idx_t n_max_samples = 0;
     for (std::size_t k = 0; k < n_batches; ++k) {
-      if (partitioners_.size() != n_batches) {
-        // First run.
-        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
-      }
       auto base_ridx = batch_ptr[k];
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx, n_samples, base_ridx);
       CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
       n_max_samples = std::max(n_samples, n_max_samples);
+    }
+    this->ridx_tmp_.resize(n_max_samples);
+  }
+
+  /**
+   * @brief Seed each batch with an explicit subset of its rows. See @ref RowPartitioner::Reset .
+   *
+   * @param n_total_samples The number of samples in the full dataset, which bounds every
+   *                        value in @ref ridxs .
+   * @param ridxs Global row indices, one span per batch.
+   */
+  void Reset(Context const* ctx, bst_idx_t n_total_samples,
+             std::vector<common::Span<bst_idx_t const>> const& ridxs) {
+    CHECK(!ridxs.empty());
+    this->Alloc(ridxs.size());
+
+    std::size_t n_max_samples = 0;
+    for (std::size_t k = 0; k < ridxs.size(); ++k) {
+      partitioners_[k]->Reset(ctx, n_total_samples, ridxs[k]);
+      n_max_samples = std::max(ridxs[k].size(), n_max_samples);
     }
     this->ridx_tmp_.resize(n_max_samples);
   }

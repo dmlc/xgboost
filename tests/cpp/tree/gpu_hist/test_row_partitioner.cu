@@ -3,16 +3,18 @@
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
+#include <thrust/fill.h>  // for fill
 #include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
 #include <thrust/unique.h>  // for unique
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
-#include <cstddef>   // for size_t
-#include <cstdint>   // for uint32_t
-#include <iterator>  // for distance
-#include <vector>    // for vector
+#include <algorithm>  // for sort
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <iterator>   // for distance
+#include <vector>     // for vector
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
@@ -56,6 +58,113 @@ void TestUpdatePositionBatch() {
 }
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
+
+namespace {
+// The rows of a node are not kept in any particular order, the right child comes out of the
+// scatter reversed. Sort so that the assertions are about membership only.
+[[nodiscard]] std::vector<RowPartitioner::RowIndexT> SortedRows(RowPartitioner* rp,
+                                                                bst_node_t nidx) {
+  auto rows = rp->GetRowsHost(nidx);
+  std::sort(rows.begin(), rows.end());
+  return rows;
+}
+
+// Seeding from an explicit subset, as cross-validation does for a fold.
+void TestResetSubset() {
+  auto ctx = MakeCUDACtx(0);
+  bst_idx_t constexpr kNumRows = 16;
+  // A non-contiguous subset that does not start at zero, to catch a stray base row index.
+  std::vector<bst_idx_t> const h_ridx{3, 4, 7, 8, 11, 15};
+  dh::device_vector<bst_idx_t> d_ridx{h_ridx};
+
+  RowPartitioner rp;
+  rp.Reset(&ctx, kNumRows, dh::ToSpan(d_ridx));
+  ASSERT_EQ(rp.Size(), h_ridx.size());
+  auto rows = rp.GetRowsHost(RegTree::kRoot);
+  ASSERT_EQ(rows.size(), h_ridx.size());
+  for (std::size_t i = 0; i < rows.size(); ++i) {
+    // The stored indices are the input, unshifted.
+    ASSERT_EQ(rows[i], h_ridx[i]);
+  }
+
+  // The children must partition the subset. Compared against the full expected lists, a
+  // duplicated or dropped row would satisfy a range check.
+  std::vector<int> extra_data = {0};
+  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(rp.Size());
+  rp.UpdatePositionBatch(&ctx, {RegTree::kRoot}, {1}, {2}, extra_data, dh::ToSpan(ridx_tmp),
+                         [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx < 8; });
+  ASSERT_EQ(SortedRows(&rp, 1), (std::vector<RowPartitioner::RowIndexT>{3, 4, 7}));
+  ASSERT_EQ(SortedRows(&rp, 2), (std::vector<RowPartitioner::RowIndexT>{8, 11, 15}));
+}
+
+// A fold can own no row at all in a batch, which happens with few rows and many folds.
+void TestResetEmptySubset() {
+  auto ctx = MakeCUDACtx(0);
+  bst_idx_t constexpr kNumRows = 16;
+
+  RowPartitioner rp;
+  rp.Reset(&ctx, kNumRows, common::Span<bst_idx_t const>{});
+  ASSERT_EQ(rp.Size(), 0);
+
+  // Every operation must degrade into a no-op rather than launching an invalid kernel.
+  std::vector<int> extra_data = {0};
+  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(rp.Size());
+  rp.UpdatePositionBatch(&ctx, {RegTree::kRoot}, {1}, {2}, extra_data, dh::ToSpan(ridx_tmp),
+                         [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx < 8; });
+  ASSERT_TRUE(rp.GetRowsHost(1).empty());
+  ASSERT_TRUE(rp.GetRowsHost(2).empty());
+
+  dh::DeviceUVector<bst_node_t> positions(kNumRows);
+  thrust::fill(ctx.CUDACtx()->CTP(), positions.begin(), positions.end(), RegTree::kInvalidNodeId);
+  rp.FinalisePosition(&ctx, dh::ToSpan(positions), 0,
+                      [] XGBOOST_DEVICE(cuda_impl::RowIndexT, bst_node_t nidx) { return nidx; });
+  std::vector<bst_node_t> h_positions(kNumRows);
+  dh::CopyDeviceSpanToVector(&h_positions, dh::ToSpan(positions));
+  for (auto nidx : h_positions) {
+    ASSERT_EQ(nidx, RegTree::kInvalidNodeId);
+  }
+}
+
+// The batched wrapper, which also sizes the shared sort scratch from the largest subset.
+void TestResetSubsetBatches() {
+  auto ctx = MakeCUDACtx(0);
+  bst_idx_t constexpr kNumRows = 16;
+  std::vector<bst_idx_t> const h_batch_0{0, 2, 5};
+  std::vector<bst_idx_t> const h_batch_1{8, 9, 12, 13, 15};
+  dh::device_vector<bst_idx_t> d_batch_0{h_batch_0}, d_batch_1{h_batch_1};
+
+  RowPartitionerBatches rps;
+  rps.Reset(&ctx, kNumRows, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  ASSERT_EQ(rps.Size(), 2);
+  ASSERT_EQ(rps.At(0)->Size(), h_batch_0.size());
+  ASSERT_EQ(rps.At(1)->Size(), h_batch_1.size());
+
+  // The partitioners must survive a re-seed, which is what a boosting round does.
+  std::vector<RowPartitioner*> const reused{rps.At(0).get(), rps.At(1).get()};
+  rps.Reset(&ctx, kNumRows, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  ASSERT_EQ(rps.At(0).get(), reused[0]);
+  ASSERT_EQ(rps.At(1).get(), reused[1]);
+
+  using RowIndexT = RowPartitioner::RowIndexT;
+  std::vector<int> extra_data = {0};
+  for (std::int32_t batch_idx = 0; batch_idx < 2; ++batch_idx) {
+    // The sort scratch is shared by the batches. Sized from the first subset instead of the
+    // largest, the second batch aborts in `subspan` inside the wrapper.
+    rps.UpdatePositionBatch(&ctx, batch_idx, {RegTree::kRoot}, {1}, {2}, extra_data,
+                            [=] __device__(RowIndexT ridx, int) { return ridx % 2 == 0; });
+  }
+  ASSERT_EQ(SortedRows(rps.At(0).get(), 1), (std::vector<RowIndexT>{0, 2}));
+  ASSERT_EQ(SortedRows(rps.At(0).get(), 2), (std::vector<RowIndexT>{5}));
+  ASSERT_EQ(SortedRows(rps.At(1).get(), 1), (std::vector<RowIndexT>{8, 12}));
+  ASSERT_EQ(SortedRows(rps.At(1).get(), 2), (std::vector<RowIndexT>{9, 13, 15}));
+}
+}  // anonymous namespace
+
+TEST(RowPartitioner, ResetSubset) { TestResetSubset(); }
+
+TEST(RowPartitioner, ResetEmptySubset) { TestResetEmptySubset(); }
+
+TEST(RowPartitioner, ResetSubsetBatches) { TestResetSubsetBatches(); }
 
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
   auto ctx = MakeCUDACtx(0);
