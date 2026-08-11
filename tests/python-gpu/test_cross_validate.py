@@ -8,8 +8,9 @@ from functools import wraps
 from typing import TYPE_CHECKING, Callable
 
 import pytest
-import xgboost as xgb
 from pytest import fixture
+
+import xgboost as xgb
 from xgboost import _cross_validation as xcv
 from xgboost import testing as tm
 
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
 
 
 type XywExtQdm = tuple[cp.ndarray, cp.ndarray, cp.ndarray, xgb.ExtMemQuantileDMatrix]
+
+N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES = 16, 4, 2
 
 
 def use_cuda_async_pool[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
@@ -32,7 +35,7 @@ def use_cuda_async_pool[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
 @fixture(scope="module")
 @use_cuda_async_pool
 def xyw_extqdm() -> XywExtQdm:
-    X, y, w = tm.make_batches(16, 4, 2, use_cupy=True)
+    X, y, w = tm.make_batches(N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES, use_cupy=True)
     it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
     Xy = xgb.ExtMemQuantileDMatrix(it)
     return X, y, w, Xy
