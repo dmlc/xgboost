@@ -139,8 +139,8 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
     folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
     cv_folds.init_prediction(Xy, folds, out=predts)
     gpairs = xcv.FoldGpairs()
-    # `debug_synchronize` gates the fused-page-pass check and the check that every training
-    # row of a fold, and only those, received a leaf position.
+    # `debug_synchronize` gates the check that every training row of a fold, and only those,
+    # received a leaf position. The fused-page-pass check runs either way.
     tree_method = xcv.FoldTreeMethod(
         cv_folds, Xy, params={"max_depth": 1, "debug_synchronize": True}
     )
