@@ -337,8 +337,10 @@ class FoldPredictions:
         assert data_ptr is not None
         float_size = ctypes.sizeof(ctypes.c_float)
         mem = cp.cuda.UnownedMemory(data_ptr, n_elems * float_size, self)
-        predt = cp.ndarray(
-            shape, dtype=cp.float32, memptr=cp.cuda.MemoryPointer(mem, 0)
+        predt = cp.ndarray(  # pylint: disable=unexpected-keyword-arg
+            shape,
+            dtype=cp.float32,
+            memptr=cp.cuda.MemoryPointer(mem, 0),
         )
         return predt.copy() if copy else predt
 
