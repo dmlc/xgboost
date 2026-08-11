@@ -333,7 +333,6 @@ class FoldTreeMethod {
       // The partitioner holds only the training rows of this fold, so the histograms and the
       // final leaf positions never see a row held out by the fold.
       std::vector<common::Span<bst_idx_t const>> fold_ridxs;
-      fold_ridxs.reserve(finfo.Size());
       for (auto const& batch : finfo.batches) {
         fold_ridxs.emplace_back(batch.TrainingFold(k));
       }
@@ -561,7 +560,6 @@ class FoldTreeMethod {
 
     std::vector<gbm::TreesOneIter> new_trees(k_folds);
     std::vector<RegTree*> tree_ptrs;
-    tree_ptrs.reserve(k_folds);
     for (std::size_t k = 0; k < k_folds; ++k) {
       new_trees[k].resize(1);
       auto tree = std::make_unique<RegTree>(folds->LeafLength(k), folds->NumFeatures(k), true);
@@ -572,7 +570,6 @@ class FoldTreeMethod {
     this->Reset(ctx_, p_fmat, finfo, gpairs);
 
     std::vector<tree::Driver<MultiExpandEntry>> drivers;
-    drivers.reserve(k_folds);
     for (std::size_t k = 0; k < k_folds; ++k) {
       drivers.emplace_back(param_, tree::cuda_impl::kMaxNodeBatchSize);
     }
