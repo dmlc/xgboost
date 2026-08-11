@@ -97,6 +97,12 @@ void LearnerModelState::SetBaseScore(Context const* ctx, std::vector<float> valu
 }
 
 void LearnerModelState::ConfigureDevice(Context const* ctx) {
+  if (base_score_.Device() != ctx->Device()) {
+    auto const& h_base_score = std::as_const(base_score_).Data()->ConstHostVector();
+    linalg::Vector<float> base_score{
+        h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}, ctx->Device()};
+    std::swap(base_score_, base_score);
+  }
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
