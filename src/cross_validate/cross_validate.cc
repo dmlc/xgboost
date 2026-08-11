@@ -4,8 +4,12 @@
  */
 #include "cross_validate.h"
 
+#include <dmlc/thread_local.h>  // for ThreadLocalStore
+
 #include "../c_api/c_api_error.h"
+#include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
 #include "../common/error_msg.h"              // for MaxFeatureSize
+#include "../common/json_utils.h"             // for RequiredArg
 #include "../common/version.h"                // for Version
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "./kfolds.h"
@@ -249,6 +253,10 @@ void FoldModels::SaveModel(Json* out) const {
 
 using namespace xgboost;  // NOLINT
 
+namespace {
+using CvAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
+}  // namespace
+
 XGB_DLL int XGBCvFoldModelsCreate(size_t k_folds, DMatrixHandle dtrain, FoldModelsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
@@ -262,6 +270,34 @@ XGB_DLL int XGBCvFoldModelsBoostedRounds(FoldModelsHandle hdl, int* out) {
   xgboost_CHECK_C_ARG_PTR(hdl);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = static_cast<cv::FoldModels*>(hdl)->BoostedRounds();
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldModelsSaveModelToBuffer(FoldModelsHandle hdl, char const* json_config,
+                                             bst_ulong* out_len, char const** out_dptr) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(json_config);
+  xgboost_CHECK_C_ARG_PTR(out_len);
+  xgboost_CHECK_C_ARG_PTR(out_dptr);
+
+  auto config = Json::Load(StringView{json_config});
+  auto format = RequiredArg<String>(config, "format", __func__);
+  // `std::ios::out` dumps JSON text, `std::ios::binary` dumps UBJSON.
+  std::ios::openmode mode = std::ios::out;
+  if (format == "ubj") {
+    mode = std::ios::binary;
+  } else if (format != "json") {
+    LOG(FATAL) << "Unknown model format: `" << format
+               << "`. Expecting UBJSON (`ubj`) or JSON (`json`).";
+  }
+
+  auto& raw_char_vec = CvAPIThreadLocalStore::Get()->ret_char_vec;
+  Json out{Object{}};
+  static_cast<cv::FoldModels const*>(hdl)->SaveModel(&out);
+  Json::Dump(out, &raw_char_vec, mode);
+  *out_dptr = dmlc::BeginPtr(raw_char_vec);
+  *out_len = static_cast<bst_ulong>(raw_char_vec.size());
   API_END();
 }
 

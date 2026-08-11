@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ._c_api import _LIB, _check_call, make_jcargs
-from .core import ExtMemQuantileDMatrix
+from .core import ExtMemQuantileDMatrix, ctypes2buffer
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -24,6 +24,14 @@ _LIB.XGBCvFoldModelsCreate.argtypes = [
 
 _LIB.XGBCvFoldModelsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldModelsFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvFoldModelsSaveModelToBuffer.restype = ctypes.c_int
+_LIB.XGBCvFoldModelsSaveModelToBuffer.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_char_p,
+    ctypes.POINTER(ctypes.c_uint64),
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+]
 
 _LIB.XGBCvFoldInfoBatchesCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
@@ -124,6 +132,32 @@ class FoldModels:
             _LIB.XGBCvFoldModelsBoostedRounds(self.handle, ctypes.byref(rounds))
         )
         return rounds.value
+
+    def save_raw(self, raw_format: str = "ubj") -> bytearray:
+        """Save every fold model to an in memory buffer representation.
+
+        The buffer holds one entry per fold under a ``cv_folds`` array, each in the same
+        format :py:meth:`Booster.save_raw` produces for a single model.
+
+        Parameters
+        ----------
+        raw_format :
+            Format of output buffer. Can be `json` or `ubj`.
+
+        Returns
+        -------
+        An in memory buffer representation of the fold models
+
+        """
+        length = ctypes.c_uint64()
+        cptr = ctypes.POINTER(ctypes.c_char)()
+        config = make_jcargs(format=raw_format)
+        _check_call(
+            _LIB.XGBCvFoldModelsSaveModelToBuffer(
+                self.handle, config, ctypes.byref(length), ctypes.byref(cptr)
+            )
+        )
+        return ctypes2buffer(cptr, length.value)
 
     def __del__(self) -> None:
         if hasattr(self, "handle"):
