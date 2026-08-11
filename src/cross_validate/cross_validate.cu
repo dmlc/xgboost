@@ -336,7 +336,7 @@ class FoldTreeMethod {
       for (auto const& batch : finfo.batches) {
         fold_ridxs.emplace_back(batch.TrainingFold(k));
       }
-      this->partitioners_[k].Reset(ctx, finfo.n_samples, fold_ridxs);
+      this->partitioners_[k].Reset(ctx, fold_ridxs);
 
       if (!this->evaluators_[k]) {
         this->evaluators_[k] = std::make_unique<tree::cuda_impl::MultiHistEvaluator>();

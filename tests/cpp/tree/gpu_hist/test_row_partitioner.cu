@@ -71,17 +71,15 @@ namespace {
 // Seeding each batch from an explicit subset, as cross-validation does for a fold.
 void TestResetSubsetBatches() {
   auto ctx = MakeCUDACtx(0);
-  bst_idx_t constexpr kNumRows = 16;
   // Non-contiguous subsets, the second of which does not start at zero.
   std::vector<bst_idx_t> const h_batch_0{0, 2, 5};
   std::vector<bst_idx_t> const h_batch_1{8, 9, 12, 13, 15};
   dh::device_vector<bst_idx_t> d_batch_0{h_batch_0}, d_batch_1{h_batch_1};
 
   RowPartitionerBatches rps;
-  rps.Reset(&ctx, kNumRows, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
   ASSERT_EQ(rps.Size(), 2);
-  // `Size` reads the length of the row buffer, the root rows read the segment. Both must
-  // come from the subset rather than from `kNumRows`.
+  // `Size` reads the length of the row buffer, the root rows read the segment.
   ASSERT_EQ(rps.At(0)->Size(), h_batch_0.size());
   ASSERT_EQ(rps.At(1)->Size(), h_batch_1.size());
   using RowIndexT = RowPartitioner::RowIndexT;
@@ -90,7 +88,7 @@ void TestResetSubsetBatches() {
 
   // The partitioners must survive a re-seed, which is what a boosting round does.
   std::vector<RowPartitioner*> const reused{rps.At(0).get(), rps.At(1).get()};
-  rps.Reset(&ctx, kNumRows, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
   ASSERT_EQ(rps.At(0).get(), reused[0]);
   ASSERT_EQ(rps.At(1).get(), reused[1]);
 
