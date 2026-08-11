@@ -272,6 +272,18 @@ TEST(Learner, ModelInitializedByTrainingData) {
   EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
 }
 
+TEST(Learner, ResetInitializesCachedModel) {
+  auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
+  auto learner = std::unique_ptr<Learner>{Learner::Create({train})};
+  learner->Configure({{"objective", "reg:absoluteerror"}});
+  EXPECT_EQ(learner->GetNumFeature(), 0);
+
+  EXPECT_NO_THROW(learner->Reset());
+  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
+  Json model{Object{}};
+  EXPECT_NO_THROW(learner->SaveModel(&model));
+}
+
 TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {
   auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
   auto learner = std::unique_ptr<Learner>{Learner::Create({train})};

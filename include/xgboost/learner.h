@@ -315,6 +315,7 @@ struct LearnerModelState {
   [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;
   [[nodiscard]] std::vector<float> const& BaseScoreValue() const { return base_score_value_; }
   void SetBaseScore(Context const* ctx, std::vector<float> value, linalg::Vector<float> margin);
+  void ConfigureDevice(Context const* ctx);
 
   void Copy(LearnerModelState const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {

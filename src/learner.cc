@@ -93,6 +93,10 @@ void LearnerModelState::SetBaseScore(Context const* ctx, std::vector<float> valu
                                      linalg::Vector<float> base_score) {
   base_score_value_ = std::move(value);
   std::swap(base_score_, base_score);
+  this->ConfigureDevice(ctx);
+}
+
+void LearnerModelState::ConfigureDevice(Context const* ctx) {
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
@@ -368,6 +372,7 @@ class LearnerModelStateContainer : public Learner {
     if (model_state_.NeedsInitialization()) {
       return;
     }
+    model_state_.ConfigureDevice(Ctx());
     auto has = [&args](char const* key) {
       return std::any_of(args.cbegin(), args.cend(),
                          [key](auto const& kv) { return kv.first == key; });
@@ -998,6 +1003,15 @@ class LearnerImpl : public LearnerIO {
 
   void Reset() override {
     this->Configure();
+    if (model_state_.NeedsInitialization()) {
+      for (auto const& weak : cache_data_) {
+        if (auto data = weak.lock()) {
+          this->InitializeModel(*data, this->cache_data_,
+                                InterceptInitialization::kEstimateIntercept);
+          break;
+        }
+      }
+    }
     this->CheckModelInitialized();
     // Global data
     auto local_map = LearnerAPIThreadLocalStore::Get();

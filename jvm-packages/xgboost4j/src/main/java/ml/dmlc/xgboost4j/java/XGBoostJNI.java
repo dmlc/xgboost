@@ -122,7 +122,7 @@ public class XGBoostJNI {
       String[] evnames, String[] eval_info);
 
   public final static native int XGBoosterPredictFromDMatrix(long handle, long dmat,
-      int predict_type, int iteration_end, float[][] predicts);
+      int predict_type, int iteration_end, boolean training, float[][] predicts);
 
   public final static native int XGBoosterPredictFromDense(long handle, float[] data,
       long nrow, long ncol, float missing, int iteration_begin, int iteration_end, int predict_type, float[] margin,
