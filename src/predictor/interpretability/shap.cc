@@ -441,7 +441,7 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     gbm::GBTreeModel const &model, bst_tree_t tree_end, std::vector<float> const *tree_weights) {
   auto const n_trees = static_cast<std::size_t>(tree_end);
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
-  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_groups = model.learner_model_state->num_output_group;
 
   QuadratureTreeShapModelData out;
   out.trees.reserve(n_trees);
@@ -560,15 +560,15 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   CHECK_GE(tree_end, 0);
   ValidateTreeWeights(tree_weights, tree_end);
   auto const n_threads = ctx->Threads();
-  auto const n_groups = model.learner_model_param->num_output_group;
-  auto const n_features = model.learner_model_param->num_feature;
-  size_t const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const n_groups = model.learner_model_state->num_output_group;
+  auto const n_features = model.learner_model_state->num_feature;
+  size_t const ncolumns = model.learner_model_state->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
-  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
+  contribs.resize(info.num_row_ * ncolumns * model.learner_model_state->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
   CHECK_NE(n_groups, 0);
   auto const &rule = detail::GetQuadratureRule();
-  auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
+  auto const base_score = model.learner_model_state->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
@@ -583,7 +583,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
       auto tid = omp_get_thread_num();
       auto &feats = feats_tloc[tid];
       if (feats.Size() == 0) {
-        feats.Init(model.learner_model_param->num_feature);
+        feats.Init(model.learner_model_state->num_feature);
       }
       auto &this_tree_contribs = contribs_tloc[tid];
       auto &path_prob = path_prob_tloc[tid];
@@ -639,8 +639,8 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   ValidateTreeWeights(tree_weights, tree_end);
 
   auto const n_threads = ctx->Threads();
-  auto const n_groups = model.learner_model_param->num_output_group;
-  auto const n_features = model.learner_model_param->num_feature;
+  auto const n_groups = model.learner_model_state->num_output_group;
+  auto const n_features = model.learner_model_state->num_feature;
   auto const ncolumns = n_features + 1;
   auto const row_chunk = n_groups * ncolumns * ncolumns;
   auto const matrix_chunk = ncolumns * ncolumns;
@@ -650,7 +650,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   std::fill(contribs.begin(), contribs.end(), 0.0f);
 
   auto const &rule = detail::GetQuadratureRule();
-  auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
+  auto const base_score = model.learner_model_state->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<QuadraturePathElement>> path_tloc(n_threads);
@@ -666,7 +666,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
       auto tid = omp_get_thread_num();
       auto &feats = feats_tloc[tid];
       if (feats.Size() == 0) {
-        feats.Init(model.learner_model_param->num_feature);
+        feats.Init(model.learner_model_state->num_feature);
       }
       auto &path = path_tloc[tid];
       auto &path_prob = path_prob_tloc[tid];
@@ -741,9 +741,9 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   ValidateTreeWeights(tree_weights, tree_end);
   auto const n_trees = static_cast<std::size_t>(tree_end);
   auto const n_threads = ctx->Threads();
-  size_t const ncolumns = model.learner_model_param->num_feature + 1;
+  size_t const ncolumns = model.learner_model_state->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
-  contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
+  contribs.resize(info.num_row_ * ncolumns * model.learner_model_state->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0);
   std::vector<std::vector<float>> mean_values(n_trees);
   std::atomic<bool> is_vector_leaf = false;
@@ -758,9 +758,9 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
     LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
   }
 
-  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_groups = model.learner_model_state->num_output_group;
   CHECK_NE(n_groups, 0);
-  auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
+  auto const base_score = model.learner_model_state->BaseScore(DeviceOrd::CPU());
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
@@ -773,7 +773,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
       auto tid = omp_get_thread_num();
       auto &feats = feats_tloc[tid];
       if (feats.Size() == 0) {
-        feats.Init(model.learner_model_param->num_feature);
+        feats.Init(model.learner_model_state->num_feature);
       }
       auto &this_tree_contribs = contribs_tloc[tid];
       auto row_idx = view.base_rowid + i;
@@ -817,11 +817,11 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                         kQuadratureTreeShapPoints);
     return;
   }
-  CHECK(!model.learner_model_param->IsVectorLeaf())
+  CHECK(!model.learner_model_state->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();
   MetaInfo const &info = p_fmat->Info();
-  auto const ngroup = model.learner_model_param->num_output_group;
-  auto const ncolumns = model.learner_model_param->num_feature;
+  auto const ngroup = model.learner_model_state->num_output_group;
+  auto const ncolumns = model.learner_model_state->num_feature;
   const std::size_t row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
   const std::size_t mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
   const std::size_t crow_chunk = ngroup * (ncolumns + 1);

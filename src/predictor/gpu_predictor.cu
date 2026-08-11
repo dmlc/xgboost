@@ -380,22 +380,22 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
     if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
       auto cfg =
-          LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
+          LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_state->num_feature};
       launch(std::move(cfg), std::move(acc));
     } else {
       auto cfg =
-          LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
+          LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_state->num_feature};
       launch(std::move(cfg), NoOpAccessor{});
     }
   } else {
     if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
       auto cfg =
-          LaunchConfig<std::false_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
+          LaunchConfig<std::false_type, decltype(acc)>{ctx, model.learner_model_state->num_feature};
       launch(std::move(cfg), std::move(acc));
     } else {
       auto cfg =
-          LaunchConfig<std::false_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
+          LaunchConfig<std::false_type, NoOpAccessor>{ctx, model.learner_model_state->num_feature};
       launch(std::move(cfg), NoOpAccessor{});
     }
   }
@@ -417,8 +417,8 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model{this->ctx_->Device(), model,    false,
                         tree_begin,           tree_end, CopyViews{this->ctx_}};
 
-    CHECK_LE(p_fmat->Info().num_col_, model.learner_model_param->num_feature);
-    auto n_features = model.learner_model_param->num_feature;
+    CHECK_LE(p_fmat->Info().num_col_, model.learner_model_state->num_feature);
+    auto n_features = model.learner_model_state->num_feature;
 
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
@@ -430,7 +430,7 @@ class GPUPredictor : public xgboost::Predictor {
         cfg.template LaunchPredictKernel<Loader>(
             std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
             batch_offset, out_preds, tree_weights);
-        batch_offset += n_rows * model.learner_model_param->OutputLength();
+        batch_offset += n_rows * model.learner_model_state->OutputLength();
       });
     });
   }
@@ -477,7 +477,7 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
-    auto n_features = model.learner_model_param->num_feature;
+    auto n_features = model.learner_model_state->num_feature;
 
     DeviceModel d_model{ctx_->Device(), model, false, tree_begin, tree_end, CopyViews{this->ctx_}};
 
@@ -531,7 +531,7 @@ class GPUPredictor : public xgboost::Predictor {
     data::cuda_impl::DispatchAny<false>(
         proxy,
         [&](auto x) {
-          CheckProxyDMatrix(x, proxy, model.learner_model_param);
+          CheckProxyDMatrix(x, proxy, model.learner_model_state);
           this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end,
                                          pred_weights);
         },
@@ -578,7 +578,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     DeviceModel d_model{ctx_->Device(), model, false, 0, tree_end, CopyViews{this->ctx_}};
 
-    bst_feature_t n_features = model.learner_model_param->num_feature;
+    bst_feature_t n_features = model.learner_model_state->num_feature;
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 

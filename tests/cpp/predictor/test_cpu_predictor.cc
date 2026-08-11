@@ -169,7 +169,7 @@ TEST(CpuPredictor, InplacePredict) {
 namespace {
 void TestTrainingPredictionCache(bool use_subsampling) {
   std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
-  LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
+  LearnerModelState mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;

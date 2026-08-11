@@ -68,7 +68,7 @@ Args BaseParams(Context const* ctx, std::string objective, std::string max_depth
 
 std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context const* ctx,
                                                   Args const& model_args,
-                                                  LearnerModelParam* out_param) {
+                                                  LearnerModelState* out_param) {
   Json model{Object{}};
   learner->SaveModel(&model);
 
@@ -105,7 +105,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx));
   obj->Configure(model_args);
   obj->ProbToMargin(&base_score_vec);
-  // Keep both host/device views readable, matching LearnerModelParam invariants.
+  // Keep both host/device views readable, matching LearnerModelState invariants.
   std::as_const(base_score_vec).HostView();
   if (!ctx->Device().IsCPU()) {
     std::as_const(base_score_vec).View(ctx->Device());
@@ -124,7 +124,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
       break;
     }
   }
-  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets, multi_strategy};
+  LearnerModelState tmp{n_features, std::move(base_score_vec), n_groups, n_targets, multi_strategy};
   out_param->Copy(tmp);
 
   auto gbtree = std::make_unique<gbm::GBTreeModel>(out_param, ctx);
@@ -233,7 +233,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   learner->Predict(p_dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
   size_t const n_outputs = margin_predt.HostVector().size() / kRows;
 
-  LearnerModelParam mparam;
+  LearnerModelState mparam;
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
 
   HostDeviceVector<float> shap_values;
@@ -332,7 +332,7 @@ void CheckShapHandlesDeepTree(Context const* ctx) {
   if (!ctx->Device().IsCPU()) {
     std::as_const(base_score).View(ctx->Device());
   }
-  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  LearnerModelState mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
 
   bst_node_t constexpr kDepth = 64;
@@ -389,7 +389,7 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   if (!ctx->Device().IsCPU()) {
     std::as_const(base_score).View(ctx->Device());
   }
-  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  LearnerModelState mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
 
   gbm::TreesOneGroup trees;
@@ -451,7 +451,7 @@ TEST(Predictor, ApproxContribsBasic) {
   HostDeviceVector<float> margin_predt;
   learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
 
-  LearnerModelParam mparam;
+  LearnerModelState mparam;
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
 
   HostDeviceVector<float> approx_contribs;

@@ -36,7 +36,7 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
 
   size_t const kCols = dmat->Info().num_col_;
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
 
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx);
   auto const &model = *p_model;
@@ -70,7 +70,7 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   HostDeviceVector<float> from_leaf_ids;
   predictor->InitOutPredictions(dmat->Info(), &from_leaf_ids, model);
   auto from_leaf_view = linalg::MakeTensorView(ctx, &from_leaf_ids, dmat->Info().num_row_,
-                                               model.learner_model_param->OutputLength());
+                                               model.learner_model_state->OutputLength());
   predictor->PredictFromLeafIds(common::Span{leaf_ids}, common::Span{trees}, from_leaf_view);
   auto const &h_from_leaf_ids = from_leaf_ids.ConstHostVector();
   ASSERT_EQ(h_from_leaf_ids.size(), out_predictions_h.size());
@@ -84,7 +84,7 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
   auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
   {
     std::vector<std::unique_ptr<RegTree>> trees;
@@ -126,7 +126,7 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
   HostDeviceVector<float> data(kRows * kCols);
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
   auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
   {
     std::vector<std::unique_ptr<RegTree>> trees;
@@ -396,7 +396,7 @@ void TestCategoricalPrediction(bool use_gpu) {
   size_t constexpr kCols = 10;
   HostDeviceVector<float> out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx.Device())};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1, ctx.Device())};
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
   float left_weight = 1.3f;
@@ -433,7 +433,7 @@ void TestCategoricalPredictLeaf(Context const *ctx) {
   size_t constexpr kCols = 10;
   HostDeviceVector<float> out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx->Device())};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1, ctx->Device())};
 
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
@@ -560,7 +560,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
 
-  LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
+  LearnerModelState mparam{static_cast<bst_feature_t>(kCols),
                            linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 1, 3,
                            MultiStrategy::kMultiOutputTree};
 

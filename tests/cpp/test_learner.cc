@@ -41,6 +41,18 @@
 #include "xgboost/string_view.h"                    // for StringView
 
 namespace xgboost {
+TEST(LearnerModelState, Initialization) {
+  LearnerModelState state;
+  EXPECT_TRUE(state.NeedsInitialization());
+  state.num_feature = 1;
+  state.num_output_group = 1;
+  EXPECT_TRUE(state.NeedsInitialization());
+
+  auto initialized = MakeMP(1, 0.5f, 1);
+  EXPECT_FALSE(initialized.NeedsInitialization());
+  EXPECT_TRUE(initialized.Initialized());
+}
+
 TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
@@ -187,7 +199,6 @@ TEST(Learner, Configuration) {
   std::string const emetric = "eval_metric";
   {
     std::unique_ptr<Learner> learner{Learner::Create({nullptr})};
-    learner->Configure({{"num_feature", "1"}});
     learner->Configure({{emetric, "auc"}});
     learner->Configure({{emetric, "rmsle"}});
     learner->Configure({{"foo", "bar"}});
@@ -225,6 +236,74 @@ TEST(Learner, PoissonMaxDeltaStepIsGeneric) {
   ASSERT_FLOAT_EQ(max_delta_step(), 0.5f);
 }
 
+TEST(Learner, ModelInitializedByTrainingData) {
+  auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
+  auto eval = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
+  auto learner = std::unique_ptr<Learner>{Learner::Create({train, eval})};
+  learner->Configure({{"objective", "reg:absoluteerror"}});
+
+  EXPECT_EQ(learner->GetNumFeature(), 0);
+  Json config{Object{}};
+  EXPECT_NO_THROW(learner->SaveConfig(&config));
+
+  std::string snapshot;
+  common::MemoryBufferStream out{&snapshot};
+  EXPECT_NO_THROW(learner->Save(&out));
+  auto restored = std::unique_ptr<Learner>{Learner::Create({train})};
+  common::MemoryBufferStream in{&snapshot};
+  EXPECT_NO_THROW(restored->Load(&in));
+  EXPECT_EQ(restored->GetNumFeature(), 0);
+  Json restored_config{Object{}};
+  restored->SaveConfig(&restored_config);
+  EXPECT_EQ(config, restored_config);
+  restored->UpdateOneIter(0, train);
+  EXPECT_EQ(restored->GetNumFeature(), train->Info().num_col_);
+
+  HostDeviceVector<float> predt;
+  EXPECT_THROW(learner->Predict(eval, false, &predt, 0, 0), dmlc::Error);
+  EXPECT_EQ(learner->GetNumFeature(), 0);
+
+  learner->UpdateOneIter(0, train);
+  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
+
+  learner.reset(Learner::Create({train}));
+  learner->Configure();
+  EXPECT_NO_THROW(learner->Predict(train, false, &predt, 0, 0, true));
+  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
+}
+
+TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {
+  auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
+  auto learner = std::unique_ptr<Learner>{Learner::Create({train})};
+  learner->Configure({{"objective", "reg:absoluteerror"}, {"base_score", "1.3"}});
+
+  std::string snapshot;
+  common::MemoryBufferStream out{&snapshot};
+  learner->Save(&out);
+
+  auto memory_snapshot = Json::Load(StringView{snapshot}, std::ios::binary);
+  auto& train_param = get<Object>(memory_snapshot["Config"]["learner"]["learner_train_param"]);
+  for (auto key : {"base_score", "num_class", "num_target", "boost_from_average"}) {
+    train_param.erase(key);
+  }
+  std::vector<char> serialized;
+  Json::Dump(memory_snapshot, &serialized, std::ios::binary);
+  std::string old_snapshot{serialized.cbegin(), serialized.cend()};
+
+  auto restored = std::unique_ptr<Learner>{Learner::Create({train})};
+  common::MemoryBufferStream in{&old_snapshot};
+  restored->Load(&in);
+  EXPECT_EQ(restored->GetNumFeature(), 0);
+  restored->UpdateOneIter(0, train);
+
+  Json config{Object{}};
+  restored->SaveConfig(&config);
+  auto base_score = GetBaseScore(config);
+  ASSERT_EQ(base_score.size(), 1);
+  EXPECT_FLOAT_EQ(base_score.front(), 1.3);
+  EXPECT_EQ(get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]), "0");
+}
+
 TEST(Learner, JsonModelIO) {
   // Test of comparing JSON object directly.
   size_t constexpr kRows = 8;
@@ -237,6 +316,9 @@ TEST(Learner, JsonModelIO) {
   {
     std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
     learner->Configure();
+    Json uninitialized{Object()};
+    EXPECT_THROW(learner->SaveModel(&uninitialized), dmlc::Error);
+    learner->UpdateOneIter(0, p_dmat);
     Json out{Object()};
     learner->SaveModel(&out);
 
@@ -337,6 +419,7 @@ TEST(Learner, MultiThreadedPredict) {
 
   std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->Configure();
+  learner->UpdateOneIter(0, p_dmat);
 
   std::vector<std::thread> threads;
 
@@ -482,6 +565,7 @@ TEST(Learner, FeatureInfo) {
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};
     learner->Configure();
+    learner->UpdateOneIter(0, m);
     learner->SetFeatureNames(names);
     learner->GetFeatureNames(&out_names);
 
@@ -515,6 +599,7 @@ TEST(Learner, MultiTarget) {
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};
     learner->Configure();
+    learner->UpdateOneIter(0, m);
 
     Json model{Object()};
     learner->SaveModel(&model);
@@ -565,6 +650,18 @@ class InitBaseScore : public ::testing::Test {
     learner->SaveConfig(&config);
     auto base_score2 = GetBaseScore(config);
     ASSERT_EQ(base_score, base_score2);
+
+    // Unrelated parameters don't rematerialize model state from stale user inputs.
+    learner->Configure({{"max_depth", "2"}});
+    learner->SaveConfig(&config);
+    ASSERT_EQ(base_score, GetBaseScore(config));
+
+    // Explicit model input updates are applied to initialized state.
+    learner->Configure({{"base_score", "1.3"}});
+    learner->SaveConfig(&config);
+    auto updated_base_score = GetBaseScore(config);
+    ASSERT_EQ(updated_base_score.size(), 1);
+    ASSERT_FLOAT_EQ(updated_base_score[0], 1.3);
   }
 
   void TestBoostFromAvgParam() {
@@ -580,12 +677,6 @@ class InitBaseScore : public ::testing::Test {
     // no change
     ASSERT_FLOAT_EQ(base_score[0], 1.3);
 
-    HostDeviceVector<float> predt;
-    learner->Predict(Xy_, false, &predt, 0, 0);
-    auto h_predt = predt.ConstHostSpan();
-    for (auto v : h_predt) {
-      ASSERT_FLOAT_EQ(v, 1.3);
-    }
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
@@ -612,52 +703,60 @@ class InitBaseScore : public ::testing::Test {
     learner->Configure();
 
     Json model{Object{}};
+    EXPECT_THROW(learner->SaveModel(&model), dmlc::Error);
+
+    learner->UpdateOneIter(0, Xy_);
     learner->SaveModel(&model);
     auto base_score = GetBaseScore(model);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_FALSE(std::isnan(base_score[0]));
-    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
+    ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
 
     learner.reset(Learner::Create({Xy_}));
     learner->LoadModel(model);
     Json config(Object{});
-    learner->Configure();
     learner->SaveConfig(&config);
-    base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
+    auto loaded_base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score, loaded_base_score);
 
-    learner->UpdateOneIter(0, Xy_);
+    learner->UpdateOneIter(1, Xy_);
     learner->SaveConfig(&config);
-    base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score.size(), 1);
-    ASSERT_FALSE(std::isnan(base_score[0]));
-    ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
+    loaded_base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score, loaded_base_score);
   }
 
   void TestInitWithPredt() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     HostDeviceVector<float> predt;
-    learner->Predict(Xy_, false, &predt, 0, 0);
-
-    auto h_predt = predt.ConstHostSpan();
-    for (auto v : h_predt) {
-      ASSERT_EQ(v, ObjFunction::DefaultBaseScore());
-    }
+    EXPECT_THROW(learner->Predict(Xy_, false, &predt, 0, 0), dmlc::Error);
+    EXPECT_EQ(learner->GetNumFeature(), 0);
 
     Json config(Object{});
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score.size(), 1);
-    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
+    ASSERT_TRUE(base_score.empty());
 
-    // since prediction is not used for trianing, the train procedure still runs estimation
+    // Prediction does not initialize the model; training still estimates the intercept.
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), 1);
     ASSERT_FALSE(std::isnan(base_score[0]));
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
+
+    learner.reset(Learner::Create({Xy_}));
+    learner->Configure({{"objective", "reg:absoluteerror"}});
+    learner->Predict(Xy_, false, &predt, 0, 0, true);
+    learner->SaveConfig(&config);
+    auto training_base_score = GetBaseScore(config);
+    ASSERT_EQ(training_base_score.size(), 1);
+    ASSERT_EQ(training_base_score[0], ObjFunction::DefaultBaseScore());
+
+    // The first training operation commits the intercept choice.
+    learner->UpdateOneIter(0, Xy_);
+    learner->SaveConfig(&config);
+    ASSERT_EQ(training_base_score, GetBaseScore(config));
   }
 
   void TestUpdateProcess() {
