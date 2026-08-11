@@ -163,7 +163,8 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
   // global row index. The rows held out by a fold are padding, `GetGradient` reads back
   // only the rows listed in the fold info.
   for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
-    output_length = this->OutputLength(k);
+    CHECK_EQ(this->OutputLength(k), output_length)
+        << "All folds must share the same number of outputs.";
     CHECK_EQ(info.labels.Shape(1), output_length);
 
     auto& predt = out->train.at(k);
@@ -172,6 +173,7 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
     CHECK_EQ(predt.predictions.Device(), ctx->Device());
     CHECK_EQ(predt.predictions.Size(), info.num_row_ * output_length);
   }
+  out->output_length = output_length;
 }
 
 void FoldModels::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
@@ -327,6 +329,24 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new cv::FoldPredictions;
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float const** out_data,
+                                    size_t* out_n_rows, size_t* out_n_columns) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_n_rows);
+  xgboost_CHECK_C_ARG_PTR(out_n_columns);
+  auto predts = static_cast<cv::FoldPredictions const*>(hdl);
+  CHECK_LT(k, predts->KFolds());
+  auto const& predt = predts->Training(k).predictions;
+  CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
+  CHECK_EQ(predt.Size() % predts->output_length, 0);
+  *out_n_columns = predts->output_length;
+  *out_n_rows = predt.Size() / predts->output_length;
+  *out_data = predt.ConstDevicePointer();
   API_END();
 }
 

@@ -9,10 +9,11 @@
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
-#include <cstddef>   // for size_t
-#include <cstdint>   // for uint32_t
-#include <iterator>  // for distance
-#include <vector>    // for vector
+#include <algorithm>  // for sort
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <iterator>   // for distance
+#include <vector>     // for vector
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
@@ -56,6 +57,54 @@ void TestUpdatePositionBatch() {
 }
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
+
+namespace {
+// The rows of a node are not kept in any particular order, the right child comes out of the
+// scatter reversed. Sort so that the assertions are about membership only.
+[[nodiscard]] std::vector<RowPartitioner::RowIndexT> SortedRows(RowPartitioner* rp,
+                                                                bst_node_t nidx) {
+  auto rows = rp->GetRowsHost(nidx);
+  std::sort(rows.begin(), rows.end());
+  return rows;
+}
+
+// Seeding each batch from an explicit subset, as cross-validation does for a fold.
+void TestResetSubsetBatches() {
+  auto ctx = MakeCUDACtx(0);
+  // Non-contiguous subsets, the second of which does not start at zero.
+  std::vector<bst_idx_t> const h_batch_0{0, 2, 5};
+  std::vector<bst_idx_t> const h_batch_1{8, 9, 12, 13, 15};
+  dh::device_vector<bst_idx_t> d_batch_0{h_batch_0}, d_batch_1{h_batch_1};
+
+  RowPartitionerBatches rps;
+  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  ASSERT_EQ(rps.Size(), 2);
+  // `Size` reads the length of the row buffer, the root rows read the segment.
+  ASSERT_EQ(rps.At(0)->Size(), h_batch_0.size());
+  ASSERT_EQ(rps.At(1)->Size(), h_batch_1.size());
+  using RowIndexT = RowPartitioner::RowIndexT;
+  ASSERT_EQ(SortedRows(rps.At(1).get(), RegTree::kRoot),
+            std::vector<RowIndexT>(h_batch_1.cbegin(), h_batch_1.cend()));
+
+  // The partitioners must survive a re-seed, which is what a boosting round does.
+  std::vector<RowPartitioner*> const reused{rps.At(0).get(), rps.At(1).get()};
+  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  ASSERT_EQ(rps.At(0).get(), reused[0]);
+  ASSERT_EQ(rps.At(1).get(), reused[1]);
+
+  std::vector<int> extra_data = {0};
+  for (std::int32_t batch_idx = 0; batch_idx < 2; ++batch_idx) {
+    rps.UpdatePositionBatch(&ctx, batch_idx, {RegTree::kRoot}, {1}, {2}, extra_data,
+                            [=] __device__(RowIndexT ridx, int) { return ridx % 2 == 0; });
+  }
+  ASSERT_EQ(SortedRows(rps.At(0).get(), 1), (std::vector<RowIndexT>{0, 2}));
+  ASSERT_EQ(SortedRows(rps.At(0).get(), 2), (std::vector<RowIndexT>{5}));
+  ASSERT_EQ(SortedRows(rps.At(1).get(), 1), (std::vector<RowIndexT>{8, 12}));
+  ASSERT_EQ(SortedRows(rps.At(1).get(), 2), (std::vector<RowIndexT>{9, 13, 15}));
+}
+}  // anonymous namespace
+
+TEST(RowPartitioner, ResetSubsetBatches) { TestResetSubsetBatches(); }
 
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
   auto ctx = MakeCUDACtx(0);

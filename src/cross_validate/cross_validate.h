@@ -96,6 +96,9 @@ struct FoldInfoBatches {
 struct FoldPredictions {
   std::vector<gbm::PredictionCacheEntry> train;
   gbm::PredictionCacheEntry valid;
+  // Number of columns in each cache, shared by all folds. A `PredictionCacheEntry` is flat,
+  // so this is what makes the buffers self-describing.
+  bst_target_t output_length{0};
 
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->train.size(); }
   [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t fold_idx) {
