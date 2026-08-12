@@ -31,7 +31,7 @@ TEST(LearnerModelState, ChangeCUDADevice) {
                           true,
                           h_base_score,
                           std::move(base_score),
-                          ObjInfo{},
+                          ObjInfo{ObjInfo::kRegression},
                           MultiStrategy::kOneOutputPerTree};
 
   ctx = MakeCUDACtx(1);
