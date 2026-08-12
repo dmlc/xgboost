@@ -19,9 +19,12 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   if (this->Task().task == ObjInfo::kRegression) {
     CheckInitInputs(info);
   }
+  bst_target_t n_targets = this->Targets(info);
   // Avoid altering any state in child objective.
-  HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->Device());
-  linalg::Matrix<GradientPair> gpair(info.labels.Shape(), this->ctx_->Device());
+  HostDeviceVector<float> dummy_predt(info.num_row_ * n_targets, 0.0f, this->ctx_->Device());
+  linalg::Matrix<GradientPair> gpair;
+  gpair.SetDevice(this->ctx_->Device());
+  gpair.Reshape(info.num_row_, n_targets);
 
   Json config{Object{}};
   this->SaveConfig(&config);
@@ -31,7 +34,6 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   new_obj->LoadConfig(config);
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
-  bst_target_t n_targets = this->Targets(info);
   tree::FitStump(this->ctx_, gpair, n_targets, base_score);
   this->PredTransform(base_score->Data());
 }

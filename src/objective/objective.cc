@@ -47,13 +47,14 @@ DMLC_REGISTRY_LINK_TAG(hinge_obj);
 DMLC_REGISTRY_LINK_TAG(logistic_obj);
 DMLC_REGISTRY_LINK_TAG(poisson_obj);
 DMLC_REGISTRY_LINK_TAG(pseudohuber_obj);
+DMLC_REGISTRY_LINK_TAG(quantile_obj);
 DMLC_REGISTRY_LINK_TAG(squared_error_obj);
 DMLC_REGISTRY_LINK_TAG(squared_log_obj);
 DMLC_REGISTRY_LINK_TAG(tweedie_obj);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
-DMLC_REGISTRY_LINK_TAG(quantile_obj_gpu);
+DMLC_REGISTRY_LINK_TAG(quantile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(gamma_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(hinge_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(logistic_kernel_cuda);
@@ -68,7 +69,6 @@ DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 DMLC_REGISTRY_LINK_TAG(lambdarank_obj_cu);
 #else
 DMLC_REGISTRY_LINK_TAG(regression_obj);
-DMLC_REGISTRY_LINK_TAG(quantile_obj);
 DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 #endif  // XGBOOST_USE_CUDA
 }  // namespace obj
