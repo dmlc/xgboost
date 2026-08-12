@@ -139,7 +139,8 @@ void QuantileTransformCpu(Context const* ctx, HostDeviceVector<float>* predictio
   auto values = predictions->HostSpan();
   auto n_rows = values.size() / n_alphas;
   common::ParallelFor(n_rows, ctx->Threads(), [&](std::size_t row) {
-    SortQuantilePredictions(values.subspan(row * n_alphas, n_alphas));
+    auto predictions = values.subspan(row * n_alphas, n_alphas);
+    std::sort(predictions.begin(), predictions.end());
   });
 }
 

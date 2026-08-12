@@ -4,6 +4,9 @@
  * \brief CUDA implementations of quantile objective kernels.
  */
 #include <dmlc/registry.h>
+
+#include <thrust/execution_policy.h>  // for seq
+#include <thrust/sort.h>              // for sort
 #include <thrust/iterator/counting_iterator.h>
 
 #include <cmath>    // for fabsf, fmaxf, sqrtf, tanhf
@@ -102,7 +105,8 @@ void QuantileTransformCuda(Context const* ctx, HostDeviceVector<float>* predicti
   auto values = predictions->DeviceSpan();
   auto n_rows = values.size() / n_alphas;
   dh::LaunchN(n_rows, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t row) {
-    SortQuantilePredictions(values.subspan(row * n_alphas, n_alphas));
+    auto predictions = values.subspan(row * n_alphas, n_alphas);
+    thrust::sort(thrust::seq, predictions.begin(), predictions.end());
   });
 }
 
