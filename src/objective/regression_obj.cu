@@ -12,18 +12,12 @@
 #include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
-#include "../collective/aggregator.h"
 #include "../common/common.h"
-#include "../common/expectile_loss_utils.h"  // for ExpectileLossParam
-#include "../common/linalg_op.h"             // for ElementWiseKernel
-#include "../common/math.h"                  // for CloseTo, Sigmoid, SoftPlus, SoftPlusInv
-#include "../common/numeric.h"               // for Reduce
-#include "../common/optional_weight.h"       // for MakeOptionalWeights
-#include "../common/stats.h"
+#include "../common/linalg_op.h"  // for ElementWiseKernel
+#include "../common/math.h"       // for CloseTo
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "../common/utils.h"  // for NoOp
-#include "../tree/fit_stump.h"
 #include "init_estimation.h"  // FitIntercept
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
@@ -43,11 +37,6 @@
 
 namespace xgboost::obj {
 namespace {
-void CheckRegInputs(MetaInfo const& info, HostDeviceVector<float> const& preds) {
-  CheckInitInputs(info);
-  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
-}
-
 template <typename Fn, typename Chk = common::NoOp<bool>, typename Err = common::NoOp<StringView>>
 void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&& fn,
                       Chk check = common::NoOp{true}, Err error = common::NoOp<StringView>{{}}) {
@@ -81,196 +70,6 @@ void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
-
-class ExpectileRegression : public FitIntercept {
-  common::ExpectileLossParam param_;
-  HostDeviceVector<float> alpha_;
-
-  [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
-    auto const& alpha = param_.expectile_alpha.Get();
-    CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the expectile loss.";
-    CHECK(!alpha.empty());
-    auto n_y = std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
-    return alpha_.Size() * n_y;
-  }
-
- public:
-  std::set<std::string> Configure(Args const& args) override {
-    auto used = UpdateAndGetUsedParameters(&param_, args);
-    param_.Validate();
-    alpha_.HostVector() = param_.expectile_alpha.Get();
-    return used;
-  }
-
-  [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
-
-  void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info, std::int32_t iter,
-                   linalg::Matrix<GradientPair>* out_gpair) override {
-    if (iter == 0) {
-      CheckInitInputs(info);
-    }
-    CHECK_EQ(param_.expectile_alpha.Get().size(), alpha_.Size());
-
-    using SizeT = decltype(info.num_row_);
-    SizeT n_targets = this->Targets(info);
-    SizeT n_alphas = alpha_.Size();
-    CHECK_NE(n_alphas, 0);
-    CHECK_GE(n_targets, n_alphas);
-    CHECK_EQ(preds.Size(), info.num_row_ * n_targets);
-
-    auto labels = info.labels.View(ctx_->Device());
-
-    out_gpair->SetDevice(ctx_->Device());
-    CHECK_EQ(info.labels.Shape(1), 1)
-        << "Multi-target for expectile regression is not yet supported.";
-    out_gpair->Reshape(info.num_row_, n_targets);
-    auto gpair = out_gpair->View(ctx_->Device());
-
-    info.weights_.SetDevice(ctx_->Device());
-    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-
-    preds.SetDevice(ctx_->Device());
-    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
-
-    alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
-
-    linalg::ElementWiseKernel(
-        ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-          auto label = labels(i, 0);
-          auto sample_weight = weights[i];
-          float pred = predt(i, 0);
-          float grad_sum{0.0f};
-          float hess_sum{0.0f};
-          for (std::size_t k = 0; k < n_alphas; ++k) {
-            if (k > 0) {
-              pred += kRtEps + common::SoftPlus(predt(i, k));
-            }
-            if (k >= j) {
-              auto diff = pred - label;
-              auto expectile = alpha[k];
-              auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
-              grad_sum += weight_scale * diff * sample_weight;
-              hess_sum += weight_scale * sample_weight;
-            }
-          }
-
-          auto scale = j == 0 ? 1.0f : common::Sigmoid(predt(i, j));
-          auto grad = scale * grad_sum;
-          // Diagonal Gauss-Newton approximation for the transformed margin.
-          auto hess = scale * scale * hess_sum;
-          gpair(i, j) = GradientPair{grad, hess};
-        });
-  }
-
-  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    CHECK(!alpha_.Empty());
-    auto n_targets = this->Targets(info);
-    base_score->SetDevice(ctx_->Device());
-    base_score->Reshape(n_targets);
-
-    linalg::Vector<float> label_mean;
-    if (info.weights_.Empty()) {
-      common::SampleMean(ctx_, info.labels, &label_mean);
-    } else {
-      common::WeightedSampleMean(ctx_, info.labels, info.weights_, &label_mean);
-    }
-    CHECK_EQ(label_mean.Size(), 1);
-
-    auto mean = label_mean.HostView()(0);
-
-    linalg::Matrix<GradientPair> gpair;
-    gpair.SetDevice(ctx_->Device());
-    gpair.Reshape(info.num_row_, n_targets);
-    auto gpair_view = gpair.View(ctx_->Device());
-
-    auto labels = info.labels.View(ctx_->Device());
-    info.weights_.SetDevice(ctx_->Device());
-    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
-
-    linalg::ElementWiseKernel(ctx_, gpair_view,
-                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-                                auto diff = mean - labels(i, 0);
-                                auto expectile = alpha[j];
-                                auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
-                                auto sample_weight = weights[i];
-                                auto grad = weight_scale * diff * sample_weight;
-                                auto hess = weight_scale * sample_weight;
-                                gpair_view(i, j) = GradientPair{grad, hess};
-                              });
-
-    tree::FitStump(ctx_, gpair, n_targets, base_score);
-
-    auto out = base_score->HostView();
-    for (std::size_t j = 0; j < n_targets; ++j) {
-      out(j) += mean;
-    }
-    for (std::size_t j = 1; j < n_targets; ++j) {
-      out(j) = std::max(out(j), out(j - 1));
-    }
-  }
-
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
-    auto n_alphas = alpha_.Size();
-    CHECK_NE(n_alphas, 0);
-    CHECK_EQ(io_preds->Size() % n_alphas, 0);
-    auto n_samples = io_preds->Size() / n_alphas;
-    auto device = io_preds->Device();
-    auto predt = linalg::MakeTensorView(
-        device, device.IsCPU() ? io_preds->HostSpan() : io_preds->DeviceSpan(), n_samples,
-        n_alphas);
-    auto rows = predt.Slice(linalg::All(), 0);
-    linalg::ElementWiseKernel(ctx_, device, rows, [=] XGBOOST_DEVICE(std::size_t i) mutable {
-      auto point = predt.Slice(i, linalg::All());
-      float pred = point(0);
-      for (std::size_t j = 1; j < n_alphas; ++j) {
-        pred += kRtEps + common::SoftPlus(point(j));
-        point(j) = pred;
-      }
-    });
-  }
-
-  void ProbToMargin(linalg::Vector<float>* base_score) const override {
-    CHECK_EQ(base_score->Size(), alpha_.Size());
-    auto margin = base_score->HostView();
-    for (std::size_t j = margin.Size() - 1; j > 0; --j) {
-      auto gap = margin(j) - margin(j - 1);
-      margin(j) = common::SoftPlusInv(gap - kRtEps);
-    }
-  }
-
-  [[nodiscard]] const char* DefaultEvalMetric() const override { return "expectile"; }
-  [[nodiscard]] Json DefaultMetricConfig() const override {
-    CHECK(param_.GetInitialised());
-    Json config{Object{}};
-    config["name"] = String{this->DefaultEvalMetric()};
-    config["expectile_loss_param"] = ToJson(param_);
-    return config;
-  }
-
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("reg:expectileerror");
-    out["expectile_loss_param"] = ToJson(param_);
-  }
-
-  void LoadConfig(Json const& in) override {
-    CHECK_EQ(get<String const>(in["name"]), "reg:expectileerror");
-    auto const& obj = get<Object const>(in);
-    auto it = obj.find("expectile_loss_param");
-    if (it != obj.cend()) {
-      FromJson(it->second, &param_);
-      alpha_.HostVector() = param_.expectile_alpha.Get();
-    }
-  }
-};
-
-XGBOOST_REGISTER_OBJECTIVE(ExpectileRegression, "reg:expectileerror")
-    .describe("Regression with expectile loss.")
-    .set_body([]() { return new ExpectileRegression(); });
 
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public FitIntercept {

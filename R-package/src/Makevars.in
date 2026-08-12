@@ -47,6 +47,7 @@ OBJECTS= \
     $(PKGROOT)/src/metric/survival_metric.o \
     $(PKGROOT)/src/objective/objective.o \
     $(PKGROOT)/src/objective/absolute_error_obj.o \
+    $(PKGROOT)/src/objective/expectile_obj.o \
     $(PKGROOT)/src/objective/regression_obj.o \
     $(PKGROOT)/src/objective/multiclass_obj.o \
     $(PKGROOT)/src/objective/lambdarank_obj.o \
