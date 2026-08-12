@@ -50,41 +50,161 @@ public class XGBoostJNI {
     }
   }
 
+  /**
+   * Gets the error message for non-zero return codes from JNI calls.
+   *
+   * @return Error message represented as a {@code String}.
+   */
   public final static native String XGBGetLastError();
 
+  /**
+   * Create a DMatrix from a URI.
+   *
+   * @param uri The URI containing the data to create the DMatrix from.
+   * @param silent The flag indicator deciding whether to print messages or not.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixCreateFromURI(String uri, int silent, long[] out);
 
+  /**
+   * Create a DMatrix from a batch iteration.
+   *
+   * @param iter The URI containing the data to create the DMatrix from.
+   * @param cache_info The flag indicator deciding whether to print messages or not.
+   * @param missing The output array containing the handle to the created DMatrix.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
       String cache_info, float missing, long[] out);
 
+  /**
+   * Create a DMatrix from a CSR matrix.
+   *
+   * @param indptr The index pointer array of the CSR matrix.
+   * @param indices The indices array of the CSR matrix.
+   * @param data The data array of the CSR matrix.
+   * @param shapeParam The shape parameter of the CSR matrix.
+   * @param missing The missing value indicator.
+   * @param nthread The number of threads to use for creating the DMatrix.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices,
       float[] data, int shapeParam,
       float missing, int nthread,
       long[] out);
 
+  /**
+   * Create a DMatrix from a CSC matrix.
+   *
+   * @param colptr The column pointer array of the CSR matrix.
+   * @param indices The indices array of the CSR matrix.
+   * @param data The data array of the CSR matrix.
+   * @param shapeParam The shape parameter of the CSR matrix.
+   * @param missing The missing value indicator.
+   * @param nthread The number of threads to use for creating the DMatrix.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices,
       float[] data, int shapeParam,
       float missing, int nthread,
       long[] out);
 
+  /**
+   * Create a DMatrix from a dense matrix.
+   *
+   * @param data The data array of the dense matrix.
+   * @param nrow The number of rows in the dense matrix.
+   * @param ncol The number of columns in the dense matrix.
+   * @param missing The missing value indicator.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
       float missing, long[] out);
 
+  /**
+   * Create a DMatrix from a dense matrix reference.
+   *
+   * @param dataRef The reference to the data array of the dense matrix.
+   * @param nrow The number of rows in the dense matrix.
+   * @param ncol The number of columns in the dense matrix.
+   * @param missing The missing value indicator.
+   * @param out The output array containing the handle to the created DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixCreateFromMatRef(long dataRef, int nrow, int ncol,
       float missing, long[] out);
 
+  /**
+   * Slice a DMatrix to create a new DMatrix.
+   *
+   * @param handle The handle to the original DMatrix.
+   * @param idxset The index set to slice the DMatrix.
+   * @param out The output array containing the handle to the sliced DMatrix.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixSliceDMatrix(long handle, int[] idxset, long[] out);
 
+  /**
+   * Free the DMatrix.
+   *
+   * @param handle The handle to the DMatrix to be freed.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixFree(long handle);
 
+  /**
+   * Save the DMatrix to a binary file.
+   *
+   * @param handle The handle to the DMatrix to be saved.
+   * @param fname The filename where the DMatrix will be saved.
+   * @param silent The flag indicator deciding whether to print messages or not.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixSaveBinary(long handle, String fname, int silent);
 
+  /**
+   * Set the information of the DMatrix for floating point .
+   *
+   * @param handle The handle to the DMatrix.
+   * @param field The field name to set the information for.
+   * @param array The array of floating point values containing the information to set.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixSetFloatInfo(long handle, String field, float[] array);
 
+  /**
+   * Set the information of the DMatrix.
+   *
+   * @param handle The handle to the DMatrix.
+   * @param field The field name to set the information for.
+   * @param array The array of unsigned integer values containing the information to set.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixSetUIntInfo(long handle, String field, int[] array);
 
+  /**
+   * Get the information of the DMatrix for floating point values.
+   *
+   * @param handle The handle to the DMatrix.
+   * @param field The field name to get the information for.
+   * @param info The 2D array to store the retrieved information.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixGetFloatInfo(long handle, String field, float[][] info);
 
+  /**
+   * Get the information of the DMatrix for unsigned integer values.
+   *
+   * @param handle The handle to the DMatrix.
+   * @param filed The field name to get the information for.
+   * @param info The 2D array to store the retrieved information.
+   * @return 0 when success, -1 when failure happens
+   */
   public final static native int XGDMatrixGetUIntInfo(long handle, String filed, int[][] info);
 
   /**
