@@ -208,6 +208,23 @@ TEST(Learner, Configuration) {
   }
 }
 
+TEST(Learner, PoissonMaxDeltaStepIsGeneric) {
+  auto p_mat = RandomDataGenerator{1, 1, 0.0f}.GenerateDMatrix();
+  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  learner->Configure({{"objective", "count:poisson"}});
+
+  auto max_delta_step = [&] {
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto const& value = config["learner"]["gradient_booster"]["tree_train_param"]["max_delta_step"];
+    return std::stof(get<String const>(value));
+  };
+  ASSERT_FLOAT_EQ(max_delta_step(), 0.0f);
+
+  learner->Configure({{"max_delta_step", "0.5"}});
+  ASSERT_FLOAT_EQ(max_delta_step(), 0.5f);
+}
+
 TEST(Learner, JsonModelIO) {
   // Test of comparing JSON object directly.
   size_t constexpr kRows = 8;

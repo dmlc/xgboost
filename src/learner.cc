@@ -55,10 +55,6 @@
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
 
-namespace {
-const char* kMaxDeltaStepDefaultValue = "0.7";
-}  // anonymous namespace
-
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
@@ -802,12 +798,6 @@ class LearnerConfiguration : public Intercept {
       }
     }
 
-    if (config.find("max_delta_step") == config.cend() &&
-        config.find("objective") != config.cend() && tparam_.objective == "count:poisson") {
-      // max_delta_step is a duplicated parameter in Poisson regression and tree param.
-      // Rename one of them once binary IO is gone.
-      config["max_delta_step"] = kMaxDeltaStepDefaultValue;
-    }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }

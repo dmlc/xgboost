@@ -11,26 +11,20 @@
 #include "elementwise_objective.h"  // for elementwise kernels
 #include "regression_loss.h"        // for PoissonLabel
 #include "xgboost/base.h"           // for GradientPair
-#include "xgboost/parameter.h"      // for XGBoostParameter
 
 namespace xgboost::obj {
-struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
-  float max_delta_step;
-  DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
-    DMLC_DECLARE_FIELD(max_delta_step)
-        .set_lower_bound(0.0f)
-        .set_default(0.7f)
-        .describe(
-            "Maximum delta step we allow each weight estimation to be."
-            " This parameter is required for Poisson regression.");
-  }
-};
-
 struct PoissonGradient {
-  float max_delta_step;
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    auto grad = (expf(predt) - label) * weight;
-    auto hess = expf(predt + max_delta_step) * weight;
+    auto mu = expf(predt);
+    auto grad = (mu - label) * weight;
+    // For one leaf, let M = sum(w_i * mu_i) and Y = sum(w_i * y_i). The score after
+    // adding leaf value d is f(d) = M * exp(d) - Y. At d = 0, f = M - Y and
+    // f' = f'' = M, so Halley's root update is
+    //   d = -2 * f * f' / (2 * f'^2 - f * f'') = 2 * (Y - M) / (Y + M).
+    // Using the positive pseudo-Hessian h_i = w_i * (mu_i + y_i) / 2 makes the
+    // unregularized leaf calculation -sum(g_i) / sum(h_i) produce this update. For M, Y > 0,
+    // it is also 2 * tanh(log(Y / M) / 2), so it moves toward the exact optimum without crossing.
+    auto hess = 0.5f * (mu + label) * weight;
     return {grad, hess};
   }
 };
