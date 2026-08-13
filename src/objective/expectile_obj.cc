@@ -16,6 +16,7 @@
 #include "../common/math.h"
 #include "../common/optional_weight.h"
 #include "../common/stats.h"
+#include "../common/threading_utils.h"
 #include "../tree/fit_stump.h"
 #include "init_estimation.h"
 #include "xgboost/json.h"
@@ -93,18 +94,18 @@ void ExpectileInitEstimationCpu(Context const* ctx, MetaInfo const& info,
   }
 }
 
-void ExpectilePredTransformCpu(Context const*, HostDeviceVector<float>* predictions,
+void ExpectilePredTransformCpu(Context const* ctx, HostDeviceVector<float>* predictions,
                                std::size_t n_alphas) {
   auto n_samples = predictions->Size() / n_alphas;
   auto predt =
       linalg::MakeTensorView(DeviceOrd::CPU(), predictions->HostSpan(), n_samples, n_alphas);
-  for (std::size_t i{0}; i < n_samples; ++i) {
+  common::ParallelFor(n_samples, ctx->Threads(), [=](std::size_t i) mutable {
     float pred = predt(i, 0);
     for (std::size_t j{1}; j < n_alphas; ++j) {
       pred += kRtEps + common::SoftPlus(predt(i, j));
       predt(i, j) = pred;
     }
-  }
+  });
 }
 
 auto const kRegisterGradient =

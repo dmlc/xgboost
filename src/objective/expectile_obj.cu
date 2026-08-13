@@ -5,7 +5,6 @@
  */
 #include <dmlc/registry.h>
 
-#include <algorithm>
 #include <cstddef>
 
 #include "../common/device_helpers.cuh"
@@ -73,7 +72,7 @@ void ExpectileInitEstimationCuda(Context const* ctx, MetaInfo const& info,
     common::WeightedSampleMean(ctx, info.labels, info.weights_, &label_mean);
   }
   CHECK_EQ(label_mean.Size(), 1);
-  auto mean = label_mean.HostView()(0);
+  auto mean = label_mean.View(device);
 
   alpha.SetDevice(device);
   auto alpha_d = alpha.ConstDeviceSpan();
@@ -86,20 +85,23 @@ void ExpectileInitEstimationCuda(Context const* ctx, MetaInfo const& info,
   linalg::cuda_impl::ElementWiseKernel(
       gpair_d,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-        auto diff = mean - labels(i, 0);
+        auto diff = mean(0) - labels(i, 0);
         auto weight_scale = diff >= 0.0f ? 1.0f - alpha_d[j] : alpha_d[j];
         gpair_d(i, j) = {weight_scale * diff * weights[i], weight_scale * weights[i]};
       },
       ctx->CUDACtx()->Stream());
 
   tree::FitStump(ctx, gpair, n_targets, base_score);
-  auto out = base_score->HostView();
-  for (std::size_t j{0}; j < n_targets; ++j) {
-    out(j) += mean;
-  }
-  for (std::size_t j{1}; j < n_targets; ++j) {
-    out(j) = std::max(out(j), out(j - 1));
-  }
+  auto out = base_score->View(device);
+  dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) mutable {
+    auto mean_value = mean(0);
+    for (std::size_t j{0}; j < n_targets; ++j) {
+      out(j) += mean_value;
+    }
+    for (std::size_t j{1}; j < n_targets; ++j) {
+      out(j) = out(j) < out(j - 1) ? out(j - 1) : out(j);
+    }
+  });
 }
 
 void ExpectilePredTransformCuda(Context const* ctx, HostDeviceVector<float>* predictions,

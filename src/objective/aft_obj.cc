@@ -10,10 +10,11 @@
 #include <cmath>    // for exp, log
 #include <cstddef>  // for size_t
 
-#include "../common/kernel.h"   // for DispatchKernel, KernelRegistration
-#include "xgboost/json.h"       // for Json
-#include "xgboost/logging.h"    // for CHECK
-#include "xgboost/objective.h"  // for ObjFunction
+#include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
+#include "../common/threading_utils.h"  // for ParallelFor
+#include "xgboost/json.h"               // for Json
+#include "xgboost/logging.h"            // for CHECK
+#include "xgboost/objective.h"          // for ObjFunction
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(aft_obj);
@@ -21,48 +22,49 @@ DMLC_REGISTRY_FILE_TAG(aft_obj);
 namespace {
 template <typename Distribution>
 void AFTGradientCpuImpl(HostDeviceVector<float> const& preds, MetaInfo const& info, float scale,
-                        linalg::Matrix<GradientPair>* out_gpair) {
+                        std::int32_t n_threads, linalg::Matrix<GradientPair>* out_gpair) {
   auto predt = preds.ConstHostSpan();
   auto lower = info.labels_lower_bound_.ConstHostSpan();
   auto upper = info.labels_upper_bound_.ConstHostSpan();
   auto weights = info.weights_.ConstHostSpan();
   auto gpair = out_gpair->HostView();
   bool is_null_weight = weights.empty();
-  for (std::size_t i{0}; i < predt.size(); ++i) {
+  common::ParallelFor(predt.size(), n_threads, [=](std::size_t i) mutable {
     auto grad = static_cast<float>(
         common::AFTLoss<Distribution>::Gradient(lower[i], upper[i], predt[i], scale));
     auto hess = static_cast<float>(
         common::AFTLoss<Distribution>::Hessian(lower[i], upper[i], predt[i], scale));
     auto weight = is_null_weight ? 1.0f : weights[i];
     gpair(i, 0) = {grad * weight, hess * weight};
-  }
+  });
 }
 
-void AFTGradientCpu(Context const*, HostDeviceVector<float> const& preds, MetaInfo const& info,
+void AFTGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
                     common::ProbabilityDistributionType distribution, float scale,
                     linalg::Matrix<GradientPair>* out_gpair) {
   out_gpair->SetDevice(DeviceOrd::CPU());
   out_gpair->Reshape(preds.Size(), 1);
   switch (distribution) {
     case common::ProbabilityDistributionType::kNormal:
-      AFTGradientCpuImpl<common::NormalDistribution>(preds, info, scale, out_gpair);
+      AFTGradientCpuImpl<common::NormalDistribution>(preds, info, scale, ctx->Threads(), out_gpair);
       break;
     case common::ProbabilityDistributionType::kLogistic:
-      AFTGradientCpuImpl<common::LogisticDistribution>(preds, info, scale, out_gpair);
+      AFTGradientCpuImpl<common::LogisticDistribution>(preds, info, scale, ctx->Threads(),
+                                                       out_gpair);
       break;
     case common::ProbabilityDistributionType::kExtreme:
-      AFTGradientCpuImpl<common::ExtremeDistribution>(preds, info, scale, out_gpair);
+      AFTGradientCpuImpl<common::ExtremeDistribution>(preds, info, scale, ctx->Threads(),
+                                                      out_gpair);
       break;
     default:
       LOG(FATAL) << "Unrecognized distribution";
   }
 }
 
-void AFTPredTransformCpu(Context const*, HostDeviceVector<float>* predictions) {
+void AFTPredTransformCpu(Context const* ctx, HostDeviceVector<float>* predictions) {
   auto values = predictions->HostSpan();
-  for (auto& value : values) {
-    value = std::exp(value);
-  }
+  common::ParallelFor(values.size(), ctx->Threads(),
+                      [=](std::size_t i) { values[i] = std::exp(values[i]); });
 }
 
 void AFTProbToMarginCpu(Context const*, linalg::Vector<float>* base_score) {
