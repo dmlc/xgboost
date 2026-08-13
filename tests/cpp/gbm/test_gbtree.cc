@@ -226,6 +226,7 @@ TEST(GBTree, ChooseTreeMethod) {
 
   auto with_boost = [&](std::optional<std::string> device, std::optional<std::string> tree_method) {
     auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
+    learner->Configure({{"boost_from_average", "0"}});
     if (tree_method.has_value()) {
       learner->Configure({{"tree_method", tree_method.value()}});
     }
