@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_CACHE_MANAGER_H_
 
 #include <array>
+#include <cstddef>   // for size_t
 #include <cstdint>   // for int64_t
 #include <optional>  // for optional
 
@@ -39,6 +40,21 @@ struct DataCacheSizes {
  */
 [[nodiscard]] DataCacheSizes ReduceHeterogeneousCaches(Span<PerfLevelCache const> levels);
 }  // namespace detail
+
+/* Size of a cache line in bytes.
+ *
+ * Used to pick prefetch strides and to keep concurrently written data from sharing a
+ * line. Apple Silicon uses 128-byte lines; the remaining targets use 64.
+ *
+ * std::hardware_destructive_interference_size is deliberately not used: libc++ reports 64
+ * for it on arm64, including on Apple Silicon, so it would reintroduce the same wrong
+ * value this constant exists to correct.
+ */
+#if defined(__APPLE__) && defined(__aarch64__)
+constexpr std::size_t kCacheLineSize = 128;
+#else
+constexpr std::size_t kCacheLineSize = 64;
+#endif  // defined(__APPLE__) && defined(__aarch64__)
 
 /* Detect cache sizes at runtime,
  * or fall back to defaults if detection is not possible.

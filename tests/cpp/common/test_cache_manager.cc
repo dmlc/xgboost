@@ -17,6 +17,12 @@
 #endif                // !defined(__x86_64__) && defined(__APPLE__)
 
 namespace xgboost::common {
+// The line size divides byte counts to give element strides, so a zero or non
+// power-of-two value would silently corrupt those strides. Both are compile-time
+// properties, so they are checked at compile time.
+static_assert(kCacheLineSize >= 32, "Cache line is implausibly small.");
+static_assert((kCacheLineSize & (kCacheLineSize - 1)) == 0, "Cache line is not a power of two.");
+
 namespace {
 std::optional<std::int64_t> Some(std::int64_t v) { return std::optional<std::int64_t>{v}; }
 constexpr std::optional<std::int64_t> kNone = std::nullopt;
@@ -156,5 +162,14 @@ TEST(CacheManager, AppleSilicon) {
   }
 }
 
+// kCacheLineSize is a compile-time constant, so this checks the value compiled in against
+// what the machine running the tests actually reports.
+TEST(CacheManager, AppleSiliconCacheLineSize) {
+  auto const reported = ReadSysctlInt("hw.cachelinesize");
+  if (reported <= 0) {
+    GTEST_SKIP() << "sysctl does not report a cache line size.";
+  }
+  ASSERT_EQ(static_cast<std::int64_t>(kCacheLineSize), reported);
+}
 #endif  // !defined(__x86_64__) && defined(__APPLE__)
 }  // namespace xgboost::common
