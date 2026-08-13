@@ -50,7 +50,7 @@ class CoordinateUpdater : public LinearUpdater {
               double sum_instance_weight) override {
     auto gpair = in_gpair->Data();
     tparam_.DenormalizePenalties(sum_instance_weight);
-    auto ngroup = model->learner_model_param->num_output_group;
+    auto ngroup = model->learner_model_state->num_output_group;
     // update bias
     for (decltype(ngroup) group_idx = 0; group_idx < ngroup; ++group_idx) {
       auto grad = GetBiasGradientParallel(group_idx, ngroup, gpair->ConstHostVector(), p_fmat,
@@ -65,7 +65,7 @@ class CoordinateUpdater : public LinearUpdater {
                      tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (decltype(ngroup) group_idx = 0; group_idx < ngroup; ++group_idx) {
-      for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
+      for (unsigned i = 0U; i < model->learner_model_state->num_feature; i++) {
         int fidx =
             selector_->NextFeature(ctx_, i, *model, group_idx, gpair->ConstHostVector(), p_fmat,
                                    tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
@@ -78,7 +78,7 @@ class CoordinateUpdater : public LinearUpdater {
 
   void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair, DMatrix *p_fmat,
                      gbm::GBLinearModel *model) {
-    const int ngroup = model->learner_model_param->num_output_group;
+    const int ngroup = model->learner_model_state->num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
     auto gradient = GetGradientParallel(ctx_, group_idx, ngroup, fidx, *in_gpair, p_fmat);
     auto dw =

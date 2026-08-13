@@ -652,7 +652,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
-                                                  LearnerModelParam const* learner_model_param,
+                                                  LearnerModelState const* learner_model_param,
                                                   Context const* ctx) {
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);

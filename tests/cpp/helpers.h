@@ -10,7 +10,7 @@
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
-#include <xgboost/learner.h>  // for LearnerModelParam
+#include <xgboost/learner.h>  // for LearnerModelState
 #include <xgboost/model.h>    // for Configurable
 
 #include <cstdint>  // std::int32_t
@@ -48,7 +48,7 @@
 namespace xgboost {
 class ObjFunction;
 class Metric;
-struct LearnerModelParam;
+struct LearnerModelState;
 class GradientBooster;
 }  // namespace xgboost
 
@@ -367,7 +367,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
-                                                  LearnerModelParam const* learner_model_param,
+                                                  LearnerModelState const* learner_model_state,
                                                   Context const* generic_param);
 
 /**
@@ -492,10 +492,10 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
 /*
  * \brief Make learner model param
  */
-inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
+inline LearnerModelState MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
                                 DeviceOrd device = DeviceOrd::CPU()) {
   size_t shape[1]{1};
-  LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
+  LearnerModelState mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
                            n_groups, 1, MultiStrategy::kOneOutputPerTree);
   return mparam;
 }

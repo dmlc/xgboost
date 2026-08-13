@@ -25,7 +25,7 @@ TEST(GBTree, SelectTreeMethod) {
   size_t constexpr kCols = 10;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
@@ -57,7 +57,7 @@ TEST(GBTree, SelectTreeMethod) {
 TEST(GBTree, PredictionCache) {
   size_t constexpr kRows = 100, kCols = 10;
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
@@ -102,7 +102,7 @@ TEST(GBTree, PredictionCache) {
 TEST(GBTree, PredictionCacheWithBaseMargin) {
   size_t constexpr kRows = 16, kCols = 4;
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
@@ -313,7 +313,7 @@ TEST(GBTree, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gbtree", Args{{"tree_method", "exact"}, {"default_direction", "left"}},
@@ -367,7 +367,7 @@ TEST(Dart, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &ctx)};
@@ -395,7 +395,7 @@ TEST(GBTree, LoadLegacyDartJson) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
@@ -436,7 +436,7 @@ TEST(GBTree, DropoutJsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
