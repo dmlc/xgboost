@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file elementwise_metric.cu
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
@@ -313,6 +313,11 @@ struct EvalTweedieNLogLik {
   }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float p) const {
+    if (rho_ == 1.0f) {
+      // rho = 1 is just Poisson
+      // The term that blows up doesn't depend on p, so we can drop it and use the limit
+      return -y * std::log(p) + p;
+    }
     bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
