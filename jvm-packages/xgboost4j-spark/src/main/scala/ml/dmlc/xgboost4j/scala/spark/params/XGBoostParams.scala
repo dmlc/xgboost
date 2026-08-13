@@ -386,8 +386,6 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setLambdarankUnbiased(value: Boolean): T = set(lambdarankUnbiased, value).asInstanceOf[T]
 
-  def setLambdarankBiasNorm(value: Double): T = set(lambdarankBiasNorm, value).asInstanceOf[T]
-
   def setNdcgExpGain(value: Boolean): T = set(ndcgExpGain, value).asInstanceOf[T]
 
   // Setters for Dart
