@@ -2,7 +2,20 @@
 
 set -eu
 
-cmake_bin=${CMAKE:-cmake}
+if test -n "${CMAKE:-}"; then
+  cmake_bin=${CMAKE}
+elif cmake_bin=$(command -v cmake 2>/dev/null); then
+  :
+elif test -x /Applications/CMake.app/Contents/bin/cmake; then
+  cmake_bin=/Applications/CMake.app/Contents/bin/cmake
+else
+  echo "configure: error: no 'cmake' command found; set CMAKE to its executable path" >&2
+  exit 1
+fi
+if ! "${cmake_bin}" --version >/dev/null 2>&1; then
+  echo "configure: error: cannot run CMAKE='${cmake_bin}'" >&2
+  exit 1
+fi
 
 # The assembled source package takes precedence when it is located inside a repository checkout.
 if test -f src/CMakeLists.txt; then
