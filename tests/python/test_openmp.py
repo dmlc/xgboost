@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +9,8 @@ import xgboost as xgb
 from xgboost import testing as tm
 
 pytestmark = tm.timeout(10)
+
+PYTHON = sys.executable
 
 
 class TestOMP:
@@ -84,7 +87,7 @@ class TestOMP:
     @pytest.mark.timeout(30)
     def test_with_omp_thread_limit(self, tmp_path: Path) -> None:
         args = [
-            "python",
+            PYTHON,
             os.path.join(os.path.dirname(tm.normpath(__file__)), "with_omp_limit.py"),
         ]
         results = []
