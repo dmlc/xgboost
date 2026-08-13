@@ -17,7 +17,7 @@
 #include "../helpers.h"
 
 namespace xgboost {
-inline std::unique_ptr<gbm::GBTreeModel> CreateTestModel(LearnerModelParam const* param,
+inline std::unique_ptr<gbm::GBTreeModel> CreateTestModel(LearnerModelState const* param,
                                                          Context const* ctx, size_t n_classes = 1) {
   auto model = std::make_unique<gbm::GBTreeModel>(param, ctx);
 
@@ -50,7 +50,7 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
                                      std::shared_ptr<DMatrix> p_hist) {
   constexpr size_t kClasses{3};
 
-  LearnerModelParam mparam{MakeMP(cols, .5, kClasses, ctx->Device())};
+  LearnerModelState mparam{MakeMP(cols, .5, kClasses, ctx->Device())};
   auto cuda_ctx = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> predictor =

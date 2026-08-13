@@ -33,7 +33,7 @@
 #include "xgboost/context.h"        // for Context
 #include "xgboost/data.h"           // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
-#include "xgboost/learner.h"                  // for LearnerModelParam
+#include "xgboost/learner.h"                  // for LearnerModelState
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
 #include "xgboost/logging.h"                  // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_NE
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree
@@ -435,7 +435,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
 
     // Create a writable view on the output prediction vector.
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_groups = model.learner_model_state->OutputLength();
     bst_idx_t n_samples = p_fmat->Info().num_row_;
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
@@ -489,7 +489,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
     // Always use block as we don't know the nnz.
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_groups = model.learner_model_state->OutputLength();
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
     auto const *tree_weights = model.TreeWeights();
@@ -505,7 +505,7 @@ class CPUPredictor : public Predictor {
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
-      CheckProxyDMatrix(x, proxy, model.learner_model_param);
+      CheckProxyDMatrix(x, proxy, model.learner_model_state);
       LaunchPredict(
           this->ctx_, proxy, model,
           [&](auto &&policy) {
@@ -541,7 +541,7 @@ class CPUPredictor : public Predictor {
     std::vector<float> &preds = out_preds->HostVector();
     preds.resize(info.num_row_ * ntree_limit);
 
-    auto n_features = model.learner_model_param->num_feature;
+    auto n_features = model.learner_model_state->num_feature;
     ThreadTmp<1> feat_vecs{n_threads};
 
     auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};

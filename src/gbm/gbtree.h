@@ -205,7 +205,7 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
 
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
+  explicit GBTree(LearnerModelState const* booster_config, Context const* ctx)
       : GradientBooster{ctx}, model_(booster_config, ctx_) {
     monitor_.Init(__func__);
   }
@@ -230,9 +230,6 @@ class GBTree : public GradientBooster {
              bool* out_of_bound) const override;
 
   [[nodiscard]] std::int32_t BoostedRounds() const override { return this->model_.BoostedRounds(); }
-  [[nodiscard]] bool ModelFitted() const override {
-    return !model_.trees.empty() || !model_.trees_to_update.empty();
-  }
 
   // Test-only accessor. The cache entry is thread-local and must have been initialized by
   // PredictBatch or DoBoost on this thread.
@@ -253,8 +250,8 @@ class GBTree : public GradientBooster {
     // Because feature with no importance doesn't appear in the return value so
     // we need to set up another pair of vectors to store the values during
     // computation.
-    std::vector<size_t> split_counts(this->model_.learner_model_param->num_feature, 0);
-    std::vector<float> gain_map(this->model_.learner_model_param->num_feature, 0);
+    std::vector<size_t> split_counts(this->model_.learner_model_state->num_feature, 0);
+    std::vector<float> gain_map(this->model_.learner_model_state->num_feature, 0);
     std::vector<int32_t> tree_idx;
     if (trees.empty()) {
       tree_idx.resize(this->model_.trees.size());

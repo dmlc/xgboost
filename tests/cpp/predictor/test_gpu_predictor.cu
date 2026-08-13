@@ -35,7 +35,7 @@ TEST(GPUPredictor, Basic) {
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
     auto ctx = MakeCUDACtx(0);
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
+    LearnerModelState mparam{MakeMP(n_col, .5, 1, ctx.Device())};
     std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
     auto const& model = *p_model;
 
@@ -103,7 +103,7 @@ template <typename Create>
 void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_features,
                                      Create create_fn) {
   std::int32_t n_classes = 3;
-  LearnerModelParam mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
+  LearnerModelState mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, n_classes);
   auto const& model = *p_model;
   std::unique_ptr<Predictor> gpu_predictor =
@@ -195,7 +195,7 @@ TEST(GPUPredictor, PredictLeafBasic) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .0, 1)};
   Context ctx;
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
   auto const& model = *p_model;
