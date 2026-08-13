@@ -41,7 +41,9 @@ void ObjFunction::InitEstimation(MetaInfo const& info, linalg::Vector<float>* ba
 namespace xgboost {
 namespace obj {
 // List of files that will be force linked in static links.
+DMLC_REGISTRY_LINK_TAG(aft_obj);
 DMLC_REGISTRY_LINK_TAG(absolute_error_obj);
+DMLC_REGISTRY_LINK_TAG(expectile_obj);
 DMLC_REGISTRY_LINK_TAG(gamma_obj);
 DMLC_REGISTRY_LINK_TAG(hinge_obj);
 DMLC_REGISTRY_LINK_TAG(logistic_obj);
@@ -53,6 +55,8 @@ DMLC_REGISTRY_LINK_TAG(squared_log_obj);
 DMLC_REGISTRY_LINK_TAG(tweedie_obj);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj);
 #ifdef XGBOOST_USE_CUDA
+DMLC_REGISTRY_LINK_TAG(aft_kernel_cuda);
+DMLC_REGISTRY_LINK_TAG(expectile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(quantile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(gamma_kernel_cuda);
