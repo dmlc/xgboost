@@ -36,109 +36,30 @@
 #include "xgboost/task.h"                // for ObjInfo
 
 namespace xgboost::obj {
-namespace cpu_impl {
-void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double const> li_full,
-                                  linalg::VectorView<double const> lj_full,
-                                  linalg::Vector<double>* p_ti_plus,
-                                  linalg::Vector<double>* p_tj_minus, linalg::Vector<double>* p_li,
-                                  linalg::Vector<double>* p_lj,
-                                  std::shared_ptr<ltr::RankingCache> p_cache) {
-  auto ti_plus = p_ti_plus->HostView();
-  auto tj_minus = p_tj_minus->HostView();
-  auto li = p_li->HostView();
-  auto lj = p_lj->HostView();
-
-  auto gptr = p_cache->DataGroupPtr(ctx);
-  auto n_groups = p_cache->Groups();
-  auto regularizer = p_cache->Param().Regularizer();
-
-  // Aggregate over query groups
-  for (bst_group_t g{0}; g < n_groups; ++g) {
-    auto begin = gptr[g];
-    auto end = gptr[g + 1];
-    std::size_t group_size = end - begin;
-    auto n = std::min(group_size, p_cache->MaxPositionSize());
-
-    auto g_li = li_full.Slice(linalg::Range(begin, end));
-    auto g_lj = lj_full.Slice(linalg::Range(begin, end));
-
-    for (std::size_t i{0}; i < n; ++i) {
-      li(i) += g_li(i);
-      lj(i) += g_lj(i);
-    }
-  }
-
-  // The ti+ is not guaranteed to decrease since it depends on the |\delta Z|
-  //
-  // The update normalizes the ti+ to make ti+(0) equal to 1, which breaks the probability
-  // meaning. The reasoning behind the normalization is not clear, here we are just
-  // following the authors.
-  for (std::size_t i = 0; i < ti_plus.Size(); ++i) {
-    if (li(0) >= Eps64()) {
-      ti_plus(i) = std::pow(li(i) / li(0), regularizer);  // eq.30
-    }
-    if (lj(0) >= Eps64()) {
-      tj_minus(i) = std::pow(lj(i) / lj(0), regularizer);  // eq.31
-    }
-    assert(!std::isinf(ti_plus(i)));
-    assert(!std::isinf(tj_minus(i)));
-  }
-}
-}  // namespace cpu_impl
-
 /**
  * \brief Base class for pair-wise learning to rank.
  *
  *   See `From RankNet to LambdaRank to LambdaMART: An Overview` for a description of the
  *   algorithm.
  *
- *   In addition to ranking, this also implements `Unbiased LambdaMART: An Unbiased
- *   Pairwise Learning-to-Rank Algorithm`.
  */
 template <typename Loss, typename Cache>
 class LambdaRankObj : public FitIntercept {
   MetaInfo const* p_info_{nullptr};
+  bool warned_unbiased_{false};
 
-  // Update position biased for unbiased click data
-  void UpdatePositionBias() {
-    li_full_.SetDevice(ctx_->Device());
-    lj_full_.SetDevice(ctx_->Device());
-    li_.SetDevice(ctx_->Device());
-    lj_.SetDevice(ctx_->Device());
-
-    if (ctx_->IsCUDA()) {
-      cuda_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
-                                              lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
-                                              &li_, &lj_, p_cache_);
-    } else {
-      // This function doesn't have sycl-specific implementation yet.
-      // For that reason we transfer data to host in case of sycl is used for propper execution.
-      auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(device), lj_full_.View(device),
-                                             &ti_plus_, &tj_minus_, &li_, &lj_, p_cache_);
+  void DisableUnbiased() {
+    if (param_.lambdarank_unbiased) {
+      if (!warned_unbiased_) {
+        LOG(WARNING) << "`lambdarank_unbiased` was removed in 3.5.0. Falling back to standard "
+                        "LambdaRank.";
+        warned_unbiased_ = true;
+      }
+      param_.lambdarank_unbiased = false;
     }
-
-    li_full_.Data()->Fill(0.0);
-    lj_full_.Data()->Fill(0.0);
-
-    li_.Data()->Fill(0.0);
-    lj_.Data()->Fill(0.0);
   }
 
  protected:
-  // L / tj-* (eq. 30)
-  linalg::Vector<double> li_;
-  // L / ti+* (eq. 31)
-  linalg::Vector<double> lj_;
-  // position bias ratio for relevant doc, ti+ (eq. 30)
-  linalg::Vector<double> ti_plus_;
-  // position bias ratio for irrelevant doc, tj- (eq. 31)
-  linalg::Vector<double> tj_minus_;
-  // li buffer for all samples
-  linalg::Vector<double> li_full_;
-  // lj buffer for all samples
-  linalg::Vector<double> lj_full_;
-
   ltr::LambdaRankParam param_;
   // cache
   std::shared_ptr<ltr::RankingCache> p_cache_;
@@ -149,30 +70,13 @@ class LambdaRankObj : public FitIntercept {
     return ptr;
   }
 
-  // get group view for li/lj
-  linalg::VectorView<double> GroupLoss(bst_group_t g, linalg::Vector<double>* v) const {
-    auto gptr = p_cache_->DataGroupPtr(ctx_);
-    auto begin = gptr[g];
-    auto end = gptr[g + 1];
-    if (param_.lambdarank_unbiased) {
-      return v->HostView().Slice(linalg::Range(begin, end));
-    }
-    return v->HostView();
-  }
-
   // Calculate lambda gradient for each group on CPU.
-  template <bool unbiased, bool norm_by_diff, typename Delta>
+  template <bool norm_by_diff, typename Delta>
   void CalcLambdaForGroup(std::uint32_t seed, common::Span<float const> g_predt,
                           linalg::VectorView<float const> g_label, float w,
                           common::Span<std::size_t const> g_rank, bst_group_t g, Delta delta,
                           linalg::VectorView<GradientPair> g_gpair) {
     std::fill_n(g_gpair.Values().data(), g_gpair.Size(), GradientPair{});
-
-    auto ti_plus = ti_plus_.HostView();
-    auto tj_minus = tj_minus_.HostView();
-
-    auto li = GroupLoss(g, &li_full_);
-    auto lj = GroupLoss(g, &lj_full_);
 
     // Normalization, first used by LightGBM.
     // https://github.com/lightgbm-org/LightGBM/pull/2331#issuecomment-523259298
@@ -192,33 +96,13 @@ class LambdaRankObj : public FitIntercept {
         std::swap(rank_high, rank_low);
       }
 
-      double cost;
-      auto pg = LambdaGrad<unbiased, norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low,
-                                                   delta_op, ti_plus, tj_minus, &cost);
+      auto pg = LambdaGrad<norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low, delta_op);
       auto ng = Repulse(pg);
 
       std::size_t idx_high = g_rank[rank_high];
       std::size_t idx_low = g_rank[rank_low];
       g_gpair(idx_high) += pg;
       g_gpair(idx_low) += ng;
-
-      if (unbiased) {
-        auto k = ti_plus.Size();
-        // We can probably use all the positions. If we skip the update due to having
-        // high/low > k, we might be losing out too many pairs. On the other hand, if we
-        // cap the position, then we might be accumulating too many tail bias into the
-        // last tracked position.
-        // We use `idx_high` since it represents the original position from the label
-        // list, and label list is assumed to be sorted.
-        if (idx_high < k && idx_low < k) {
-          if (tj_minus(idx_low) >= Eps64()) {
-            li(idx_high) += cost / tj_minus(idx_low);  // eq.30
-          }
-          if (ti_plus(idx_high) >= Eps64()) {
-            lj(idx_low) += cost / ti_plus(idx_high);  // eq.31
-          }
-        }
-      }
 
       sum_lambda += -2.0 * static_cast<double>(pg.GetGrad());
     };
@@ -251,30 +135,21 @@ class LambdaRankObj : public FitIntercept {
 
  public:
   std::set<std::string> Configure(Args const& args) override {
-    return UpdateAndGetUsedParameters(&param_, args);
+    auto used = UpdateAndGetUsedParameters(&param_, args);
+    this->DisableUnbiased();
+    return used;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
     out["lambdarank_param"] = ToJson(param_);
-
-    if (param_.lambdarank_unbiased) {
-      out["ti+"] = F32Array();
-      linalg::SaveVector(ti_plus_, &out["ti+"]);
-      out["tj-"] = F32Array();
-      linalg::SaveVector(tj_minus_, &out["tj-"]);
-    }
   }
   void LoadConfig(Json const& in) override {
     auto const& obj = get<Object const>(in);
     if (obj.find("lambdarank_param") != obj.cend()) {
       FromJson(in["lambdarank_param"], &param_);
     }
-
-    if (param_.lambdarank_unbiased) {
-      linalg::LoadVector(in["ti+"], &ti_plus_);
-      linalg::LoadVector(in["tj-"], &tj_minus_);
-    }
+    this->DisableUnbiased();
   }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo{ObjInfo::kRanking}; }
@@ -294,7 +169,7 @@ class LambdaRankObj : public FitIntercept {
     return name.c_str();
   }
 
-  void GetGradient(HostDeviceVector<float> const& predt, MetaInfo const& info, std::int32_t iter,
+  void GetGradient(HostDeviceVector<float> const& predt, MetaInfo const& info, std::int32_t,
                    linalg::Matrix<GradientPair>* out_gpair) override {
     CHECK_EQ(info.labels.Size(), predt.Size()) << error::LabelScoreSize();
 
@@ -308,32 +183,17 @@ class LambdaRankObj : public FitIntercept {
       CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
     }
 
-    if ((ti_plus_.Empty() || li_full_.Empty()) && param_.lambdarank_unbiased) {
-      CHECK_EQ(iter, 0);
-      ti_plus_ = linalg::Constant<double>(ctx_, 1.0, p_cache_->MaxPositionSize());
-      tj_minus_ = linalg::Constant<double>(ctx_, 1.0, p_cache_->MaxPositionSize());
-
-      li_ = linalg::Zeros<double>(ctx_, p_cache_->MaxPositionSize());
-      lj_ = linalg::Zeros<double>(ctx_, p_cache_->MaxPositionSize());
-
-      li_full_ = linalg::Zeros<double>(ctx_, info.num_row_);
-      lj_full_ = linalg::Zeros<double>(ctx_, info.num_row_);
-    }
     std::uint32_t seed{0};
     if (param_.IsMean()) {
       seed = static_cast<std::uint32_t>(ctx_->Rng()());
     }
     static_cast<Loss*>(this)->GetGradientImpl(seed, predt, info, out_gpair);
-
-    if (param_.lambdarank_unbiased) {
-      this->UpdatePositionBias();
-    }
   }
 };
 
 class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
  public:
-  template <bool unbiased, bool exp_gain>
+  template <bool exp_gain>
   void CalcLambdaForGroupNDCG(std::uint32_t seed, common::Span<float const> g_predt,
                               linalg::VectorView<float const> g_label, float w,
                               common::Span<std::size_t const> g_rank,
@@ -347,21 +207,16 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
     };
 
     if (this->param_.lambdarank_score_normalization) {
-      this->CalcLambdaForGroup<unbiased, true>(seed, g_predt, g_label, w, g_rank, g, delta,
-                                               g_gpair);
+      this->CalcLambdaForGroup<true>(seed, g_predt, g_label, w, g_rank, g, delta, g_gpair);
     } else {
-      this->CalcLambdaForGroup<unbiased, false>(seed, g_predt, g_label, w, g_rank, g, delta,
-                                                g_gpair);
+      this->CalcLambdaForGroup<false>(seed, g_predt, g_label, w, g_rank, g, delta, g_gpair);
     }
   }
 
   void GetGradientImpl(std::uint32_t seed, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
-      cuda_impl::LambdaRankGetGradientNDCG(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+      cuda_impl::LambdaRankGetGradientNDCG(ctx_, seed, predt, info, GetCache(), out_gpair);
       return;
     }
 
@@ -396,18 +251,10 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       auto args =
           std::make_tuple(this, seed, g_predt, g_label, w, g_rank, g_gpair, inv_IDCG, dct, g);
 
-      if (param_.lambdarank_unbiased) {
-        if (param_.ndcg_exp_gain) {
-          std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<true, true>, args);
-        } else {
-          std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<true, false>, args);
-        }
+      if (param_.ndcg_exp_gain) {
+        std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<true>, args);
       } else {
-        if (param_.ndcg_exp_gain) {
-          std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<false, true>, args);
-        } else {
-          std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<false, false>, args);
-        }
+        std::apply(&LambdaRankNDCG::CalcLambdaForGroupNDCG<false>, args);
       }
     });
   }
@@ -428,17 +275,7 @@ namespace cuda_impl {
 #if !defined(XGBOOST_USE_CUDA)
 void LambdaRankGetGradientNDCG(Context const*, std::uint32_t, HostDeviceVector<float> const&,
                                const MetaInfo&, std::shared_ptr<ltr::NDCGCache>,
-                               linalg::VectorView<double const>,  // input bias ratio
-                               linalg::VectorView<double const>,  // input bias ratio
-                               linalg::VectorView<double>, linalg::VectorView<double>,
                                linalg::Matrix<GradientPair>*) {
-  common::AssertGPUSupport();
-}
-
-void LambdaRankUpdatePositionBias(Context const*, linalg::VectorView<double const>,
-                                  linalg::VectorView<double const>, linalg::Vector<double>*,
-                                  linalg::Vector<double>*, linalg::Vector<double>*,
-                                  linalg::Vector<double>*, std::shared_ptr<ltr::RankingCache>) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
@@ -483,10 +320,7 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
   void GetGradientImpl(std::uint32_t seed, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
-      return cuda_impl::LambdaRankGetGradientMAP(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+      return cuda_impl::LambdaRankGetGradientMAP(ctx_, seed, predt, info, GetCache(), out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_).data();
@@ -536,18 +370,10 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
 
       auto args = std::make_tuple(this, seed, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
 
-      if (param_.lambdarank_unbiased) {
-        if (this->param_.lambdarank_score_normalization) {
-          std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, true, D>, args);
-        } else {
-          std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, false, D>, args);
-        }
+      if (this->param_.lambdarank_score_normalization) {
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, D>, args);
       } else {
-        if (this->param_.lambdarank_score_normalization) {
-          std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, true, D>, args);
-        } else {
-          std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, false, D>, args);
-        }
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, D>, args);
       }
     });
   }
@@ -566,9 +392,6 @@ void MAPStat(Context const*, MetaInfo const&, common::Span<std::size_t const>,
 
 void LambdaRankGetGradientMAP(Context const*, std::uint32_t, HostDeviceVector<float> const&,
                               const MetaInfo&, std::shared_ptr<ltr::MAPCache>,
-                              linalg::VectorView<double const>,  // input bias ratio
-                              linalg::VectorView<double const>,  // input bias ratio
-                              linalg::VectorView<double>, linalg::VectorView<double>,
                               linalg::Matrix<GradientPair>*) {
   common::AssertGPUSupport();
 }
@@ -583,10 +406,8 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
   void GetGradientImpl(std::uint32_t seed, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
-      return cuda_impl::LambdaRankGetGradientPairwise(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+      return cuda_impl::LambdaRankGetGradientPairwise(ctx_, seed, predt, info, GetCache(),
+                                                      out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_);
@@ -619,18 +440,10 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
       auto args = std::make_tuple(this, seed, g_predt, g_label, w, g_rank, g, delta, g_gpair);
-      if (param_.lambdarank_unbiased) {
-        if (this->param_.lambdarank_score_normalization) {
-          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, true, D>, args);
-        } else {
-          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, false, D>, args);
-        }
+      if (this->param_.lambdarank_score_normalization) {
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, D>, args);
       } else {
-        if (this->param_.lambdarank_score_normalization) {
-          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, true, D>, args);
-        } else {
-          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, false, D>, args);
-        }
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, D>, args);
       }
     });
   }
@@ -652,9 +465,6 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
 namespace cuda_impl {
 void LambdaRankGetGradientPairwise(Context const*, std::uint32_t, HostDeviceVector<float> const&,
                                    const MetaInfo&, std::shared_ptr<ltr::RankingCache>,
-                                   linalg::VectorView<double const>,  // input bias ratio
-                                   linalg::VectorView<double const>,  // input bias ratio
-                                   linalg::VectorView<double>, linalg::VectorView<double>,
                                    linalg::Matrix<GradientPair>*) {
   common::AssertGPUSupport();
 }

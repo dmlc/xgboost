@@ -3,13 +3,13 @@
  */
 #ifndef XGBOOST_COMMON_RANKING_UTILS_H_
 #define XGBOOST_COMMON_RANKING_UTILS_H_
-#include <algorithm>                     // for min
-#include <cmath>                         // for log2, fabs, floor
-#include <cstddef>                       // for size_t
-#include <cstdint>                       // for uint32_t, uint8_t, int32_t
-#include <limits>                        // for numeric_limits
-#include <string>                        // for char_traits, string
-#include <vector>                        // for vector
+#include <algorithm>  // for min
+#include <cmath>      // for log2, fabs, floor
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, uint8_t, int32_t
+#include <limits>     // for numeric_limits
+#include <string>     // for char_traits, string
+#include <vector>     // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
 #include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
@@ -76,11 +76,10 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
  public:
   static constexpr position_t NotSet() { return std::numeric_limits<position_t>::max(); }
 
-  // unbiased
+  // Retained for compatibility with existing user configurations and model files.
   bool lambdarank_unbiased{false};
   bool lambdarank_normalization{true};
   bool lambdarank_score_normalization{true};
-  double lambdarank_bias_norm{1.0};
   // ndcg
   bool ndcg_exp_gain{true};
 
@@ -90,11 +89,9 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
            lambdarank_unbiased == that.lambdarank_unbiased &&
            lambdarank_normalization == that.lambdarank_normalization &&
            lambdarank_score_normalization == that.lambdarank_score_normalization &&
-           lambdarank_bias_norm == that.lambdarank_bias_norm && ndcg_exp_gain == that.ndcg_exp_gain;
+           ndcg_exp_gain == that.ndcg_exp_gain;
   }
   bool operator!=(LambdaRankParam const& that) const { return !(*this == that); }
-
-  [[nodiscard]] double Regularizer() const { return 1.0 / (1.0 + this->lambdarank_bias_norm); }
 
   /**
    * \brief Get number of pairs for each sample
@@ -138,17 +135,13 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
         .describe("Number of pairs for each sample in the list.");
     DMLC_DECLARE_FIELD(lambdarank_unbiased)
         .set_default(false)
-        .describe("Unbiased lambda mart. Use extended IPW to debias click position");
+        .describe("Deprecated compatibility parameter. Unbiased LambdaMART has been removed.");
     DMLC_DECLARE_FIELD(lambdarank_normalization)
         .set_default(true)
         .describe("Whether to normalize the leaf value for lambda rank.");
     DMLC_DECLARE_FIELD(lambdarank_score_normalization)
         .set_default(true)
         .describe("Whether to normalize the delta by prediction score difference.");
-    DMLC_DECLARE_FIELD(lambdarank_bias_norm)
-        .set_default(1.0)
-        .set_lower_bound(0.0)
-        .describe("Lp regularization for unbiased lambdarank.");
     DMLC_DECLARE_FIELD(ndcg_exp_gain)
         .set_default(true)
         .describe("When set to true, the label gain is 2^rel - 1, otherwise it's rel.");
@@ -184,8 +177,6 @@ class RankingCache {
   // Rounding factor for CUDA deterministic floating point summation. One rounding factor
   // for each ranking group.
   linalg::Vector<GradientPair> roundings_;
-  // rounding factor for cost
-  HostDeviceVector<double> cost_rounding_;
   // temporary storage for creating rounding factors. Stored as byte to avoid having cuda
   // data structure in here.
   HostDeviceVector<std::uint8_t> max_lambdas_;
@@ -220,15 +211,6 @@ class RankingCache {
     if (param_.HasTruncation()) {
       CHECK_GE(param_.NumPair(), 1);
     }
-  }
-  [[nodiscard]] std::size_t MaxPositionSize() const {
-    // Use truncation level as bound.
-    if (param_.HasTruncation()) {
-      return param_.NumPair();
-    }
-    // Hardcoded maximum size of positions to track. We don't need too many of them as the
-    // bias decreases exponentially.
-    return std::min(max_group_size_, static_cast<std::size_t>(32));
   }
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
   common::Span<bst_group_t const> DataGroupPtr(Context const* ctx) const {
@@ -286,13 +268,6 @@ class RankingCache {
     }
     return roundings_.View(ctx->Device());
   }
-  [[nodiscard]] common::Span<double> CUDACostRounding(Context const* ctx) {
-    if (cost_rounding_.Size() == 0) {
-      cost_rounding_.SetDevice(ctx->Device());
-      cost_rounding_.Resize(1);
-    }
-    return cost_rounding_.DeviceSpan();
-  }
   template <typename Type>
   common::Span<Type> MaxLambdas(Context const* ctx, std::size_t n) {
     max_lambdas_.SetDevice(ctx->Device());
@@ -330,8 +305,8 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-  // This function doesn't have sycl-specific implementation yet.
-  // For that reason we transfer data to host in case of sycl is used for propper execution.
+    // This function doesn't have sycl-specific implementation yet.
+    // For that reason we transfer data to host in case of sycl is used for propper execution.
     return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {

@@ -37,25 +37,15 @@ void TestNDCGGPair(Context const* ctx) {
     CheckConfigReload(obj, "rank:ndcg");
 
     // No gain in swapping 2 documents.
-    CheckRankingObjFunction(obj,
-                            {1, 1, 1, 1},
-                            {1, 1, 1, 1},
-                            {1.0f, 1.0f},
-                            {0, 2, 4},
-                            {0.0f, -0.0f, 0.0f, 0.0f},
-                            {0.0f, 0.0f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {1, 1, 1, 1}, {1, 1, 1, 1}, {1.0f, 1.0f}, {0, 2, 4},
+                            {0.0f, -0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
   }
   {
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
     obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
     // Test with setting sample weight to second query group
-    CheckRankingObjFunction(obj,
-                            {0, 0.1f, 0, 0.1f},
-                            {0,   1, 0, 1},
-                            {2.0f, 0.0f},
-                            {0, 2, 4},
-                            {2.06611f, -2.06611f, 0.0f, 0.0f},
-                            {2.169331f, 2.169331f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 0.0f}, {0, 2, 4},
+                            {2.06611f, -2.06611f, 0.0f, 0.0f}, {2.169331f, 2.169331f, 0.0f, 0.0f});
   }
   {
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
@@ -63,7 +53,9 @@ void TestNDCGGPair(Context const* ctx) {
     float weight_norm = 0.5;  // n_groups / sum_weights
     std::vector<float> out_grad{2.06611f, -2.06611f, 2.06611f, -2.06611f};
     std::vector<float> out_hess{2.169331f, 2.169331f, 2.169331f, 2.169331f};
-    auto norm = [=](auto v) { return v * weight_norm; };
+    auto norm = [=](auto v) {
+      return v * weight_norm;
+    };
     std::transform(out_grad.begin(), out_grad.end(), out_grad.begin(), norm);
     std::transform(out_hess.begin(), out_hess.end(), out_hess.begin(), norm);
     CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 2.0f}, {0, 2, 4},
@@ -132,36 +124,57 @@ TEST(LambdaRank, NDCGGPair) {
   TestNDCGGPair(&ctx);
 }
 
-void TestUnbiasedNDCG(Context const* ctx) {
+void TestRemovedUnbiased(Context const* ctx) {
   std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-  obj->Configure(Args{{"lambdarank_pair_method", "topk"},
-                      {"lambdarank_unbiased", "true"},
-                      {"lambdarank_bias_norm", "0"}});
-  std::shared_ptr<DMatrix> p_fmat{
-      RandomDataGenerator{10, 1, 0.0f}.Classes(2).GenerateDMatrix(true)};
-  auto h_label = p_fmat->Info().labels.HostView().Values();
-  // Move clicked samples to the beginning.
-  std::sort(h_label.begin(), h_label.end(), std::greater<>{});
-  HostDeviceVector<float> predt(p_fmat->Info().num_row_, 1.0f);
 
-  linalg::Matrix<GradientPair> out_gpair;
-  obj->GetGradient(predt, p_fmat->Info(), 0, &out_gpair);
+  testing::internal::CaptureStderr();
+  auto used =
+      obj->Configure(Args{{"lambdarank_pair_method", "topk"}, {"lambdarank_unbiased", "true"}});
+  auto warning = testing::internal::GetCapturedStderr();
+
+  ASSERT_EQ(used.count("lambdarank_unbiased"), 1);
+  ASSERT_NE(warning.find("`lambdarank_unbiased` was removed"), std::string::npos);
 
   Json config{Object{}};
   obj->SaveConfig(&config);
-  auto ti_plus = get<F32Array const>(config["ti+"]);
-  ASSERT_FLOAT_EQ(ti_plus[0], 1.0);
-  // bias is non-increasing when prediction is constant. (constant cost on swapping documents)
-  for (std::size_t i = 1; i < ti_plus.size(); ++i) {
-    ASSERT_LE(ti_plus[i], ti_plus[i - 1]);
-  }
-  auto tj_minus = get<F32Array const>(config["tj-"]);
-  ASSERT_FLOAT_EQ(tj_minus[0], 1.0);
+  ASSERT_EQ(get<String>(config["lambdarank_param"]["lambdarank_unbiased"]), "0");
+  auto const& obj_config = get<Object const>(config);
+  ASSERT_EQ(obj_config.find("ti+"), obj_config.cend());
+  ASSERT_EQ(obj_config.find("tj-"), obj_config.cend());
+
+  // The removed option falls back to the standard LambdaRank gradients.
+  CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 0.0f}, {0, 2, 4},
+                          {2.06611f, -2.06611f, 0.0f, 0.0f}, {2.169331f, 2.169331f, 0.0f, 0.0f});
 }
 
-TEST(LambdaRank, UnbiasedNDCG) {
+TEST(LambdaRank, RemovedUnbiased) {
   Context ctx;
-  TestUnbiasedNDCG(&ctx);
+  TestRemovedUnbiased(&ctx);
+}
+
+TEST(LambdaRank, LoadRemovedUnbiasedConfig) {
+  Context ctx;
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", &ctx)};
+  obj->Configure(Args{});
+
+  Json old_config{Object{}};
+  obj->SaveConfig(&old_config);
+  old_config["lambdarank_param"]["lambdarank_unbiased"] = String{"1"};
+  old_config["lambdarank_param"]["lambdarank_bias_norm"] = String{"1"};
+  old_config["ti+"] = F32Array{2};
+  old_config["tj-"] = F32Array{2};
+
+  testing::internal::CaptureStderr();
+  obj->LoadConfig(old_config);
+  auto warning = testing::internal::GetCapturedStderr();
+  ASSERT_NE(warning.find("`lambdarank_unbiased` was removed"), std::string::npos);
+
+  Json config{Object{}};
+  obj->SaveConfig(&config);
+  ASSERT_EQ(get<String>(config["lambdarank_param"]["lambdarank_unbiased"]), "0");
+  auto const& obj_config = get<Object const>(config);
+  ASSERT_EQ(obj_config.find("ti+"), obj_config.cend());
+  ASSERT_EQ(obj_config.find("tj-"), obj_config.cend());
 }
 
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt) {
@@ -360,8 +373,6 @@ void TestPairWiseGPair(Context const* ctx) {
   std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", ctx)};
   Args args;
   obj->Configure(args);
-
-  args.emplace_back("lambdarank_unbiased", "true");
 }
 
 TEST(LambdaRank, Pairwise) {
