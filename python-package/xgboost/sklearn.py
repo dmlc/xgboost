@@ -23,6 +23,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    runtime_checkable,
 )
 
 import numpy as np
@@ -156,6 +157,7 @@ def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     return tree_method in ("hist", None, "auto") and not_sycl
 
 
+@runtime_checkable
 class _SklObjWProto(Protocol):
     def __call__(
         self,
