@@ -13,7 +13,7 @@
 
 #include "../common/kernel.h"   // for DispatchKernel
 #include "init_estimation.h"    // for CheckInitInputs, FitInterceptGlmLike
-#include "xgboost/json.h"       // for FromJson, Json, String, ToJson
+#include "xgboost/json.h"       // for Json, String
 #include "xgboost/logging.h"    // for CHECK, LOG
 #include "xgboost/objective.h"  // for ObjFunction
 
@@ -31,9 +31,7 @@ auto const kRegisterPoissonValidationCpu = elementwise::RegisterValidationCpu<Po
 
 class PoissonRegression : public FitInterceptGlmLike {
  public:
-  std::set<std::string> Configure(Args const& args) override {
-    return UpdateAndGetUsedParameters(&param_, args);
-  }
+  std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -54,8 +52,8 @@ class PoissonRegression : public FitInterceptGlmLike {
             << "Number of weights should be equal to the number of data points.";
       }
     }
-    common::DispatchKernel<PoissonGradientKernel>(
-        ctx_, preds, info, this->Targets(info), PoissonGradient{param_.max_delta_step}, out_gpair);
+    common::DispatchKernel<PoissonGradientKernel>(ctx_, preds, info, this->Targets(info),
+                                                  PoissonGradient{}, out_gpair);
   }
 
   void PredTransform(HostDeviceVector<float>* io_preds) const override {
@@ -70,15 +68,10 @@ class PoissonRegression : public FitInterceptGlmLike {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = ToJson(param_);
   }
-  void LoadConfig(Json const& in) override { FromJson(in["poisson_regression_param"], &param_); }
-
- private:
-  PoissonRegressionParam param_;
+  void LoadConfig(Json const&) override {}
 };
 
-DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
     .describe("Poisson regression for count data.")
     .set_body([]() { return new PoissonRegression(); });

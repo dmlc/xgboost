@@ -146,21 +146,20 @@ void TestPoissonRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
-  args.emplace_back("max_delta_step", "0.1f");
   obj->Configure(args);
   // clang-format off
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
-                   {   1,    1,    1,    1,    1,    1,    1,    1},
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
+                   {   1,     1,     1,    1,    1,     1,     1,    1},
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
                    {},  // Empty weight
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
   // clang-format on
 }
 
@@ -168,8 +167,16 @@ void TestPoissonRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"count:poisson"};
+  legacy_config["poisson_regression_param"] = Object{};
+  legacy_config["poisson_regression_param"]["max_delta_step"] = String{"7E-1"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
+
   obj->Configure(args);
-  CheckConfigReload(obj, "count:poisson");
+  auto config = CheckConfigReload(obj, "count:poisson");
+  auto const& config_obj = get<Object const>(config);
+  ASSERT_EQ(config_obj.size(), 1);
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))

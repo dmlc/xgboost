@@ -563,7 +563,7 @@ jobs:
         with:
           submodules: 'true'
       - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@5037c6f1012cc5ea0b9f03fedbaf9955ed9e51e0
+        uses: Homebrew/actions/setup-homebrew@c8707045ccae42888fe98e86f2ee8938bc7cc193
       - name: Install libomp
         run: brew install libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -591,6 +591,32 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  test-python-wheel-macos:
+    name: Python tests (macOS Intel)
+    needs: python-wheels-macos
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: macos_cpu_test
+          environment-file: ops/conda_env/macos_cpu_test.yml
+      - name: Download macOS wheel artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: python-wheel-macosx_x86_64
+          path: wheelhouse
+      - name: Install XGBoost wheel
+        run: python -m pip install -v wheelhouse/*.whl
+      - name: Run Python tests
+        run: |
+          pytest -s -v -rxXs --durations=0 tests/python
+          pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
 
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
