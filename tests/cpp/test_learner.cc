@@ -46,7 +46,7 @@ TEST(Learner, Basic) {
   auto args = {Arg("tree_method", "exact")};
   auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix();
   auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
-  learner->SetParams(args);
+  learner->Configure(args);
 
   auto major = XGBOOST_VER_MAJOR;
   auto minor = XGBOOST_VER_MINOR;
@@ -57,6 +57,19 @@ TEST(Learner, Basic) {
   static_assert(std::is_integral_v<decltype(patch)>, "Wrong patch version type");
 }
 
+TEST(Learner, ConfigureArguments) {
+  auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+  auto learner = std::unique_ptr<Learner>{Learner::Create({p_mat})};
+
+  learner->Configure(
+      {{"objective", "reg:absoluteerror"}, {"eval_metric", "mae"}, {"eval_metric", "rmse"}});
+
+  Json config{Object{}};
+  learner->SaveConfig(&config);
+  EXPECT_EQ(get<String const>(config["learner"]["objective"]["name"]), "reg:absoluteerror");
+  EXPECT_EQ(get<Array const>(config["learner"]["metrics"]).size(), 2);
+}
+
 TEST(Learner, ParameterValidation) {
   ConsoleLogger::Configure({{"verbosity", "2"}});
   size_t constexpr kRows = 1;
@@ -64,31 +77,62 @@ TEST(Learner, ParameterValidation) {
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
-  learner->SetParam("validate_parameters", "1");
-  learner->SetParam("Knock-Knock", "Who's-there?");
-  learner->SetParam("Silence", "....");
-  learner->SetParam("tree_method", "exact");
 
   testing::internal::CaptureStderr();
-  learner->Configure();
+  learner->Configure(Args{{"validate_parameters", "1"},
+                          {"Knock-Knock", "Who's-there?"},
+                          {"Silence", "...."},
+                          {"tree_method", "exact"}});
   std::string output = testing::internal::GetCapturedStderr();
 
   ASSERT_TRUE(output.find(R"(Parameters: { "Knock-Knock", "Silence" })") != std::string::npos);
 
   // whitespace
-  learner->SetParam("tree method", "exact");
-  ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
+  ASSERT_THAT([&] { learner->Configure({{"tree method", "exact"}}); },
+              GMockThrow(R"("tree method" contains whitespace)"));
+}
+
+TEST(Learner, ParameterValidationUsesConsumedParameters) {
+  auto p_mat = RandomDataGenerator{1, 1, 0}.GenerateDMatrix(true);
+  auto configure = [&p_mat](Args params) {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+    params.emplace_back("validate_parameters", "1");
+    params.emplace_back("verbosity", "1");
+    testing::internal::CaptureStderr();
+    learner->Configure(params);
+    return testing::internal::GetCapturedStderr();
+  };
+
+  // Report the spelling supplied by the user, including aliases.
+  auto output = configure({{"eta", "0.3"},
+                           {"lambda", "1.0"},
+                           {"alpha", "0.0"},
+                           {"gamma", "0.0"},
+                           {"random_state", "0"},
+                           {"n_jobs", "1"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
+
+  // Collect parameters from the active model and updater recursively.
+  output = configure({{"tree_method", "hist"}, {"num_parallel_tree", "2"}, {"max_bin", "64"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
+
+  // A parameter for an inactive component is not consumed.
+  output = configure({{"booster", "gblinear"}, {"max_depth", "3"}});
+  EXPECT_NE(output.find(R"(Parameters: { "max_depth" })"), std::string::npos);
+
+  // More than one active component can consume the same parameter.
+  output = configure(
+      {{"objective", "reg:quantileerror"}, {"eval_metric", "quantile"}, {"quantile_alpha", "0.5"}});
+  EXPECT_EQ(output.find("Parameters:"), std::string::npos);
 }
 
 TEST(Learner, DeprecatedGblinearBooster) {
   auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
 
   std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
-  learner->SetParam("booster", "gblinear");
-  learner->SetParam("verbosity", "2");
 
   testing::internal::CaptureStderr();
-  learner->Configure();
+  learner->Configure({{"booster", "gblinear"}, {"verbosity", "2"}});
   auto output = testing::internal::GetCapturedStderr();
 
   ASSERT_NE(output.find("`booster=gblinear` is deprecated"), std::string::npos);
@@ -118,7 +162,7 @@ TEST(Learner, CheckGroup) {
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->SetParams({Arg{"objective", "rank:pairwise"}});
+  learner->Configure({Arg{"objective", "rank:pairwise"}});
   EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat));
 
   group.resize(kNumGroups + 1);
@@ -135,7 +179,7 @@ TEST(Learner, CheckMultiBatch) {
 
   std::vector<std::shared_ptr<DMatrix>> mat{p_fmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->SetParams(Args{{"objective", "binary:logistic"}});
+  learner->Configure(Args{{"objective", "binary:logistic"}});
   learner->UpdateOneIter(0, p_fmat);
 }
 
@@ -143,24 +187,42 @@ TEST(Learner, Configuration) {
   std::string const emetric = "eval_metric";
   {
     std::unique_ptr<Learner> learner{Learner::Create({nullptr})};
-    learner->SetParam(emetric, "auc");
-    learner->SetParam(emetric, "rmsle");
-    learner->SetParam("foo", "bar");
+    learner->Configure({{"num_feature", "1"}});
+    learner->Configure({{emetric, "auc"}});
+    learner->Configure({{emetric, "rmsle"}});
+    learner->Configure({{"foo", "bar"}});
 
-    // eval_metric is not part of configuration
-    auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1ul);
-    ASSERT_EQ(attr_names.find(emetric), attr_names.cend());
-    ASSERT_EQ(attr_names.at("foo"), "bar");
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    ASSERT_EQ(get<Array const>(config["learner"]["metrics"]).size(), 2);
   }
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({nullptr})};
-    learner->SetParams({{"foo", "bar"}, {emetric, "auc"}, {emetric, "entropy"}, {emetric, "KL"}});
-    auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1ul);
-    ASSERT_EQ(attr_names.at("foo"), "bar");
+    auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+    std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+    learner->Configure({{emetric, "auc"}, {emetric, "rmse"}, {emetric, "mae"}});
+
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    ASSERT_EQ(get<Array const>(config["learner"]["metrics"]).size(), 3);
   }
+}
+
+TEST(Learner, PoissonMaxDeltaStepIsGeneric) {
+  auto p_mat = RandomDataGenerator{1, 1, 0.0f}.GenerateDMatrix();
+  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  learner->Configure({{"objective", "count:poisson"}});
+
+  auto max_delta_step = [&] {
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto const& value = config["learner"]["gradient_booster"]["tree_train_param"]["max_delta_step"];
+    return std::stof(get<String const>(value));
+  };
+  ASSERT_FLOAT_EQ(max_delta_step(), 0.0f);
+
+  learner->Configure({{"max_delta_step", "0.5"}});
+  ASSERT_FLOAT_EQ(max_delta_step(), 0.5f);
 }
 
 TEST(Learner, JsonModelIO) {
@@ -188,8 +250,6 @@ TEST(Learner, JsonModelIO) {
     Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);
-    learner->Configure();
-
     Json new_in{Object()};
     learner->SaveModel(&new_in);
     ASSERT_EQ(new_in, out);
@@ -206,8 +266,7 @@ TEST(Learner, JsonModelIO) {
     learner->SaveModel(&out);
 
     learner->LoadModel(out);
-    Json new_in{Object()};
-    learner->Configure();
+    Json new_in{Object{}};
     learner->SaveModel(&new_in);
 
     ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
@@ -222,15 +281,17 @@ TEST(Learner, ConfigIO) {
   std::shared_ptr<DMatrix> p_fmat{
       RandomDataGenerator{n_samples, n_features, 0}.Classes(2).GenerateDMatrix(true)};
 
+  Json config{Object{}};
   auto serialised_model_tmp = std::string{};
   std::string eval_res_0;
   std::string eval_res_1;
   {
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParams(Args{{"eval_metric", "ndcg"}, {"eval_metric", "map"}});
+    learner->Configure(Args{{"eval_metric", "ndcg"}, {"eval_metric", "map"}});
     learner->Configure();
     learner->UpdateOneIter(0, p_fmat);
     eval_res_0 = learner->EvalOneIter(0, {p_fmat}, {"Train"});
+    learner->SaveConfig(&config);
     common::MemoryBufferStream fo(&serialised_model_tmp);
     learner->Save(&fo);
   }
@@ -242,6 +303,15 @@ TEST(Learner, ConfigIO) {
     eval_res_1 = learner->EvalOneIter(0, {p_fmat}, {"Train"});
   }
   ASSERT_EQ(eval_res_0, eval_res_1);
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->LoadConfig(config);
+
+    Json loaded{Object{}};
+    learner->SaveConfig(&loaded);
+    ASSERT_EQ(get<Array const>(loaded["learner"]["metrics"]).size(), 2);
+  }
 }
 
 // Crashes the test runner if there are race condiditions.
@@ -309,14 +379,14 @@ TEST(Learner, GPUConfiguration) {
   p_dmat->Info().labels.Reshape(kRows);
   {
     std::unique_ptr<Learner> learner{Learner::Create(mat)};
-    learner->SetParams(
+    learner->Configure(
         {Arg{"booster", "gblinear"}, Arg{"updater", "coord_descent"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
     std::unique_ptr<Learner> learner{Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"}, {"device", "cuda"}});
+    learner->Configure({Arg{"tree_method", "hist"}, {"device", "cuda"}});
     learner->Configure();
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
     learner->UpdateOneIter(0, p_dmat);
@@ -324,14 +394,14 @@ TEST(Learner, GPUConfiguration) {
   }
   {
     std::unique_ptr<Learner> learner{Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"}, Arg{"device", "cuda"}});
+    learner->Configure({Arg{"tree_method", "hist"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner{Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"}});
+    learner->Configure({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CPU());
   }
@@ -342,14 +412,14 @@ TEST(Learner, Seed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix();
   std::unique_ptr<Learner> learner{Learner::Create({m})};
   auto seed = std::numeric_limits<int64_t>::max();
-  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure({{"seed", std::to_string(seed)}});
   learner->Configure();
   Json config{Object()};
   learner->SaveConfig(&config);
   ASSERT_EQ(std::to_string(seed), get<String>(config["learner"]["generic_param"]["seed"]));
 
   seed = std::numeric_limits<int64_t>::min();
-  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure({{"seed", std::to_string(seed)}});
   learner->Configure();
   learner->SaveConfig(&config);
   ASSERT_EQ(std::to_string(seed), get<String>(config["learner"]["generic_param"]["seed"]));
@@ -359,14 +429,14 @@ TEST(Learner, ConstantSeed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
   std::unique_ptr<Learner> learner{Learner::Create({m})};
   // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
-  learner->SetParam("tree_method", "exact");
+  learner->Configure({{"tree_method", "exact"}});
   learner->Configure();
 
   std::uniform_real_distribution<float> dist;
   auto& rng = learner->Ctx()->Rng();
   float v_0 = dist(rng);
 
-  learner->SetParam("", "");
+  learner->Configure({{"", ""}});
   learner->Configure();  // check configure doesn't change the seed.
   float v_1 = dist(rng);
   CHECK_NE(v_0, v_1);
@@ -453,9 +523,8 @@ TEST(Learner, MultiTarget) {
   }
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};
-    learner->SetParam("objective", "multi:softprob");
     // unsupported objective.
-    EXPECT_THROW({ learner->Configure(); }, dmlc::Error);
+    EXPECT_THROW({ learner->Configure({{"objective", "multi:softprob"}}); }, dmlc::Error);
   }
 }
 
@@ -472,7 +541,7 @@ class InitBaseScore : public ::testing::Test {
  public:
   void TestUpdateConfig() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->UpdateOneIter(0, Xy_);
     Json config{Object{}};
     learner->SaveConfig(&config);
@@ -500,8 +569,8 @@ class InitBaseScore : public ::testing::Test {
 
   void TestBoostFromAvgParam() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
-    learner->SetParam("base_score", "1.3");
+    learner->Configure({{"objective", "reg:absoluteerror"}});
+    learner->Configure({{"base_score", "1.3"}});
     Json config(Object{});
     learner->Configure();
     learner->SaveConfig(&config);
@@ -529,7 +598,7 @@ class InitBaseScore : public ::testing::Test {
     // from_avg is disabled when base score is set
     ASSERT_EQ(from_avg, 0);
     // in the future when we can deprecate the binary model, user can set the parameter directly.
-    learner->SetParam("boost_from_average", "1");
+    learner->Configure({{"boost_from_average", "1"}});
     learner->Configure();
     learner->SaveConfig(&config);
     from_avg = std::stoi(
@@ -539,7 +608,7 @@ class InitBaseScore : public ::testing::Test {
 
   void TestInitAfterLoad() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->Configure();
 
     Json model{Object{}};
@@ -567,7 +636,7 @@ class InitBaseScore : public ::testing::Test {
 
   void TestInitWithPredt() {
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure({{"objective", "reg:absoluteerror"}});
     HostDeviceVector<float> predt;
     learner->Predict(Xy_, false, &predt, 0, 0);
 
@@ -595,7 +664,7 @@ class InitBaseScore : public ::testing::Test {
     // Check that when training continuation is performed with update, the base score is
     // not re-evaluated.
     std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->Configure();
 
     learner->UpdateOneIter(0, Xy_);
@@ -608,8 +677,8 @@ class InitBaseScore : public ::testing::Test {
     auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
     learner.reset(Learner::Create({Xy1}));
     learner->LoadModel(model);
-    learner->SetParam("process_type", "update");
-    learner->SetParam("updater", "refresh");
+    learner->Configure({{"process_type", "update"}});
+    learner->Configure({{"updater", "refresh"}});
     learner->UpdateOneIter(1, Xy1);
 
     Json config(Object{});

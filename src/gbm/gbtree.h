@@ -210,7 +210,7 @@ class GBTree : public GradientBooster {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const& cfg) override;
+  std::set<std::string> Configure(Args const& cfg) override;
   /**
    * @brief Carry out one iteration of boosting.
    */

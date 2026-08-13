@@ -140,7 +140,7 @@ class ElementWiseSurvivalMetricsReduction {
 };
 
 struct EvalIntervalRegressionAccuracy {
-  void Configure(const Args&) {}
+  std::set<std::string> Configure(const Args&) { return {}; }
 
   [[nodiscard]] const char* Name() const { return "interval-regression-accuracy"; }
 
@@ -156,7 +156,9 @@ struct EvalIntervalRegressionAccuracy {
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
-  void Configure(const Args& args) { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args& args) {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
 
   [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
 
@@ -177,10 +179,11 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
   explicit EvalEWiseSurvivalBase(Context const* ctx) { ctx_ = ctx; }
   EvalEWiseSurvivalBase() = default;
 
-  void Configure(const Args& args) override {
-    policy_.Configure(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = policy_.Configure(args);
     reducer_.Configure(policy_);
     CHECK(ctx_);
+    return used;
   }
 
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
@@ -215,8 +218,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
     return metric_->Eval(preds, info);
   }
 
-  void Configure(const Args& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     switch (param_.aft_loss_distribution) {
       case common::ProbabilityDistributionType::kNormal:
         metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
@@ -231,7 +234,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
       default:
         LOG(FATAL) << "Unknown probability distribution";
     }
-    metric_->Configure(args);
+    used.merge(metric_->Configure(args));
+    return used;
   }
 
   void SaveConfig(Json* p_out) const override {

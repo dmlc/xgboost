@@ -11,7 +11,7 @@ fi
 
 if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {manylinux2014,manylinux_2_28} {x86_64,aarch64}"
+  echo "Usage: $0 manylinux_2_28 {x86_64,aarch64}"
   exit 1
 fi
 

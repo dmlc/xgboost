@@ -29,7 +29,7 @@ TEST(Objective, DeclareUnifiedTest(QuantileRegularization)) {
 
   auto train = [&](float reg_lambda) {
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-    learner->SetParams(Args{{"tree_method", "exact"},
+    learner->Configure(Args{{"tree_method", "exact"},
                             {"objective", "reg:quantileerror"},
                             {"quantile_alpha", "0.5"},
                             {"base_score", "0.5"},
@@ -60,7 +60,7 @@ TEST(Objective, DeclareUnifiedTest(QuantileMonotoneConstraint)) {
   Xy->Info().labels.Data()->HostVector() = {3.0f, 2.0f, 1.0f, 0.0f};
 
   std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  learner->SetParams(Args{{"tree_method", "hist"},
+  learner->Configure(Args{{"tree_method", "hist"},
                           {"objective", "reg:quantileerror"},
                           {"quantile_alpha", "0.5"},
                           {"monotone_constraints", "(1)"},

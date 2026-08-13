@@ -84,12 +84,12 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
 
 }  // namespace
 
-void GBTree::Configure(Args const& cfg) {
-  tparam_.UpdateAllowUnknown(cfg);
-  dparam_.UpdateAllowUnknown(cfg);
-  tree_param_.UpdateAllowUnknown(cfg);
+std::set<std::string> GBTree::Configure(Args const& cfg) {
+  auto used = UpdateAndGetUsedParameters(&tparam_, cfg);
+  used.merge(UpdateAndGetUsedParameters(&dparam_, cfg));
+  used.merge(UpdateAndGetUsedParameters(&tree_param_, cfg));
 
-  model_.Configure(cfg);
+  used.merge(model_.Configure(cfg));
 
   // for the 'update' process_type, move trees into trees_to_update
   if (tparam_.process_type == TreeProcessType::kUpdate) {
@@ -119,8 +119,9 @@ void GBTree::Configure(Args const& cfg) {
   }
 
   for (auto& up : updaters_) {
-    up->Configure(cfg);
+    used.merge(up->Configure(cfg));
   }
+  return used;
 }
 
 void GBTreeModel::InitTreesToUpdate() {
