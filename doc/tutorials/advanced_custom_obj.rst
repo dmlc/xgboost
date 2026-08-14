@@ -262,7 +262,7 @@ Convince yourself that the implementation is correct:
                     }
                 }
 
-                H <- dirichlet.hess(matrix(xplus, nrow=1), y[row,,drop=F])
+                H <- dirichlet.hess(matrix(x0, nrow=1), y[row,,drop=F])
                 expect_equal(H[1,,], H_numeric, tolerance=1e-6)
             }
         })
@@ -498,7 +498,7 @@ The data:
     .. code-tab:: r R
 
         data("ArcticLake", package="DirichletReg")
-        x <- ArcticLake[, c("depth"), drop=F]
+        x <- ArcticLake[, c("depth"), drop=FALSE]
         y <- ArcticLake[, c("sand", "silt", "clay")] |> as.matrix()
 
 Fitting an XGBoost model and making predictions:
@@ -544,10 +544,10 @@ Fitting an XGBoost model and making predictions:
             ),
             data = dtrain,
             nrounds = 10,
-            obj = dirichlet.xgb.objective,
+            objective = dirichlet.xgb.objective,
             evals = list(Train=dtrain)
         )
-        raw.pred <- predict(booster, x, reshape=TRUE)
+        raw.pred <- predict(booster, x)
         yhat <- apply(raw.pred, 1, softmax) |> t()
 
 
@@ -577,16 +577,16 @@ optimal intercept for each target to be stored directly in the model and
 automatically applied during prediction.
 
 For the case of a Dirichlet model, the optimal intercept can be obtained
-efficiently using a general solver (e.g. SciPy's Newton solver) with
-dedicated likelihood, gradient and Hessian functions for just the intercept part.
+efficiently using a general-purpose solver with dedicated likelihood and
+derivative functions for just the intercept part.
 Further, note that if one frames it instead as bounded optimization without
 applying 'exp' transform to the concentrations, it becomes instead a convex
 problem, for which the true Hessian can be used without issues in other
 classes of solvers.
 
-For simplicity, this example will nevertheless reuse the same likelihood
-and gradient functions that were defined earlier alongside with SciPy's / R's
-L-BFGS solver to obtain the optimal vector-valued intercept:
+For simplicity, this example reuses the likelihood and gradient functions
+defined earlier with the L-BFGS-B solvers in SciPy and R to obtain the optimal
+vector-valued intercept:
 
 .. tabs::
     .. code-tab:: py
@@ -604,7 +604,8 @@ L-BFGS solver to obtain the optimal vector-valued intercept:
                 jac=lambda pred: dirichlet_grad(
                     np.broadcast_to(pred, (Y.shape[0], k)),
                     Y
-                ).sum(axis=0)
+                ).sum(axis=0),
+                method="L-BFGS-B",
             )
             return res["x"]
         intercepts = get_optimal_intercepts(Y)
@@ -613,7 +614,7 @@ L-BFGS solver to obtain the optimal vector-valued intercept:
 
         get.optimal.intercepts <- function(y) {
             k <- ncol(y)
-            broadcast.vec <- function(x) rep(x, nrow(y)) |> matrix(ncol=k, byrow=T)
+            broadcast.vec <- function(x) rep(x, nrow(y)) |> matrix(ncol=k, byrow=TRUE)
             res <- optim(
                 par = numeric(k),
                 fn = function(x) dirichlet.fun(broadcast.vec(x), y),
@@ -664,10 +665,10 @@ Now fitting a model again, this time with the intercept:
             ),
             data = dtrain,
             nrounds = 10,
-            obj = dirichlet.xgb.objective,
+            objective = dirichlet.xgb.objective,
             evals = list(Train=dtrain)
         )
-        raw.pred <- predict(booster, x, reshape=TRUE)
+        raw.pred <- predict(booster, x)
         yhat <- apply(raw.pred, 1, softmax) |> t()
 
 .. code-block:: none
