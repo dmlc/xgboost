@@ -433,7 +433,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     XGBoost is updated to use vector-valued intercept by default.
 
   - The parameter is automatically estimated for selected objectives before training. To
-    disable the estimation, specify a real number argument, e.g. ``base_score = 0.5``.
+    disable the estimation, specify a scalar or vector, e.g. ``base_score = 0.5``. A scalar
+    is broadcast to all outputs.
   - If ``base_margin`` is supplied, ``base_score`` will not be used.
   - If we train the model with a sufficient number of iterations, changing this value does not offer significant benefit.
 

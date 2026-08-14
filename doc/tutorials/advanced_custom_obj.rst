@@ -65,9 +65,6 @@ In order to use this type of model as a custom objective:
   structure, such that a second-order approximation under this diagonal
   bound would always yield greater or equal function values than under the
   non-diagonal expected Hessian.
-- Since the ``base_score`` parameter that XGBoost uses for an intercept is
-  limited to a scalar, one can use the ``base_margin`` functionality instead,
-  but note that using it requires a bit more effort.
 
 *****************************
 Dirichlet Regression Formulae
@@ -541,14 +538,14 @@ Fitting an XGBoost model and making predictions:
                 num_target=ncol(y),
                 base_score=0,
                 disable_default_eval_metric=TRUE,
+                eval_metric=dirichlet.eval.metric,
                 max_depth=3,
                 seed=123
             ),
             data = dtrain,
             nrounds = 10,
             obj = dirichlet.xgb.objective,
-            evals = list(Train=dtrain),
-            eval_metric = dirichlet.eval.metric
+            evals = list(Train=dtrain)
         )
         raw.pred <- predict(booster, x, reshape=TRUE)
         yhat <- apply(raw.pred, 1, softmax) |> t()
@@ -574,15 +571,10 @@ One can confirm that the obtained ``yhat`` resembles the actual concentrations
 to a large degree, beyond what would be expected from random predictions by a
 simple look at both ``yhat`` and ``Y``.
 
-For better results, one might want to add an intercept. XGBoost only
-allows using scalars for intercepts, but for a vector-valued model,
-the optimal intercept should also have vector form.
-
-This can be done by supplying ``base_margin`` instead - unlike the
-intercept, one must specifically supply values for every row here,
-and said ``base_margin`` must be supplied again at the moment of making
-predictions (i.e. does not get added automatically like ``base_score``
-does).
+For better results, one might want to add an intercept. Since 3.1, XGBoost
+supports a vector-valued ``base_score`` for multi-output models, allowing the
+optimal intercept for each target to be stored directly in the model and
+automatically applied during prediction.
 
 For the case of a Dirichlet model, the optimal intercept can be obtained
 efficiently using a general solver (e.g. SciPy's Newton solver) with
@@ -638,19 +630,17 @@ Now fitting a model again, this time with the intercept:
 .. tabs::
     .. code-tab:: py
 
-        base_margin = np.broadcast_to(intercepts, Y.shape)
-        dtrain_w_intercept = xgb.DMatrix(X, label=Y, base_margin=base_margin)
         results: Dict[str, Dict[str, List[float]]] = {}
         booster = xgb.train(
             params={
                 "tree_method": "hist",
                 "num_target": Y.shape[1],
-                "base_score": 0,
+                "base_score": intercepts,
                 "disable_default_eval_metric": True,
                 "max_depth": 3,
                 "seed": 123,
             },
-            dtrain=dtrain_w_intercept,
+            dtrain=dtrain,
             num_boost_round=10,
             obj=dirichlet_xgb_objective,
             evals=[(dtrain, "Train")],
@@ -658,54 +648,41 @@ Now fitting a model again, this time with the intercept:
             custom_metric=dirichlet_eval_metric,
             verbose_eval=False,
         )
-        yhat = softmax(
-            booster.predict(
-                xgb.DMatrix(X, base_margin=base_margin)
-            ),
-            axis=1
-        )
+        yhat = softmax(booster.inplace_predict(X), axis=1)
 
     .. code-tab:: r R
 
-        base.margin <- rep(intercepts, nrow(y)) |> matrix(nrow=nrow(y), byrow=T)
-        dtrain <- xgb.DMatrix(x, y, base_margin=base.margin)
         booster <- xgb.train(
             params = list(
                 tree_method="hist",
                 num_target=ncol(y),
-                base_score=0,
+                base_score=intercepts,
                 disable_default_eval_metric=TRUE,
+                eval_metric=dirichlet.eval.metric,
                 max_depth=3,
                 seed=123
             ),
             data = dtrain,
             nrounds = 10,
             obj = dirichlet.xgb.objective,
-            evals = list(Train=dtrain),
-            eval_metric = dirichlet.eval.metric
+            evals = list(Train=dtrain)
         )
-        raw.pred <- predict(
-            booster,
-            x,
-            base_margin=base.margin,
-            reshape=TRUE
-        )
+        raw.pred <- predict(booster, x, reshape=TRUE)
         yhat <- apply(raw.pred, 1, softmax) |> t()
 
 .. code-block:: none
 
-    [0] Train-dirichlet_ll:-37.01861
-    [1] Train-dirichlet_ll:-42.86120
-    [2] Train-dirichlet_ll:-46.55133
-    [3] Train-dirichlet_ll:-49.15111
-    [4] Train-dirichlet_ll:-51.02638
-    [5] Train-dirichlet_ll:-52.53880
-    [6] Train-dirichlet_ll:-53.77409
-    [7] Train-dirichlet_ll:-54.88851
-    [8] Train-dirichlet_ll:-55.95961
-    [9] Train-dirichlet_ll:-56.95497
+    [0] Train-dirichlet_ll:-51.99314
+    [1] Train-dirichlet_ll:-59.91455
+    [2] Train-dirichlet_ll:-65.33514
+    [3] Train-dirichlet_ll:-69.37965
+    [4] Train-dirichlet_ll:-72.42564
+    [5] Train-dirichlet_ll:-74.92677
+    [6] Train-dirichlet_ll:-77.02806
+    [7] Train-dirichlet_ll:-78.82860
+    [8] Train-dirichlet_ll:-80.51124
+    [9] Train-dirichlet_ll:-82.08328
 
-For this small example problem, predictions should be very similar between the
-two and the version without intercepts achieved a lower objective function in the
-training data (for the Python version at least), but for more serious usage with
-real-world data, one is likely to observe better results when adding the intercepts.
+For this small example, the optimized intercept provides a better starting
+point and the model achieves a lower objective value after ten rounds. The
+benefit of supplying an intercept depends on the data and objective.
