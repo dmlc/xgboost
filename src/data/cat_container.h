@@ -126,6 +126,7 @@ class CatContainer {
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
+    this->is_ref_ = that.is_ref_;
 
     if (!device.IsCPU()) {
       // Pull to device
