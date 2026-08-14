@@ -644,6 +644,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
   out_model.param.num_trees = out_model.trees.size();
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
+  out_model.Cats()->Copy(this->ctx_, *this->model_.Cats());
 
   p_gbtree->dparam_ = this->dparam_;
   p_gbtree->idx_drop_.clear();
