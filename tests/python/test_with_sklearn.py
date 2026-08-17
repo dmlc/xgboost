@@ -47,6 +47,26 @@ def test_binary_classification():
             assert err < 0.1
 
 
+def test_predict_proba_logitraw():
+    # Regression test for `binary:logitraw` producing an invalid first column in
+    # `predict_proba`, since the raw margin isn't a probability and can't be expanded
+    # into a 2-class matrix without first passing it through a sigmoid.
+    from scipy.special import expit
+
+    X = rng.standard_normal(size=(100, 4))
+    y = rng.randint(2, size=X.shape[0])
+
+    clf = xgb.XGBClassifier(objective="binary:logitraw", n_estimators=2)
+    clf.fit(X, y)
+
+    proba = clf.predict_proba(X)
+    assert np.all(proba >= 0.0) and np.all(proba <= 1.0)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, rtol=1e-5)
+
+    raw = clf.get_booster().inplace_predict(X)
+    np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
+
+
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris

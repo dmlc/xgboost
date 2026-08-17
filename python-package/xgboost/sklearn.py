@@ -27,7 +27,7 @@ from typing import (
 )
 
 import numpy as np
-from scipy.special import softmax
+from scipy.special import expit, softmax
 
 from ._c_api import _parse_version, _py_version
 from ._data_utils import Categories
@@ -1961,7 +1961,8 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         # softprob:        Do nothing, output is proba.
         # softmax:         Use softmax from scipy
         # binary:logistic: Expand the prob vector into 2-class matrix after predict.
-        # binary:logitraw: Unsupported by predict_proba()
+        # binary:logitraw: Apply the sigmoid to the raw margin, then expand the same
+        #                  way as binary:logistic.
         if self.objective == "multi:softmax":
             raw_predt = super().predict(
                 X=X,
@@ -1978,6 +1979,11 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
+        if self.objective == "binary:logitraw":
+            # `binary:logitraw` outputs the raw margin instead of a probability, so it
+            # needs to be transformed into a probability before it can be expanded into
+            # a 2-class matrix.
+            class_probs = expit(class_probs)
         return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
 
 
