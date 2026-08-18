@@ -274,14 +274,26 @@ TEST(Learner, ModelInitializedByTrainingData) {
 
 TEST(Learner, ResetInitializesCachedModel) {
   auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
-  auto learner = std::unique_ptr<Learner>{Learner::Create({train})};
-  learner->Configure({{"objective", "reg:absoluteerror"}});
-  EXPECT_EQ(learner->GetNumFeature(), 0);
+  auto eval = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
+  std::fill(train->Info().labels.Data()->HostVector().begin(),
+            train->Info().labels.Data()->HostVector().end(), 10.0f);
+  std::fill(eval->Info().labels.Data()->HostVector().begin(),
+            eval->Info().labels.Data()->HostVector().end(), -5.0f);
 
-  EXPECT_NO_THROW(learner->Reset());
-  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
-  Json model{Object{}};
-  EXPECT_NO_THROW(learner->SaveModel(&model));
+  for (auto const& cache : {std::vector<std::shared_ptr<DMatrix>>{train, eval},
+                            std::vector<std::shared_ptr<DMatrix>>{eval, train}}) {
+    auto learner = std::unique_ptr<Learner>{Learner::Create(cache)};
+    learner->Configure({{"objective", "reg:squarederror"}});
+    EXPECT_EQ(learner->GetNumFeature(), 0);
+
+    EXPECT_NO_THROW(learner->Reset());
+    EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
+    Json model{Object{}};
+    EXPECT_NO_THROW(learner->SaveModel(&model));
+    auto base_score = GetBaseScore(model);
+    ASSERT_EQ(base_score.size(), 1);
+    EXPECT_FLOAT_EQ(base_score.front(), ObjFunction::DefaultBaseScore());
+  }
 }
 
 TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {

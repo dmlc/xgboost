@@ -1012,8 +1012,9 @@ class LearnerImpl : public LearnerIO {
     if (model_state_.NeedsInitialization()) {
       for (auto const& weak : cache_data_) {
         if (auto data = weak.lock()) {
+          // Constructor caches don't distinguish training data from evaluation data.
           this->InitializeModel(*data, this->cache_data_,
-                                InterceptInitialization::kEstimateIntercept);
+                                InterceptInitialization::kUseDefaultIntercept);
           break;
         }
       }
