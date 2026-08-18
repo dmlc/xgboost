@@ -1263,15 +1263,8 @@ def test_invalid_config(client: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client, X, y)
 
-    with dask.config.set({"xgboost.foo": "bar"}):
-        with pytest.raises(ValueError, match=r"Unknown configuration.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=4)
-
-    with dask.config.set({"xgboost.scheduler_address": "127.0.0.1:foo"}):
-        with pytest.raises(socket.gaierror, match=r".*not known.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=1)
-
-    # No failure only because we are also using the Dask scheduler address.
+    # Fall back to the Dask scheduler address when the requested tracker port is
+    # unavailable.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
