@@ -146,8 +146,8 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
         "Logistic regression for classification, output score "
         "before logistic transformation.")
     .set_body([]() {
-      LOG(WARNING) << "binary:logitraw is now deprecated in favor of binary:logistic with "
-                      "output_margin=true.";
+      LOG(WARNING) << "`binary:logitraw` is now deprecated in favor of `binary:logistic` with "
+                      "`output_margin=true`.";
       return new LogisticRaw();
     });
 }  // namespace xgboost::obj
