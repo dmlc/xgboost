@@ -18,9 +18,9 @@ can be simultaneously classified as both sci-fi and comedy.  For detailed explan
 terminologies related to different multi-output models please refer to the
 :doc:`scikit-learn user guide <sklearn:modules/multiclass>`.
 
-.. note::
+.. note:: As of XGBoost 3.4.0, the feature is experimental.
 
-   As of XGBoost v3.4.0, the feature is experimental. The ``hist`` tree method is feature complete. In addition, the Python interface along with the Dask interface are supported. See the end of the doc for a brief history.
+   The ``hist`` tree method is feature complete. In addition, the Python interface along with the Dask interface are supported. See the end of the doc for a brief history.
 
 **********************************
 Training with One-Model-Per-Target
