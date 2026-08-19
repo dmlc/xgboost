@@ -1,8 +1,9 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #pragma once
 
+#include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 
