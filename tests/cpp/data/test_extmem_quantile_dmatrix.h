@@ -1,6 +1,8 @@
 /**
  * Copyright 2024, XGBoost Contributors
  */
+#pragma once
+
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 
