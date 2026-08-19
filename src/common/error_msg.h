@@ -84,6 +84,20 @@ inline void WarnOldSerialization() {
   logged = true;
 }
 
+inline void WarnOldRngState() {
+  // Display it once is enough. Otherwise this can be really verbose in distributed
+  // environments.
+  static thread_local bool logged{false};
+  if (logged) {
+    return;
+  }
+  LOG(WARNING) << "Ignoring a random number generator state that was written in an older, "
+                  "platform-specific format, and restarting the generator from the `seed` "
+                  "parameter instead. The loaded model is unaffected; only the random "
+                  "numbers drawn by further training differ.";
+  logged = true;
+}
+
 [[nodiscard]] std::string InvalidModel(StringView fname);
 
 [[nodiscard]] std::string OldBinaryModel(StringView fname);

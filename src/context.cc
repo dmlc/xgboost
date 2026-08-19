@@ -294,7 +294,11 @@ DeviceOrd Context::DeviceFP64() const {
 
 void Context::FromJson(Json const& in) {
   ::xgboost::FromJson(in, this);
-  common::LoadRng(in, &this->rng_);
+  if (!common::LoadRng(in, &this->rng_)) {
+    // No state to restore, or a state written by an older version that this platform
+    // cannot read. Start a fresh stream from the configured seed.
+    this->rng_.seed(static_cast<SerializableRandomEngine::result_type>(this->seed));
+  }
 }
 
 #if !defined(XGBOOST_USE_CUDA)

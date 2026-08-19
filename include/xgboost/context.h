@@ -24,6 +24,63 @@ struct CUDAContext;
  */
 using RandomEngine = std::mt19937;
 
+/**
+ * @brief A @ref RandomEngine whose state can be serialized portably.
+ *
+ * The text written by `operator<<` for `std::mt19937` is not portable across standard
+ * library implementations. libstdc++ emits the state words in raw order followed by the
+ * current position, while libc++ and the MSVC STL emit the words rotated into canonical
+ * order and omit the position. libstdc++ also forces `std::dec` as the standard requires,
+ * whereas the MSVC STL honours whatever format flags the stream carries. A memory
+ * snapshot (Python pickle, R RDS) holding that text is therefore unreadable on a platform
+ * other than the one that wrote it.
+ *
+ * So record the seed and the number of draws taken since it was applied instead. Both are
+ * plain integers, and replaying the draws with @ref RandomEngine::discard reconstructs the
+ * state exactly on every implementation.
+ */
+class SerializableRandomEngine {
+ public:
+  using result_type = RandomEngine::result_type;  // NOLINT
+
+ private:
+  RandomEngine engine_;
+  result_type seed_{RandomEngine::default_seed};
+  // Number of draws taken since the engine was last seeded.
+  std::uint64_t n_advanced_{0};
+
+ public:
+  SerializableRandomEngine() = default;
+  explicit SerializableRandomEngine(result_type seed) { this->seed(seed); }
+
+  [[nodiscard]] static constexpr result_type min() { return RandomEngine::min(); }  // NOLINT
+  [[nodiscard]] static constexpr result_type max() { return RandomEngine::max(); }  // NOLINT
+
+  void seed(result_type seed) {  // NOLINT
+    this->seed_ = seed;
+    this->n_advanced_ = 0;
+    this->engine_.seed(seed);
+  }
+  result_type operator()() {
+    this->n_advanced_++;
+    return this->engine_();
+  }
+  void discard(std::uint64_t z) {  // NOLINT
+    this->n_advanced_ += z;
+    this->engine_.discard(z);
+  }
+
+  /** @brief The seed that the engine was last seeded with. */
+  [[nodiscard]] result_type Seed() const { return this->seed_; }
+  /** @brief Number of draws taken since the engine was last seeded. */
+  [[nodiscard]] std::uint64_t NumAdvanced() const { return this->n_advanced_; }
+  /** @brief Restore a state previously read out of @ref Seed and @ref NumAdvanced. */
+  void Restore(result_type seed, std::uint64_t n_advanced) {
+    this->seed(seed);
+    this->discard(n_advanced);
+  }
+};
+
 // symbolic names
 struct DeviceSym {
   static auto constexpr CPU() { return "cpu"; }
@@ -227,7 +284,7 @@ struct Context : public XGBoostParameter<Context> {
   /**
    * @brief Get the random engine.
    */
-  [[nodiscard]] RandomEngine& Rng() const { return rng_; }
+  [[nodiscard]] SerializableRandomEngine& Rng() const { return rng_; }
 
   [[nodiscard]] Json ToJson() const;
   void FromJson(Json const& in);
@@ -320,7 +377,7 @@ struct Context : public XGBoostParameter<Context> {
   // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define
   // p_impl while trying to hide CUDA code from the host compiler.
   mutable std::shared_ptr<CUDAContext> cuctx_;
-  mutable RandomEngine rng_;
+  mutable SerializableRandomEngine rng_;
   // cached value for CFS CPU limit. (used in containerized env)
   std::int32_t cfs_cpu_count_;  // NOLINT
 };

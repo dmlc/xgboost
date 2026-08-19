@@ -544,6 +544,42 @@ TEST(Learner, ConstantSeed) {
   }
 }
 
+// A memory snapshot must carry the RNG state across a save/load boundary, and must encode
+// it in a way that does not depend on the standard library that wrote it.
+// https://github.com/dmlc/xgboost/issues/12459
+TEST(Learner, SerializedSeed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
+
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  // `subsample` draws from the engine, so there is a non-trivial state to carry over.
+  learner->Configure({{"tree_method", "exact"}, {"seed", "1994"}, {"subsample", "0.5"}});
+  learner->UpdateOneIter(0, m);
+  ASSERT_GT(learner->Ctx()->Rng().NumAdvanced(), 0ul);
+
+  std::string snapshot;
+  common::MemoryBufferStream fo{&snapshot};
+  learner->Save(&fo);
+
+  // The snapshot holds the seed and a draw count, never the engine text. The latter runs
+  // to hundreds of words and is spelled differently by each standard library.
+  Json config{Object{}};
+  learner->SaveConfig(&config);
+  auto state = get<String const>(config["learner"]["generic_param"]["rng_state"]);
+  ASSERT_EQ(state.substr(0, state.find(' ')), "1994");
+  ASSERT_EQ(std::count(state.cbegin(), state.cend(), ' '), 1);
+
+  common::MemoryBufferStream fi{&snapshot};
+  std::unique_ptr<Learner> loaded{Learner::Create({m})};
+  loaded->Load(&fi);
+
+  // Both engines continue the same stream.
+  ASSERT_EQ(loaded->Ctx()->Rng().NumAdvanced(), learner->Ctx()->Rng().NumAdvanced());
+  std::uniform_real_distribution<float> dist;
+  for (std::size_t i = 0; i < 8; ++i) {
+    ASSERT_EQ(dist(loaded->Ctx()->Rng()), dist(learner->Ctx()->Rng()));
+  }
+}
+
 TEST(Learner, FeatureInfo) {
   size_t constexpr kCols = 10;
   auto m = RandomDataGenerator{10, kCols, 0}.GenerateDMatrix(true);

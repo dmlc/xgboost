@@ -175,7 +175,14 @@ class ColumnSampler {
   }
 };
 
-void SaveRng(Json* p_out, RandomEngine const& rng);
-void LoadRng(Json const& in, RandomEngine* rng);
+void SaveRng(Json* p_out, SerializableRandomEngine const& rng);
+/**
+ * @brief Restore the state written by @ref SaveRng.
+ *
+ * @return Whether a state was restored. False if @p in carries no state at all, or carries
+ *         the non-portable `std::mt19937` text written by 3.3.0 and earlier, in which case
+ *         @p rng is left untouched and the caller should re-seed it.
+ */
+[[nodiscard]] bool LoadRng(Json const& in, SerializableRandomEngine* rng);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_

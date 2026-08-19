@@ -6,8 +6,51 @@
 #include <xgboost/context.h>
 
 #include <sstream>
+#include <string>
+
+#include "../../src/common/random.h"  // for SaveRng
+#include "xgboost/json.h"             // for Json, Object, String, get
 
 namespace xgboost {
+// The RNG state must survive a config round trip, and must be written in a form that does
+// not depend on the standard library that wrote it. The text produced by `operator<<` for
+// `std::mt19937` is not: libstdc++, libc++ and the MSVC STL each spell it differently, so
+// a snapshot written on Linux could not be read on Windows.
+// https://github.com/dmlc/xgboost/issues/12459
+TEST(Context, RngStateRoundTrip) {
+  Context ctx;
+  ctx.Init({{"seed", "1994"}});
+  for (std::size_t i = 0; i < 13; ++i) {
+    static_cast<void>(ctx.Rng()());
+  }
+
+  Context loaded;
+  loaded.FromJson(ctx.ToJson());
+  ASSERT_EQ(loaded.seed, 1994);
+  ASSERT_EQ(loaded.Rng().NumAdvanced(), ctx.Rng().NumAdvanced());
+  for (std::size_t i = 0; i < 16; ++i) {
+    ASSERT_EQ(loaded.Rng()(), ctx.Rng()());
+  }
+}
+
+TEST(Context, LegacyRngState) {
+  Context ctx;
+  ctx.Init({{"seed", "1994"}});
+  auto j = ctx.ToJson();
+
+  // Overwrite with the state as older versions wrote it.
+  std::stringstream ss;
+  ss << std::hex << RandomEngine{7};
+  j["rng_state"] = String{ss.str()};
+
+  // It must be refused rather than misread, and the engine falls back to the seed.
+  Context loaded;
+  loaded.FromJson(j);
+  ASSERT_EQ(loaded.seed, 1994);
+  ASSERT_EQ(loaded.Rng().Seed(), 1994u);
+  ASSERT_EQ(loaded.Rng().NumAdvanced(), 0ul);
+}
+
 TEST(Context, CPU) {
   Context ctx;
   ASSERT_EQ(ctx.Device(), DeviceOrd::CPU());

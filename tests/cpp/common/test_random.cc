@@ -1,10 +1,17 @@
 /**
  * Copyright 2018-2026, XGBoost Contributors
  */
+#include <algorithm>  // for shuffle
+#include <cstddef>    // for size_t
+#include <numeric>    // for iota
+#include <sstream>    // for stringstream
+#include <vector>     // for vector
+
 #include "../../../src/common/random.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"
-#include "xgboost/context.h"  // for Context
+#include "xgboost/context.h"  // for Context, SerializableRandomEngine
+#include "xgboost/json.h"     // for Json, Object, String, get, IsA
 
 namespace xgboost::common {
 namespace {
@@ -200,4 +207,108 @@ TEST(ColumnSampler, GPUWeightedMultiSampling) {
   TestWeightedMultiSampling(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+namespace {
+// The state must survive a round trip, and must do so through plain integers only. The
+// textual form of `std::mt19937` differs between standard library implementations, so a
+// snapshot holding it could not be moved between platforms. See
+// https://github.com/dmlc/xgboost/issues/12459 .
+TEST(RngState, RoundTrip) {
+  SerializableRandomEngine rng;
+  rng.seed(1994);
+  for (std::size_t i = 0; i < 17; ++i) {
+    static_cast<void>(rng());
+  }
+
+  Json out{Object{}};
+  SaveRng(&out, rng);
+
+  SerializableRandomEngine loaded;
+  ASSERT_TRUE(LoadRng(out, &loaded));
+  ASSERT_EQ(loaded.Seed(), rng.Seed());
+  ASSERT_EQ(loaded.NumAdvanced(), rng.NumAdvanced());
+  for (std::size_t i = 0; i < 32; ++i) {
+    ASSERT_EQ(loaded(), rng());
+  }
+}
+
+TEST(RngState, IsPlatformIndependent) {
+  SerializableRandomEngine rng;
+  rng.seed(3);
+  static_cast<void>(rng());
+
+  Json out{Object{}};
+  SaveRng(&out, rng);
+
+  // The seed and the draw count, spelled out by us. Nothing here can vary with the
+  // standard library that wrote it.
+  ASSERT_EQ(get<String const>(out["rng_state"]), "3 1");
+}
+
+TEST(RngState, RejectsLegacyState) {
+  // 3.3.0 and earlier wrote the text produced by `operator<<` for `std::mt19937`. It must
+  // be refused rather than misread, and refusing it must not throw.
+  SerializableRandomEngine rng;
+  rng.seed(7);
+
+  std::stringstream ss;
+  ss << std::hex << RandomEngine{1994};
+  Json legacy{Object{}};
+  legacy["rng_state"] = String{ss.str()};
+  ASSERT_FALSE(LoadRng(legacy, &rng));
+  // Left untouched for the caller to re-seed.
+  ASSERT_EQ(rng.Seed(), 7u);
+  ASSERT_EQ(rng.NumAdvanced(), 0ul);
+
+  // Neither a missing state nor a malformed one is an error.
+  Json empty{Object{}};
+  ASSERT_FALSE(LoadRng(empty, &rng));
+  for (auto const& malformed : {"", " ", "12", "1 2 3", "-1 2", "1 x"}) {
+    Json bad{Object{}};
+    bad["rng_state"] = String{malformed};
+    ASSERT_FALSE(LoadRng(bad, &rng)) << "accepted: '" << malformed << "'";
+  }
+  ASSERT_EQ(rng.Seed(), 7u);
+}
+
+// Advancing by hand and restoring must agree, since restoring replays the draws with
+// `discard`.
+TEST(RngState, RestoreMatchesReplay) {
+  SerializableRandomEngine reference;
+  reference.seed(11);
+  for (std::size_t i = 0; i < 1000; ++i) {
+    static_cast<void>(reference());
+  }
+
+  SerializableRandomEngine restored;
+  restored.Restore(11, 1000);
+  ASSERT_EQ(restored.NumAdvanced(), reference.NumAdvanced());
+  for (std::size_t i = 0; i < 8; ++i) {
+    ASSERT_EQ(restored(), reference());
+  }
+}
+
+// The wrapper must stay a drop-in for `std::mt19937` so that call sites can keep handing
+// it to standard distributions and algorithms.
+TEST(RngState, MatchesStdEngine) {
+  SerializableRandomEngine wrapped{1994};
+  RandomEngine plain{1994};
+
+  ASSERT_EQ(SerializableRandomEngine::min(), RandomEngine::min());
+  ASSERT_EQ(SerializableRandomEngine::max(), RandomEngine::max());
+  for (std::size_t i = 0; i < 64; ++i) {
+    ASSERT_EQ(wrapped(), plain());
+  }
+  ASSERT_EQ(wrapped.NumAdvanced(), 64ul);
+
+  std::vector<int> a(32), b(32);
+  std::iota(a.begin(), a.end(), 0);
+  std::iota(b.begin(), b.end(), 0);
+  wrapped.seed(7);
+  plain.seed(7);
+  std::shuffle(a.begin(), a.end(), wrapped);
+  std::shuffle(b.begin(), b.end(), plain);
+  ASSERT_EQ(a, b);
+}
+}  // namespace
 }  // namespace xgboost::common
