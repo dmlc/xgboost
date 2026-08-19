@@ -13,6 +13,7 @@
 #include <algorithm>  // for equal, any_of
 #include <cstdint>    // for uint32_t
 #include <memory>
+#include <random>  // for uniform_real_distribution, uniform_int_distribution
 #include <string>
 #include <utility>
 #include <vector>

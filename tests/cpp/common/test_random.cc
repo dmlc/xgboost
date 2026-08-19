@@ -4,6 +4,7 @@
 #include <algorithm>  // for shuffle
 #include <cstddef>    // for size_t
 #include <numeric>    // for iota
+#include <random>     // for mt19937
 #include <sstream>    // for stringstream
 #include <vector>     // for vector
 
@@ -252,7 +253,7 @@ TEST(RngState, RejectsLegacyState) {
   rng.seed(7);
 
   std::stringstream ss;
-  ss << std::hex << RandomEngine{1994};
+  ss << std::hex << std::mt19937{1994};
   Json legacy{Object{}};
   legacy["rng_state"] = String{ss.str()};
   ASSERT_FALSE(LoadRng(legacy, &rng));
@@ -271,7 +272,7 @@ TEST(RngState, RejectsLegacyState) {
   ASSERT_EQ(rng.Seed(), 7u);
 }
 
-// Advancing by hand and restoring must agree, since restoring replays the draws with
+// Advancing by hand and restoring must agree, since restoring skips the draws with
 // `discard`.
 TEST(RngState, RestoreMatchesReplay) {
   SerializableRandomEngine reference;
@@ -288,9 +289,9 @@ TEST(RngState, RestoreMatchesReplay) {
   }
 }
 
-// The wrapper must stay a drop-in for `std::mt19937` so that call sites can keep handing
-// it to standard distributions and algorithms.
-TEST(RngState, MatchesStdEngine) {
+// The wrapper must stay a drop-in for the engine it holds, so that call sites can keep
+// handing it to standard distributions and algorithms.
+TEST(RngState, MatchesPlainEngine) {
   SerializableRandomEngine wrapped{1994};
   RandomEngine plain{1994};
 

@@ -14,6 +14,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <random>  // for uniform_real_distribution
 #include <vector>
 
 #include "algorithm.h"        // ArgSort

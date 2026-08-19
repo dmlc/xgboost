@@ -5,13 +5,13 @@
 #ifndef XGBOOST_CONTEXT_H_
 #define XGBOOST_CONTEXT_H_
 
-#include <xgboost/base.h>       // for bst_d_ordinal_t
-#include <xgboost/logging.h>    // for CHECK_GE
-#include <xgboost/parameter.h>  // for XGBoostParameter
+#include <xgboost/base.h>           // for bst_d_ordinal_t
+#include <xgboost/logging.h>        // for CHECK_GE
+#include <xgboost/parameter.h>      // for XGBoostParameter
+#include <xgboost/philox_engine.h>  // for Philox4x32
 
 #include <cstdint>      // for int16_t, int32_t, int64_t
 #include <memory>       // for shared_ptr
-#include <random>       // for mt19937
 #include <string>       // for string, to_string
 #include <type_traits>  // for invoke_result_t, is_same_v, underlying_type_t
 
@@ -20,24 +20,31 @@ namespace xgboost {
 class Json;
 struct CUDAContext;
 /**
- * @brief Define mt19937 as default type Random Engine.
+ * @brief The default random engine, a counter-based Philox.
+ *
+ * @ref PhiloxEngine matches C++26's `std::philox_engine`, so this becomes an alias for the
+ * standard type once the implementations we build against ship one.
  */
-using RandomEngine = std::mt19937;
+using RandomEngine = Philox4x32;
 
 /**
  * @brief A @ref RandomEngine whose state can be serialized portably.
  *
- * The text written by `operator<<` for `std::mt19937` is not portable across standard
- * library implementations. libstdc++ emits the state words in raw order followed by the
- * current position, while libc++ and the MSVC STL emit the words rotated into canonical
- * order and omit the position. libstdc++ also forces `std::dec` as the standard requires,
- * whereas the MSVC STL honours whatever format flags the stream carries. A memory
- * snapshot (Python pickle, R RDS) holding that text is therefore unreadable on a platform
- * other than the one that wrote it.
+ * An engine's own textual form is no help here. `operator<<` for `std::mt19937`, which we
+ * used to write out, is spelled differently by every standard library: libstdc++ emits the
+ * state words in raw order followed by the current position, while libc++ and the MSVC STL
+ * emit them rotated into canonical order and omit the position. libstdc++ also forces
+ * `std::dec` as the standard requires, whereas the MSVC STL honours whatever format flags
+ * the stream carries. A memory snapshot (Python pickle, R RDS) holding that text was
+ * therefore unreadable on any platform other than the one that wrote it.
  *
  * So record the seed and the number of draws taken since it was applied instead. Both are
  * plain integers, and replaying the draws with @ref RandomEngine::discard reconstructs the
- * state exactly on every implementation.
+ * state exactly. The format says nothing about how the engine works internally, so it
+ * survives a change of engine as long as the new one can be seeded and skipped ahead.
+ *
+ * Skipping ahead is why the engine is counter-based: @ref PhiloxEngine::discard is O(1),
+ * so restoring is a constant-time operation however long the model trained for.
  */
 class SerializableRandomEngine {
  public:

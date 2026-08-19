@@ -5,6 +5,7 @@
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 
+#include <random>  // for mt19937
 #include <sstream>
 #include <string>
 
@@ -40,7 +41,7 @@ TEST(Context, LegacyRngState) {
 
   // Overwrite with the state as older versions wrote it.
   std::stringstream ss;
-  ss << std::hex << RandomEngine{7};
+  ss << std::hex << std::mt19937{7};
   j["rng_state"] = String{ss.str()};
 
   // It must be refused rather than misread, and the engine falls back to the seed.

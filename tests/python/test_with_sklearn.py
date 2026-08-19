@@ -8,8 +8,9 @@ from typing import Optional, Type
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing, make_ltr
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
@@ -1185,8 +1186,13 @@ def test_pandas_input():
 def test_feature_weights(tree_method):
     kRows = 512
     kCols = 64
-    X = rng.randn(kRows, kCols)
-    y = rng.randn(kRows)
+    # Seeded here rather than drawn from the module-level generator. The assertions below
+    # are thresholds on a sampled quantity, so the test needs the same data every run;
+    # sharing the generator with the rest of the file made the data depend on which tests
+    # ran first.
+    data_rng = np.random.RandomState(1994)
+    X = data_rng.randn(kRows, kCols)
+    y = data_rng.randn(kRows)
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
@@ -1214,8 +1220,8 @@ def test_feature_weights(tree_method):
         model=xgb.XGBRegressor,
     )
 
-    # Approxmated test, this is dependent on the implementation of random
-    # number generator in std library.
+    # Approximated test, this is dependent on the implementation of the random number
+    # generator used for column sampling.
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
 

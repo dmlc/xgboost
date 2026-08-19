@@ -6,6 +6,7 @@
  */
 #include <algorithm>
 #include <cmath>
+#include <random>  // for bernoulli_distribution
 #include <vector>
 
 #include "../collective/communicator-inl.h"  // for IsDistributed
