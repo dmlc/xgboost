@@ -63,11 +63,14 @@ case "${suite}" in
     ;;
   i386)
     echo "--- Build and test XGBoost for i386 (32-bit)"
+    # GCC 16 emits a false-positive stringop-overflow from dmlc::optional.
+    export CXXFLAGS="${CXXFLAGS:-} -Wno-error=stringop-overflow"
     cmake .. \
       -GNinja \
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_CXX_STANDARD=17 \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
     time ninja -v
     # TODO(hcho3): Run gtest for i386

@@ -4,6 +4,8 @@
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 
+#include <cstddef>  // for size_t
+
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"               // for RandomDataGenerator
 
@@ -11,7 +13,8 @@ namespace xgboost::data {
 template <typename Page, typename Equal, typename NoMissing>
 void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&& check_equal,
                         NoMissing&& no_missing) {
-  bst_idx_t n_samples = 256, n_features = 16, n_batches = 4;
+  bst_idx_t n_samples = 256, n_batches = 4;
+  std::size_t n_features = 16;
   bst_bin_t max_bin = 64;
   bst_target_t n_targets = 3;
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
