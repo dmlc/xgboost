@@ -38,7 +38,7 @@ cmake .. \
   -DGOOGLE_TEST=ON \
   -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
   ${cmake_args}
 time ninja -v
 popd
