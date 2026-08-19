@@ -136,6 +136,7 @@ example. The feature supports only the ``multi_strategy=multi_output_tree``.
 Brief History
 *************
 Some milestones of multi-output support are recorded below:
+
 - XGBoost introduced basic concepts for multi-output in v1.6.0.
 - v2.0.0 introduced a prototype for training CPU-based vector-leaf models, which established the vector-leaf model format.
 - v3.2.0 saw a major upgrade to the prototype for CUDA implementation, added reduced gradient, vector intercept, along with external memory.
