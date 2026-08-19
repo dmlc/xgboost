@@ -22,9 +22,9 @@ case "${suite}" in
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
     time ninja -v
     echo "--- Run Google Test"
     ctest --extra-verbose
@@ -37,9 +37,9 @@ case "${suite}" in
       -DHIDE_CXX_SYMBOLS=ON \
       -DGOOGLE_TEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
     time ninja -v
     ctest --extra-verbose
     ;;
@@ -51,9 +51,9 @@ case "${suite}" in
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
       -DUSE_SANITIZER=ON \
       -DENABLED_SANITIZERS="address;leak;undefined" \
       -DCMAKE_BUILD_TYPE=Debug \
@@ -67,7 +67,8 @@ case "${suite}" in
       -GNinja \
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
-      -DENABLE_ALL_WARNINGS=ON
+      -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
     time ninja -v
     # TODO(hcho3): Run gtest for i386
     # ./testxgboost
