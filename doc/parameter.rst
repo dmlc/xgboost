@@ -273,8 +273,8 @@ Parameters for Non-Exact Tree Methods
 
   .. versionadded:: 2.0.0
 
-  - Do not set this parameter unless you are getting an OOM error caused by training deep trees. The performance penalty could be severe.
-  - If you are training vector leaf models with large number of targets and it's not possible to fit the histogram into the main memory, consider using the reduced gradient instead of setting this parameter.
+  - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
   - After 3.0, this parameter affects GPU algorithms as well.
 
 
