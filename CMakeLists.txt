@@ -65,7 +65,6 @@ option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ni
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
@@ -199,6 +198,9 @@ endif()
 if(USE_AZURE)
   message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
 endif()
+if(USE_DMLC_GTEST)
+  message(SEND_ERROR "The option `USE_DMLC_GTEST` has been removed from XGBoost")
+endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
 endif()
@@ -299,7 +301,17 @@ if(BUILD_WITH_SYSTEM_DMLC)
   find_package(dmlc REQUIRED)
 else()
   set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  # dmlc-core also has a 'GOOGLE_TEST' option.
+  #
+  # Setting it to OFF prevents dmlc-core's tests from being built alongside
+  # XGBoost's (relies on CMake CMP0077). Doing that in a function avoids
+  # changing the value of 'GOOGLE_TEST' for the rest of XGBoost's CMake.
+  #
+  function(xgboost_add_dmlc_core_without_tests)
+    set(GOOGLE_TEST OFF)
+    add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  endfunction()
+  xgboost_add_dmlc_core_without_tests()
 endif()
 
 if(MSVC)
