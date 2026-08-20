@@ -63,9 +63,6 @@ sdist.reproducible = true
 version = "CMakeLists.txt"
 build-type = "Release"
 
-[tool.isort]
-profile = "black"
-
 [tool.ruff.lint.isort]
 known-first-party = ["xgboost"]
 
