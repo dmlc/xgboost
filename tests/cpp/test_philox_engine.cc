@@ -97,6 +97,29 @@ TEST(PhiloxEngine, DiscardIsAdditive) {
   }
 }
 
+// The counter is an n * w bit integer, so advancing it has to carry between words. Only
+// the 64-bit words exercise the wrap of a whole word, and they take 2^64 blocks to get
+// there, which is only reachable at all because `discard` does not replay anything.
+TEST(PhiloxEngine, CounterCarry) {
+  Philox4x64 rng{1994};
+  // 2^64 - 4 draws is 2^62 - 1 blocks, the most a single call can cover.
+  for (std::size_t i = 0; i < 4; ++i) {
+    rng.discard(~0ull - 3);
+  }
+  // Four blocks short of 2^64. These take the low word over.
+  rng.discard(16);
+
+  Philox4x64 from_zero{1994};
+  bool differs = false;
+  for (std::size_t i = 0; i < 4; ++i) {
+    if (rng() != from_zero()) {
+      differs = true;
+    }
+  }
+  // Losing the carry would leave the counter back at zero, repeating the first block.
+  ASSERT_TRUE(differs);
+}
+
 TEST(PhiloxEngine, Seed) {
   Philox4x32 rng{7};
   std::vector<std::uint32_t> first;

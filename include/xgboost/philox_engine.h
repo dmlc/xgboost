@@ -58,8 +58,10 @@ inline void UMul64(std::uint64_t a, std::uint64_t b, std::uint64_t* p_hi, std::u
  *   libc++ and the MSVC STL each spell it differently.
  *   See https://github.com/dmlc/xgboost/issues/12459 .
  *
- * The device-side code already draws from Philox through libcu++
- * (`common::cuda_impl::DefaultRng`), so this also brings the host in line with it.
+ * The device-side code already draws from the same family through libcu++
+ * (`common::cuda_impl::DefaultRng` is `cuda::std::philox4x64`). Host and device still run
+ * separate engines over separate streams, so the draws do not line up; only the algorithm
+ * is now shared.
  *
  * @tparam UIntType The unsigned result type.
  * @tparam w        Word size in bits.
@@ -171,13 +173,16 @@ class PhiloxEngine {
   /** @brief Add @p z to the counter, which is an n * w bit unsigned integer. */
   void AdvanceCounter(std::uint64_t z) {
     for (std::size_t j = 0; j < n && z != 0; ++j) {
-      std::uint64_t const sum = static_cast<std::uint64_t>(this->x_[j]) + (z & kMax64);
+      auto const x = static_cast<std::uint64_t>(this->x_[j]);
+      std::uint64_t const sum = x + (z & kMax64);
       this->x_[j] = static_cast<result_type>(sum & kMax64);
-      std::uint64_t const carry = sum > kMax64 ? 1 : 0;
       if constexpr (w >= 64) {
-        z = carry;
+        // A word this wide has already wrapped modulo 2^64 by the time we get here, so the
+        // carry shows up as a sum that came out below the addend. There is no value of
+        // `sum` above `kMax64` to compare against.
+        z = sum < x ? 1 : 0;
       } else {
-        z = (z >> w) + carry;
+        z = (z >> w) + (sum > kMax64 ? 1 : 0);
       }
     }
   }
