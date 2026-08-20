@@ -269,13 +269,13 @@ Parameters for Non-Exact Tree Methods
 
 * ``max_cached_hist_node``, [default = 65536]
 
-  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the
-  ``approx`` tree methods.
+  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the ``approx`` tree methods.
 
   .. versionadded:: 2.0.0
 
-  - For most of the cases this parameter should not be set except for growing deep
-    trees. After 3.0, this parameter affects GPU algorithms as well.
+  - Do not set this parameter unless you are getting an OOM error caused by training deep trees. The performance penalty could be severe.
+  - If you are training vector leaf models with large number of targets and it's not possible to fit the histogram into the main memory, consider using the reduced gradient instead of setting this parameter.
+  - After 3.0, this parameter affects GPU algorithms as well.
 
 
 .. _cat-param:
