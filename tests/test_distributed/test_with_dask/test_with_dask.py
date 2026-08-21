@@ -1057,7 +1057,7 @@ def test_with_asyncio(client: "Client") -> None:
 async def generate_concurrent_trainings() -> None:
     async def train() -> None:
         async with LocalCluster(
-            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=":0"
+            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=None
         ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
