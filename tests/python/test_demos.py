@@ -59,6 +59,13 @@ def test_feature_weights_demo() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+def test_imbalanced_classification_demo() -> None:
+    script = os.path.join(PYTHON_DEMO_DIR, "imbalanced_classification.py")
+    cmd = [PYTHON, script]
+    subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_sklearn_demo(tmp_path: Path) -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "sklearn_examples.py")
     cmd = [PYTHON, script]

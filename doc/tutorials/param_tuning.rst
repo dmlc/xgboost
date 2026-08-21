@@ -61,6 +61,9 @@ This can affect the training of XGBoost model, and there are two ways to improve
   - In such a case, you cannot re-balance the dataset
   - Set parameter ``max_delta_step`` to a finite number (say 1) to help convergence
 
+See :ref:`sphx_glr_python_examples_imbalanced_classification.py` for a worked example
+using ``scale_pos_weight`` on a synthetic imbalanced dataset.
+
 
 *************************************************
 Use Hyper Parameter Optimization (HPO) Frameworks
