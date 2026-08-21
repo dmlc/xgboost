@@ -731,9 +731,10 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param num_class Number of classes when using multi-class classification objectives (e.g. `objective="multi:softprob"`)
 #' @param tweedie_variance_power (for Tweedie Regression (`"objective=reg:tweedie"`)) (default=1.5)
 #' - Parameter that controls the variance of the Tweedie distribution `var(y) ~ E(y)^tweedie_variance_power`
-#' - range: \eqn{(1,2)}
+#' - range: \eqn{[1,2)}
 #' - Set closer to 2 to shift towards a gamma distribution
-#' - Set closer to 1 to shift towards a Poisson distribution.
+#' - Set closer to 1 to shift towards a Poisson distribution. At 1, the distribution is
+#'   equivalent to the Poisson distribution.
 #' @param huber_slope (for using Pseudo-Huber (`"reg:pseudohubererror`")) (default = 1.0)
 #' A parameter used for Pseudo-Huber loss to define the \eqn{\delta} term.
 #' @param quantile_alpha (for using Quantile Loss (`"reg:quantileerror"`))
