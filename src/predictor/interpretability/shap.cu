@@ -1244,7 +1244,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_state->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx->Device());
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
@@ -1293,7 +1293,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_state->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx->Device());
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
