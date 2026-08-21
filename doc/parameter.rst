@@ -593,11 +593,8 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
 *  ``lambdarank_unbiased`` [default = ``false``]
 
-  Specify whether do we need to debias input click data.
-
-* ``lambdarank_bias_norm`` [default = 2.0]
-
-  :math:`L_p` normalization for position debiasing, default is :math:`L_2`. Only relevant when ``lambdarank_unbiased`` is set to true.
+  Compatibility parameter for the removed Unbiased LambdaMART feature. Setting this to true
+  emits a warning and trains standard LambdaRank instead.
 
 * ``ndcg_exp_gain`` [default = ``true``]
 

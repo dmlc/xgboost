@@ -106,16 +106,11 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getLambdarankNumPairPerSample: Int = $(lambdarankNumPairPerSample)
 
-  final val lambdarankUnbiased = new BooleanParam(this, "lambdarank_unbiased", "Specify " +
-    "whether do we need to debias input click data.")
+  final val lambdarankUnbiased = new BooleanParam(this, "lambdarank_unbiased",
+    "Compatibility parameter. Unbiased LambdaRank was removed; setting this to true emits a " +
+      "warning and uses standard LambdaRank.")
 
   final def getLambdarankUnbiased: Boolean = $(lambdarankUnbiased)
-
-  final val lambdarankBiasNorm = new DoubleParam(this, "lambdarank_bias_norm", "Lp " +
-    "normalization for position debiasing, default is L2. Only relevant when " +
-    "lambdarankUnbiased is set to true.")
-
-  final def getLambdarankBiasNorm: Double = $(lambdarankBiasNorm)
 
   final val ndcgExpGain = new BooleanParam(this, "ndcg_exp_gain", "Whether we should " +
     "use exponential gain function for NDCG.")
@@ -124,7 +119,7 @@ private[spark] trait LearningTaskParams extends Params {
 
   setDefault(objective -> "reg:squarederror", numClass -> 0, seed -> 0, seedPerIteration -> false,
     tweedieVariancePower -> 1.5, huberSlope -> 1, lambdarankPairMethod -> "mean",
-    lambdarankUnbiased -> false, lambdarankBiasNorm -> 2, ndcgExpGain -> true)
+    lambdarankUnbiased -> false, ndcgExpGain -> true)
 }
 
 private[spark] object LearningTaskParams {

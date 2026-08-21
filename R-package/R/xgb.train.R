@@ -774,9 +774,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Version added: 3.0.0
 #'
 #' @param lambdarank_unbiased (for learning to rank (`"rank:ndcg"`, `"rank:map"`, `"rank:pairwise"`)) (default = `FALSE`)
-#' Specify whether do we need to debias input click data.
-#' @param lambdarank_bias_norm (for learning to rank (`"rank:ndcg"`, `"rank:map"`, `"rank:pairwise"`)) (default = 2.0)
-#' \eqn{L_p} normalization for position debiasing, default is \eqn{L_2}. Only relevant when `lambdarank_unbiased` is set to `TRUE`.
+#' Compatibility parameter for the removed Unbiased LambdaMART feature. Setting this to `TRUE`
+#' emits a warning and trains standard LambdaRank instead.
 #' @param ndcg_exp_gain (for learning to rank (`"rank:ndcg"`, `"rank:map"`, `"rank:pairwise"`)) (default = `TRUE`)
 #' Whether we should use exponential gain function for `NDCG`. There are two forms of gain function for `NDCG`, one is using relevance value directly while the other is using\eqn{2^{rel} - 1} to emphasize on retrieving relevant documents. When `ndcg_exp_gain` is `TRUE` (the default), relevance degree cannot be greater than 31.
 xgb.params <- function(
@@ -839,7 +838,6 @@ xgb.params <- function(
   lambdarank_normalization = NULL,
   lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
-  lambdarank_bias_norm = NULL,
   ndcg_exp_gain = NULL
 ) {
 # nolint end

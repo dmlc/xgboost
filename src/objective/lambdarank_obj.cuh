@@ -49,11 +49,6 @@ common::Span<std::size_t const> SortY(Context const *ctx, MetaInfo const &info,
  * \brief Parameters needed for calculating gradient
  */
 struct KernelInputs {
-  linalg::VectorView<double const> ti_plus;   // input bias ratio
-  linalg::VectorView<double const> tj_minus;  // input bias ratio
-  linalg::VectorView<double> li;
-  linalg::VectorView<double> lj;
-
   common::Span<bst_group_t const> d_group_ptr;
   common::Span<std::size_t const> d_threads_group_ptr;
   common::Span<std::size_t const> d_sorted_idx;
@@ -63,7 +58,6 @@ struct KernelInputs {
   linalg::MatrixView<GradientPair> gpairs;
 
   linalg::VectorView<GradientPair const> d_roundings;
-  double const *d_cost_rounding;
 
   common::Span<std::size_t const> d_y_sorted_idx;
 

@@ -2,10 +2,10 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/context.h>                     // for Context
+#include <xgboost/context.h>  // for Context
 
-#include <cstdint>                               // for uint32_t
-#include <vector>                                // for vector
+#include <cstdint>  // for uint32_t
+#include <vector>   // for vector
 
 #include "../../../src/common/cuda_context.cuh"  // for CUDAContext
 #include "../../../src/objective/lambdarank_obj.cuh"
@@ -38,15 +38,9 @@ void TestGPUMakePair() {
 
   auto make_args = [&](std::shared_ptr<ltr::RankingCache> p_cache, auto rank_idx,
                        common::Span<std::size_t const> y_sorted_idx) {
-    linalg::Vector<double> dummy;
-    auto d = dummy.View(ctx.Device());
     linalg::Vector<GradientPair> dgpair;
     auto dg = dgpair.View(ctx.Device());
     cuda_impl::KernelInputs args{
-        d,
-        d,
-        d,
-        d,
         p_cache->DataGroupPtr(&ctx),
         p_cache->CUDAThreadsGroupPtr(),
         rank_idx,
@@ -54,7 +48,6 @@ void TestGPUMakePair() {
         predt.ConstDeviceSpan(),
         linalg::MatrixView<GradientPair>{common::Span<GradientPair>{}, {0}, DeviceOrd::CUDA(0)},
         dg,
-        nullptr,
         y_sorted_idx,
         0};
     return args;
@@ -122,9 +115,9 @@ void TestGPUMakePair() {
 
 TEST(LambdaRank, GPUMakePair) { TestGPUMakePair(); }
 
-TEST(LambdaRank, GPUUnbiasedNDCG) {
+TEST(LambdaRank, GPURemovedUnbiased) {
   auto ctx = MakeCUDACtx(0);
-  TestUnbiasedNDCG(&ctx);
+  TestRemovedUnbiased(&ctx);
 }
 
 template <typename CountFunctor>
@@ -137,7 +130,9 @@ void RankItemCountImpl(std::vector<std::uint32_t> const &sorted_items, CountFunc
 TEST(LambdaRank, RankItemCountOnLeft) {
   // Items sorted descendingly
   std::vector<std::uint32_t> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  auto wrapper = [](auto const &...args) { return cuda_impl::CountNumItemsToTheLeftOf(args...); };
+  auto wrapper = [](auto const &...args) {
+    return cuda_impl::CountNumItemsToTheLeftOf(args...);
+  };
   RankItemCountImpl(sorted_items, wrapper, 10, static_cast<uint32_t>(0));
   RankItemCountImpl(sorted_items, wrapper, 6, static_cast<uint32_t>(2));
   RankItemCountImpl(sorted_items, wrapper, 4, static_cast<uint32_t>(3));
@@ -148,7 +143,9 @@ TEST(LambdaRank, RankItemCountOnLeft) {
 TEST(LambdaRank, RankItemCountOnRight) {
   // Items sorted descendingly
   std::vector<std::uint32_t> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  auto wrapper = [](auto const &...args) { return cuda_impl::CountNumItemsToTheRightOf(args...); };
+  auto wrapper = [](auto const &...args) {
+    return cuda_impl::CountNumItemsToTheRightOf(args...);
+  };
   RankItemCountImpl(sorted_items, wrapper, 10, static_cast<uint32_t>(11));
   RankItemCountImpl(sorted_items, wrapper, 6, static_cast<uint32_t>(10));
   RankItemCountImpl(sorted_items, wrapper, 4, static_cast<uint32_t>(6));
