@@ -19,10 +19,6 @@ function(_xgboost_find_gtest gtest_version)
   # Prefer a system-installed GTest if one is found
   find_package(GTest ${gtest_version})
   if(GTEST_FOUND)
-    foreach(target GTest::gtest GTest::gmock)
-      # workaround for https://github.com/google/googletest/issues/4697
-      target_compile_features(${target} INTERFACE cxx_std_14)
-    endforeach()
     return()
   endif()
 
@@ -52,9 +48,6 @@ function(_xgboost_find_gtest gtest_version)
   )
 
   foreach(target gtest gmock)
-    # workaround for https://github.com/google/googletest/issues/4697
-    target_compile_features(${target} PUBLIC cxx_std_14)
-
     # For MSVC, ensure GTest targets propagate the same MSVC C Runtime
     # to anything linking against them.
     if(MSVC)
