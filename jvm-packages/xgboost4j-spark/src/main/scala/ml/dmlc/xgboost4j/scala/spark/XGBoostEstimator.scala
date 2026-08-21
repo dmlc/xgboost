@@ -233,17 +233,19 @@ private[spark] trait XGBoostEstimator[
   private[spark] def toXGBLabeledPoint(dataset: Dataset[_],
                                        columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
     val isSetMissing = isSet(missing)
+    val preserveSparse = getEnableSparseDataOptim
     dataset.toDF().rdd.map { row =>
       val label = row.getFloat(columnIndexes.labelId)
       val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
       val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
       val group = columnIndexes.groupId.map(row.getInt).getOrElse(-1)
 
-      val values = row.schema(columnIndexes.featureId.get).dataType match {
+      row.schema(columnIndexes.featureId.get).dataType match {
         case ArrayType(_, _) =>
           // The driver has casted the array(*) to array(float), so it's safe to
           // specify it as WrappedArray[Float] directly
-          row.getAs[mutable.WrappedArray[Float]](columnIndexes.featureId.get).toArray
+          val values = row.getAs[mutable.WrappedArray[Float]](columnIndexes.featureId.get).toArray
+          new XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
         case other =>
           if (!SparkUtils.isVectorType(other)) {
             throw new IllegalArgumentException("Feature must be array or vector type")
@@ -258,10 +260,8 @@ private[spark] trait XGBoostEstimator[
             }
             case _ => // DenseVector
           }
-          // To make "0" meaningful, we convert sparse vector if possible to dense.
-          features.toArray.map(_.toFloat)
+          features.asXGB(label, weight, group, baseMargin, preserveSparse)
       }
-      new XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
   }
 
@@ -427,6 +427,8 @@ private[spark] trait XGBoostEstimator[
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
 
+    validateSparseDataOptim(schema)
+
     if (isDefined(useExternalMemory) && getUseExternalMemory) {
       require(getDevice == "cuda" || getDevice == "gpu",
         "The `useExternalMemory` is only supported for GPU at the moment.")
@@ -445,7 +447,10 @@ private[spark] trait XGBoostEstimator[
   protected def train(dataset: Dataset[_]): M = {
     validate(dataset)
 
-    val (rdd, configs) = if (PluginUtils.isPluginEnabled(dataset)) {
+    // The columnar plugin does not accept Vector input. Preserve sparse vectors through the
+    // regular JVM DMatrix path when the optimization is enabled.
+    val (rdd, configs) = if (PluginUtils.isPluginEnabled(dataset) &&
+      !getEnableSparseDataOptim) {
       PluginUtils.getPlugin.get.buildRddWatches(this, dataset)
     } else {
       val (input, columnIndexes) = preprocess(dataset)
@@ -612,7 +617,10 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-    if (PluginUtils.isPluginEnabled(dataset)) {
+    validateSparseDataOptim(dataset.schema)
+    // The columnar plugin does not accept Vector input. Preserve sparse vectors through the
+    // regular JVM DMatrix path when the optimization is enabled.
+    if (PluginUtils.isPluginEnabled(dataset) && !getEnableSparseDataOptim) {
       return PluginUtils.getPlugin.get.transform(this, dataset)
     }
     val (schema, pred) = preprocess(dataset)
@@ -632,6 +640,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     val bBooster = input.sparkSession.sparkContext.broadcast(nativeBooster)
     val inferBatchSize = getInferBatchSize
     val missing = getMissing
+    val preserveSparse = getEnableSparseDataOptim
 
     // Here, we use RDD instead of DF to avoid different encoders for different
     // spark versions for the compatibility issue.
@@ -642,7 +651,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
         val features = batchRow.iterator.map(row => {
           if (!featureIsArray) {
             // Vector type
-            row.getAs[Vector](row.fieldIndex(featureName)).asXGB
+            row.getAs[Vector](row.fieldIndex(featureName)).asXGB(preserveSparse)
           } else {
             // Array type
             val values: Array[Float] = row.get(row.fieldIndex(featureName)) match {
@@ -679,7 +688,9 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     if (nativeBooster == null) {
       throw new IllegalArgumentException("The model has not been trained")
     }
-    val dm = new DMatrix(Iterator(features.asXGB), null, getMissing)
+    validateSparseDataOptim()
+    val dm = new DMatrix(
+      Iterator(features.asXGB(getEnableSparseDataOptim)), null, getMissing)
     nativeBooster.predict(data = dm)(0)
   }
 }

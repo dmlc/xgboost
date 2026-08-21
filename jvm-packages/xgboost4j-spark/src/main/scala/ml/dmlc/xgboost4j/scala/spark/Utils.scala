@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.{Vector, Vectors}
+import org.apache.spark.ml.linalg.{SparseVector, Vector, Vectors}
 import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, TypeHints}
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -44,19 +44,31 @@ private[scala] object Utils {
 
   private[spark] implicit class MLVectorToXGBLabeledPoint(val v: Vector) extends AnyVal {
     /**
-     * Converts a [[Vector]] to a data point with a dummy label.
+     * Converts a [[Vector]] to an XGBoost data point.
      *
-     * This is needed for constructing a [[ml.dmlc.xgboost4j.scala.DMatrix]]
-     * for prediction.
-     *
-     * A sparse vector is densified so that its implicit gaps become explicit 0.0 features,
-     * matching how the training path builds its [[XGBLabeledPoint]] in
-     * `XGBoostEstimator.toXGBLabeledPoint`. Keeping the vector sparse here would instead turn
-     * those gaps into missing values and silently diverge from the semantics the model was
-     * fit under.
+     * By default, a sparse vector is densified so that its implicit gaps become explicit 0.0
+     * features, matching how the training path builds its [[XGBLabeledPoint]]. The opt-in sparse
+     * path is valid only with `missing=0.0`, which makes omitted entries equivalent to dense zeros.
      */
-    def asXGB: XGBLabeledPoint =
-      new XGBLabeledPoint(0.0f, v.size, null, v.toArray.map(_.toFloat))
+    def asXGB: XGBLabeledPoint = asXGB(enableSparseDataOptim = false)
+
+    def asXGB(enableSparseDataOptim: Boolean): XGBLabeledPoint =
+      asXGB(0.0f, 1.0f, -1, Float.NaN, enableSparseDataOptim)
+
+    def asXGB(
+        label: Float,
+        weight: Float,
+        group: Int,
+        baseMargin: Float,
+        enableSparseDataOptim: Boolean): XGBLabeledPoint = v match {
+      case sparse: SparseVector if enableSparseDataOptim =>
+        new XGBLabeledPoint(
+          label, sparse.size, sparse.indices, sparse.values.map(_.toFloat),
+          weight, group, baseMargin)
+      case _ =>
+        new XGBLabeledPoint(
+          label, v.size, null, v.toArray.map(_.toFloat), weight, group, baseMargin)
+    }
   }
 
   def getSparkClassLoader: ClassLoader = getClass.getClassLoader
