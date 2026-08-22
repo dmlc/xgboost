@@ -23,6 +23,11 @@ fi
 echo "--- Build libxgboost from the source"
 mkdir -p build
 pushd build
+# CTK 13.3 error:
+#   nvcc_internal_extended_lambda_implementation:357:85: error:
+#   '*((void*)(&<anonymous>)+8).__nv_hdl_wrapper_t...'
+#   may be used uninitialized in this function [-Werror=maybe-uninitialized]
+export CXXFLAGS="${CXXFLAGS:-} -Wno-error=maybe-uninitialized"
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
@@ -37,7 +42,7 @@ cmake .. \
   -DUSE_DLOPEN_NCCL=ON \
   -DGOOGLE_TEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
   ${cmake_args}
 time ninja -v
 popd
