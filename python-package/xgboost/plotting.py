@@ -120,8 +120,11 @@ def plot_importance(
     ax.barh(ylocs, values, align="center", height=height, **kwargs)
 
     if show_values is True:
+        # Offset labels by a fraction of the scale; a fixed 1 pushes them off
+        # the axes for small importances like "gain" or "cover".
+        offset = max(values) * 0.01
         for x, y in zip(values, ylocs):
-            ax.text(x + 1, float(y), values_format.format(v=x), va="center")
+            ax.text(x + offset, float(y), values_format.format(v=x), va="center")
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)

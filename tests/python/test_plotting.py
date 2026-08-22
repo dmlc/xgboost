@@ -101,6 +101,19 @@ class TestPlotting:
         assert ax.get_xlim() == (0.0, 5.0)
         assert ax.get_ylim() == (10.0, 71.0)
 
+    def test_importance_plot_show_values(self):
+        # Regression test: with `show_values=True` the value labels used to be
+        # offset by a fixed amount of `1`, which pushed them off the axes for
+        # small importances (e.g. "gain" or "cover"). Every label should stay
+        # within the x-axis limits.
+        importance = {"f0": 0.02, "f1": 0.05, "f2": 0.1}
+        ax = xgb.plot_importance(importance, show_values=True)
+        xmin, xmax = ax.get_xlim()
+        assert len(ax.texts) == len(importance)
+        for text in ax.texts:
+            x = text.get_position()[0]
+            assert xmin <= x <= xmax
+
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self) -> None:
         run_categorical("approx", "cpu")
