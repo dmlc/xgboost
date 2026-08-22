@@ -104,6 +104,7 @@ metastore_db
 
 # files from R-package source install
 **/config.status
+R-package/src/cmake-build
 R-package/src/config.h
 R-package/src/Makevars
 *.lib
