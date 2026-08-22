@@ -409,6 +409,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
+
+    .. deprecated:: 3.5.0
+
+      Use ``binary:logistic`` and request raw margin predictions with ``output_margin=True`` instead.
+
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
 

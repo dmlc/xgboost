@@ -819,8 +819,7 @@ def _transform_arrow_table(
         feature_types = t_types
 
     columns = []
-    for cname in feature_names:
-        col0 = data.column(cname)
+    for col0 in data.columns:
         col: Union["pa.NumericArray", "pa.DictionaryArray"] = col0.combine_chunks()
         if isinstance(col, pa.BooleanArray):
             col = col.cast(pa.int8())  # bit-compressed array, not supported.

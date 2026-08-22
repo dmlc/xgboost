@@ -34,6 +34,16 @@ class TestArrowTable:
         assert dm.num_row() == 2
         assert dm.num_col() == 4
 
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_arrow_table_with_custom_feature_names(self, DMatrixT):
+        table = pa.table({"a": [1, 2], "b": [1.0, 2.0]})
+        dm = DMatrixT(table)
+        assert dm.feature_names == ["a", "b"]
+
+        dm = DMatrixT(table, feature_names=["x", "y"])
+        assert dm.feature_names == ["x", "y"]
+        assert dm.feature_types == ["int", "float"]
+
     def test_arrow_table_with_label(self):
         df = pd.DataFrame([[1, 2.0, 3.0], [2, 3.0, 4.0]], columns=["a", "b", "c"])
         table = pa.Table.from_pandas(df)

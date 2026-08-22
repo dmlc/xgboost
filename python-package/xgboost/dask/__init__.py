@@ -16,14 +16,13 @@ inherited from single-node Scikit-Learn interface.
 The implementation is heavily influenced by dask_xgboost:
 https://github.com/dask/dask-xgboost
 
-Optional dask configuration
-===========================
+Collective configuration
+========================
 
 - **coll_cfg**:
-    Specify the scheduler address along with communicator configurations. This can be
-    used as a replacement of the existing global Dask configuration
-    `xgboost.scheduler_address` (see below). See :ref:`tracker-ip` for more info. The
-    `tracker_host_ip` should specify the IP address of the Dask scheduler node.
+    Specify the tracker address along with communicator configurations. See
+    :ref:`tracker-ip` for more info. The `tracker_host_ip` should specify the IP address
+    of the Dask scheduler node.
 
   .. versionadded:: 3.0.0
 
@@ -39,18 +38,6 @@ Optional dask configuration
     clf = dxgb.DaskXGBClassifier(coll_cfg=coll_cfg)
     # or
     dxgb.train(client, {}, Xy, num_boost_round=10, coll_cfg=coll_cfg)
-
-- **xgboost.scheduler_address**: Specify the scheduler address
-
-  .. versionadded:: 1.6.0
-
-  .. deprecated:: 3.0.0
-
-  .. code-block:: python
-
-      dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
-      # We can also specify the port.
-      dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
 
@@ -125,7 +112,7 @@ from ..sklearn import (
 from ..tracker import RabitTracker
 from ..training import train as worker_train
 from .data import _get_dmatrices, no_group_split
-from .utils import _DASK_2024_12_1, _DASK_2025_3_0, get_address_from_user, get_n_threads
+from .utils import _DASK_2024_12_1, _DASK_2025_3_0, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
 _DataT: TypeAlias = Union[da.Array, dd.DataFrame]  # do not use series as predictor
@@ -646,21 +633,18 @@ class DaskQuantileDMatrix(DaskDMatrix):
 async def _get_rabit_args(
     client: "distributed.Client",
     n_workers: int,
-    dconfig: Optional[Dict[str, Any]] = None,
     coll_cfg: Optional[CollConfig] = None,
 ) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
-    # 1. Provided by user via dask.config
+    # 1. Provided by user via coll_cfg
     # 2. Guessed by xgboost `get_host_ip` function
     # 3. From dask scheduler
     # We try 1 and 3 if 1 is available, otherwise 2 and 3.
 
-    # See if user config is available
     coll_cfg = CollConfig() if coll_cfg is None else coll_cfg
-    host_ip: Optional[str] = None
-    port: int = 0
-    host_ip, port = get_address_from_user(dconfig, coll_cfg)
+    host_ip = coll_cfg.tracker_host_ip
+    port = 0 if coll_cfg.tracker_port is None else coll_cfg.tracker_port
 
     if host_ip is not None:
         user_addr = (host_ip, port)
@@ -682,10 +666,6 @@ async def _get_rabit_args(
     env = coll_cfg.get_comm_config(env)
     assert env is not None
     return env
-
-
-def _get_dask_config() -> Optional[Dict[str, Any]]:
-    return dask.config.get("xgboost", default=None)
 
 
 # train and predict methods are supposed to be "functional", which meets the
@@ -724,7 +704,6 @@ async def _train_async(
     *,
     client: "distributed.Client",
     global_config: Dict[str, Any],
-    dconfig: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
     num_boost_round: int,
@@ -739,9 +718,7 @@ async def _train_async(
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
     await _check_workers_are_alive(workers, client)
-    coll_args = await _get_rabit_args(
-        client, len(workers), dconfig=dconfig, coll_cfg=coll_cfg
-    )
+    coll_args = await _get_rabit_args(client, len(workers), coll_cfg=coll_cfg)
     _check_distributed_params(params)
 
     # This function name is displayed in the Dask dashboard task status, let's make it
@@ -882,7 +859,6 @@ def train(  # pylint: disable=unused-argument
     return client.sync(
         _train_async,
         global_config=config.get_config(),
-        dconfig=_get_dask_config(),
         **locals(),
     )
 
@@ -1600,12 +1576,9 @@ class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
-        feature_weights: Optional[_DaskCollection],
     ) -> Self:
         params = self.get_xgb_params()
-        model, metric, params, feature_weights = self._configure_fit(
-            xgb_model, params, feature_weights
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
 
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
@@ -1618,7 +1591,7 @@ class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
             qid=None,
             sample_weight=sample_weight,
             base_margin=base_margin,
-            feature_weights=feature_weights,
+            feature_weights=self.feature_weights,
             eval_set=eval_set,
             sample_weight_eval_set=sample_weight_eval_set,
             base_margin_eval_set=base_margin_eval_set,
@@ -1638,7 +1611,6 @@ class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
-            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1669,7 +1641,6 @@ class DaskXGBRegressor(XGBRegressorMixIn, DaskScikitLearnBase):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
@@ -1693,12 +1664,9 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[Booster, XGBModel]],
-        feature_weights: Optional[_DaskCollection],
     ) -> Self:
         params = self.get_xgb_params()
-        model, metric, params, feature_weights = self._configure_fit(
-            xgb_model, params, feature_weights
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
 
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
@@ -1711,7 +1679,7 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
             qid=None,
             sample_weight=sample_weight,
             base_margin=base_margin,
-            feature_weights=feature_weights,
+            feature_weights=self.feature_weights,
             eval_set=eval_set,
             sample_weight_eval_set=sample_weight_eval_set,
             base_margin_eval_set=base_margin_eval_set,
@@ -1774,7 +1742,6 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
-            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1806,7 +1773,6 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
@@ -1950,12 +1916,9 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         eval_qid: Optional[Sequence[_DaskCollection]],
         verbose: Union[int, bool],
         xgb_model: Optional[Union[XGBModel, Booster]],
-        feature_weights: Optional[_DaskCollection],
     ) -> Self:
         params = self.get_xgb_params()
-        model, metric, params, feature_weights = self._configure_fit(
-            xgb_model, params, feature_weights
-        )
+        model, metric, params = self._configure_fit(xgb_model, params)
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
             device=self.device,
@@ -1967,7 +1930,7 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
             qid=qid,
             sample_weight=sample_weight,
             base_margin=base_margin,
-            feature_weights=feature_weights,
+            feature_weights=self.feature_weights,
             eval_set=eval_set,
             sample_weight_eval_set=sample_weight_eval_set,
             base_margin_eval_set=base_margin_eval_set,
@@ -1982,7 +1945,6 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
-            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -2017,7 +1979,6 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         xgb_model: Optional[Union[XGBModel, str, Booster]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRanker":
         msg = "Use the `qid` instead of the `group` with the dask interface."
         if not (group is None and eval_group is None):
@@ -2119,7 +2080,6 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
             xgb_model=xgb_model,
             sample_weight_eval_set=sample_weight_eval_set,
             base_margin_eval_set=base_margin_eval_set,
-            feature_weights=feature_weights,
         )
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and
@@ -2188,7 +2148,6 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRFRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
@@ -2256,7 +2215,6 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRFClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)

@@ -20,7 +20,6 @@ case "${suite}" in
       -GNinja \
       -DHIDE_CXX_SYMBOLS=ON \
       -DGOOGLE_TEST=ON \
-      -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
@@ -49,7 +48,6 @@ case "${suite}" in
       -GNinja \
       -DHIDE_CXX_SYMBOLS=ON \
       -DGOOGLE_TEST=ON \
-      -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=sccache \
@@ -68,10 +66,9 @@ case "${suite}" in
     cmake .. \
       -GNinja \
       -DGOOGLE_TEST=ON \
-      -DUSE_DMLC_GTEST=ON \
-      -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_CXX_STANDARD=17 \
-      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+      -DENABLE_ALL_WARNINGS=ON
     time ninja -v
     # TODO(hcho3): Run gtest for i386
     # ./testxgboost
