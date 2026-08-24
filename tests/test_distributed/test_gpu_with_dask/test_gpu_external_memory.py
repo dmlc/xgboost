@@ -17,7 +17,7 @@ from xgboost.tracker import RabitTracker
 @pytest.mark.parametrize("is_qdm", [True, False])
 def test_external_memory(is_qdm: bool) -> None:
     n_workers = 2
-    with LocalCUDACluster(n_workers=2) as cluster:
+    with LocalCUDACluster(n_workers=2, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             args = get_rabit_args(client, 2)
             futs = client.map(
