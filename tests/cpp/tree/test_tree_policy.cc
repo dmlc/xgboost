@@ -6,8 +6,9 @@
 #include <xgboost/context.h>  // for Context
 #include <xgboost/tree_model.h>
 
-#include <memory>  // for unique_ptr
-#include <string>  // for string
+#include <cstddef>  // for size_t
+#include <memory>   // for unique_ptr
+#include <string>   // for string
 
 #include "../../../src/tree/tree_view.h"  // for WalkTree
 #include "../helpers.h"
@@ -15,7 +16,8 @@
 namespace xgboost {
 class TestGrowPolicy : public ::testing::Test {
  protected:
-  bst_idx_t n_samples_ = 4096, n_features_ = 13;
+  bst_idx_t n_samples_ = 4096;
+  std::size_t n_features_ = 13;
   float sparsity_ = 0.5;
 
  protected:
