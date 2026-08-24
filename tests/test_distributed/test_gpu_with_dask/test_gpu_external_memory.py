@@ -4,10 +4,9 @@ from functools import partial, update_wrapper
 from typing import Any
 
 import pytest
+import xgboost as xgb
 from dask_cuda import LocalCUDACluster
 from distributed import Client
-
-import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import testing as tm
 from xgboost.testing.dask import check_external_memory, get_rabit_args
