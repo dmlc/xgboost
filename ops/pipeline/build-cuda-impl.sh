@@ -27,7 +27,8 @@ pushd build
 #   nvcc_internal_extended_lambda_implementation:357:85: error:
 #   '*((void*)(&<anonymous>)+8).__nv_hdl_wrapper_t...'
 #   may be used uninitialized in this function [-Werror=maybe-uninitialized]
-export CXXFLAGS="${CXXFLAGS:-} -Wno-error=maybe-uninitialized"
+#
+# As a result, the speical `-DCMAKE_CUDA_FLAGS` is employed.
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
@@ -43,6 +44,7 @@ cmake .. \
   -DGOOGLE_TEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
   -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+  -DCMAKE_CUDA_FLAGS="-Xcompiler=-Wno-error=maybe-uninitialized" \
   ${cmake_args}
 time ninja -v
 popd
