@@ -1,7 +1,6 @@
 from typing import Any, Generator, Sequence
 
 import pytest
-
 from xgboost import testing as tm
 
 
