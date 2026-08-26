@@ -90,32 +90,64 @@ please control the number of threads it can use. It's best to let XGBoost to run
 parallel instead of asking `GridSearchCV` to run multiple experiments at the same
 time. For instance, creating a fold of data for cross validation can consume a significant
 amount of memory:
+  
+.. tabs::
+    .. code-tab:: py
 
-.. code-block:: python
+        # This creates a copy of dataset. X and X_train are both in memory at the same time.
+        # This happens for every thread at the same time if you run `GridSearchCV` with
+        # `n_jobs` larger than 1
 
-    # This creates a copy of dataset. X and X_train are both in memory at the same time.
+        X_train, X_test, y_train, y_test = train_test_split(X, y)
 
-    # This happens for every thread at the same time if you run `GridSearchCV` with
-    # `n_jobs` larger than 1
+    .. code-tab:: r R
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y)
+        # This creates a copy of data. Be mindful of memory usage.
+        # This happens for every worker if you use parallel processing
 
-.. code-block:: python
+        n <- length(y)
+        train_idx <- sample.int(n, size = floor(0.8 * n), replace = FALSE)
+        X_train <- X[train_idx, ]
+        X_test <- X[-train_idx, ]
+        y_train <- y[train_idx]
+        y_test <- y[-train_idx]
 
-    df = pd.DataFrame()
-    # This creates a new copy of the dataframe, even if you specify the inplace parameter
-    new_df = df.drop(...)
+.. tabs::
+    .. code-tab:: py
 
-.. code-block:: python
+        df = pd.DataFrame()
+        # This creates a new copy of the dataframe, even if you specify the inplace parameter
+        new_df = df.drop(...)
 
-    array = np.array(...)
-    # This may or may not make a copy of the data, depending on the type of the data
-    array.astype(np.float32)
+    .. code-tab:: r R
 
-.. code-block::
+        df <- data.frame()
+        # This creates a new copy of the dataframe
+        new_df <- df[!(names(df) %in% c("col_to_drop")), ]
 
-    # np by default uses double, do you actually need it?
-    array = np.array(...)
+.. tabs::
+    .. code-tab:: py
+
+        array = np.array(...)
+        # This may or may not make a copy of the data, depending on the type of the data
+        array.astype(np.float32)
+
+    .. code-tab:: r R
+
+        array <- array(...)
+        # Type conversion can create an additional full copy of the data.
+        array <- as.integer(array)
+
+.. tabs::
+    .. code-tab:: py
+
+        # np by default uses double, do you actually need it?
+        array = np.array(...)
+
+    .. code-tab:: r R
+
+        # R numeric values are double by default; reduce memory mainly by avoiding unnecessary copies.
+        array <- array(...)
 
 You can find some more specific memory reduction practices scattered through the documents
 For instances: :doc:`/tutorials/dask`, :doc:`/gpu/index`. However, before going into
