@@ -90,7 +90,7 @@ please control the number of threads it can use. It's best to let XGBoost to run
 parallel instead of asking `GridSearchCV` to run multiple experiments at the same
 time. For instance, creating a fold of data for cross validation can consume a significant
 amount of memory:
-  
+
 .. tabs::
     .. code-tab:: py
 
@@ -102,11 +102,11 @@ amount of memory:
 
     .. code-tab:: r R
 
-        # This creates a copy of data. Be mindful of memory usage.
-        # This happens for every worker if you use parallel processing
+        # This creates a copy of the data. X and X_train are both in memory at the same time.
+        # This may happen for every worker when using parallel processing.
 
         n <- length(y)
-        train_idx <- sample.int(n, size = floor(0.8 * n), replace = FALSE)
+        train_idx <- sample.int(n, size = floor(0.75 * n), replace = FALSE)
         X_train <- X[train_idx, ]
         X_test <- X[-train_idx, ]
         y_train <- y[train_idx]
