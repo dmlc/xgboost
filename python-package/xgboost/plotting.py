@@ -117,14 +117,11 @@ def plot_importance(
         _, ax = plt.subplots(1, 1)
 
     ylocs = np.arange(len(values))
-    ax.barh(ylocs, values, align="center", height=height, **kwargs)
+    bar = ax.barh(ylocs, values, align="center", height=height, **kwargs)
 
     if show_values is True:
-        # Offset labels by a fraction of the scale; a fixed 1 pushes them off
-        # the axes for small importances like "gain" or "cover".
-        offset = max(values) * 0.01
-        for x, y in zip(values, ylocs):
-            ax.text(x + offset, float(y), values_format.format(v=x), va="center")
+        bar_labels = [values_format.format(v=value) for value in values]
+        ax.bar_label(bar, labels=bar_labels, padding=3)
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)
