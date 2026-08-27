@@ -16,7 +16,7 @@ def client_kwargs(request: pytest.FixtureRequest) -> Dict[str, Any]:
     kwargs: Dict[str, Any] = {
         "n_workers": 2,
         "threads_per_worker": max(1, n_threads // 2),
-        "dashboard_address": ":0",
+        "dashboard_address": None,
     }
     if hasattr(request, "param"):
         kwargs.update(request.param)
@@ -46,7 +46,7 @@ def client_one_worker() -> Generator[Client, None, None]:
     n_threads = os.cpu_count()
     assert n_threads is not None
     with LocalCluster(
-        n_workers=1, threads_per_worker=max(1, n_threads), dashboard_address=":0"
+        n_workers=1, threads_per_worker=max(1, n_threads), dashboard_address=None
     ) as dask_cluster:
         with Client(dask_cluster) as dask_client:
             yield dask_client
