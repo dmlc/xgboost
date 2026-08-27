@@ -62,8 +62,6 @@ class FoldModels {
 
 struct FoldInfoBatches {
   std::vector<FoldInfo> batches;
-  // Number of rows in the full dataset, which is the size of the global index space.
-  bst_idx_t n_samples{0};
 
   [[nodiscard]] std::size_t Size() const { return batches.size(); }
   // Number of training rows in the k^th fold.

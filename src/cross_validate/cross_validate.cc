@@ -144,7 +144,6 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
                                 FoldInfoBatches const& finfo, FoldPredictions* out) const {
   CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  CHECK_EQ(finfo.n_samples, info.num_row_);
   if (out->train.empty()) {
     out->train.resize(this->KFolds());
   }
@@ -399,7 +398,6 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
   auto p_out = std::make_unique<cv::FoldInfoBatches>();
   auto const& batch_ptr = p_ext_fmat->BatchPtr();
   auto const& info = p_ext_fmat->Info();
-  p_out->n_samples = info.num_row_;
 
   for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
     auto begin = batch_ptr[i - 1];
