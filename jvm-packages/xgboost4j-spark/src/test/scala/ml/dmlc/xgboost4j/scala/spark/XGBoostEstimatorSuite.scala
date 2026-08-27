@@ -366,6 +366,46 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     }
   }
 
+  test("sparse data optimization preserves empty rows and trailing empty columns") {
+    val size = 128
+    val rows = (0 until 40).map { i =>
+      val features = if (i % 5 == 0) {
+        Vectors.sparse(size, Array.empty[Int], Array.empty[Double])
+      } else {
+        Vectors.sparse(size, Array(i % 3), Array(i.toDouble % 4 + 1.0))
+      }
+      (i, i.toDouble % 2, features)
+    }
+    val sparseDf = ss.createDataFrame(sc.parallelize(rows)).toDF("id", "label", "features")
+    val denseDf = ss.createDataFrame(sc.parallelize(
+      rows.map { case (id, label, v) => (id, label, Vectors.dense(v.toArray)) }))
+      .toDF("id", "label", "features")
+
+    val model = new XGBoostRegressor()
+      .setNumRound(5)
+      .setNumWorkers(1)
+      .setInferBatchSize(1)
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+      .setContribPredictionCol("contrib")
+      .fit(sparseDf)
+
+    val sparseResults = model.transform(sparseDf).select("id", "prediction", "contrib")
+      .collect().map { row =>
+        val contrib = row.getAs[DenseVector](2)
+        assert(contrib.size === size + 1)
+        row.getInt(0) -> row.getDouble(1)
+      }.toMap
+    val denseResults = model.transform(denseDf).select("id", "prediction").collect()
+      .map(row => row.getInt(0) -> row.getDouble(1)).toMap
+
+    assert(sparseResults.keySet === denseResults.keySet)
+    sparseResults.foreach { case (id, fromSparse) =>
+      assert(math.abs(fromSparse - denseResults(id)) < 1e-6,
+        s"sparse and dense encodings disagree for row $id")
+    }
+  }
+
   Seq(Float.NaN, 0.0f).foreach { missing =>
     test(s"transform matches training semantics for sparse vectors, missing $missing") {
       val rng = new java.util.Random(42)
