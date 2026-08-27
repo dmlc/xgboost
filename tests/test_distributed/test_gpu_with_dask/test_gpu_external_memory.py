@@ -4,10 +4,9 @@ from functools import partial, update_wrapper
 from typing import Any
 
 import pytest
+import xgboost as xgb
 from dask_cuda import LocalCUDACluster
 from distributed import Client
-
-import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import testing as tm
 from xgboost.testing.dask import check_external_memory, get_rabit_args
@@ -17,7 +16,7 @@ from xgboost.tracker import RabitTracker
 @pytest.mark.parametrize("is_qdm", [True, False])
 def test_external_memory(is_qdm: bool) -> None:
     n_workers = 2
-    with LocalCUDACluster(n_workers=2) as cluster:
+    with LocalCUDACluster(n_workers=2, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             args = get_rabit_args(client, 2)
             futs = client.map(

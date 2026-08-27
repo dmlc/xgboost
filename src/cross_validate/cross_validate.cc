@@ -12,9 +12,9 @@
 #include "../common/json_utils.h"             // for RequiredArg
 #include "../common/version.h"                // for Version
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
-#include "./kfolds.h"
-#include "xgboost/json.h"       // for Json, Array, Object, String, get
-#include "xgboost/predictor.h"  // for Predictor
+#include "kfolds.h"                           // for FoldInfo
+#include "xgboost/json.h"                     // for Json, Array, Object, String, get
+#include "xgboost/predictor.h"                // for Predictor
 
 namespace xgboost::cv {
 namespace {
@@ -144,7 +144,6 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
                                 FoldInfoBatches const& finfo, FoldPredictions* out) const {
   CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  CHECK_EQ(finfo.n_samples, info.num_row_);
   if (out->train.empty()) {
     out->train.resize(this->KFolds());
   }
@@ -332,6 +331,17 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
   API_END();
 }
 
+namespace {
+void ReadPredictionCache(cv::FoldPredictions const* predts, HostDeviceVector<float> const& predt,
+                         float const** out_data, size_t* out_n_rows, size_t* out_n_columns) {
+  CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
+  CHECK_EQ(predt.Size() % predts->output_length, 0);
+  *out_n_columns = predts->output_length;
+  *out_n_rows = predt.Size() / predts->output_length;
+  *out_data = predt.ConstDevicePointer();
+}
+}  // namespace
+
 XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float const** out_data,
                                     size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
@@ -341,12 +351,20 @@ XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float c
   xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   CHECK_LT(k, predts->KFolds());
-  auto const& predt = predts->Training(k).predictions;
-  CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
-  CHECK_EQ(predt.Size() % predts->output_length, 0);
-  *out_n_columns = predts->output_length;
-  *out_n_rows = predt.Size() / predts->output_length;
-  *out_data = predt.ConstDevicePointer();
+  ReadPredictionCache(predts, predts->Training(k).predictions, out_data, out_n_rows, out_n_columns);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsGetValid(FoldPredictionsHandle hdl, float const** out_data,
+                                         size_t* out_n_rows, size_t* out_n_columns) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_n_rows);
+  xgboost_CHECK_C_ARG_PTR(out_n_columns);
+  auto predts = static_cast<cv::FoldPredictions const*>(hdl);
+  ReadPredictionCache(predts, predts->Validation().predictions, out_data, out_n_rows,
+                      out_n_columns);
   API_END();
 }
 
@@ -399,7 +417,6 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
   auto p_out = std::make_unique<cv::FoldInfoBatches>();
   auto const& batch_ptr = p_ext_fmat->BatchPtr();
   auto const& info = p_ext_fmat->Info();
-  p_out->n_samples = info.num_row_;
 
   for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
     auto begin = batch_ptr[i - 1];
@@ -408,8 +425,7 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
     p_out->batches.emplace_back();
     cv::FoldInfo& batch = p_out->batches.back();
     for (std::size_t k = 0; k < k_folds; ++k) {
-      batch.ridxs.emplace_back();
-      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch.ridxs.back());
+      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch);
     }
   }
 

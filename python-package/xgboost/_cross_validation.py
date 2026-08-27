@@ -63,6 +63,14 @@ _LIB.XGBCvFoldPredictionsGet.argtypes = [
     ctypes.POINTER(ctypes.c_size_t),
 ]
 
+_LIB.XGBCvFoldPredictionsGetValid.restype = ctypes.c_int
+_LIB.XGBCvFoldPredictionsGetValid.argtypes = [
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),
+    ctypes.POINTER(ctypes.c_size_t),
+    ctypes.POINTER(ctypes.c_size_t),
+]
+
 _LIB.XGBCvFoldPredictionsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldPredictionsFree.argtypes = [ctypes.c_void_p]
 
@@ -306,27 +314,14 @@ class FoldPredictions:
             del self.handle
             _check_call(_LIB.XGBCvFoldPredictionsFree(hdl))
 
-    def get(self, k: int, copy: bool = True) -> cp.ndarray:
-        """Retrieve the training prediction cache of the k^th fold.
-
-        The result is indexed by the global row index, the rows held out by the fold are
-        unused padding.
-
-        """
+    def _as_array(
+        self,
+        data: ctypes._Pointer,
+        n_rows: ctypes.c_size_t,
+        n_columns: ctypes.c_size_t,
+        copy: bool,
+    ) -> cp.ndarray:
         import cupy as cp
-
-        data = ctypes.POINTER(ctypes.c_float)()
-        n_rows = ctypes.c_size_t()
-        n_columns = ctypes.c_size_t()
-        _check_call(
-            _LIB.XGBCvFoldPredictionsGet(
-                self.handle,
-                ctypes.c_size_t(k),
-                ctypes.byref(data),
-                ctypes.byref(n_rows),
-                ctypes.byref(n_columns),
-            )
-        )
 
         shape = (int(n_rows.value), int(n_columns.value))
         n_elems = shape[0] * shape[1]
@@ -343,6 +338,42 @@ class FoldPredictions:
             memptr=cp.cuda.MemoryPointer(mem, 0),
         )
         return predt.copy() if copy else predt
+
+    def get(self, k: int, copy: bool = True) -> cp.ndarray:
+        """Retrieve the training prediction cache of the k^th fold.
+
+        The result is indexed by the global row index, the rows held out by the fold are
+        unused padding.
+
+        """
+        data = ctypes.POINTER(ctypes.c_float)()
+        n_rows = ctypes.c_size_t()
+        n_columns = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldPredictionsGet(
+                self.handle,
+                ctypes.c_size_t(k),
+                ctypes.byref(data),
+                ctypes.byref(n_rows),
+                ctypes.byref(n_columns),
+            )
+        )
+        return self._as_array(data, n_rows, n_columns, copy)
+
+    def get_valid(self, copy: bool = True) -> cp.ndarray:
+        """Retrieve the raw out-of-fold prediction of every row."""
+        data = ctypes.POINTER(ctypes.c_float)()
+        n_rows = ctypes.c_size_t()
+        n_columns = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldPredictionsGetValid(
+                self.handle,
+                ctypes.byref(data),
+                ctypes.byref(n_rows),
+                ctypes.byref(n_columns),
+            )
+        )
+        return self._as_array(data, n_rows, n_columns, copy)
 
 
 class FoldGpairs:
