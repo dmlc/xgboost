@@ -11,6 +11,7 @@
 #include "../gbm/gbtree.h"  // for PredictionCacheEntry
 #include "../gbm/gbtree_model.h"
 #include "../learner_model_param_legacy.h"
+#include "kfolds.h"                      // for FoldInfo
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -57,16 +58,6 @@ class FoldModels {
 
   [[nodiscard]] static FoldModels LoadModel(Json const& in);
   void SaveModel(Json* out) const;
-};
-
-// Training rows of each fold within a single data batch. All row indices are global,
-// namely indices into the full dataset instead of the batch that owns them.
-struct FoldInfo {
-  std::vector<HostDeviceVector<bst_idx_t>> ridxs;
-
- public:
-  [[nodiscard]] auto TrainingFold(std::size_t k) const { return ridxs.at(k).ConstDeviceSpan(); }
-  [[nodiscard]] auto KFolds() const noexcept(true) { return this->ridxs.size(); }
 };
 
 struct FoldInfoBatches {

@@ -11,8 +11,7 @@
 
 namespace xgboost::cv {
 #if !defined(XGBOOST_USE_CUDA)
-void KFold(Context const*, std::size_t, bst_idx_t, bst_idx_t, std::int32_t,
-           HostDeviceVector<bst_idx_t>*) {
+void KFold(Context const*, std::size_t, bst_idx_t, bst_idx_t, std::int32_t, FoldInfo*) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

@@ -12,9 +12,9 @@
 #include "../common/json_utils.h"             // for RequiredArg
 #include "../common/version.h"                // for Version
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
-#include "./kfolds.h"
-#include "xgboost/json.h"       // for Json, Array, Object, String, get
-#include "xgboost/predictor.h"  // for Predictor
+#include "kfolds.h"                           // for FoldInfo
+#include "xgboost/json.h"                     // for Json, Array, Object, String, get
+#include "xgboost/predictor.h"                // for Predictor
 
 namespace xgboost::cv {
 namespace {
@@ -408,8 +408,7 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
     p_out->batches.emplace_back();
     cv::FoldInfo& batch = p_out->batches.back();
     for (std::size_t k = 0; k < k_folds; ++k) {
-      batch.ridxs.emplace_back();
-      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch.ridxs.back());
+      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch);
     }
   }
 
