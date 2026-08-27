@@ -478,11 +478,12 @@ class FoldTreeMethod {
     auto d_position = dh::ToSpan(positions);
 
     for (std::size_t k = 0; k < k_folds; ++k) {
-      auto& predt = predts->Training(k);
-      predt.predictions.SetDevice(ctx_->Device());
-      auto n_columns = predts->output_length;
-      CHECK_EQ(n_columns * n_samples, predt.predictions.Size());
-      auto d_predt = linalg::MakeTensorView(ctx_, &predt.predictions, n_samples, n_columns);
+      auto& tr_predt = predts->Training(k);
+      tr_predt.predictions.SetDevice(ctx_->Device());
+      auto output_length = predts->output_length;
+      CHECK_EQ(output_length * n_samples, tr_predt.predictions.Size());
+      auto d_tr_predt =
+          linalg::MakeTensorView(ctx_, &tr_predt.predictions, n_samples, output_length);
 
       // Rows held out by this fold are not in the partitioner and keep the sentinel.
       thrust::fill(ctx_->CUDACtx()->CTP(), dh::tbegin(d_position), dh::tend(d_position),
@@ -501,20 +502,41 @@ class FoldTreeMethod {
       }
 
       auto tree = tree::MultiTargetTreeView{ctx_->Device(), false, trees[k]};
-      dh::LaunchN(d_predt.Size(), ctx_->CUDACtx()->Stream(),
+      dh::LaunchN(d_tr_predt.Size(), ctx_->CUDACtx()->Stream(),
                   [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                    auto [ridx, t] = linalg::UnravelIndex(i, d_predt.Shape());
+                    auto [ridx, t] = linalg::UnravelIndex(i, d_tr_predt.Shape());
                     auto nidx = d_position[ridx];
                     if (nidx == RegTree::kInvalidNodeId) {
                       return;  // Held out by this fold, the entry is unused padding.
                     }
-                    d_predt(ridx, t) += tree.LeafValue(nidx)(t);
+                    d_tr_predt(ridx, t) += tree.LeafValue(nidx)(t);
                   });
+
+      // Handle the held out prediction
+      auto d_oof_position = dh::ToSpan(this->oof_position_);
+      auto& va_predt = predts->valid.predictions;
+      va_predt.SetDevice(this->ctx_->Device());
+      CHECK_EQ(va_predt.Size(), output_length * n_samples);
+      auto d_va_predt =
+          linalg::MakeTensorView(ctx_->Device(), va_predt.DeviceSpan(), n_samples, output_length);
+      for (auto const& batch : finfo.batches) {
+        auto valid_idx = batch.ValidationFold(k);
+        dh::LaunchN(valid_idx.size() * output_length, this->ctx_->CUDACtx()->Stream(),
+                    [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                      auto ridx_in_set = i / output_length;
+                      auto target_idx = i % output_length;
+
+                      auto ridx = valid_idx[ridx_in_set];
+                      auto nidx = d_oof_position[ridx];
+                      d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
+                    });
+      }
 
       if (this->hist_param_.debug_synchronize) {
         DebugCheckValid(this->ctx_, finfo, k, d_position);
       }
-      predt.Update(1);
+      tr_predt.Update(1);
+      predts->valid.Update(1);
     }
   }
 
