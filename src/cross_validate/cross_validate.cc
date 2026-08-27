@@ -331,6 +331,17 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
   API_END();
 }
 
+namespace {
+void ReadPredictionCache(cv::FoldPredictions const* predts, HostDeviceVector<float> const& predt,
+                         float const** out_data, size_t* out_n_rows, size_t* out_n_columns) {
+  CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
+  CHECK_EQ(predt.Size() % predts->output_length, 0);
+  *out_n_columns = predts->output_length;
+  *out_n_rows = predt.Size() / predts->output_length;
+  *out_data = predt.ConstDevicePointer();
+}
+}  // namespace
+
 XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float const** out_data,
                                     size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
@@ -340,12 +351,20 @@ XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float c
   xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   CHECK_LT(k, predts->KFolds());
-  auto const& predt = predts->Training(k).predictions;
-  CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
-  CHECK_EQ(predt.Size() % predts->output_length, 0);
-  *out_n_columns = predts->output_length;
-  *out_n_rows = predt.Size() / predts->output_length;
-  *out_data = predt.ConstDevicePointer();
+  ReadPredictionCache(predts, predts->Training(k).predictions, out_data, out_n_rows, out_n_columns);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsGetValid(FoldPredictionsHandle hdl, float const** out_data,
+                                         size_t* out_n_rows, size_t* out_n_columns) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_n_rows);
+  xgboost_CHECK_C_ARG_PTR(out_n_columns);
+  auto predts = static_cast<cv::FoldPredictions const*>(hdl);
+  ReadPredictionCache(predts, predts->Validation().predictions, out_data, out_n_rows,
+                      out_n_columns);
   API_END();
 }
 

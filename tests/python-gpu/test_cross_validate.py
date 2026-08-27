@@ -181,6 +181,39 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())
 @use_cuda_async_pool
+def test_cv_oof_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
+    """Each row's OOF prediction comes from the fold that held it out."""
+    import cupy as cp
+
+    X, _, _, Xy = xyw_extqdm
+    k_folds = 3
+    features = cp.concatenate(X).astype(cp.float32)
+
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+    predts = xcv.FoldPredictions()
+    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
+    cv_folds.init_prediction(Xy, folds, out=predts)
+    gpairs = xcv.FoldGpairs()
+    cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs)
+    tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params={"max_depth": 1})
+    tree_method.update(cv_folds, Xy, folds, gpairs, predts)
+
+    expected = cp.full((Xy.num_row(), 1), 0.5, dtype=cp.float32)
+    for k in range(k_folds):
+        _, valid_rows = fold_rows(k_folds, k)
+        tree = get_fold_tree(cv_folds, k)
+        go_left = features[:, tree["split_indices"][0]] < tree["split_conditions"][0]
+        left = get_leaf_weight(tree, tree["left_children"][0])[0]
+        right = get_leaf_weight(tree, tree["right_children"][0])[0]
+        leaf_value = cp.where(go_left, left, right).astype(cp.float32)
+        expected[valid_rows] += leaf_value[valid_rows].reshape(-1, 1)
+
+    cp.testing.assert_allclose(predts.get_valid(), expected)
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
+@use_cuda_async_pool
 def test_cv_vs_reference(xyw_extqdm: XywExtQdm) -> None:
     """Each fold must train exactly like a booster fitted on that fold's rows alone."""
     import cupy as cp
