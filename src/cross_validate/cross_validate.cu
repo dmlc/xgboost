@@ -18,6 +18,7 @@
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for LaunchN
 #include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
+#include "./tree_method.cuh"             // for RouteHeldOut
 #include "cross_validate.h"
 #include "xgboost/json.h"  // for Json
 
@@ -428,12 +429,11 @@ class FoldTreeMethod {
     return n_visits * kNeedCopyThreshold > p_fmat->Info().num_row_;
   }
 
-  void PartitionAndBuildHist(DMatrix* p_fmat,
+  void PartitionAndBuildHist(DMatrix* p_fmat, FoldInfoBatches const& finfo,
                              std::vector<std::vector<MultiExpandEntry>> const& expand_sets,
                              std::vector<RegTree*> const& trees) {
     CHECK_EQ(expand_sets.size(), trees.size());
     std::vector<PartitionNodes> nodes;
-    nodes.reserve(trees.size());
     for (std::size_t k = 0, k_folds = trees.size(); k < k_folds; ++k) {
       nodes.emplace_back(HistMaker::CreatePartitionNodes(trees[k], expand_sets[k]));
     }
@@ -452,6 +452,9 @@ class FoldTreeMethod {
           this->partitioners_[k].UpdatePositionBatch(
               ctx_, batch_idx, nodes[k].nidx, nodes[k].left_nidx, nodes[k].right_nidx,
               nodes[k].split_data, tree::cuda_impl::GoLeftWrapperOp<GoLeftOp<Acc>>{go_left});
+
+          auto valid_idx = finfo.batches[batch_idx].ValidationFold(k);
+          RouteHeldOut(this->ctx_, valid_idx, tree, go_left, dh::ToSpan(oof_position_));
 
           // FIXME(jiamingy): Build histogram here.
         }
@@ -509,11 +512,7 @@ class FoldTreeMethod {
                   });
 
       if (this->hist_param_.debug_synchronize) {
-        // Every training row of the fold, and only those, must have received a position.
-        auto n_valid = thrust::count_if(
-            ctx_->CUDACtx()->CTP(), dh::tcbegin(d_position), dh::tcend(d_position),
-            [] XGBOOST_DEVICE(bst_node_t nidx) { return nidx != RegTree::kInvalidNodeId; });
-        CHECK_EQ(static_cast<std::size_t>(n_valid), finfo.FoldSize(k));
+        DebugCheckValid(this->ctx_, finfo, k, d_position);
       }
       predt.Update(1);
     }
@@ -590,7 +589,7 @@ class FoldTreeMethod {
           this->ApplySplit(k, expand_sets[k], tree_ptrs[k]);
         }
       }
-      this->PartitionAndBuildHist(p_fmat, expand_sets, tree_ptrs);
+      this->PartitionAndBuildHist(p_fmat, finfo, expand_sets, tree_ptrs);
       // TODO(jiamingy): Build the child histograms, evaluate them, and push the resulting
       // candidates back into the drivers to grow beyond depth 1.
       ++this->n_levels_;
