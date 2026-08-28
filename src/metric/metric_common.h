@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2024, Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
@@ -8,7 +8,7 @@
 #include <memory>  // shared_ptr
 #include <string>
 
-#include "../collective/aggregator.h"
+#include "xgboost/logging.h"
 #include "xgboost/metric.h"
 
 namespace xgboost {
@@ -21,13 +21,21 @@ class MetricNoCache : public Metric {
   double Evaluate(HostDeviceVector<float> const &predts, std::shared_ptr<DMatrix> p_fmat) final {
     double result{0.0};
     auto const &info = p_fmat->Info();
-    collective::ApplyWithLabels(ctx_, info, &result, sizeof(double),
-                                [&] { result = this->Eval(predts, info); });
+    result = this->Eval(predts, info);
     return result;
   }
 };
 
 namespace metric {
+inline void CheckRowWeights(MetaInfo const &info) {
+  if (info.weights_.Empty()) {
+    return;
+  }
+  CHECK(info.group_ptr_.empty()) << "Row-wise metric does not support query group weights.";
+  CHECK_EQ(info.weights_.Size(), info.num_row_)
+      << "Number of weights should be equal to the number of data points.";
+}
+
 // Ranking config to be used on device and host
 struct EvalRankConfig {
  public:

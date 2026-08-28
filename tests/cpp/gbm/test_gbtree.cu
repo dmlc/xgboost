@@ -41,7 +41,7 @@ void TestInplaceFallback(Context const* ctx) {
 
   // learner is configured to the device specified by ctx
   std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  learner->SetParam("device", ctx->DeviceName());
+  learner->Configure({{"device", ctx->DeviceName()}});
   for (std::int32_t i = 0; i < 3; ++i) {
     learner->UpdateOneIter(i, Xy);
   }
@@ -65,7 +65,7 @@ void TestInplaceFallback(Context const* ctx) {
   Context new_ctx = *proxy->Ctx();
   ASSERT_NE(new_ctx.Ordinal(), ctx->Ordinal());
 
-  learner->SetParam("device", new_ctx.DeviceName());
+  learner->Configure({{"device", new_ctx.DeviceName()}});
   HostDeviceVector<float>* out_predt_1{nullptr};
   // no warning is raised
   ::testing::internal::CaptureStderr();

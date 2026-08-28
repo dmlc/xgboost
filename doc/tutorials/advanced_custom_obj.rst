@@ -55,7 +55,7 @@ A Dirichlet regression model poses certain challenges for XGBoost:
 - An optimal intercept for this type of model would involve a vector of
   values rather than the same value for every target.
 
-In order to use this type of model as a custom objetive:
+In order to use this type of model as a custom objective:
 
 - It's possible to use the expected Hessian (a.k.a. the Fisher information
   matrix or expected information) instead of the true Hessian. The expected

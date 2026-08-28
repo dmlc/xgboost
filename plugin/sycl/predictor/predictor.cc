@@ -10,8 +10,8 @@
 
 #include <cstddef>
 #include <limits>
-#include <mutex>
 #include <sycl/sycl.hpp>
+#include <vector>
 
 #include "../../../src/common/timer.h"
 #include "../data.h"
@@ -25,6 +25,7 @@
 #pragma GCC diagnostic pop
 #include "../../src/common/math.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "../../src/tree/sample_position.h"
 #include "../device_manager.h"
 #include "../device_properties.h"
 #include "node.h"
@@ -84,7 +85,7 @@ class DeviceModel {
       }
     }
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_state->num_output_group;
     if (num_group > 1) {
       tree_group.Resize(model.tree_info.Size());
       auto& tree_group_host = tree_group.HostVector();
@@ -171,17 +172,16 @@ class Predictor : public xgboost::Predictor {
       : xgboost::Predictor::Predictor{context},
         cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {}
 
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
-                    bst_tree_t tree_begin, bst_tree_t tree_end = 0,
+  void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
+                    const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const* tree_weights_override = nullptr) const override {
     if (tree_weights_override != nullptr || model.TreeWeights() != nullptr) {
       LOG(WARNING) << "Weighted batch prediction is not yet implemented for SYCL. CPU Predictor "
                       "is used.";
-      return cpu_predictor->PredictBatch(dmat, predts, model, tree_begin, tree_end,
+      return cpu_predictor->PredictBatch(dmat, out_preds, model, tree_begin, tree_end,
                                          tree_weights_override);
     }
 
-    auto* out_preds = &predts->predictions;
     device_model.SetDevice(ctx_->Device());
     qu_ = device_manager.GetQueue(ctx_->Device());
     if (device_ != ctx_->Device()) {
@@ -205,7 +205,7 @@ class Predictor : public xgboost::Predictor {
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
-                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
+                      HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
                       bst_tree_t tree_end) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
@@ -215,6 +215,55 @@ class Predictor : public xgboost::Predictor {
                    const gbm::GBTreeModel& model, bst_tree_t ntree_limit) const override {
     LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
     cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
+  }
+
+  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                          common::Span<RegTree const*> trees,
+                          linalg::MatrixView<float> out_preds) const override {
+    CHECK_EQ(leaf_ids.size(), trees.size());
+    if (out_preds.Device().IsCPU()) {
+      cpu_predictor->PredictFromLeafIds(leaf_ids, trees, out_preds);
+      return;
+    }
+    CHECK(out_preds.Device().IsSycl());
+    qu_ = device_manager.GetQueue(out_preds.Device());
+
+    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+      auto const* p_tree = trees[tree_idx];
+      CHECK(p_tree);
+      CHECK(!p_tree->IsMultiTarget())
+          << "Multi-target leaf-id prediction is not implemented for SYCL.";
+      CHECK_EQ(out_preds.Shape(1), 1);
+
+      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+      CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
+
+      auto const h_nodes = p_tree->GetNodes(DeviceOrd::CPU());
+      std::vector<float> h_leaf_values(h_nodes.size());
+      for (std::size_t nidx = 0; nidx < h_nodes.size(); ++nidx) {
+        if (h_nodes[nidx].IsLeaf()) {
+          h_leaf_values[nidx] = h_nodes[nidx].LeafValue();
+        }
+      }
+      USMVector<float, MemoryType::on_device> leaf_values;
+      leaf_values.Resize(qu_, h_leaf_values.size());
+      qu_->memcpy(leaf_values.Data(), h_leaf_values.data(),
+                  h_leaf_values.size() * sizeof(h_leaf_values.front()))
+          .wait_and_throw();
+
+      auto const* d_leaf_values = leaf_values.DataConst();
+      auto* out = out_preds.Values().data();
+      auto out_stride = out_preds.Stride(0);
+      qu_->submit([&](::sycl::handler& cgh) {
+           cgh.parallel_for<>(::sycl::range<1>(d_leaf_ids.size()), [=](::sycl::id<1> pid) {
+             auto row_idx = pid[0];
+             auto position = d_leaf_ids[row_idx];
+             auto nidx = position >= 0 ? position : ~position;
+             out[row_idx * out_stride] += d_leaf_values[nidx];
+           });
+         })
+          .wait_and_throw();
+    }
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -405,7 +454,7 @@ class Predictor : public xgboost::Predictor {
 
     device_model.Init(model, tree_begin, tree_end);
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_state->num_output_group;
     int num_features = dmat->Info().num_col_;
 
     float* out_predictions = out_preds->DevicePointer();

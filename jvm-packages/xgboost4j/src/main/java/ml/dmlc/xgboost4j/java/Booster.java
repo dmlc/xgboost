@@ -16,6 +16,7 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoSerializable;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -119,10 +122,23 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void setParams(Map<String, Object> params) throws XGBoostError {
-    if (params != null) {
-      for (Map.Entry<String, Object> entry : params.entrySet()) {
-        setParam(entry.getKey(), entry.getValue().toString());
-      }
+    if (params == null || params.isEmpty()) {
+      return;
+    }
+
+    List<List<String>> entries = new ArrayList<>(params.size());
+    for (Map.Entry<String, Object> entry : params.entrySet()) {
+      entries.add(Arrays.asList(entry.getKey(), entry.getValue().toString()));
+    }
+    Map<String, Object> config = new HashMap<>();
+    config.put("params", entries);
+
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String json = mapper.writeValueAsString(config);
+      XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetParams(handle, json));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to encode booster parameters.", ex);
     }
   }
 
@@ -238,7 +254,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   @Deprecated
   public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false, true);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     this.boost(dtrain, gradients.get(0), gradients.get(1));
   }
@@ -252,7 +268,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, int iter, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false, true);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     this.boost(dtrain, iter, gradients.get(0), gradients.get(1));
   }
@@ -356,31 +372,40 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * An advanced prediction function with all the options.
    *
-   * @param data         the test data for which prodictions are to be made
+   * @param data         the test data for which predictions are to be made
    * @param outputMargin output margin
-   * @param treeLimit    limit number of trees, 0 means all trees.
+   * @param iterationEnd end of the boosting iteration range, 0 means all iterations
    * @param predLeaf     prediction minimum to keep leafs
    * @param predContribs prediction feature contributions
    * @return predict two dimensional array of results, where each row corresponds to a prediction.
    */
   private float[][] predict(DMatrix data,
                             boolean outputMargin,
-                            int treeLimit,
+                            int iterationEnd,
                             boolean predLeaf,
                             boolean predContribs) throws XGBoostError {
-    int optionMask = 0;
+    return predict(data, outputMargin, iterationEnd, predLeaf, predContribs, false);
+  }
+
+  private float[][] predict(DMatrix data,
+                            boolean outputMargin,
+                            int iterationEnd,
+                            boolean predLeaf,
+                            boolean predContribs,
+                            boolean training) throws XGBoostError {
+    int predictType = 0;
     if (outputMargin) {
-      optionMask = 1;
+      predictType = 1;
     }
     if (predLeaf) {
-      optionMask = 2;
+      predictType = 6;
     }
     if (predContribs) {
-      optionMask = 4;
+      predictType = 2;
     }
     float[][] rawPredicts = new float[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
-            treeLimit, rawPredicts));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDMatrix(handle, data.getHandle(),
+        predictType, iterationEnd, training, rawPredicts));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];
@@ -488,24 +513,24 @@ public class Booster implements Serializable, KryoSerializable {
    * Predict leaf indices given the data
    *
    * @param data The input data.
-   * @param treeLimit Number of trees to include, 0 means all trees.
+   * @param iterationEnd End of the boosting iteration range, 0 means all iterations.
    * @return The leaf indices of the instance.
    * @throws XGBoostError
    */
-  public float[][] predictLeaf(DMatrix data, int treeLimit) throws XGBoostError {
-    return this.predict(data, false, treeLimit, true, false);
+  public float[][] predictLeaf(DMatrix data, int iterationEnd) throws XGBoostError {
+    return this.predict(data, false, iterationEnd, true, false);
   }
 
   /**
    * Output feature contributions toward predictions of given data
    *
    * @param data The input data.
-   * @param treeLimit Number of trees to include, 0 means all trees.
+   * @param iterationEnd End of the boosting iteration range, 0 means all iterations.
    * @return The feature contributions and bias.
    * @throws XGBoostError
    */
-  public float[][] predictContrib(DMatrix data, int treeLimit) throws XGBoostError {
-    return this.predict(data, false, treeLimit, true, true);
+  public float[][] predictContrib(DMatrix data, int iterationEnd) throws XGBoostError {
+    return this.predict(data, false, iterationEnd, true, true);
   }
 
   /**
@@ -535,11 +560,12 @@ public class Booster implements Serializable, KryoSerializable {
    *
    * @param data         matrix storing the test input on which predictions are to be made
    * @param outputMargin output margin
-   * @param treeLimit    limit number of trees, 0 means all trees.
+   * @param iterationEnd end of the boosting iteration range, 0 means all iterations
    * @return predict The results of the prediction, where each row corresponds to a prediction.
    */
-  public float[][] predict(DMatrix data, boolean outputMargin, int treeLimit) throws XGBoostError {
-    return this.predict(data, outputMargin, treeLimit, false, false);
+  public float[][] predict(DMatrix data, boolean outputMargin, int iterationEnd)
+      throws XGBoostError {
+    return this.predict(data, outputMargin, iterationEnd, false, false);
   }
 
   /**

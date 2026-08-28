@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  *
  * Vocabulary explanation:
  *
@@ -17,6 +17,7 @@
 #include <cassert>     // for assert
 #include <cmath>       // for log, abs
 #include <cstddef>     // for size_t
+#include <cstdint>     // for uint32_t
 #include <functional>  // for greater
 #include <memory>      // for shared_ptr
 #include <random>      // for minstd_rand, uniform_int_distribution
@@ -154,7 +155,7 @@ XGBOOST_DEVICE inline GradientPair Repulse(GradientPair pg) {
 }
 
 namespace cuda_impl {
-void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
                                HostDeviceVector<float> const& preds, MetaInfo const& info,
                                std::shared_ptr<ltr::NDCGCache> p_cache,
                                linalg::VectorView<double const> t_plus,   // input bias ratio
@@ -168,7 +169,7 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
 void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
              std::shared_ptr<ltr::MAPCache> p_cache);
 
-void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientMAP(Context const* ctx, std::uint32_t seed,
                               HostDeviceVector<float> const& predt, MetaInfo const& info,
                               std::shared_ptr<ltr::MAPCache> p_cache,
                               linalg::VectorView<double const> t_plus,   // input bias ratio
@@ -176,7 +177,7 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
                               linalg::VectorView<double> li, linalg::VectorView<double> lj,
                               linalg::Matrix<GradientPair>* out_gpair);
 
-void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
+void LambdaRankGetGradientPairwise(Context const* ctx, std::uint32_t seed,
                                    HostDeviceVector<float> const& predt, const MetaInfo& info,
                                    std::shared_ptr<ltr::RankingCache> p_cache,
                                    linalg::VectorView<double const> ti_plus,   // input bias ratio
@@ -210,7 +211,7 @@ void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
  * \tparam Op Functor for upgrading a pair of gradients.
  *
  * \param ctx     The global context.
- * \param iter    The boosting iteration.
+ * \param seed    Seed for sampling pairs.
  * \param cache   ltr cache.
  * \param g       The current query group
  * \param g_label label The labels for the current query group
@@ -219,7 +220,7 @@ void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
  *                the ranked list (labels sorted according to model scores).
  */
 template <typename Op>
-void MakePairs(Context const* ctx, std::int32_t iter,
+void MakePairs(Context const* ctx, std::uint32_t seed,
                std::shared_ptr<ltr::RankingCache> const cache, bst_group_t g,
                linalg::VectorView<float const> g_label, common::Span<std::size_t const> g_rank,
                Op op) {
@@ -235,8 +236,7 @@ void MakePairs(Context const* ctx, std::int32_t iter,
   } else {
     CHECK_EQ(g_rank.size(), g_label.Size());
 
-    std::uint32_t seed = (iter + 1) * (static_cast<std::uint32_t>(group_ptr.size()) - 1) + g;
-    std::minstd_rand rnd(seed);
+    std::minstd_rand rnd(seed + static_cast<std::uint32_t>(g));
     // sort label according to the rank list
     auto it = common::MakeIndexTransformIter(
         [&g_rank, &g_label](std::size_t idx) { return g_label(g_rank[idx]); });

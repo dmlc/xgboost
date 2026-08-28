@@ -64,6 +64,17 @@ class TestPlotting:
 
         self._check_tree_plot(booster)
 
+        # Regression test: a single extra graphviz kwarg (with no `rankdir`
+        # passed) used to be silently dropped from `graph_attrs`. Assert it
+        # actually shows up in the rendered DOT source.
+        graph = xgb.to_graphviz(booster, tree_idx=0, size="7,7")
+        assert "size=" in graph.source
+
+        # Also check it still works alongside other extra kwargs and `rankdir`.
+        graph = xgb.to_graphviz(booster, tree_idx=0, size="7,7", rankdir="LR")
+        assert "size=" in graph.source
+        assert "rankdir=" in graph.source
+
         X = np.arange(64, dtype=np.float32).reshape(32, 2)
         y = np.column_stack((X[:, 0], -X[:, 0]))
         booster = xgb.train(
@@ -89,6 +100,19 @@ class TestPlotting:
         ax = xgb.plot_importance(bst, xlim=(0, 5), ylim=(10, 71))
         assert ax.get_xlim() == (0.0, 5.0)
         assert ax.get_ylim() == (10.0, 71.0)
+
+    def test_importance_plot_show_values(self) -> None:
+        importance = {"f0": 0.02, "f1": 0.05, "f2": 0.1}
+        ax = xgb.plot_importance(importance, show_values=True)
+        ax.figure.canvas.draw()
+        renderer = ax.figure.canvas.get_renderer()
+
+        assert [text.get_text() for text in ax.texts] == ["0.02", "0.05", "0.1"]
+        for bar, text in zip(ax.patches, ax.texts):
+            bar_bbox = bar.get_window_extent(renderer)
+            text_bbox = text.get_window_extent(renderer)
+            assert bar_bbox.x1 < text_bbox.x0  # text is positioned after the bar
+            assert text_bbox.x1 <= ax.bbox.x1  # and before the axis ends
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self) -> None:

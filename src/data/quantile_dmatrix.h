@@ -41,10 +41,6 @@ class QuantileDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
   }
-  DMatrix *SliceCol(std::int32_t, std::int32_t) final {
-    LOG(FATAL) << "Slicing DMatrix columns is not supported for external memory.";
-    return nullptr;
-  }
 
   [[nodiscard]] bool SparsePageExists() const final { return false; }
 
@@ -109,7 +105,7 @@ namespace cuda_impl {
 void MakeSketches(Context const *ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> *iter,
                   DMatrixProxy *proxy, std::shared_ptr<DMatrix> ref, BatchParam const &p,
-                  float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const &info,
+                  float missing, std::shared_ptr<common::HistogramCuts> cuts,
                   ExternalDataInfo *p_ext_info);
 }  // namespace cuda_impl
 }  // namespace xgboost::data

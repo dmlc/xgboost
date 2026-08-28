@@ -27,12 +27,12 @@ std::enable_if_t<sizeof...(JT) != 0, bool> TypeCheckImpl(Json const &value) {
 
 template <typename Head>
 std::string TypeCheckError() {
-  return "`" + Head{}.TypeStr() + "`";
+  return "`" + std::string{Head{}.TypeStr()} + "`";
 }
 
 template <typename Head, typename... JT>
 std::enable_if_t<sizeof...(JT) != 0, std::string> TypeCheckError() {
-  return "`" + Head{}.TypeStr() + "`, " + TypeCheckError<JT...>();
+  return "`" + std::string{Head{}.TypeStr()} + "`, " + TypeCheckError<JT...>();
 }
 }  // namespace detail
 

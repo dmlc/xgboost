@@ -1,6 +1,6 @@
-###################
-3.3.0 (2026 Jun 17)
-###################
+####################
+3.3.0 (Jun 17, 2026)
+####################
 
 XGBoost 3.3 adds expectile regression, enables categorical feature support by default,
 expands SHAP support for vector-leaf models, and includes optimizations for histogram

@@ -10,7 +10,7 @@ import xgboost
 from hypothesis import given, note, settings
 from scipy.sparse import csr_matrix
 from xgboost import testing as tm
-from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
+from xgboost.testing.data import RelDataCV, make_ltr, simulate_clicks, sort_ltr_samples
 from xgboost.testing.params import lambdarank_parameter_strategy
 from xgboost.testing.ranking import run_normalization, run_score_normalization
 
@@ -19,7 +19,7 @@ def test_ndcg_custom_gain():
     def ndcg_gain(y: np.ndarray) -> np.ndarray:
         return np.exp2(y.astype(np.float64)) - 1.0
 
-    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=3)
+    X, y, q, w = make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=3)
     y_gain = ndcg_gain(y)
 
     byxgb = xgboost.XGBRanker(tree_method="hist", ndcg_exp_gain=True, n_estimators=10)
@@ -54,7 +54,7 @@ def test_ndcg_custom_gain():
     assert byxgb_json == bynp_json
 
     # test pairwise can handle max_rel > 31, while ndcg metric is using custom gain
-    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=33)
+    X, y, q, w = make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=33)
     ranknet = xgboost.XGBRanker(
         tree_method="hist",
         ndcg_exp_gain=False,
@@ -70,7 +70,7 @@ def test_ndcg_custom_gain():
 
 def test_ndcg_non_exp() -> None:
     # NDCG exp gain must have label smaller than 32
-    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=44)
+    X, y, q, w = make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=44)
 
     def fit(ltr: xgboost.XGBRanker):
         ltr.fit(
@@ -173,7 +173,7 @@ def test_ranking_with_weighted_data():
 
 
 def test_error_msg() -> None:
-    X, y, qid, w = tm.make_ltr(10, 2, 2, 2)
+    X, y, qid, w = make_ltr(10, 2, 2, 2)
     ranker = xgboost.XGBRanker()
     with pytest.raises(ValueError, match=r"equal to the number of query groups"):
         ranker.fit(X, y, qid=qid, sample_weight=y)
@@ -186,7 +186,7 @@ def test_lambdarank_parameters(params):
         rel = 1
     else:
         rel = 4
-    X, y, q, w = tm.make_ltr(4096, 3, 13, rel)
+    X, y, q, w = make_ltr(4096, 3, 13, rel)
     ranker = xgboost.XGBRanker(tree_method="hist", n_estimators=64, **params)
     ranker.fit(X, y, qid=q, sample_weight=w, eval_set=[(X, y)], eval_qid=[q])
     for k, v in ranker.evals_result()["validation_0"].items():
@@ -201,7 +201,7 @@ def test_unbiased() -> None:
     import pandas as pd
     from sklearn.model_selection import train_test_split
 
-    X, y, q, w = tm.make_ltr(8192, 2, n_query_groups=6, max_rel=4)
+    X, y, q, w = make_ltr(8192, 2, n_query_groups=6, max_rel=4)
     X, Xe, y, ye, q, qe = train_test_split(X, y, q, test_size=0.2, random_state=3)
     X = csr_matrix(X)
     Xe = csr_matrix(Xe)

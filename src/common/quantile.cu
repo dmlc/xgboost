@@ -7,10 +7,11 @@
 #include <thrust/unique.h>
 
 #include <algorithm>
-#include <cstdint>      // for uintptr_t
-#include <limits>       // for numeric_limits
-#include <numeric>      // for partial_sum
-#include <type_traits>  // for is_same_v
+#include <cstdint>          // for uintptr_t
+#include <cuda/functional>  // for proclaim_return_type
+#include <limits>           // for numeric_limits
+#include <numeric>          // for partial_sum
+#include <type_traits>      // for is_same_v
 #include <utility>
 #include <vector>
 
@@ -415,17 +416,19 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
   auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
-  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it,
-                                val_it, thrust::equal_to<size_t>{},
-                                [] __device__(SketchEntry const &r, SketchEntry const &l) {
-                                  // Only accumulate for the first type of duplication.
-                                  if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
-                                    auto w = l.wmin + r.wmin;
-                                    SketchEntry v{l.rmin, l.rmin + w, w, l.value};
-                                    return v;
-                                  }
-                                  return l;
-                                });
+  thrust::inclusive_scan_by_key(
+      ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it, val_it,
+      thrust::equal_to<size_t>{},
+      cuda::proclaim_return_type<SketchEntry>(
+          [] __device__(SketchEntry const &r, SketchEntry const &l) -> SketchEntry {
+            // Only accumulate for the first type of duplication.
+            if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
+              auto w = l.wmin + r.wmin;
+              SketchEntry v{l.rmin, l.rmin + w, w, l.value};
+              return v;
+            }
+            return l;
+          }));
 
   auto d_columns_ptr_out = this->columns_ptr_tmp_.DeviceSpan();
   // thrust unique_by_key preserves the first element.
@@ -487,7 +490,7 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
       ctx->CUDACtx()->CTP(), d_columns_ptr_out.data(),
       d_columns_ptr_out.data() + d_columns_ptr_out.size(), d_selected_idx.data(),
       d_selected_idx.data() + d_selected_idx.size(), selected_columns_ptr.DeviceSpan().data(),
-      d_selected_idx.data(), thrust::equal_to<size_t>{});
+      d_selected_idx.data(), cuda::std::equal_to<size_t>{});
   GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
                      stream);
   entries.swap(scratch);
@@ -591,10 +594,10 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
+void SketchContainer::AllReduce(Context const *ctx) {
   curt::SetDevice(ctx->Ordinal());
   auto world = collective::GetWorldSize();
-  if (world == 1 || is_column_split) {
+  if (world == 1) {
     return;
   }
 
@@ -678,13 +681,13 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   LOG(FATAL) << "Distributed GPU quantile sketch reduction requires NCCL support.";
 }
 
-HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split) {
+HistogramCuts SketchContainer::MakeCuts(Context const *ctx) {
   curt::SetDevice(ctx->Ordinal());
   HistogramCuts cuts{num_columns_};
   auto *p_cuts = &cuts;
 
   // Sync between workers.
-  this->AllReduce(ctx, is_column_split);
+  this->AllReduce(ctx);
 
   timer_.Start(__func__);
   auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();

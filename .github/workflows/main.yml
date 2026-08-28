@@ -53,7 +53,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       # Remove default build config to ensure CMake-configured header is used
@@ -70,9 +70,16 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
-      - name: Build and test
-        run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
+      - name: Build run C++ tests on CPU
+        if: matrix.variant == 'default'
+        shell: bash -l {0}
+        run: |
+          source activate linux_cpu_test
+          bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
       - run: sccache --show-stats
+      - name: Build and test with sanitizer
+        if: matrix.variant == 'sanitizer'
+        run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
 
   build-cuda:
     name: Build CUDA ${{ matrix.cuda_version }} (${{ matrix.arch }})
@@ -86,32 +93,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        # CUDA 12
+        # xgboost-cu12
         - cuda_version: 12
+          arch: aarch64
+          runner: linux-arm64-cpu
+          image_repo: xgb-ci.gpu_build_cuda12_rockylinux8_aarch64
+          use_rmm: 0
+        - cuda_version: 12
+          arch: x86_64
+          runner: linux-amd64-cpu
+          image_repo: xgb-ci.gpu_build_cuda12_rockylinux8
+          use_rmm: 0
+        # Default xgboost package (CUDA 13)
+        - cuda_version: 13
           arch: aarch64
           runner: linux-arm64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8_aarch64
           use_rmm: 0
-          use_federated: 1
-        - cuda_version: 12
+        - cuda_version: 13
           arch: x86_64
           runner: linux-amd64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8
           use_rmm: 0
-          use_federated: 1
-        # CUDA 13
-        - cuda_version: 13
-          arch: aarch64
-          runner: linux-arm64-cpu
-          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
-          use_rmm: 0
-          use_federated: 0
-        - cuda_version: 13
-          arch: x86_64
-          runner: linux-amd64-cpu
-          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
-          use_rmm: 0
-          use_federated: 0
     container:
       image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
@@ -119,7 +122,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -129,7 +132,6 @@ jobs:
           bash ops/pipeline/build-cuda.sh
           --cuda-version ${{ matrix.cuda_version }}
           --use-rmm ${{ matrix.use_rmm }}
-          --use-federated ${{ matrix.use_federated }}
       - run: sccache --show-stats
       - name: Stash files
         run: |
@@ -139,7 +141,7 @@ jobs:
             build/testxgboost python-package/dist/*.whl
 
   build-cuda-clang:
-    name: Build CUDA with clang 21.1.8 (x86_64)
+    name: Build CUDA 12.9 with clang 22.1.8 (x86_64)
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -147,19 +149,19 @@ jobs:
       - tag=main-build-cuda-clang
       - extras=s3-cache
     container:
-      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_cuda12_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          cache-key-prefix: ${{ github.job }}-clang21-cuda12
-      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 21.1.8
+          cache-key-prefix: ${{ github.job }}-clang22-1-8-cuda12
+      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 22.1.8
       - run: sccache --show-stats
 
   audit-cuda-wheel:
@@ -173,22 +175,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        # CUDA 12
+        # xgboost-cu12
         - cuda_version: 12
-          cuda_variant_flag: ""
+          cuda_variant_flag: "--cuda-variant cuda12"
           arch: aarch64
           runner: linux-arm64-cpu
         - cuda_version: 12
-          cuda_variant_flag: ""
+          cuda_variant_flag: "--cuda-variant cuda12"
           arch: x86_64
           runner: linux-amd64-cpu
-        # CUDA 13
+        # Default xgboost package (CUDA 13)
         - cuda_version: 13
-          cuda_variant_flag: "--cuda-variant cuda13"
+          cuda_variant_flag: ""
           arch: aarch64
           runner: linux-arm64-cpu
         - cuda_version: 13
-          cuda_variant_flag: "--cuda-variant cuda13"
+          cuda_variant_flag: ""
           arch: x86_64
           runner: linux-amd64-cpu
     container:
@@ -197,7 +199,7 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - name: Pick Python
         run: |
           export PATH=/opt/python/cp312-cp312/bin/:$PATH
@@ -222,7 +224,7 @@ jobs:
             python-package/dist/*.whl
 
   build-cuda-with-rmm:
-    name: Build CUDA with RMM
+    name: Build CUDA 13 with RMM
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -236,15 +238,16 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-cuda13
       - run: >-
           bash ops/pipeline/build-cuda.sh
-          --cuda-version 12
+          --cuda-version 13
           --use-rmm 1
-          --use-federated 1
       - run: sccache --show-stats
       - name: Stash files
         run: |
@@ -271,7 +274,7 @@ jobs:
           arch: x86_64
           runner: linux-amd64-cpu
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -298,12 +301,16 @@ jobs:
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
-        with:
-          cache-key-prefix: ${{ github.job }}
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: Rscript --vanilla R-package/tests/helper_scripts/install_deps.R imports
+      - name: Configure GPU R build to use CMake sccache launchers
+        run: Rscript --vanilla ops/script/setup_r_sccache.R --cmake
       - run: bash ops/pipeline/build-gpu-rpkg.sh
       - run: sccache --show-stats
       - name: Upload R package tarball
@@ -329,13 +336,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUDA 12 tests
+          # CUDA 12 artifact tests using the native CUDA 12.9 runtime
           # Note: --gpus all provides GPU access; --privileged is not needed for basic GPU tests
           - cuda_version: 12
             suite: gpu
             arch: x86_64
             runner: linux-amd64-gpu
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             artifact_from: build-cuda12-x86_64
             container_options: "--gpus all --privileged"
             test_args: ""
@@ -343,33 +350,16 @@ jobs:
             suite: gpu
             arch: aarch64
             runner: linux-arm64-gpu
-            image_repo: xgb-ci.gpu_aarch64
+            image_repo: xgb-ci.gpu_cuda12_aarch64
             artifact_from: build-cuda12-aarch64
             container_options: "--gpus all --privileged"
             test_args: ""
-          - cuda_version: 12
-            suite: gpu-rmm
-            arch: x86_64
-            runner: linux-amd64-gpu
-            image_repo: xgb-ci.gpu
-            artifact_from: build-cuda-with-rmm
-            container_options: "--gpus all --privileged"
-            test_args: "--use-rmm-pool --gtest_filter=-*DeathTest*"
-          - cuda_version: 12
-            suite: mgpu
-            arch: x86_64
-            runner: linux-amd64-mgpu
-            image_repo: xgb-ci.gpu
-            artifact_from: build-cuda12-x86_64
-            # mgpu needs --shm-size for NCCL shared memory communication
-            container_options: "--gpus all --shm-size=4g --privileged"
-            test_args: "--gtest_filter=*MGPU*"
-          # CUDA 13 tests
+          # Default CUDA 13 artifact tests
           - cuda_version: 13
             suite: gpu
             arch: x86_64
             runner: linux-amd64-gpu
-            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+            image_repo: xgb-ci.gpu
             artifact_from: build-cuda13-x86_64
             container_options: "--gpus all --privileged"
             test_args: ""
@@ -377,10 +367,27 @@ jobs:
             suite: gpu
             arch: aarch64
             runner: linux-arm64-gpu
-            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+            image_repo: xgb-ci.gpu_aarch64
             artifact_from: build-cuda13-aarch64
             container_options: "--gpus all --privileged"
             test_args: ""
+          - cuda_version: 13
+            suite: mgpu
+            arch: x86_64
+            runner: linux-amd64-mgpu
+            image_repo: xgb-ci.gpu
+            artifact_from: build-cuda13-x86_64
+            # mgpu needs --shm-size for NCCL shared memory communication
+            container_options: "--gpus all --shm-size=4g --privileged"
+            test_args: "--gtest_filter=*MGPU*"
+          - cuda_version: 13
+            suite: gpu-rmm
+            arch: x86_64
+            runner: linux-amd64-gpu
+            image_repo: xgb-ci.gpu
+            artifact_from: build-cuda-with-rmm
+            container_options: "--gpus all --privileged"
+            test_args: "--use-rmm-pool --gtest_filter=-*DeathTest*"
     container:
       image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
@@ -389,7 +396,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - name: Unstash gtest
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -414,41 +421,41 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUDA 12 tests
+          # xgboost-cu12 tests using the native CUDA 12.9 runtime
           - cuda_version: 12
             description: GPU-x86_64-CUDA-12
-            image_repo: xgb-ci.gpu
+            image_repo: xgb-ci.gpu_cuda12
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
             container_options: "--gpus all --privileged"
-          - cuda_version: 12
-            description: Multi-GPU-x86_64-CUDA-12
-            image_repo: xgb-ci.gpu
-            suite: mgpu
-            runner: linux-amd64-mgpu
-            artifact_from: audit-cuda12-wheel-x86_64
-            # mgpu needs --shm-size for NCCL shared memory communication
-            container_options: "--gpus all --shm-size=4g --privileged"
-          # CUDA 12 aarch64 tests
+          # xgboost-cu12 aarch64 test using the native CUDA 12.9 runtime
           - cuda_version: 12
             description: GPU-arm64-CUDA-12
-            image_repo: xgb-ci.gpu_aarch64
+            image_repo: xgb-ci.gpu_cuda12_aarch64
             suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
             container_options: "--gpus all --privileged"
-          # CUDA 13 tests
+          # Default xgboost package tests (CUDA 13)
           - cuda_version: 13
             description: GPU-x86_64-CUDA-13
-            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+            image_repo: xgb-ci.gpu
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda13-wheel-x86_64
             container_options: "--gpus all --privileged"
           - cuda_version: 13
+            description: Multi-GPU-x86_64-CUDA-13
+            image_repo: xgb-ci.gpu
+            suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: audit-cuda13-wheel-x86_64
+            # mgpu needs --shm-size for NCCL shared memory communication
+            container_options: "--gpus all --shm-size=4g --privileged"
+          - cuda_version: 13
             description: GPU-arm64-CUDA-13
-            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+            image_repo: xgb-ci.gpu_aarch64
             suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda13-wheel-aarch64
@@ -461,7 +468,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -474,16 +481,16 @@ jobs:
           bash ops/pipeline/test-python-wheel.sh
           --suite ${{ matrix.suite }}
           --cuda-version ${{ matrix.cuda_version }}
-      # Train a model for cross-platform testing (only for CUDA 12 x86_64)
+      # Train a model for cross-platform testing (only for default CUDA 13 x86_64)
       - name: Train cross-platform test model
-        if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
+        if: matrix.cuda_version == 13 && matrix.suite == 'gpu'
         shell: bash -l {0}
         run: |
           source activate gpu_test
           python tests/cross-platform/test_cross_platform_model.py \
             --train --model-path cross_platform_model.ubj
       - name: Upload cross-platform model artifact
-        if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
+        if: matrix.cuda_version == 13 && matrix.suite == 'gpu'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: cross-platform-model
@@ -503,20 +510,20 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      # Uses the wheel from cuda12 for tests.
+      # Uses the default CUDA 13 wheel for tests.
       matrix:
         include:
           - description: CPU-amd64
             image_repo: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
-            artifact_from: audit-cuda12-wheel-x86_64
+            artifact_from: audit-cuda13-wheel-x86_64
             container_options: "--init"
           - description: CPU-arm64
             image_repo: xgb-ci.cpu_aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
-            artifact_from: audit-cuda12-wheel-aarch64
+            artifact_from: audit-cuda13-wheel-aarch64
             container_options: "--init"
     container:
       image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
@@ -526,7 +533,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -552,11 +559,11 @@ jobs:
         - os: macos-14
           platform_id: macosx_arm64
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
       - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@18fcb8e3e06b4247c676c506750dc95ea7226479
+        uses: Homebrew/actions/setup-homebrew@a657b8b0cd35d0f65cce41fce9b24cf054b49869
       - name: Install libomp
         run: brew install libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -585,6 +592,32 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
+  test-python-wheel-macos:
+    name: Python tests (macOS Intel)
+    needs: python-wheels-macos
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: macos_cpu_test
+          environment-file: ops/conda_env/macos_cpu_test.yml
+      - name: Download macOS wheel artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: python-wheel-macosx_x86_64
+          path: wheelhouse
+      - name: Install XGBoost wheel
+        run: python -m pip install -v wheelhouse/*.whl
+      - name: Run Python tests
+        run: |
+          pytest -s -v -rxXs --durations=0 tests/python
+          pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
     needs: [test-python-wheel-gpu, python-wheels-macos]
@@ -601,7 +634,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test

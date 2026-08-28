@@ -63,13 +63,14 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 
 struct GBTreeModel : public Model {
  public:
-  explicit GBTreeModel(LearnerModelParam const* learner_model, Context const* ctx)
-      : learner_model_param{learner_model}, ctx_{ctx} {}
-  void Configure(Args const& cfg) {
+  explicit GBTreeModel(LearnerModelState const* learner_model, Context const* ctx)
+      : learner_model_state{learner_model}, ctx_{ctx} {}
+  std::set<std::string> Configure(Args const& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
-      param.UpdateAllowUnknown(cfg);
+      return UpdateAndGetUsedParameters(&param, cfg);
     }
+    return {};
   }
   /** @brief Move existing trees into the update queue. */
   void InitTreesToUpdate();
@@ -101,7 +102,7 @@ struct GBTreeModel : public Model {
   }
 
   /** @brief Global model properties. */
-  LearnerModelParam const* learner_model_param;
+  LearnerModelState const* learner_model_state;
   /** @brief GBTree model parameters. */
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */

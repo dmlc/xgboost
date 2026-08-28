@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "../collective/aggregator.h"
+#include "../collective/communicator-inl.h"
 #include "../common/error_msg.h"  // for InvalidMaxBin
 #include "../data/adapter.h"
 #include "categorical.h"
@@ -33,9 +34,10 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
   categories_.resize(columns_size_.size());
   has_categorical_ = std::any_of(feature_types_.cbegin(), feature_types_.cend(), IsCatOp{});
   ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
-    auto eps = SketchEpsilon(max_bins_, columns_size_[i]);
+    auto const column_size = static_cast<std::size_t>(columns_size_[i]);
+    auto eps = SketchEpsilon(max_bins_, column_size);
     if (!IsCat(this->feature_types_, i)) {
-      sketches_[i] = WQSketch{columns_size_[i], eps};
+      sketches_[i] = WQSketch{column_size, eps};
     }
   });
 }
@@ -385,7 +387,7 @@ INSTANTIATE(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE
 
-auto HostSketchContainer::AllreduceCategories(Context const *ctx, MetaInfo const &info,
+auto HostSketchContainer::AllreduceCategories(Context const *ctx,
                                               Span<bst_feature_t const> categorical_features)
     -> std::vector<std::set<float>> {
   std::vector<std::set<float>> reduced_categories(categorical_features.size());
@@ -393,7 +395,7 @@ auto HostSketchContainer::AllreduceCategories(Context const *ctx, MetaInfo const
     return reduced_categories;
   }
 
-  if (collective::GetWorldSize() == 1 || info.IsColumnSplit()) {
+  if (collective::GetWorldSize() == 1) {
     for (std::size_t i = 0; i < categorical_features.size(); ++i) {
       reduced_categories[i] = categories_[categorical_features[i]];
     }
@@ -438,8 +440,7 @@ auto HostSketchContainer::AllreduceCategories(Context const *ctx, MetaInfo const
   return reduced_categories;
 }
 
-auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
-                                    Span<bst_feature_t const> numeric_features)
+auto HostSketchContainer::AllReduce(Context const *ctx, Span<bst_feature_t const> numeric_features)
     -> std::vector<WQSketch::SummaryContainer> {
   monitor_.Start(__func__);
 
@@ -460,8 +461,8 @@ auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
     reduced[fidx] = sketches_[fidx].GetSummary(cut_target);
   });
 
-  // Early exit: no allreduce needed when one worker, column-split, or no numeric features.
-  if (collective::GetWorldSize() == 1 || info.IsColumnSplit() || numeric_features.empty()) {
+  // Early exit: no allreduce needed when there is one worker or no numeric features.
+  if (collective::GetWorldSize() == 1 || numeric_features.empty()) {
     monitor_.Stop(__func__);
     return reduced;
   }
@@ -533,7 +534,6 @@ void AddCategories(std::set<float> const &categories, float *max_cat, HistogramC
     InvalidCategory();
   }
   auto &cut_values = cuts->cut_values_.HostVector();
-  // With column-wise data split, the categories may be empty.
   auto feature_max_cat =
       categories.empty() ? 0.0f : *std::max_element(categories.cbegin(), categories.cend());
   CheckMaxCat(feature_max_cat, categories.size());
@@ -543,7 +543,7 @@ void AddCategories(std::set<float> const &categories, float *max_cat, HistogramC
   }
 }
 
-HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &info) {
+HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &) {
   monitor_.Start(__func__);
   HistogramCuts cuts{static_cast<bst_feature_t>(sketches_.size())};
   auto *p_cuts = &cuts;
@@ -560,9 +560,9 @@ HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &
     }
   }
 
-  auto reduced_numerical = this->AllReduce(ctx, info, Span<bst_feature_t const>{numeric_features});
+  auto reduced_numerical = this->AllReduce(ctx, Span<bst_feature_t const>{numeric_features});
   auto reduced_categories =
-      this->AllreduceCategories(ctx, info, Span<bst_feature_t const>{categorical_features});
+      this->AllreduceCategories(ctx, Span<bst_feature_t const>{categorical_features});
   std::vector<std::size_t> categorical_index(sketches_.size(), 0);
   for (std::size_t i = 0; i < categorical_features.size(); ++i) {
     categorical_index[categorical_features[i]] = i;

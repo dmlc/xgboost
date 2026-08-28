@@ -1,8 +1,8 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 3.4.0.0
-Date: 2026-06-18
+Version: 3.5.0.0
+Date: 2026-08-04
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),
          email = "tianqi.tchen@gmail.com"),
@@ -72,5 +72,5 @@ Imports:
     jsonlite (>= 1.0)
 Roxygen: list(markdown = TRUE)
 Encoding: UTF-8
-SystemRequirements: GNU make, C++17
-Config/roxygen2/version: 8.0.0
+SystemRequirements: C++17, GNU make, cmake (>= 3.18)
+Config/roxygen2/version: 8.1.0

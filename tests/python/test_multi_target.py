@@ -195,8 +195,9 @@ def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cpu", grow_policy)
 
 
-def test_mixed_strategy() -> None:
-    run_mixed_strategy("cpu")
+@pytest.mark.parametrize("use_dart", [False, True], ids=["gbtree", "dart"])
+def test_mixed_strategy(use_dart: bool) -> None:
+    run_mixed_strategy("cpu", use_dart)
 
 
 def test_feature_importance_strategy_compare() -> None:
@@ -215,3 +216,30 @@ def test_subsample(sampling_method: str) -> None:
 
 def test_gradient_based_sampling_accuracy() -> None:
     run_gradient_based_sampling_accuracy("cpu")
+
+
+def test_dart_normalization_multi_output_eta() -> None:
+    X = np.array([[0.0]], dtype=np.float32)
+    y = np.array([[1.0, 1.0]], dtype=np.float32)
+    Xy = xgb.DMatrix(X, label=y)
+
+    booster = xgb.train(
+        {
+            "objective": "reg:squarederror",
+            "multi_strategy": "one_output_per_tree",
+            "tree_method": "hist",
+            "learning_rate": 1.0,
+            "base_score": 0.0,
+            "reg_lambda": 0.0,
+            "min_child_weight": 0.0,
+            "rate_drop": 0.0,
+            "one_drop": True,
+            "normalize_type": "tree",
+            "seed": 3,
+        },
+        Xy,
+        num_boost_round=2,
+    )
+
+    pred = booster.predict(Xy, output_margin=True)
+    np.testing.assert_allclose(pred, y, atol=1e-6)

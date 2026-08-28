@@ -8,11 +8,37 @@
 
 #include <cstdint>  // for int32_t
 #include <memory>   // for unique_ptr
+#include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../../src/common/device_vector.cuh"  // for GlobalMemoryLogger
 #include "helpers.h"                           // for RandomDataGenerator
 
 namespace xgboost {
+TEST(LearnerModelState, ChangeCUDADevice) {
+  if (curt::AllVisibleGPUs() < 2) {
+    GTEST_SKIP() << "At least 2 GPUs are required.";
+  }
+
+  auto ctx = MakeCUDACtx(0);
+  std::vector<float> h_base_score{0.5f};
+  linalg::Vector<float> base_score{
+      h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}, ctx.Device()};
+  LearnerModelState state{&ctx,
+                          1,
+                          0,
+                          1,
+                          true,
+                          h_base_score,
+                          std::move(base_score),
+                          ObjInfo{ObjInfo::kRegression},
+                          MultiStrategy::kOneOutputPerTree};
+
+  ctx = MakeCUDACtx(1);
+  EXPECT_NO_THROW(state.ConfigureDevice(&ctx));
+  EXPECT_EQ(state.BaseScore(DeviceOrd::CPU())(0), h_base_score[0]);
+}
+
 TEST(Learner, Reset) {
   dh::GlobalMemoryLogger().Clear();
 
@@ -20,7 +46,7 @@ TEST(Learner, Reset) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto p_fmat = RandomDataGenerator{1024, 32, 0.0}.GenerateDMatrix(true);
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-  learner->SetParam("device", DeviceSym::CUDA());
+  learner->Configure({{"device", DeviceSym::CUDA()}});
   learner->Configure();
   for (std::int32_t i = 0; i < 2; ++i) {
     learner->UpdateOneIter(i, p_fmat);

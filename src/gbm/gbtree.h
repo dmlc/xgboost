@@ -22,6 +22,7 @@
 #include "../tree/tree_view.h"  // for WalkTree
 #include "gbtree_model.h"
 #include "xgboost/base.h"
+#include "xgboost/cache.h"
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"
 #include "xgboost/host_device_vector.h"
@@ -117,6 +118,10 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
         .set_default(0.0f)
         .describe("Probability of skipping the dropout during a boosting iteration.");
   }
+
+  [[nodiscard]] bool HasDropout() const {
+    return this->rate_drop != 0.0f || this->one_drop || this->skip_drop != 0.0f;
+  }
 };
 
 namespace detail {
@@ -168,25 +173,48 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
 }  // namespace detail
 
 // gradient boosted trees
+/**
+ * \brief Cached predictions owned by GBTree.
+ */
+struct PredictionCacheEntry {
+  HostDeviceVector<float> predictions;
+  std::uint32_t version{0};
+
+  PredictionCacheEntry() = default;
+
+  void Update(std::uint32_t v) { version += v; }
+  void Reset() { version = 0; }
+};
+
+/**
+ * \brief A container for GBTree prediction caches.
+ */
+class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
+  std::size_t static constexpr DefaultSize() { return 64; }
+
+ public:
+  PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
+  std::shared_ptr<PredictionCacheEntry> Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
+    auto p_cache = this->CacheItem(m);
+    if (!device.IsCPU()) {
+      p_cache->predictions.SetDevice(device);
+    }
+    return p_cache;
+  }
+};
+
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
+  explicit GBTree(LearnerModelState const* booster_config, Context const* ctx)
       : GradientBooster{ctx}, model_(booster_config, ctx_) {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const& cfg) override;
-  /**
-   * @brief Optionally update the leaf value.
-   */
-  void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, std::int32_t group_idx,
-                      std::vector<HostDeviceVector<bst_node_t>> const& node_position,
-                      std::vector<std::unique_ptr<RegTree>>* p_trees);
+  std::set<std::string> Configure(Args const& cfg) override;
   /**
    * @brief Carry out one iteration of boosting.
    */
-  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
+  void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                ObjFunction const* obj) override;
 
   [[nodiscard]] GBTreeTrainParam const& GetTrainParam() const { return tparam_; }
@@ -202,19 +230,19 @@ class GBTree : public GradientBooster {
              bool* out_of_bound) const override;
 
   [[nodiscard]] std::int32_t BoostedRounds() const override { return this->model_.BoostedRounds(); }
-  [[nodiscard]] bool ModelFitted() const override {
-    return !model_.trees.empty() || !model_.trees_to_update.empty();
+
+  // Test-only accessor. The cache entry is thread-local and must have been initialized by
+  // PredictBatch or DoBoost on this thread.
+  [[nodiscard]] PredictionCacheEntry const& PredictionCache(DMatrix const* p_fmat) const {
+    return *prediction_cache_.Entry(p_fmat);
   }
 
-  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                        bst_layer_t layer_begin, bst_layer_t layer_end,
-                        std::vector<float> const* tree_weights_override = nullptr) const;
+  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
+                    bool training, bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
-  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
-                    bst_layer_t layer_begin, bst_layer_t layer_end) override;
-
-  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
-                      bst_layer_t layer_begin, bst_layer_t layer_end) const override;
+  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
+                      HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
+                      bst_layer_t layer_end) const override;
 
   void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
                     std::vector<bst_feature_t>* features,
@@ -222,8 +250,8 @@ class GBTree : public GradientBooster {
     // Because feature with no importance doesn't appear in the return value so
     // we need to set up another pair of vectors to store the values during
     // computation.
-    std::vector<size_t> split_counts(this->model_.learner_model_param->num_feature, 0);
-    std::vector<float> gain_map(this->model_.learner_model_param->num_feature, 0);
+    std::vector<size_t> split_counts(this->model_.learner_model_state->num_feature, 0);
+    std::vector<float> gain_map(this->model_.learner_model_state->num_feature, 0);
     std::vector<int32_t> tree_idx;
     if (trees.empty()) {
       tree_idx.resize(this->model_.trees.size());
@@ -234,7 +262,7 @@ class GBTree : public GradientBooster {
     auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
       for (auto idx : trees) {
-        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        CHECK_LT(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
         tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
           if (!tree.IsLeaf(nidx)) {
@@ -305,7 +333,8 @@ class GBTree : public GradientBooster {
       LOG(FATAL)
           << "`strict_shape` with predict leaf is not supported when vector leaf trees are used.";
     }
-    this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -314,8 +343,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
-                                                   approximate);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictContribution(p_fmat, out_contribs, model_, tree_end, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -324,8 +353,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                               tree_end, approximate);
+    auto predictor = this->CreatePredictor(false);
+    predictor->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -335,7 +364,7 @@ class GBTree : public GradientBooster {
 
  protected:
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
-  std::size_t NormalizeTrees(std::size_t size_new_trees);
+  [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
@@ -343,7 +372,7 @@ class GBTree : public GradientBooster {
 
   std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
 
-  [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
+  [[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
       DMatrix* f_dmat = nullptr) const;
 
@@ -360,14 +389,9 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // Predictors
-  std::unique_ptr<Predictor> cpu_predictor_;
-  std::unique_ptr<Predictor> gpu_predictor_{nullptr};
-#if defined(XGBOOST_USE_SYCL)
-  std::unique_ptr<Predictor> sycl_predictor_;
-#endif  // defined(XGBOOST_USE_SYCL)
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
+  mutable PredictionContainer prediction_cache_;
   common::Monitor monitor_;
 };
 

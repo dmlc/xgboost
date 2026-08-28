@@ -7,13 +7,10 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdlib>
 #include <cuda/std/utility>  // for swap
 #include <cuda/std/variant>  // for variant
 #include <limits>
-#include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -25,7 +22,6 @@
 #include "../../common/device_helpers.cuh"
 #include "../../common/math.h"
 #include "../../common/nvtx_utils.h"
-#include "../../common/optional_weight.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
 #include "../../data/cat_container.cuh"  // for EncPolicy, MakeCatAccessor
 #include "../../data/cat_container.h"    // for NoOpAccessor
@@ -369,12 +365,6 @@ XGBOOST_DEVICE inline float ExtractQuadratureInteractionDeltaLocal(float quad_no
   return alpha_partner * edge_delta_local / (1.0f + alpha_partner * quad_node);
 }
 
-template <typename Loader>
-struct IsSparsePageLoaderNoShared : std::false_type {};
-
-template <typename EncAccessor>
-struct IsSparsePageLoaderNoShared<SparsePageLoaderNoShared<EncAccessor>> : std::true_type {};
-
 // Encapsulate the tail-tile versus full-tile differences so the traversal code can focus on
 // probability updates instead of mask plumbing.
 template <bool kHasRowMask>
@@ -447,7 +437,7 @@ struct SubgroupOps {
 
 // Wrap the shared-memory layout in semantic accessors so the task runner talks in terms of path
 // state instead of raw multidimensional indexing.
-template <int DepthCap, bool kUseQPrevCache>
+template <int DepthCap>
 struct QuadratureSharedState {
   bst_node_t nodes[kGpuQuadratureWarpsPerBlock][DepthCap];
   std::uint8_t stages[kGpuQuadratureWarpsPerBlock][DepthCap];
@@ -457,8 +447,6 @@ struct QuadratureSharedState {
   // G_d(t): multiplicative basis carried down the path before the leaf value is applied.
   float basis[kGpuQuadratureWarpsPerBlock][kGpuQuadratureRowsPerWarp][DepthCap]
              [kGpuQuadraturePoints];
-  float q_prev_cache[kUseQPrevCache ? kGpuQuadratureWarpsPerBlock : 1]
-                    [kUseQPrevCache ? kGpuQuadratureRowsPerWarp : 1][kUseQPrevCache ? DepthCap : 1];
 
   [[nodiscard]] XGBOOST_DEV_INLINE bst_node_t& Node(int warp, int depth) {
     return nodes[warp][depth];
@@ -494,22 +482,6 @@ struct QuadratureSharedState {
 
   [[nodiscard]] XGBOOST_DEV_INLINE float& Basis(int warp, int row_slot, int depth, int point) {
     return basis[warp][row_slot][depth][point];
-  }
-
-  [[nodiscard]] XGBOOST_DEV_INLINE float LoadQPrev(int warp, int row_slot, int depth,
-                                                   std::uint8_t prev_same_offset_plus1) const {
-    if constexpr (kUseQPrevCache) {
-      return q_prev_cache[warp][row_slot][depth];
-    } else {
-      return PreviousPathProbability(prev_same_offset_plus1, depth,
-                                     this->PathProbabilityRow(warp, row_slot));
-    }
-  }
-
-  XGBOOST_DEV_INLINE void StoreQPrev(int warp, int row_slot, int depth, float q_prev) {
-    if constexpr (kUseQPrevCache) {
-      q_prev_cache[warp][row_slot][depth] = q_prev;
-    }
   }
 };
 
@@ -579,7 +551,8 @@ struct QuadratureShapTaskRunner {
     float q_prev = 1.0f;
     if (subgroup.is_leader && subgroup.RowActive()) {
       p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = shared.LoadQPrev(warp, subgroup.row_slot, parent_depth, node.prev_same_offset_plus1);
+      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
     }
     p_enter = subgroup.Broadcast(p_enter);
     q_prev = subgroup.Broadcast(q_prev);
@@ -672,7 +645,6 @@ struct QuadratureShapTaskRunner {
         q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
       }
-      shared.StoreQPrev(warp, subgroup.row_slot, depth, q_prev);
     }
     q_prev = subgroup.Broadcast(q_prev);
 
@@ -841,7 +813,8 @@ struct QuadratureShapInteractionTaskRunner {
     float q_prev = 1.0f;
     if (subgroup.is_leader && subgroup.RowActive()) {
       p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = shared.LoadQPrev(warp, subgroup.row_slot, parent_depth, node.prev_same_offset_plus1);
+      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
     }
     p_enter = subgroup.Broadcast(p_enter);
     q_prev = subgroup.Broadcast(q_prev);
@@ -935,7 +908,6 @@ struct QuadratureShapInteractionTaskRunner {
         q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
       }
-      shared.StoreQPrev(warp, subgroup.row_slot, depth, q_prev);
     }
     q_prev = subgroup.Broadcast(q_prev);
 
@@ -1011,8 +983,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap>;
 
   __shared__ SharedT shared;
 
@@ -1112,8 +1083,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap>;
 
   __shared__ SharedT shared;
 
@@ -1226,7 +1196,7 @@ void DispatchByBatchLoader(Context const* ctx, DMatrix* p_fmat, bst_feature_t n_
 template <typename Fn>
 void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView const& new_enc,
                 gbm::GBTreeModel const& model, Fn&& fn) {
-  auto n_features = model.learner_model_param->num_feature;
+  auto n_features = model.learner_model_state->num_feature;
   if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
     DispatchByBatchLoader(ctx, p_fmat, n_features, std::move(acc), fn);
@@ -1244,13 +1214,11 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   SetShapDevice(ctx);
   CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
-  CHECK(!p_fmat->Info().IsColumnSplit())
-      << "Predict contribution support for column-wise data split is not yet implemented.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1276,7 +1244,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
@@ -1294,13 +1262,11 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
-  CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
-                                            "column-wise data split is not yet implemented.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1327,7 +1293,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {

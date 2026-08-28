@@ -34,7 +34,7 @@ XGBoost's R language bindings had large breaking changes between versions 1.x an
 - Method ``predict``:
     - There are now two predict methods with different default arguments according to whether the model was produced through ``xgboost()`` or through ``xgb.train()``. Function ``xgboost()`` is more geared towards interactive usage, and thus the defaults for the 'predict' method on such objects (class "xgboost") by default will perform more data validations such as checking that column names match and reordering them otherwise. The 'predict' method for models created through ``xgb.train()`` (class "xgb.Booster") has the same defaults as before, so for example it will not reorder columns to match names under the default behavior.
     - The 'predict' method for objects of class "xgboost" (produced by ``xgboost()``, not by ``xgb.train()``) now can control the types of predictions to make through an argument ``type``, similarly as the 'predict' methods in the 'stats' module of base R - e.g. one can now do ``predict(model, type="class")``; while the 'predict' method for "xgb.Booster" objects (produced by ``xgb.train()``), just like before, controls those through separate arguments such as ``outputmargin``.
-    - Previously, predictions using a subset of the trees were using base-0 indexing and range syntax mimicing Python's ranges, whereas now they use base-1 indexing as is common in R, and their behavior for ranges matches that of R's ``seq`` function. Note that the syntax for "use all trees" and "use trees up to early-stopped criteria" have changed (see documentation for details).
+    - Previously, predictions using a subset of the trees were using base-0 indexing and range syntax mimicking Python's ranges, whereas now they use base-1 indexing as is common in R, and their behavior for ranges matches that of R's ``seq`` function. Note that the syntax for "use all trees" and "use trees up to early-stopped criteria" have changed (see documentation for details).
 
 - Booster objects:
     - The structure of these objects has been modified - now they are represented as a simple R "ALTLIST" (a special kind of 'list' object) with additional attributes.
@@ -42,13 +42,13 @@ XGBoost's R language bindings had large breaking changes between versions 1.x an
     - The objects distinguish between two types of attributes:
 
         - R-side attributes (which can be accessed and modified through R function ``attributes(model)`` and ``attributes(model)$field <- val``), which allow arbitrary objects. Many attributes are automatically added by the model building functions, such as evaluation logs (a ``data.table`` with metrics calculated per iteration), which previously were model fields.
-        - C-level attributes, which allow only JSON-compliant data and which can be accessed and set through function ``xgb.attributes(model)``. These C-level attributes are shareable through serialized models in different XGBoost interfaces, while the R-level ones are specific to the R interface. Some attributes that are standard among language bindings of XGBoost, such as the best interation, are kept as C attributes.
+        - C-level attributes, which allow only JSON-compliant data and which can be accessed and set through function ``xgb.attributes(model)``. These C-level attributes are shareable through serialized models in different XGBoost interfaces, while the R-level ones are specific to the R interface. Some attributes that are standard among language bindings of XGBoost, such as the best iteration, are kept as C attributes.
     - Previously, models that were just de-serialized from an on-disk format required calling method 'xgb.Booster.complete' on them to finish the full de-serialization process before being usable, or would otherwise call this method on their own automatically automatically at the first call to 'predict'. Serialization is now handled more gracefully, and there are no additional functions/methods involved - i.e. if one saves a model to disk with ``saveRDS()`` and then reads it back with ``readRDS()``, the model will be fully loaded straight away, without needing to call additional methods on it.
 
 Other recommendations
 ---------------------
 
-By default, XGBoost might recognize that some parameter has been removed or renamed from how it was in a previous version, and still accept the same function call as it used to do before with the renamed or removed arugments, but issuing a deprecation warning along the way that highlights the changes.
+By default, XGBoost might recognize that some parameter has been removed or renamed from how it was in a previous version, and still accept the same function call as it used to do before with the renamed or removed arguments, but issuing a deprecation warning along the way that highlights the changes.
 
 These behaviors will be removed in future versions, and function calls which currently return deprecation warnings will stop working in the future, so in order to make sure that code calling XGBoost will still keep working, it should be ensured that it doesn't issue deprecation warnings.
 
@@ -58,7 +58,7 @@ Optionally, these deprecation warnings can be turned into errors (while still ke
 
     options("xgboost.strict_mode" = TRUE)
 
-It can also be controlled through an environment variable `XGB_STRICT_MODE=1`, which takes precende over the R option - e.g.:
+It can also be controlled through an environment variable `XGB_STRICT_MODE=1`, which takes precedence over the R option - e.g.:
 
 .. code-block:: r
 

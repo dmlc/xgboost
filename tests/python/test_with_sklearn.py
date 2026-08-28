@@ -4,14 +4,14 @@ import pickle
 import re
 import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type
 
 import numpy as np
 import pytest
 import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
 from xgboost import testing as tm
-from xgboost.testing.data import get_california_housing
+from xgboost.testing.data import get_california_housing, make_ltr
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
@@ -45,6 +45,26 @@ def test_binary_classification():
                 1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
             ) / float(len(preds))
             assert err < 0.1
+
+
+def test_predict_proba_logitraw():
+    # Regression test for `binary:logitraw` producing an invalid first column in
+    # `predict_proba`, since the raw margin isn't a probability and can't be expanded
+    # into a 2-class matrix without first passing it through a sigmoid.
+    from scipy.special import expit
+
+    X = rng.standard_normal(size=(100, 4))
+    y = rng.randint(2, size=X.shape[0])
+
+    clf = xgb.XGBClassifier(objective="binary:logitraw", n_estimators=2)
+    clf.fit(X, y)
+
+    proba = clf.predict_proba(X)
+    assert np.all(proba >= 0.0) and np.all(proba <= 1.0)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, rtol=1e-5)
+
+    raw = clf.get_booster().inplace_predict(X)
+    np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
 
 
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
@@ -190,7 +210,7 @@ def test_ranking_categorical() -> None:
 def test_ranking_metric() -> None:
     from sklearn.metrics import roc_auc_score
 
-    X, y, qid, w = tm.make_ltr(512, 4, 3, 1)
+    X, y, qid, w = make_ltr(512, 4, 3, 1)
     # use auc for test as ndcg_score in sklearn works only on label gain instead of exp
     # gain.
     # note that the auc in sklearn is different from the one in XGBoost. The one in
@@ -409,6 +429,12 @@ def test_select_feature():
     selector = SelectFromModel(cls, prefit=True, max_features=1)
     X_selected = selector.transform(X)
     assert X_selected.shape[1] == 1
+
+
+@pytest.mark.parametrize("estimator", [xgb.XGBRFClassifier, xgb.XGBRFRegressor])
+def test_rf_deprecated(estimator: Type[xgb.XGBModel]) -> None:
+    with pytest.warns(FutureWarning, match="deprecated"):
+        estimator(n_estimators=2)
 
 
 def test_num_parallel_tree():
@@ -1192,10 +1218,6 @@ def test_feature_weights(tree_method):
     # number generator in std library.
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
-
-    reg = xgb.XGBRegressor(feature_weights=np.ones((kCols,)))
-    with pytest.raises(ValueError, match="Use the one in"):
-        reg.fit(X, y, feature_weights=np.ones((kCols,)))
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])

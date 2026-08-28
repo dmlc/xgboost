@@ -373,7 +373,7 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
             x,
             dtype=pd.CategoricalDtype(
                 # not NA
-                filter(lambda x: isinstance(x, str), keys)
+                [key for key in keys if isinstance(key, str)]
             ),
         )
         return series
@@ -503,7 +503,7 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
         if isinstance(df[c].dtype, pd.CategoricalDtype):
             y += df[c].cat.codes.astype(np.float64)
         else:
-            y += df[c].values
+            y += df[c].to_numpy()
 
     # Shift and scale to match the original y.
     y *= 79442.50288288662 / y.std()
@@ -808,6 +808,29 @@ def simulate_clicks(cv_data: RelDataCV) -> Tuple[ClickFold, Optional[ClickFold]]
             for i in range(len(X_lst))
         )
     return train, test
+
+
+def make_ltr(
+    n_samples: int,
+    n_features: int,
+    n_query_groups: int,
+    max_rel: int,
+    sort_qid: bool = True,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Make a dataset for testing LTR."""
+    rng = np.random.default_rng(1994)
+    X = rng.normal(0, 1.0, size=n_samples * n_features).reshape(n_samples, n_features)
+    y = np.sum(X, axis=1)
+    y -= y.min()
+    y = np.round(y / y.max() * max_rel).astype(np.int32)
+
+    qid = rng.integers(0, n_query_groups, size=n_samples, dtype=np.int32)
+    w = rng.normal(0, 1.0, size=n_query_groups)
+    w -= np.min(w)
+    w /= np.max(w)
+    if sort_qid:
+        qid = np.sort(qid)
+    return X, y, qid, w
 
 
 def sort_ltr_samples(

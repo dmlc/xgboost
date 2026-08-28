@@ -40,8 +40,7 @@ if ($variant -eq "gpu") {
   # Add CUDA-specific flags
   $cmake_args += @(
     "-DUSE_CUDA=ON",
-    "-DGOOGLE_TEST=ON",
-    "-DUSE_DMLC_GTEST=ON"
+    "-DGOOGLE_TEST=ON"
   )
 
   # Only build SM75 for non-release branches (faster CI)
@@ -69,10 +68,6 @@ cd ..
 if ($variant -eq "cpu") {
   conda activate
   python ops/script/pypi_variants.py --use-suffix=cpu --require-nccl-dep=na
-  if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-} else {
-  conda activate
-  python ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
 

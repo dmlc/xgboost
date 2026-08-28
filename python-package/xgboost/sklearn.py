@@ -23,10 +23,11 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    runtime_checkable,
 )
 
 import numpy as np
-from scipy.special import softmax
+from scipy.special import expit, softmax
 
 from ._c_api import _parse_version, _py_version
 from ._data_utils import Categories
@@ -55,9 +56,9 @@ from .compat import (
 from .config import config_context
 from .core import (
     Booster,
+    CustomObj,
     DMatrix,
     Metric,
-    PlainObj,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -71,6 +72,7 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
+from .objective import Objective
 from .training import train
 
 
@@ -81,6 +83,48 @@ class XGBRankerMixIn:
     """
 
     _estimator_type = "ranker"
+
+
+class XGBClassifierMixIn(XGBClassifierBase):
+    """Metadata shared by the single-node and Dask classifier estimators."""
+
+    n_classes_: int
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multilabel"] = True
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.classifier_tags.multi_label = tags_dict["multilabel"]
+        return tags
+
+    @property
+    def classes_(self) -> np.ndarray:
+        """Classes represented by this estimator."""
+        from sklearn.utils.validation import check_is_fitted
+
+        check_is_fitted(self, "n_classes_")
+        return np.arange(self.n_classes_)
+
+
+class XGBRegressorMixIn(XGBRegressorBase):
+    """Metadata shared by the single-node and Dask regressor estimators."""
+
+    def _more_tags(self) -> Dict[str, bool]:
+        tags = super()._more_tags()
+        tags["multioutput"] = True
+        tags["multioutput_only"] = False
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.target_tags.multi_output = tags_dict["multioutput"]
+        tags.target_tags.single_output = not tags_dict["multioutput_only"]
+        return tags
 
 
 def _check_rf_callback(
@@ -94,11 +138,26 @@ def _check_rf_callback(
         )
 
 
+def _warn_rf_deprecated(name: str) -> None:
+    """Emit the deprecation warning for the random forest estimators."""
+    warnings.warn(
+        f"`{name}` is deprecated and will be removed in a future release. The"
+        " estimator is a thin wrapper over the boosting interface and does not"
+        " implement a conventional random forest; features like early stopping are"
+        " unsupported. Set `num_parallel_tree` along with `n_estimators=1` on the"
+        " corresponding boosting estimator instead, or use a dedicated random forest"
+        " implementation like those in `sklearn.ensemble`.",
+        FutureWarning,
+        stacklevel=3,
+    )
+
+
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     not_sycl = (device is None) or (not device.startswith("sycl"))
     return tree_method in ("hist", None, "auto") and not_sycl
 
 
+@runtime_checkable
 class _SklObjWProto(Protocol):
     def __call__(
         self,
@@ -109,19 +168,18 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
+SklObjectiveCallable = Union[Objective, _SklObjWProto, _SklObjProto]
+SklObjective = Optional[Union[str, SklObjectiveCallable]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
-    """Decorate an objective function
-
-    Converts an objective function using the typical sklearn metrics
-    signature so that it is usable with ``xgboost.training.train``
+def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
+    """Decorate or forward a custom objective.
 
     Parameters
     ----------
     func:
-        Expects a callable with signature ``func(y_true, y_pred)``:
+        An :py:class:`Objective` instance or a callable with signature
+        ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
             The target values
@@ -133,15 +191,19 @@ def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
     Returns
     -------
     new_func:
-        The new objective function as expected by ``xgboost.training.train``.
-        The signature is ``new_func(preds, dmatrix)``:
+        The original :py:class:`Objective` or a function with the signature
+        ``new_func(preds, dmatrix)``:
 
         preds: array_like, shape [n_samples]
             The predicted values
         dmatrix: ``DMatrix``
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
+
     """
+
+    if isinstance(func, Objective):
+        return func
 
     parameters = signature(func).parameters
     supports_sw = "sample_weight" in parameters
@@ -264,7 +326,7 @@ __model_doc = f"""
     objective : {SklObjective}
 
         Specify the learning task and the corresponding learning objective or a custom
-        objective function to be used.
+        objective to be used.
 
         For custom objective, see :doc:`/tutorials/custom_metric_obj` and
         :ref:`custom-obj-metric` for more information, along with the end note for
@@ -937,6 +999,7 @@ class XGBModel(XGBModelBase):
         tags.input_tags.allow_nan = tags_dict["allow_nan"]
         tags.input_tags.sparse = tags_dict["sparse"]
         tags.input_tags.categorical = tags_dict["categorical"]
+        tags.input_tags.string = tags_dict["string"]
         return tags
 
     def __sklearn_tags__(self) -> _sklearn_Tags:
@@ -1128,8 +1191,9 @@ class XGBModel(XGBModelBase):
     def load_model(self, fname: ModelIn) -> None:
         # pylint: disable=attribute-defined-outside-init
         if not self.__sklearn_is_fitted__():
-            self._Booster = Booster({"n_jobs": self.n_jobs})
-        self.get_booster().load_model(fname)
+            self._Booster = Booster({"n_jobs": self.n_jobs}, model_file=fname)
+        else:
+            self.get_booster().load_model(fname)
 
         meta_str = self.get_booster().attr("scikit_learn")
         if meta_str is not None:
@@ -1174,32 +1238,16 @@ class XGBModel(XGBModelBase):
         self,
         booster: Optional[Union[Booster, "XGBModel", str]],
         params: Dict[str, Any],
-        feature_weights: Optional[ArrayLike],
     ) -> Tuple[
         Optional[Union[Booster, str, "XGBModel"]],
         Optional[Metric],
         Dict[str, Any],
-        Optional[ArrayLike],
     ]:
         """Configure parameters for :py:meth:`fit`."""
         if isinstance(booster, XGBModel):
             model: Optional[Union[Booster, str]] = booster.get_booster()
         else:
             model = booster
-
-        def _deprecated(parameter: str) -> None:
-            warnings.warn(
-                f"`{parameter}` in `fit` method is deprecated for better compatibility "
-                f"with scikit-learn, use `{parameter}` in constructor or`set_params` "
-                "instead.",
-                UserWarning,
-            )
-
-        def _duplicated(parameter: str) -> None:
-            raise ValueError(
-                f"2 different `{parameter}` are provided.  Use the one in constructor "
-                "or `set_params` instead."
-            )
 
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
@@ -1240,16 +1288,7 @@ class XGBModel(XGBModelBase):
                 if builtin_metrics:
                     params.update({"eval_metric": builtin_metrics})
 
-        if feature_weights is not None:
-            _deprecated("feature_weights")
-        if feature_weights is not None and self.feature_weights is not None:
-            _duplicated("feature_weights")
-        feature_weights = (
-            self.feature_weights
-            if self.feature_weights is not None
-            else feature_weights
-        )
-        return model, metric, params, feature_weights
+        return model, metric, params
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
         # Use `QuantileDMatrix` to save memory.
@@ -1279,7 +1318,6 @@ class XGBModel(XGBModelBase):
         xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
-        feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBModel":
         # pylint: disable=attribute-defined-outside-init
         """Fit gradient boosting model.
@@ -1325,19 +1363,11 @@ class XGBModel(XGBModelBase):
         base_margin_eval_set :
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-        feature_weights :
-
-            .. deprecated:: 3.0.0
-
-            Use `feature_weights` in :py:meth:`__init__` or :py:meth:`set_params`
-            instead.
 
         """
         with config_context(verbosity=self.verbosity):
             params = self.get_xgb_params()
-            model, metric, params, feature_weights = self._configure_fit(
-                xgb_model, params, feature_weights
-            )
+            model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
@@ -1349,7 +1379,7 @@ class XGBModel(XGBModelBase):
                 qid=None,
                 sample_weight=sample_weight,
                 base_margin=base_margin,
-                feature_weights=feature_weights,
+                feature_weights=self.feature_weights,
                 eval_set=eval_set,
                 sample_weight_eval_set=sample_weight_eval_set,
                 base_margin_eval_set=base_margin_eval_set,
@@ -1361,7 +1391,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1695,7 +1725,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBClassifierBase, XGBModel):
+class XGBClassifier(XGBClassifierMixIn, XGBModel):
     # pylint: disable=missing-docstring,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1705,17 +1735,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         **kwargs: Any,
     ) -> None:
         super().__init__(objective=objective, **kwargs)
-
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multilabel"] = True
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.classifier_tags.multi_label = tags_dict["multilabel"]
-        return tags
 
     @_deprecate_positional_args
     def fit(
@@ -1730,7 +1749,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
-        feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
         with config_context(verbosity=self.verbosity):
@@ -1767,7 +1785,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+                obj: Optional[CustomObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:
@@ -1779,9 +1797,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
                     params["objective"] = "multi:softprob"
                 params["num_class"] = self.n_classes_
 
-            model, metric, params, feature_weights = self._configure_fit(
-                xgb_model, params, feature_weights
-            )
+            model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
@@ -1793,7 +1809,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
                 qid=None,
                 sample_weight=sample_weight,
                 base_margin=base_margin,
-                feature_weights=feature_weights,
+                feature_weights=self.feature_weights,
                 eval_set=eval_set,
                 sample_weight_eval_set=sample_weight_eval_set,
                 base_margin_eval_set=base_margin_eval_set,
@@ -1908,7 +1924,8 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         # softprob:        Do nothing, output is proba.
         # softmax:         Use softmax from scipy
         # binary:logistic: Expand the prob vector into 2-class matrix after predict.
-        # binary:logitraw: Unsupported by predict_proba()
+        # binary:logitraw: Apply the sigmoid to the raw margin, then expand the same
+        #                  way as binary:logistic.
         if self.objective == "multi:softmax":
             raw_predt = super().predict(
                 X=X,
@@ -1925,15 +1942,23 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
+        if self.objective == "binary:logitraw":
+            # `binary:logitraw` outputs the raw margin instead of a probability, so it
+            # needs to be transformed into a probability before it can be expanded into
+            # a 2-class matrix.
+            class_probs = expit(class_probs)
         return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
-
-    @property
-    def classes_(self) -> np.ndarray:
-        return np.arange(self.n_classes_)
 
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest classification.",
+    """scikit-learn API for XGBoost random forest classification.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -1952,6 +1977,7 @@ class XGBRFClassifier(XGBClassifier):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ):
+        _warn_rf_deprecated("XGBRFClassifier")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -1983,7 +2009,6 @@ class XGBRFClassifier(XGBClassifier):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
-        feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBRFClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
@@ -1995,7 +2020,7 @@ class XGBRFClassifier(XGBClassifier):
     "Implementation of the scikit-learn API for XGBoost regression.",
     ["estimators", "model", "objective"],
 )
-class XGBRegressor(XGBRegressorBase, XGBModel):
+class XGBRegressor(XGBRegressorMixIn, XGBModel):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -2003,22 +2028,16 @@ class XGBRegressor(XGBRegressorBase, XGBModel):
     ) -> None:
         super().__init__(objective=objective, **kwargs)
 
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multioutput"] = True
-        tags["multioutput_only"] = False
-        return tags
-
-    def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = super().__sklearn_tags__()
-        tags_dict = self._more_tags()
-        tags.target_tags.multi_output = tags_dict["multioutput"]
-        tags.target_tags.single_output = not tags_dict["multioutput_only"]
-        return tags
-
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest regression.",
+    """scikit-learn API for XGBoost random forest regression.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -2037,6 +2056,7 @@ class XGBRFRegressor(XGBRegressor):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ) -> None:
+        _warn_rf_deprecated("XGBRFRegressor")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -2068,7 +2088,6 @@ class XGBRFRegressor(XGBRegressor):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
-        feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBRFRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
@@ -2180,7 +2199,6 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
-        feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
@@ -2272,18 +2290,12 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
         base_margin_eval_set :
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-        feature_weights :
-            Weight for each feature, defines the probability of each feature being
-            selected when colsample is being used.  All values must be greater than 0,
-            otherwise a `ValueError` is thrown.
 
         """
         with config_context(verbosity=self.verbosity):
             params = self.get_xgb_params()
 
-            model, metric, params, feature_weights = self._configure_fit(
-                xgb_model, params, feature_weights
-            )
+            model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
@@ -2295,7 +2307,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
                 qid=qid,
                 sample_weight=sample_weight,
                 base_margin=base_margin,
-                feature_weights=feature_weights,
+                feature_weights=self.feature_weights,
                 eval_set=eval_set,
                 sample_weight_eval_set=sample_weight_eval_set,
                 base_margin_eval_set=base_margin_eval_set,
@@ -2371,6 +2383,10 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
 
         """
         X, qid = _get_qid(X, None)
+        if qid is None:
+            raise ValueError(
+                "The special column `qid` is required in `X` for ranking task."
+            )
         # fixme(jiamingy): base margin and group weight is not yet supported. We might
         # need to make extra special fields in the dataframe.
         Xyq = DMatrix(
