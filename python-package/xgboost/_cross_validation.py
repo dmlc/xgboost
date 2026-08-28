@@ -19,6 +19,7 @@ _LIB.XGBCvFoldModelsCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldModelsCreate.argtypes = [
     ctypes.c_size_t,
     ctypes.c_void_p,
+    ctypes.c_int,
     ctypes.POINTER(ctypes.c_void_p),
 ]
 
@@ -71,6 +72,14 @@ _LIB.XGBCvFoldPredictionsGetValid.argtypes = [
     ctypes.POINTER(ctypes.c_size_t),
 ]
 
+_LIB.XGBCvFoldPredictionsGetRefit.restype = ctypes.c_int
+_LIB.XGBCvFoldPredictionsGetRefit.argtypes = [
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),
+    ctypes.POINTER(ctypes.c_size_t),
+    ctypes.POINTER(ctypes.c_size_t),
+]
+
 _LIB.XGBCvFoldPredictionsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldPredictionsFree.argtypes = [ctypes.c_void_p]
 
@@ -81,6 +90,14 @@ _LIB.XGBCvFoldGpairsGet.restype = ctypes.c_int
 _LIB.XGBCvFoldGpairsGet.argtypes = [
     ctypes.c_void_p,
     ctypes.c_size_t,
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_size_t)),
+    ctypes.POINTER(ctypes.c_size_t),
+]
+
+_LIB.XGBCvFoldGpairsGetRefit.restype = ctypes.c_int
+_LIB.XGBCvFoldGpairsGetRefit.argtypes = [
+    ctypes.c_void_p,
     ctypes.POINTER(ctypes.POINTER(ctypes.c_float)),
     ctypes.POINTER(ctypes.POINTER(ctypes.c_size_t)),
     ctypes.POINTER(ctypes.c_size_t),
@@ -122,9 +139,24 @@ _LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
 
 
 class FoldModels:
-    """Result of training cross validation."""
+    """Result of training cross validation.
 
-    def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
+    Parameters
+    ----------
+    data :
+        The full dataset.
+    k_folds :
+        Number of cross-validation folds.
+    refit :
+        Also train a model on the full dataset, inside the same page loop as the fold
+        models. Useful when the hyperparameters are fixed and cross-validation only
+        selects the number of boosting rounds.
+
+    """
+
+    def __init__(
+        self, data: ExtMemQuantileDMatrix, k_folds: int, refit: bool = False
+    ) -> None:
         if not isinstance(data, ExtMemQuantileDMatrix):
             raise TypeError(
                 "`data` must be an ExtMemQuantileDMatrix for fused cross-validation."
@@ -137,14 +169,18 @@ class FoldModels:
         hdl = ctypes.c_void_p()
         _check_call(
             _LIB.XGBCvFoldModelsCreate(
-                ctypes.c_size_t(k_folds), data.handle, ctypes.byref(hdl)
+                ctypes.c_size_t(k_folds),
+                data.handle,
+                ctypes.c_int(int(refit)),
+                ctypes.byref(hdl),
             )
         )
         self.handle = hdl
         self.k_folds = k_folds
+        self.refit = bool(refit)
 
     def num_boosted_rounds(self) -> int:
-        """Number of boosted rounds shared by the fold models."""
+        """Number of boosted rounds shared by all the models, folds and refit alike."""
         rounds = ctypes.c_int()
         _check_call(
             _LIB.XGBCvFoldModelsBoostedRounds(self.handle, ctypes.byref(rounds))
@@ -152,10 +188,12 @@ class FoldModels:
         return rounds.value
 
     def save_raw(self, raw_format: str = "ubj") -> bytearray:
-        """Save every fold model to an in memory buffer representation.
+        """Save every model to an in memory buffer representation.
 
         The buffer holds one entry per fold under a ``cv_folds`` array, each in the same
-        format :py:meth:`Booster.save_raw` produces for a single model.
+        format :py:meth:`Booster.save_raw` produces for a single model. The full-data
+        model is not a fold, so it is stored under a ``refit`` key next to the array. The
+        key is absent when the run has no refit model.
 
         Parameters
         ----------
@@ -164,7 +202,7 @@ class FoldModels:
 
         Returns
         -------
-        An in memory buffer representation of the fold models
+        An in memory buffer representation of the models
 
         """
         length = ctypes.c_uint64()
@@ -343,7 +381,7 @@ class FoldPredictions:
         """Retrieve the training prediction cache of the k^th fold.
 
         The result is indexed by the global row index, the rows held out by the fold are
-        unused padding.
+        unused padding. Use :py:meth:`get_refit` for the full-data model.
 
         """
         data = ctypes.POINTER(ctypes.c_float)()
@@ -375,6 +413,26 @@ class FoldPredictions:
         )
         return self._as_array(data, n_rows, n_columns, copy)
 
+    def get_refit(self, copy: bool = True) -> cp.ndarray:
+        """Retrieve the training prediction cache of the full-data model.
+
+        Unlike a fold's cache, every row of this one is used: the full-data model holds
+        nothing out. Requires a run created with ``refit=True``.
+
+        """
+        data = ctypes.POINTER(ctypes.c_float)()
+        n_rows = ctypes.c_size_t()
+        n_columns = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldPredictionsGetRefit(
+                self.handle,
+                ctypes.byref(data),
+                ctypes.byref(n_rows),
+                ctypes.byref(n_columns),
+            )
+        )
+        return self._as_array(data, n_rows, n_columns, copy)
+
 
 class FoldGpairs:
     """Gradient from objective functions."""
@@ -391,23 +449,16 @@ class FoldGpairs:
             _check_call(_LIB.XGBCvFoldGpairsFree(hdl))
 
     # pylint: disable=too-many-locals
-    def get(self, k: int, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
-        """Retrieve the gradient for the k^th fold."""
+    def _as_arrays(
+        self,
+        data: ctypes._Pointer,
+        shape: ctypes._Pointer,
+        n_dims: ctypes.c_size_t,
+        copy: bool,
+    ) -> tuple[cp.ndarray, cp.ndarray]:
+        """Split an interleaved gradient-hessian buffer into two strided views."""
 
         import cupy as cp
-
-        data = ctypes.POINTER(ctypes.c_float)()
-        shape = ctypes.POINTER(ctypes.c_size_t)()
-        n_dims = ctypes.c_size_t()
-        _check_call(
-            _LIB.XGBCvFoldGpairsGet(
-                self.handle,
-                ctypes.c_size_t(k),
-                ctypes.byref(data),
-                ctypes.byref(shape),
-                ctypes.byref(n_dims),
-            )
-        )
 
         array_shape = tuple(int(shape[i]) for i in range(n_dims.value))
         n_elems = int(np.prod(array_shape))
@@ -442,3 +493,44 @@ class FoldGpairs:
         if copy:
             grad, hess = grad.copy(), hess.copy()
         return grad, hess
+
+    def get(self, k: int, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
+        """Retrieve the gradient for the k^th fold.
+
+        The rows held out by the fold are zeroed. Use :py:meth:`get_refit` for the
+        full-data model.
+
+        """
+        data = ctypes.POINTER(ctypes.c_float)()
+        shape = ctypes.POINTER(ctypes.c_size_t)()
+        n_dims = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldGpairsGet(
+                self.handle,
+                ctypes.c_size_t(k),
+                ctypes.byref(data),
+                ctypes.byref(shape),
+                ctypes.byref(n_dims),
+            )
+        )
+        return self._as_arrays(data, shape, n_dims, copy)
+
+    def get_refit(self, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
+        """Retrieve the gradient of the full-data model.
+
+        Defined for every row, since the full-data model holds nothing out. Requires a run
+        created with ``refit=True``.
+
+        """
+        data = ctypes.POINTER(ctypes.c_float)()
+        shape = ctypes.POINTER(ctypes.c_size_t)()
+        n_dims = ctypes.c_size_t()
+        _check_call(
+            _LIB.XGBCvFoldGpairsGetRefit(
+                self.handle,
+                ctypes.byref(data),
+                ctypes.byref(shape),
+                ctypes.byref(n_dims),
+            )
+        )
+        return self._as_arrays(data, shape, n_dims, copy)

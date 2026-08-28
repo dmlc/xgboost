@@ -92,22 +92,30 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
 
   auto k_folds = finfo.KFolds();
   CHECK_EQ(this->KFolds(), k_folds);
-  CHECK_EQ(predts.KFolds(), k_folds);
+  CheckLayout(this->Layout(), predts.layout, "prediction caches");
 
+  auto n_units = this->NumUnits();
   auto& gpairs = out->gpairs;
-  if (gpairs.empty()) {
-    gpairs.resize(k_folds);
-  }
-  CHECK_EQ(gpairs.size(), k_folds);
+  out->layout = this->Layout();
+  gpairs.resize(n_units);
 
   // The gradient is indexed by the global row index. Zero out the buffer first, the
   // validation rows of a fold are never written to and must not contribute to its
   // histograms.
-  for (std::size_t k = 0; k < k_folds; ++k) {
-    auto& fold_gpair = gpairs.at(k);
-    fold_gpair.SetDevice(ctx->Device());
-    fold_gpair.Reshape(info.num_row_, this->OutputLength(k));
-    fold_gpair.Data()->Fill(GradientPair{});
+  for (std::size_t u = 0; u < n_units; ++u) {
+    auto& unit_gpair = gpairs.at(u);
+    unit_gpair.SetDevice(ctx->Device());
+    unit_gpair.Reshape(info.num_row_, this->OutputLength(u));
+    unit_gpair.Data()->Fill(GradientPair{});
+  }
+
+  if (this->HasRefit()) {
+    // The refit unit trains on every row, so the global prediction cache and the unsliced
+    // info are already what the objective expects: no gather, slice, or scatter.
+    auto u = this->RefitIdx();
+    auto const& predt = predts.Prediction(u);
+    CHECK_EQ(predt.Size(), info.num_row_ * this->OutputLength(u));
+    this->Objective(u)->GetGradient(predt, info, iter, &gpairs.at(u));
   }
 
   for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
@@ -159,13 +167,14 @@ class FoldTreeMethod {
   std::vector<bst_idx_t> batch_ptr_;
   common::Span<FeatureType const> feature_types_;
 
-  // Per-fold state.
+  // Per-unit state, indexed the same way as the fold models.
   std::vector<std::unique_ptr<tree::DeviceHistogramBuilder>> histogram_;
   std::vector<std::unique_ptr<tree::GradientQuantiserGroup>> quantizers_;
   std::vector<linalg::Matrix<GradientPairInt64>> quantized_gpairs_;
   std::vector<std::unique_ptr<tree::cuda_impl::MultiHistEvaluator>> evaluators_;
   std::vector<tree::RowPartitionerBatches> partitioners_;
   dh::DeviceUVector<bst_node_t> oof_position_;
+  UnitLayout layout_;
 
   // Fusion guard. The number of passes over the Ellpack pages must not depend on the number
   // of folds. Both are reset at the top of Update.
@@ -187,22 +196,22 @@ class FoldTreeMethod {
         << "Categorical features are not yet supported by the CV tree method.";
   }
 
-  void BuildHist(EllpackPage const& page, std::int32_t batch_idx, std::size_t k,
+  void BuildHist(EllpackPage const& page, std::int32_t batch_idx, std::size_t u,
                  std::vector<bst_node_t> const& build_nodes) {
-    auto d_gpair = this->quantized_gpairs_.at(k).View(this->ctx_->Device());
+    auto d_gpair = this->quantized_gpairs_.at(u).View(this->ctx_->Device());
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
 
     std::vector<common::Span<tree::cuda_impl::RowIndexT const>> h_ridxs;
     std::vector<common::Span<GradientPairInt64>> h_hists;
     std::vector<std::size_t> h_sizes_csum{0};
     for (auto nidx : build_nodes) {
-      auto d_ridx = this->partitioners_.at(k).At(batch_idx)->GetRows(nidx);
+      auto d_ridx = this->partitioners_.at(u).At(batch_idx)->GetRows(nidx);
       if (d_ridx.empty()) {
         // A fold can have no training rows for a node in this batch.
         continue;
       }
       h_ridxs.push_back(d_ridx);
-      h_hists.push_back(this->histogram_.at(k)->GetNodeHistogram(nidx));
+      h_hists.push_back(this->histogram_.at(u)->GetNodeHistogram(nidx));
       h_sizes_csum.push_back(d_ridx.size() + h_sizes_csum.back());
     }
     if (h_ridxs.empty()) {
@@ -211,14 +220,14 @@ class FoldTreeMethod {
 
     dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
     dh::device_vector<common::Span<tree::cuda_impl::RowIndexT const>> ridxs{h_ridxs};
-    this->histogram_.at(k)->BuildHistogram(
+    this->histogram_.at(u)->BuildHistogram(
         this->ctx_, acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()), d_gpair,
         dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum);
   }
 
-  [[nodiscard]] auto MakeSharedInputs(std::size_t k, bst_feature_t max_active_feature) const {
+  [[nodiscard]] auto MakeSharedInputs(std::size_t u, bst_feature_t max_active_feature) const {
     std::size_t constexpr kCatStorageSize = 0;  // FIXME(jiamingy): Support categorical features.
-    return tree::MultiEvaluateSplitSharedInputs{this->quantizers_.at(k)->DeviceSpan(),
+    return tree::MultiEvaluateSplitSharedInputs{this->quantizers_.at(u)->DeviceSpan(),
                                                 this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                                 this->cuts_->cut_values_.ConstDevicePointer(),
                                                 this->feature_types_,
@@ -261,120 +270,117 @@ class FoldTreeMethod {
     CHECK(!collective::IsDistributed())
         << "Distributed training is not supported by the CV tree method.";
     CHECK(!finfo.Empty());
-    CHECK_EQ(finfo.KFolds(), gpairs.KFolds());
     CHECK(cuts_);
     // The page loops index the partitioners by the page counter, and the prediction cache
     // indexes `batch_ptr_` the same way.
     CHECK_EQ(p_fmat->NumBatches(), finfo.Size());
     CHECK_EQ(this->batch_ptr_.size(), finfo.Size() + 1);
 
+    this->layout_ = gpairs.layout;
+    // The guards that keep the refit unit out of the out-of-fold path rely on this: a unit
+    // index that is not the refit unit must be a valid index into the fold info.
+    CHECK_EQ(finfo.KFolds(), this->layout_.k_folds);
+
     auto const& info = p_fmat->Info();
     info.feature_types.SetDevice(ctx_->Device());
     this->feature_types_ = info.feature_types.ConstDeviceSpan();
-    // Once per round, not per fold. GetFeatureSet returns the tree-level feature set
+    // Once per round, not per unit. GetFeatureSet returns the tree-level feature set
     // unconditionally when colsample is disabled, and that is null until Init runs.
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
 
-    auto k_folds = finfo.KFolds();
-    if (this->histogram_.empty()) {
-      this->histogram_.resize(k_folds);
-    }
-    if (this->quantizers_.empty()) {
-      this->quantizers_.resize(k_folds);
-    }
-    if (this->quantized_gpairs_.empty()) {
-      this->quantized_gpairs_.resize(k_folds);
-    }
-    if (this->evaluators_.empty()) {
-      this->evaluators_.resize(k_folds);
-    }
-    if (this->partitioners_.empty()) {
-      this->partitioners_.resize(k_folds);
-    }
-    CHECK_EQ(this->histogram_.size(), k_folds);
-    CHECK_EQ(this->quantizers_.size(), k_folds);
-    CHECK_EQ(this->quantized_gpairs_.size(), k_folds);
-    CHECK_EQ(this->evaluators_.size(), k_folds);
-    CHECK_EQ(this->partitioners_.size(), k_folds);
+    // Resizing keeps the caches of the units that already exist, which is the common case
+    // across boosting rounds.
+    auto n_units = this->layout_.NumUnits();
+    this->histogram_.resize(n_units);
+    this->quantizers_.resize(n_units);
+    this->quantized_gpairs_.resize(n_units);
+    this->evaluators_.resize(n_units);
+    this->partitioners_.resize(n_units);
 
     this->oof_position_.resize(p_fmat->Info().num_row_);
     thrust::fill_n(ctx_->CUDACtx()->CTP(), this->oof_position_.begin(), this->oof_position_.size(),
                    RegTree::kRoot);
 
     bst_target_t n_split_targets{0};
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      auto const& fold_gpair = gpairs.gpairs.at(k);
-      CHECK_EQ(p_fmat->Info().num_row_, fold_gpair.Shape(0));
-      auto n_train = finfo.FoldSize(k);
-      CHECK_GT(n_train, 0) << "Empty training folds are not supported.";
-      CHECK_GT(fold_gpair.Shape(1), 0);
+    for (std::size_t u = 0; u < n_units; ++u) {
+      auto const& unit_gpair = gpairs.gpairs.at(u);
+      CHECK_EQ(p_fmat->Info().num_row_, unit_gpair.Shape(0));
+      auto n_train = this->layout_.IsRefit(u) ? info.num_row_ : finfo.FoldSize(u);
+      CHECK_GT(n_train, 0) << "Every CV model must have at least one training row. `k_folds` must "
+                              "be at least 2, a single fold holds out all of its rows.";
+      CHECK_GT(unit_gpair.Shape(1), 0);
 
-      auto in_gpair = fold_gpair.View(ctx_->Device());
+      auto in_gpair = unit_gpair.View(ctx_->Device());
       CHECK(in_gpair.CContiguous());
-      if (k == 0) {
+      if (u == 0) {
         n_split_targets = in_gpair.Shape(1);
       }
       CHECK_EQ(n_split_targets, in_gpair.Shape(1));
 
-      // Only the training rows of the fold are accumulated, the rest of the buffer is zero.
-      this->quantizers_[k] =
+      // Only the training rows of the unit are accumulated, the rest of the buffer is zero.
+      this->quantizers_[u] =
           std::make_unique<tree::GradientQuantiserGroup>(ctx_, in_gpair, n_train);
-      tree::CalcQuantizedGpairs(ctx_, in_gpair, this->quantizers_[k]->DeviceSpan(),
-                                &this->quantized_gpairs_[k]);
+      tree::CalcQuantizedGpairs(ctx_, in_gpair, this->quantizers_[u]->DeviceSpan(),
+                                &this->quantized_gpairs_[u]);
 
       auto n_total_bins = static_cast<bst_idx_t>(this->cuts_->TotalBins()) * n_split_targets;
       CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
           << "Too many histogram bins: n_total_bins = total_bins * n_targets";
       bool force_global = false;
-      if (!this->histogram_[k]) {
-        this->histogram_[k] = std::make_unique<tree::DeviceHistogramBuilder>();
+      if (!this->histogram_[u]) {
+        this->histogram_[u] = std::make_unique<tree::DeviceHistogramBuilder>();
       }
-      this->histogram_[k]->Reset(ctx_, this->hist_param_.MaxCachedHistNodes(ctx_->Device()),
+      this->histogram_[u]->Reset(ctx_, this->hist_param_.MaxCachedHistNodes(ctx_->Device()),
                                  n_total_bins, force_global);
 
-      // The partitioner holds only the training rows of this fold, so the histograms and the
-      // final leaf positions never see a row held out by the fold.
-      std::vector<common::Span<bst_idx_t const>> fold_ridxs;
-      for (auto const& batch : finfo.batches) {
-        fold_ridxs.emplace_back(batch.TrainingFold(k));
+      // A fold's partitioner holds only the training rows of that fold, so the histograms
+      // and the final leaf positions never see a row held out by the fold. The refit unit
+      // owns every row, which the batch pointer describes without an index array.
+      if (this->layout_.IsRefit(u)) {
+        this->partitioners_[u].Reset(ctx_, this->batch_ptr_);
+      } else {
+        std::vector<common::Span<bst_idx_t const>> fold_ridxs;
+        for (auto const& batch : finfo.batches) {
+          fold_ridxs.emplace_back(batch.TrainingFold(u));
+        }
+        this->partitioners_[u].Reset(ctx_, fold_ridxs);
       }
-      this->partitioners_[k].Reset(ctx_, fold_ridxs);
 
-      if (!this->evaluators_[k]) {
-        this->evaluators_[k] = std::make_unique<tree::cuda_impl::MultiHistEvaluator>();
+      if (!this->evaluators_[u]) {
+        this->evaluators_[u] = std::make_unique<tree::cuda_impl::MultiHistEvaluator>();
       }
-      this->evaluators_[k]->Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(),
+      this->evaluators_[u]->Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                   this->feature_types_, this->param_, n_split_targets);
     }
   }
 
-  // Build the root histogram of every fold and evaluate its split. Returns one expand entry
-  // per fold, to be pushed into that fold's driver.
+  // Build the root histogram of every unit and evaluate its split. Returns one expand entry
+  // per unit, to be pushed into that unit's driver.
   [[nodiscard]] std::vector<MultiExpandEntry> InitRoot(DMatrix* p_fmat,
                                                        std::vector<RegTree*> const& trees) {
-    auto k_folds = trees.size();
-    CHECK_GT(k_folds, 0);
-    CHECK_EQ(this->quantized_gpairs_.size(), k_folds);
+    auto n_units = trees.size();
+    CHECK_GT(n_units, 0);
+    CHECK_EQ(this->quantized_gpairs_.size(), n_units);
 
     auto n_targets = this->quantized_gpairs_.front().Shape(1);
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      CHECK(trees.at(k));
-      CHECK_EQ(trees[k]->NumTargets(), n_targets);
-      auto d_gpair = this->quantized_gpairs_.at(k).View(ctx_->Device());
+    for (std::size_t u = 0; u < n_units; ++u) {
+      CHECK(trees.at(u));
+      CHECK_EQ(trees[u]->NumTargets(), n_targets);
+      auto d_gpair = this->quantized_gpairs_.at(u).View(ctx_->Device());
       CHECK_EQ(d_gpair.Shape(1), n_targets);
 
-      this->evaluators_[k]->AllocNodeSum(RegTree::kRoot, n_targets);
+      this->evaluators_[u]->AllocNodeSum(RegTree::kRoot, n_targets);
       tree::cuda_impl::CalcRootSum(ctx_, d_gpair,
-                                   this->evaluators_[k]->GetNodeSum(RegTree::kRoot, n_targets));
-      this->histogram_[k]->AllocateHistograms(ctx_, {RegTree::kRoot});
+                                   this->evaluators_[u]->GetNodeSum(RegTree::kRoot, n_targets));
+      this->histogram_[u]->AllocateHistograms(ctx_, {RegTree::kRoot});
     }
 
-    // Fused: every fold consumes the page before it is dropped.
+    // Fused: every unit consumes the page before it is dropped.
     std::int32_t batch_idx = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      for (std::size_t k = 0; k < k_folds; ++k) {
-        this->BuildHist(page, batch_idx, k, {RegTree::kRoot});
+      for (std::size_t u = 0; u < n_units; ++u) {
+        this->BuildHist(page, batch_idx, u, {RegTree::kRoot});
       }
       ++batch_idx;
     }
@@ -385,28 +391,28 @@ class FoldTreeMethod {
     sampled_features->SetDevice(ctx_->Device());
     auto feature_set = sampled_features->ConstDeviceSpan();
 
-    auto root_weights = linalg::Empty<float>(ctx_, k_folds, n_targets);
+    auto root_weights = linalg::Empty<float>(ctx_, n_units, n_targets);
     auto d_root_weights = root_weights.View(ctx_->Device());
     auto eta = this->param_.learning_rate;
 
-    std::vector<MultiExpandEntry> entries(k_folds);
-    for (std::size_t k = 0; k < k_folds; ++k) {
+    std::vector<MultiExpandEntry> entries(n_units);
+    for (std::size_t u = 0; u < n_units; ++u) {
       // No histogram or root sum reduction: `Reset` rejects distributed training.
       tree::MultiEvaluateSplitInputs input{
-          RegTree::kRoot, 0, this->evaluators_[k]->GetNodeSum(RegTree::kRoot, n_targets),
-          feature_set, this->histogram_[k]->GetNodeHistogram(RegTree::kRoot)};
+          RegTree::kRoot, 0, this->evaluators_[u]->GetNodeSum(RegTree::kRoot, n_targets),
+          feature_set, this->histogram_[u]->GetNodeHistogram(RegTree::kRoot)};
       auto shared_inputs =
-          this->MakeSharedInputs(k, static_cast<bst_feature_t>(feature_set.size()));
-      entries[k] = this->evaluators_[k]->EvaluateSingleSplit(ctx_, input, shared_inputs);
+          this->MakeSharedInputs(u, static_cast<bst_feature_t>(feature_set.size()));
+      entries[u] = this->evaluators_[u]->EvaluateSingleSplit(ctx_, input, shared_inputs);
 
       // The weight is owned by the evaluator, ApplySplit reads it back by node id.
-      auto base_weight = this->evaluators_[k]->GetNodeWeights(n_targets).Base(RegTree::kRoot);
+      auto base_weight = this->evaluators_[u]->GetNodeWeights(n_targets).Base(RegTree::kRoot);
       dh::LaunchN(n_targets, ctx_->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) mutable {
-        d_root_weights(k, t) = base_weight[t] * eta;
+        d_root_weights(u, t) = base_weight[t] * eta;
       });
       // The root's coverage is the sum of the hessians of both children.
-      auto root_sum_hess = static_cast<float>(entries[k].left_sum + entries[k].right_sum);
-      trees[k]->SetRoot(d_root_weights.Slice(k, linalg::All()), root_sum_hess);
+      auto root_sum_hess = static_cast<float>(entries[u].left_sum + entries[u].right_sum);
+      trees[u]->SetRoot(d_root_weights.Slice(u, linalg::All()), root_sum_hess);
     }
 
     return entries;
@@ -419,9 +425,9 @@ class FoldTreeMethod {
     }
     CHECK_EQ(nodes.size(), this->partitioners_.size());
     bst_idx_t n_visits = 0;
-    for (std::size_t k = 0; k < nodes.size(); ++k) {
-      for (auto const& part : this->partitioners_[k]) {
-        for (auto nidx : nodes[k].nidx) {
+    for (std::size_t u = 0; u < nodes.size(); ++u) {
+      for (auto const& part : this->partitioners_[u]) {
+        for (auto nidx : nodes[u].nidx) {
           n_visits += part->GetRows(nidx).size();
         }
       }
@@ -434,8 +440,8 @@ class FoldTreeMethod {
                              std::vector<RegTree*> const& trees) {
     CHECK_EQ(expand_sets.size(), trees.size());
     std::vector<PartitionNodes> nodes;
-    for (std::size_t k = 0, k_folds = trees.size(); k < k_folds; ++k) {
-      nodes.emplace_back(HistMaker::CreatePartitionNodes(trees[k], expand_sets[k]));
+    for (std::size_t u = 0, n_units = trees.size(); u < n_units; ++u) {
+      nodes.emplace_back(HistMaker::CreatePartitionNodes(trees[u], expand_sets[u]));
     }
 
     std::int32_t batch_idx = 0;
@@ -443,18 +449,22 @@ class FoldTreeMethod {
          p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(this->NeedCopy(p_fmat, nodes)))) {
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_acc) {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
-        for (std::size_t k = 0, k_folds = trees.size(); k < k_folds; ++k) {
-          if (expand_sets[k].empty()) {
+        for (std::size_t u = 0, n_units = trees.size(); u < n_units; ++u) {
+          if (expand_sets[u].empty()) {
             continue;
           }
-          auto tree = tree::MultiTargetTreeView{ctx_->Device(), false, trees[k]};
+          auto tree = tree::MultiTargetTreeView{ctx_->Device(), false, trees[u]};
           auto go_left = GoLeftOp<Acc>{d_acc, tree};
-          this->partitioners_[k].UpdatePositionBatch(
-              ctx_, batch_idx, nodes[k].nidx, nodes[k].left_nidx, nodes[k].right_nidx,
-              nodes[k].split_data, tree::cuda_impl::GoLeftWrapperOp<GoLeftOp<Acc>>{go_left});
+          this->partitioners_[u].UpdatePositionBatch(
+              ctx_, batch_idx, nodes[u].nidx, nodes[u].left_nidx, nodes[u].right_nidx,
+              nodes[u].split_data, tree::cuda_impl::GoLeftWrapperOp<GoLeftOp<Acc>>{go_left});
 
-          auto valid_idx = finfo.batches[batch_idx].ValidationFold(k);
-          RouteHeldOut(this->ctx_, valid_idx, tree, go_left, dh::ToSpan(oof_position_));
+          // A fold-only concept: the refit unit holds nothing out, and the fold info has no
+          // entry for it.
+          if (!this->layout_.IsRefit(u)) {
+            auto valid_idx = finfo.batches[batch_idx].ValidationFold(u);
+            RouteHeldOut(this->ctx_, valid_idx, tree, go_left, dh::ToSpan(oof_position_));
+          }
 
           // FIXME(jiamingy): Build histogram here.
         }
@@ -465,27 +475,28 @@ class FoldTreeMethod {
   }
 
   // Add the leaf value of the newly grown tree to the training prediction of every row
-  // that the fold owns.
+  // that the unit owns.
   void UpdatePredictionCache(FoldInfoBatches const& finfo, MetaInfo const& info,
                              FoldPredictions* predts, std::vector<RegTree*> const& trees) {
-    auto k_folds = trees.size();
+    auto n_units = trees.size();
     auto n_samples = info.num_row_;
 
-    // A single scratch buffer is enough, a fold is finished before the next one starts.
-    // Scratch buffer for the leaf position of each row, reused by every fold.
+    // A single scratch buffer is enough, a unit is finished before the next one starts.
+    // Scratch buffer for the leaf position of each row, reused by every unit.
     dh::DeviceUVector<bst_node_t> positions;
     positions.resize(n_samples);
     auto d_position = dh::ToSpan(positions);
 
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      auto& tr_predt = predts->Training(k);
+    for (std::size_t u = 0; u < n_units; ++u) {
+      auto& tr_predt = predts->Training(u);
       tr_predt.predictions.SetDevice(ctx_->Device());
       auto output_length = predts->output_length;
       CHECK_EQ(output_length * n_samples, tr_predt.predictions.Size());
       auto d_tr_predt =
           linalg::MakeTensorView(ctx_, &tr_predt.predictions, n_samples, output_length);
 
-      // Rows held out by this fold are not in the partitioner and keep the sentinel.
+      // Rows held out by this fold are not in the partitioner and keep the sentinel. The
+      // refit unit owns every row, so none of them keeps it.
       thrust::fill(ctx_->CUDACtx()->CTP(), dh::tbegin(d_position), dh::tend(d_position),
                    RegTree::kInvalidNodeId);
       for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
@@ -495,13 +506,13 @@ class FoldTreeMethod {
         // the tree, the partitioner returns a node the tree has since split, reading the
         // wrong leaf or past the weights. With more, it returns a node the tree does not
         // have.
-        CHECK_EQ(this->partitioners_[k].At(i)->GetNumNodes(), trees[k]->NumNodes());
-        this->partitioners_[k].At(i)->FinalisePosition(
+        CHECK_EQ(this->partitioners_[u].At(i)->GetNumNodes(), trees[u]->NumNodes());
+        this->partitioners_[u].At(i)->FinalisePosition(
             ctx_, d_position.subspan(base_ridx, n_batch_samples), base_ridx,
             [] XGBOOST_DEVICE(tree::cuda_impl::RowIndexT, bst_node_t nidx) { return nidx; });
       }
 
-      auto tree = tree::MultiTargetTreeView{ctx_->Device(), false, trees[k]};
+      auto tree = tree::MultiTargetTreeView{ctx_->Device(), false, trees[u]};
       dh::LaunchN(d_tr_predt.Size(), ctx_->CUDACtx()->Stream(),
                   [=] XGBOOST_DEVICE(std::size_t i) mutable {
                     auto [ridx, t] = linalg::UnravelIndex(i, d_tr_predt.Shape());
@@ -512,38 +523,42 @@ class FoldTreeMethod {
                     d_tr_predt(ridx, t) += tree.LeafValue(nidx)(t);
                   });
 
-      // Handle the held out prediction
-      auto d_oof_position = dh::ToSpan(this->oof_position_);
-      auto& va_predt = predts->valid.predictions;
-      va_predt.SetDevice(this->ctx_->Device());
-      CHECK_EQ(va_predt.Size(), output_length * n_samples);
-      auto d_va_predt =
-          linalg::MakeTensorView(ctx_->Device(), va_predt.DeviceSpan(), n_samples, output_length);
-      for (auto const& batch : finfo.batches) {
-        auto valid_idx = batch.ValidationFold(k);
-        dh::LaunchN(valid_idx.size() * output_length, this->ctx_->CUDACtx()->Stream(),
-                    [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                      auto ridx_in_set = i / output_length;
-                      auto target_idx = i % output_length;
+      // Handle the held out prediction.
+      if (!this->layout_.IsRefit(u)) {
+        auto d_oof_position = dh::ToSpan(this->oof_position_);
+        auto& va_predt = predts->valid.predictions;
+        va_predt.SetDevice(this->ctx_->Device());
+        CHECK_EQ(va_predt.Size(), output_length * n_samples);
+        auto d_va_predt =
+            linalg::MakeTensorView(ctx_->Device(), va_predt.DeviceSpan(), n_samples, output_length);
+        for (auto const& batch : finfo.batches) {
+          auto valid_idx = batch.ValidationFold(u);
+          dh::LaunchN(valid_idx.size() * output_length, this->ctx_->CUDACtx()->Stream(),
+                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                        auto ridx_in_set = i / output_length;
+                        auto target_idx = i % output_length;
 
-                      auto ridx = valid_idx[ridx_in_set];
-                      auto nidx = d_oof_position[ridx];
-                      d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
-                    });
+                        auto ridx = valid_idx[ridx_in_set];
+                        auto nidx = d_oof_position[ridx];
+                        d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
+                      });
+        }
       }
 
       if (this->hist_param_.debug_synchronize) {
-        DebugCheckValid(this->ctx_, finfo, k, d_position);
+        auto n_train = this->layout_.IsRefit(u) ? n_samples : finfo.FoldSize(u);
+        DebugCheckValid(this->ctx_, n_train, d_position);
       }
       tr_predt.Update(1);
-      predts->valid.Update(1);
     }
+    // Once per round, after every fold has written its contribution.
+    predts->valid.Update(1);
   }
 
-  void ApplySplit(std::size_t k, std::vector<MultiExpandEntry> const& candidates, RegTree* p_tree) {
+  void ApplySplit(std::size_t u, std::vector<MultiExpandEntry> const& candidates, RegTree* p_tree) {
     CHECK(!candidates.empty());
-    auto n_targets = this->quantized_gpairs_.at(k).Shape(1);
-    auto weights = this->evaluators_[k]->GetNodeWeights(n_targets);
+    auto n_targets = this->quantized_gpairs_.at(u).Shape(1);
+    auto weights = this->evaluators_[u]->GetNodeWeights(n_targets);
 
     tree::ExpandBatch batch{this->param_.learning_rate};
     for (auto const& candidate : candidates) {
@@ -557,7 +572,7 @@ class FoldTreeMethod {
     p_tree->Expand(this->ctx_, batch);
 
     dh::device_vector<MultiExpandEntry> d_candidates{candidates};
-    this->evaluators_[k]->ApplyTreeSplit(this->ctx_, p_tree,
+    this->evaluators_[u]->ApplyTreeSplit(this->ctx_, p_tree,
                                          common::Span<MultiExpandEntry const>{candidates},
                                          dh::ToSpan(d_candidates), n_targets);
   }
@@ -569,64 +584,64 @@ class FoldTreeMethod {
     CHECK(predts);
     CHECK_EQ(p_fmat, p_last_fmat_)
         << "CV tree method update must use the training DMatrix supplied at construction.";
-    auto k_folds = folds->KFolds();
-    CHECK_EQ(k_folds, finfo.KFolds());
-    CHECK_EQ(k_folds, gpairs.KFolds());
-    CHECK_EQ(k_folds, predts->KFolds());
+    CHECK_EQ(folds->KFolds(), finfo.KFolds());
+    CheckLayout(folds->Layout(), gpairs.layout, "gradients");
+    CheckLayout(folds->Layout(), predts->layout, "prediction caches");
+    auto n_units = folds->NumUnits();
 
     if (!initialized_) {
       this->InitDataOnce(p_fmat);
     }
     this->n_page_passes_ = this->n_levels_ = 0;
 
-    std::vector<gbm::TreesOneIter> new_trees(k_folds);
+    std::vector<gbm::TreesOneIter> new_trees(n_units);
     std::vector<RegTree*> tree_ptrs;
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      new_trees[k].resize(1);
-      auto tree = std::make_unique<RegTree>(folds->LeafLength(k), folds->NumFeatures(k), true);
+    for (std::size_t u = 0; u < n_units; ++u) {
+      new_trees[u].resize(1);
+      auto tree = std::make_unique<RegTree>(folds->LeafLength(u), folds->NumFeatures(u), true);
       tree_ptrs.push_back(tree.get());
-      new_trees[k].front().push_back(std::move(tree));
+      new_trees[u].front().push_back(std::move(tree));
     }
 
     this->Reset(p_fmat, finfo, gpairs);
 
     std::vector<tree::Driver<MultiExpandEntry>> drivers;
-    for (std::size_t k = 0; k < k_folds; ++k) {
+    for (std::size_t u = 0; u < n_units; ++u) {
       drivers.emplace_back(param_, tree::cuda_impl::kMaxNodeBatchSize);
     }
 
     auto roots = this->InitRoot(p_fmat, tree_ptrs);
-    std::vector<std::vector<MultiExpandEntry>> expand_sets(k_folds);
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      drivers[k].Push(roots[k]);
-      expand_sets[k] = drivers[k].Pop();
+    std::vector<std::vector<MultiExpandEntry>> expand_sets(n_units);
+    for (std::size_t u = 0; u < n_units; ++u) {
+      drivers[u].Push(roots[u]);
+      expand_sets[u] = drivers[u].Pop();
     }
 
-    // Level-synchronous across folds, so that the partition pass can serve every fold from a
+    // Level-synchronous across units, so that the partition pass can serve every unit from a
     // single sweep over the pages.
     while (std::any_of(expand_sets.cbegin(), expand_sets.cend(),
                        [](auto const& set) { return !set.empty(); })) {
-      for (std::size_t k = 0; k < k_folds; ++k) {
-        if (!expand_sets[k].empty()) {
-          this->ApplySplit(k, expand_sets[k], tree_ptrs[k]);
+      for (std::size_t u = 0; u < n_units; ++u) {
+        if (!expand_sets[u].empty()) {
+          this->ApplySplit(u, expand_sets[u], tree_ptrs[u]);
         }
       }
       this->PartitionAndBuildHist(p_fmat, finfo, expand_sets, tree_ptrs);
       // TODO(jiamingy): Build the child histograms, evaluate them, and push the resulting
       // candidates back into the drivers to grow beyond depth 1.
       ++this->n_levels_;
-      for (std::size_t k = 0; k < k_folds; ++k) {
-        expand_sets[k] = drivers[k].Pop();
+      for (std::size_t u = 0; u < n_units; ++u) {
+        expand_sets[u] = drivers[u].Pop();
       }
     }
 
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      auto* tree = tree_ptrs.at(k);
+    for (std::size_t u = 0; u < n_units; ++u) {
+      auto* tree = tree_ptrs.at(u);
       tree->GetMultiTargetTree()->SetLeaves();
       hist_param_.CheckTreesSynchronized(ctx_, tree);
     }
     this->UpdatePredictionCache(finfo, p_fmat->Info(), predts, tree_ptrs);
-    // One root build plus one partition pass per level, independent of the fold count.
+    // One root build plus one partition pass per level, independent of the unit count.
     CHECK_EQ(this->n_page_passes_, 1 + this->n_levels_);
     folds->CommitModel(std::move(new_trees));
   }
