@@ -99,9 +99,9 @@ XGBoostError = _XGBoostError
 
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
     """Parse an eval result string from the booster."""
-    splited = result.split()[1:]
+    split_result = result.split()[1:]
     # split up `test-error:0.1234`
-    metric_score_str = [tuple(s.split(":")) for s in splited]
+    metric_score_str = [tuple(s.split(":")) for s in split_result]
     # convert to float
     metric_score = [(n, float(s)) for n, s in metric_score_str]
     return metric_score
