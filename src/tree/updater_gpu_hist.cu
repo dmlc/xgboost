@@ -286,7 +286,7 @@ struct GPUHistMakerDevice {
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_bin_t nidx) {
     monitor.Start(__func__);
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
-    auto d_ridx = partitioners_.At(k)->GetRows(nidx);
+    auto d_ridx = partitioners_.At(k)->GetDeviceRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     auto gpair = this->d_gpair.View(this->ctx_->Device());
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),

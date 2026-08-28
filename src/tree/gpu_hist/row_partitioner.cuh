@@ -34,8 +34,11 @@ struct Segment {
 
   Segment() = default;
 
-  Segment(cuda_impl::RowIndexT begin, cuda_impl::RowIndexT end) : begin(begin), end(end) {
+  XGBOOST_DEV_INLINE Segment(cuda_impl::RowIndexT begin, cuda_impl::RowIndexT end)
+      : begin(begin), end(end) {
+#if !defined(__CUDA_ARCH__)
     CHECK_GE(end, begin);
+#endif  // !defined(__CUDA_ARCH__)
   }
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t Size() const { return end - begin; }
 };
@@ -54,20 +57,21 @@ struct PerNodeData {
  *        row index within the node batch back to the global row index.
  */
 template <typename T>
-XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
-                                    std::size_t global_thread_idx, int* batch_idx,
-                                    std::size_t* item_idx) {
+XGBOOST_DEV_INLINE bool AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
+                                    std::size_t global_thread_idx, std::size_t batch_size,
+                                    int* batch_idx, std::size_t* item_idx) {
   cuda_impl::RowIndexT sum = 0;
   // Search for the nidx in batch and the corresponding global row index, exit once found.
-  for (std::int32_t i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
+  for (std::size_t i = 0; i < batch_size; i++) {
     if (sum + batch_info_iter[i].segment.Size() > global_thread_idx) {
       *batch_idx = i;
       // the beginning of the segment plus the offset into that segment
       *item_idx = (global_thread_idx - sum) + batch_info_iter[i].segment.begin;
-      break;
+      return true;
     }
     sum += batch_info_iter[i].segment.Size();
   }
+  return false;
 }
 
 /**
@@ -77,12 +81,13 @@ template <int kBlockSize, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info_iter,
     common::Span<cuda_impl::RowIndexT> d_ridx,
-    common::Span<cuda_impl::RowIndexT const> const ridx_tmp, bst_idx_t total_rows) {
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
+    common::Span<cuda_impl::RowIndexT const> const ridx_tmp, std::size_t batch_size) {
+  for (auto idx : dh::GridStrideRange<std::size_t>(0, ridx_tmp.size())) {
     std::int32_t batch_idx;  // unused
     std::size_t item_idx = std::numeric_limits<std::size_t>::max();
-    AssignBatch(batch_info_iter, idx, &batch_idx, &item_idx);
-    d_ridx[item_idx] = ridx_tmp[item_idx];
+    if (AssignBatch(batch_info_iter, idx, batch_size, &batch_idx, &item_idx)) {
+      d_ridx[item_idx] = ridx_tmp[item_idx];
+    }
   }
 }
 
@@ -116,6 +121,9 @@ struct WriteResultsFunctor {
   cuda_impl::RowIndexT* counts;
 
   __device__ IndexFlagTuple operator()(IndexFlagTuple const& x) {
+    if (x.batch_idx < 0) {
+      return {};
+    }
     cuda_impl::RowIndexT scatter_address;
     // Get the segment that this row belongs to.
     const Segment& segment = batch_info[x.batch_idx].segment;
@@ -146,7 +154,7 @@ template <typename OpT, typename OpDataT>
 void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
                        common::Span<cuda_impl::RowIndexT> ridx,
                        common::Span<cuda_impl::RowIndexT> ridx_tmp,
-                       common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
+                       common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t /*total_rows*/, OpT op,
                        dh::DeviceUVector<int8_t>* tmp) {
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
@@ -159,7 +167,9 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
       counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
         std::size_t item_idx;
-        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
+        if (!AssignBatch(batch_info_itr, idx, d_batch_info.size(), &nidx_in_batch, &item_idx)) {
+          return IndexFlagTuple{0, 0, -1, false};
+        }
         auto go_left = op(ridx[item_idx], batch_info_itr[nidx_in_batch].data);
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
@@ -177,7 +187,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
                                                                   discard_write_iterator,
                                                                   IndexFlagOp{}, cub::NullType{},
                                                                   static_cast<std::uint64_t>(
-                                                                      total_rows),
+                                                                      ridx.size()),
                                                                   ctx->CUDACtx()->Stream());
     dh::safe_cuda(ret);
     tmp->resize(n_bytes);
@@ -190,7 +200,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
                                                                 discard_write_iterator,
                                                                 IndexFlagOp{}, cub::NullType{},
                                                                 static_cast<std::uint64_t>(
-                                                                    total_rows),
+                                                                    ridx.size()),
                                                                 ctx->CUDACtx()->Stream());
   dh::safe_cuda(ret);
 
@@ -199,9 +209,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   // Value found by experimentation
   const int kItemsThread = 12;
   std::uint32_t const kGridSize =
-      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
+      xgboost::common::DivRoundUp(ridx.size(), kBlockSize * kItemsThread);
   dh::LaunchKernel{kGridSize, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, ridx, ridx_tmp, total_rows);
+      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, ridx, ridx_tmp,
+      d_batch_info.size());
 }
 
 struct NodePositionInfo {
@@ -210,6 +221,41 @@ struct NodePositionInfo {
   bst_node_t right_child = -1;
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return left_child == -1; }
 };
+
+// A row-index range whose bounds are read on the device.  Host callers deliberately use the
+// full allocation as the launch bound; device callers use the current node segment.
+struct DeviceRows {
+  cuda_impl::RowIndexT const* ridx;
+  NodePositionInfo const* segments;
+  bst_node_t nidx;
+  std::size_t max_size;
+
+  XGBOOST_DEV_INLINE cuda_impl::RowIndexT operator[](std::size_t i) const {
+    return ridx[segments[nidx].segment.begin + i];
+  }
+  XGBOOST_DEV_INLINE std::size_t size() const {
+#if defined(__CUDA_ARCH__)
+    return segments[nidx].segment.Size();
+#else
+    return max_size;
+#endif  // defined(__CUDA_ARCH__)
+  }
+  XGBOOST_DEV_INLINE cuda_impl::RowIndexT const* data() const {
+    return ridx + segments[nidx].segment.begin;
+  }
+};
+
+template <typename OpDataT>
+__global__ void BuildBatchInfoKernel(common::Span<NodePositionInfo const> d_ridx_segments,
+                                     common::Span<bst_node_t const> nidx,
+                                     common::Span<OpDataT const> op_data,
+                                     common::Span<PerNodeData<OpDataT>> d_batch_info);
+
+__global__ void UpdateSegmentsKernel(common::Span<NodePositionInfo> d_ridx_segments,
+                                     common::Span<bst_node_t const> nidx,
+                                     common::Span<bst_node_t const> left_nidx,
+                                     common::Span<bst_node_t const> right_nidx,
+                                     common::Span<cuda_impl::RowIndexT const> counts);
 
 struct LeafInfo {
   bst_node_t nidx;
@@ -268,6 +314,8 @@ class RowPartitioner {
 
   /** @brief Range of row index for each node, pointers into ridx below. */
   std::vector<NodePositionInfo> ridx_segments_;
+  dh::DeviceUVector<NodePositionInfo> d_ridx_segments_;
+
   /**
    * @brief mapping for node id -> rows.
    *
@@ -276,9 +324,10 @@ class RowPartitioner {
    * rows idx | 3, 5, 1 | 13, 31 |
    */
   dh::DeviceUVector<RowIndexT> ridx_;
+  // Reused across split batches to avoid allocating a count buffer for every update.
+  dh::DeviceUVector<RowIndexT> counts_;
   dh::DeviceUVector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
-  dh::PinnedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.
 
  public:
@@ -306,7 +355,14 @@ class RowPartitioner {
   /**
    * @brief Get the number of rows in this partitioner.
    */
-  std::size_t Size() const { return this->GetRows().size(); }
+  std::size_t Size() const { return ridx_.size(); }
+
+  [[nodiscard]] common::Span<NodePositionInfo const> DeviceSegments() const {
+    return dh::ToSpan(d_ridx_segments_);
+  }
+  [[nodiscard]] DeviceRows GetDeviceRows(bst_node_t nidx) const {
+    return {ridx_.data(), d_ridx_segments_.data(), nidx, ridx_.size()};
+  }
 
   [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
@@ -355,34 +411,48 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
     this->n_nodes_ += (left_nidx.size() + right_nidx.size());
-    common::Span<PerNodeData<OpDataT>> h_batch_info =
-        pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
-
-    for (std::size_t i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data[i]};
-    }
-    dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                  h_batch_info.size_bytes(), cudaMemcpyDefault,
+    dh::TemporaryArray<bst_node_t> d_nidx(nidx.size());
+    dh::TemporaryArray<bst_node_t> d_left_nidx(left_nidx.size());
+    dh::TemporaryArray<bst_node_t> d_right_nidx(right_nidx.size());
+    dh::TemporaryArray<OpDataT> d_op_data(op_data.size());
+    auto stream = ctx->CUDACtx()->Stream();
+    dh::safe_cuda(cudaMemcpyAsync(d_nidx.data().get(), nidx.data(), nidx.size() * sizeof(bst_node_t),
+                                  cudaMemcpyDefault, stream));
+    dh::safe_cuda(cudaMemcpyAsync(d_left_nidx.data().get(), left_nidx.data(),
+                                  left_nidx.size() * sizeof(bst_node_t),
+                                  cudaMemcpyDefault, stream));
+    dh::safe_cuda(cudaMemcpyAsync(d_right_nidx.data().get(), right_nidx.data(),
+                                  right_nidx.size() * sizeof(bst_node_t),
+                                  cudaMemcpyDefault, stream));
+    dh::safe_cuda(cudaMemcpyAsync(d_op_data.data().get(), op_data.data(),
+                                  op_data.size() * sizeof(OpDataT),
+                                  cudaMemcpyDefault, stream));
+    auto max_nidx = *std::max_element(right_nidx.cbegin(), right_nidx.cend());
+    max_nidx = std::max(max_nidx, *std::max_element(left_nidx.cbegin(), left_nidx.cend()));
+    d_ridx_segments_.resize(static_cast<std::size_t>(max_nidx) + 1);
+    auto d_segments = d_ridx_segments_.data();
+    auto d_batch = d_batch_info.data().get();
+    auto d_nidx_ptr = d_nidx.data().get();
+    auto d_left_nidx_ptr = d_left_nidx.data().get();
+    auto d_right_nidx_ptr = d_right_nidx.data().get();
+    auto d_op_data_ptr = d_op_data.data().get();
+    dh::LaunchN(nidx.size(), stream, [=] __device__(std::size_t i) {
+      d_batch[i] = {d_segments[d_nidx_ptr[i]].segment, d_op_data_ptr[i]};
+    });
+    // Zero counts for empty segments; the scatter functor only writes a count for a non-empty
+    // segment.  Keep this storage with the partitioner to avoid a device allocation per split.
+    counts_.resize(nidx.size());
+    dh::safe_cuda(cudaMemsetAsync(counts_.data(), 0, counts_.size() * sizeof(RowIndexT),
                                   ctx->CUDACtx()->Stream()));
-    // Temporary arrays
-    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
-    // Must initialize with 0 as 0 count is not written in the kernel.
-    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
     CHECK_EQ(ridx_tmp.size(), this->Size());
 
     // Process a sub-batch
-    auto sub_batch_impl = [&](common::Span<bst_node_t const> nidx,
-                              common::Span<PerNodeData<OpDataT>> d_batch_info,
+    auto sub_batch_impl = [&](common::Span<PerNodeData<OpDataT>> d_batch_info,
                               common::Span<RowIndexT> d_counts) {
-      std::size_t total_rows = 0;
-      for (bst_node_t i : nidx) {
-        total_rows += this->ridx_segments_[i].segment.Size();
-      }
-
       // Partition the rows according to the operator
       SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(this->ridx_),
-                                                    ridx_tmp, d_counts, total_rows, op,
+                                                    ridx_tmp, d_counts, ridx_tmp.size(), op,
                                                     &this->tmp_);
     };
 
@@ -391,31 +461,20 @@ class RowPartitioner {
          batch_begin += cuda_impl::kMaxUpdatePositionBatchSize) {
       auto constexpr kMax = static_cast<decltype(n)>(cuda_impl::kMaxUpdatePositionBatchSize);
       auto batch_size = std::min(kMax, n - batch_begin);
-      auto nidx_batch = common::Span{nidx}.subspan(batch_begin, batch_size);
       auto d_info_batch = dh::ToSpan(d_batch_info).subspan(batch_begin, batch_size);
-      auto d_counts_batch = dh::ToSpan(d_counts).subspan(batch_begin, batch_size);
-      sub_batch_impl(nidx_batch, d_info_batch, d_counts_batch);
+      auto d_counts_batch = dh::ToSpan(counts_).subspan(batch_begin, batch_size);
+      sub_batch_impl(d_info_batch, d_counts_batch);
     }
-
-    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-    // TODO(Rory): this synchronisation hurts performance a lot
-    // Future optimisation should find a way to skip this
-    ctx->CUDACtx()->Stream().Sync();
-
-    // Update segments
-    for (std::size_t i = 0; i < nidx.size(); i++) {
-      auto segment = ridx_segments_.at(nidx[i]).segment;
-      auto left_count = h_counts[i];
-      CHECK_LE(left_count, segment.Size());
-      ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
-                                     std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
-      ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
-      ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
-    }
+    auto d_counts = counts_.data();
+    dh::LaunchN(nidx.size(), stream, [=] __device__(std::size_t i) {
+      auto segment = d_segments[d_nidx_ptr[i]].segment;
+      auto left_count = d_counts[i];
+      d_segments[d_nidx_ptr[i]] = {segment, d_left_nidx_ptr[i], d_right_nidx_ptr[i]};
+      d_segments[d_left_nidx_ptr[i]] =
+          {Segment{segment.begin, segment.begin + left_count}};
+      d_segments[d_right_nidx_ptr[i]] =
+          {Segment{segment.begin + left_count, segment.end}};
+    });
   }
 
   /**
@@ -430,18 +489,13 @@ class RowPartitioner {
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,
                         bst_idx_t base_ridx, FinalisePositionOpT op) const {
-    dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
-    dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
-                                  sizeof(NodePositionInfo) * ridx_segments_.size(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-
     constexpr std::uint32_t kBlockSize = 512;
     const int kItemsThread = 8;
     const std::uint32_t grid_size =
         xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
     dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-        FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
+        FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_ridx_segments_),
         base_ridx, d_ridx, d_out_position, op);
   }
 };

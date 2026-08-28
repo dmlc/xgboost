@@ -223,10 +223,10 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
 /**
  * @brief Kernel for the single-target histogram.
  */
-template <typename Policy, typename Accessor>
+template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks) void StHistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
-    common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
+    RidxIterSpan d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
@@ -380,11 +380,11 @@ struct HistKernel {
         force_global{force_global} {}
 
   // Single target
-  template <bool kDense, bool kCompressed, typename Accessor>
+  template <bool kDense, bool kCompressed, typename Accessor, typename RidxIterSpan>
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,
                          common::Span<GradientPairInt64 const> gpair,
-                         common::Span<cuda_impl::RowIndexT const> ridx,
+                         RidxIterSpan ridx,
                          common::Span<GradientPairInt64> hist) {
     std::size_t shmem_bytes = feature_groups.ShmemSize();
     bool use_shared = !this->force_global && shmem_bytes <= this->max_shared_bytes;
@@ -409,12 +409,12 @@ struct HistKernel {
 
     if (use_shared) {
       using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
-      auto kernel = StHistKernel<Policy, Accessor>;
+      auto kernel = StHistKernel<Policy, Accessor, RidxIterSpan>;
       this->SetCfg(Policy{}, shmem_bytes, kernel);
       launch(Policy{}, kernel);
     } else {
       using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>;
-      auto kernel = StHistKernel<Policy, Accessor>;
+      auto kernel = StHistKernel<Policy, Accessor, RidxIterSpan>;
       this->SetCfg(Policy{}, shmem_bytes, kernel);
       launch(Policy{}, kernel);
     }
@@ -508,6 +508,13 @@ class DeviceHistogramDispatchAccessor {
 
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
+                      common::Span<GradientPairInt64 const> gpair, DeviceRows ridx,
+                      common::Span<GradientPairInt64> hist) {
+    this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx, hist);
+  }
+
+  void BuildHistogram(Context const* ctx, Accessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
                       common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
                       common::Span<common::Span<GradientPairInt64>> hists,
@@ -571,6 +578,20 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor 
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPairInt64 const> gpair,
                                             common::Span<cuda_impl::RowIndexT const> ridx,
+                                            common::Span<GradientPairInt64> histogram) {
+  this->monitor_.Start(__func__);
+  std::visit(
+      [&](auto&& matrix) {
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram);
+      },
+      matrix);
+  this->monitor_.Stop(__func__);
+}
+
+void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
+                                            FeatureGroupsAccessor const& feature_groups,
+                                            common::Span<GradientPairInt64 const> gpair,
+                                            DeviceRows ridx,
                                             common::Span<GradientPairInt64> histogram) {
   this->monitor_.Start(__func__);
   std::visit(

@@ -12,6 +12,7 @@
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
 #include "feature_groups.cuh"               // for FeatureGroupsAccessor
+#include "row_partitioner.cuh"              // for DeviceRows
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
@@ -185,6 +186,10 @@ class DeviceHistogramBuilder {
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
+                      common::Span<GradientPairInt64> histogram);
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      common::Span<GradientPairInt64 const> gpair, DeviceRows ridx,
                       common::Span<GradientPairInt64> histogram);
   // Build histograms for multiple nodes and multiple targets
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
