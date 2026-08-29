@@ -7,7 +7,7 @@ import functools
 import importlib.util
 import logging
 import types
-from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
+from typing import TYPE_CHECKING, Sequence, TypeGuard, cast
 
 import numpy as np
 
@@ -21,10 +21,10 @@ if TYPE_CHECKING:
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore[union-attr]
+    return x.decode("utf-8")
 
 
-def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
+def lazy_isinstance(instance: object, module: str, name: str) -> bool:
     """Use string representation to identify a type."""
 
     # Notice, we use .__class__ as opposed to type() in order
