@@ -298,6 +298,28 @@ class _PackedBooster:
     def best_score(self, score: float) -> None:
         self.set_attr(best_score=score)
 
+    def oof_predict(self, **kwargs: Any) -> np.ndarray:
+        """Out-of-fold prediction: each row is predicted by the fold that held
+        it out during training.
+
+        Parameters
+        ----------
+        kwargs :
+            Forwarded to :py:meth:`Booster.predict` for every fold.
+
+        """
+        n_total = sum(fold.dtest.num_row() for fold in self.cvfolds)
+        preds: Optional[np.ndarray] = None
+        for fold in self.cvfolds:
+            fold_pred = fold.bst.predict(fold.dtest, **kwargs)
+            if preds is None:
+                preds = np.full(
+                    (n_total,) + fold_pred.shape[1:], np.nan, dtype=np.float32
+                )
+            preds[fold.test_idx] = fold_pred
+        assert preds is not None
+        return preds
+
 
 def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
     """
