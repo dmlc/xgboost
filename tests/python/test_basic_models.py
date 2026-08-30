@@ -2,7 +2,9 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import Integer
@@ -203,6 +205,21 @@ class TestModels:
             seed=0,
             show_stdv=False,
         )
+
+    def test_cv_oof_predict(self):
+        param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
+        dtrain, _ = tm.load_agaricus(__file__)
+        nfold = 5
+
+        results = xgb.cv(param, dtrain, 2, nfold=nfold, seed=0, shuffle=False)
+        results_with_oof, oof_preds = xgb.cv(
+            param, dtrain, 2, nfold=nfold, seed=0, shuffle=False, return_oof_preds=True
+        )
+
+        # Same aggregated results either way; only the extra return value differs.
+        pd.testing.assert_frame_equal(results, results_with_oof)
+        assert oof_preds.shape == (dtrain.num_row(),)
+        assert not np.isnan(oof_preds).any()
 
     def test_prediction_cache(self, tmp_path: Path) -> None:
         X, y = tm.make_sparse_regression(512, 4, 0.5, as_dense=False)
