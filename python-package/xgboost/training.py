@@ -479,7 +479,12 @@ def cv(
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
-) -> Union[Dict[str, float], "PdDataFrame"]:
+    return_oof_preds: bool = False,
+) -> Union[
+    Dict[str, float],
+    "PdDataFrame",
+    Tuple[Union[Dict[str, float], "PdDataFrame"], np.ndarray],
+]:
     """Cross-validation with given parameters.
 
     Parameters
@@ -561,6 +566,10 @@ def cv(
 
         Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
         for details.
+    return_oof_preds : bool
+        If True, also return the out-of-fold predictions: each row predicted by
+        the fold that held it out during training. Changes the return value to
+        a ``(results, oof_preds)`` tuple.
 
     Returns
     -------
@@ -647,4 +656,6 @@ def cv(
 
     callbacks_container.after_training(booster)
 
+    if return_oof_preds:
+        return results, booster.oof_predict()
     return results
