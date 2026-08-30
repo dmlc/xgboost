@@ -213,11 +213,16 @@ class CVPack:
     """ "Auxiliary datastruct to hold one fold of CV."""
 
     def __init__(
-        self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]
+        self,
+        dtrain: DMatrix,
+        dtest: DMatrix,
+        param: Optional[Union[Dict, List]],
+        test_idx: np.ndarray,
     ) -> None:
         """Initialize the CVPack."""
         self.dtrain = dtrain
         self.dtest = dtest
+        self.test_idx = test_idx
         self.watchlist = [(dtrain, "train"), (dtest, "test")]
         self.bst = Booster(param, [dtrain, dtest])
 
@@ -354,7 +359,7 @@ def mkgroupfold(
         else:
             tparam = param
         plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
+        ret.append(CVPack(dtrain, dtest, plst, out_idset[k]))
     return ret
 
 
@@ -427,7 +432,7 @@ def mknfold(
         else:
             tparam = param
         plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
+        ret.append(CVPack(dtrain, dtest, plst, out_idset[k]))
     return ret
 
 
