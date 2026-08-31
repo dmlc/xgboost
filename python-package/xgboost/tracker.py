@@ -90,7 +90,6 @@ class RabitTracker:
         sortby: str = "host",
         timeout: int = 0,
     ) -> None:
-
         handle = ctypes.c_void_p()
         if sortby not in ("host", "task"):
             raise ValueError("Expecting either 'host' or 'task' for sortby.")

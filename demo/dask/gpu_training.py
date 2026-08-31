@@ -9,7 +9,6 @@ from dask import array as da
 from dask import dataframe as dd
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-
 from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 

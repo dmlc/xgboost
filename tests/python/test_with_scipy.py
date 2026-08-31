@@ -5,7 +5,6 @@ from typing import Type
 import numpy as np
 import pytest
 import scipy.sparse
-
 import xgboost as xgb
 from xgboost.testing.utils import predictor_equal
 

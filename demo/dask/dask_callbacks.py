@@ -6,12 +6,11 @@ Example of using callbacks with Dask
 from typing import Any
 
 import numpy as np
+import xgboost as xgb
+import xgboost.dask as dxgb
 from dask.distributed import Client, LocalCluster
 from dask_ml.datasets import make_regression
 from dask_ml.model_selection import train_test_split
-
-import xgboost as xgb
-import xgboost.dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 

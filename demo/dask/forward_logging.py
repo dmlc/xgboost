@@ -14,7 +14,6 @@ import distributed
 from dask import array as da
 from dask_cuda import LocalCUDACluster
 from distributed import Client
-
 from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
 

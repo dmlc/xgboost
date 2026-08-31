@@ -6,10 +6,9 @@ Demo for prediction using individual trees and model slices
 import os
 
 import numpy as np
+import xgboost as xgb
 from scipy.special import logit
 from sklearn.datasets import load_svmlight_file
-
-import xgboost as xgb
 
 CURRENT_DIR = os.path.dirname(__file__)
 train = os.path.join(CURRENT_DIR, "../data/agaricus.txt.train")

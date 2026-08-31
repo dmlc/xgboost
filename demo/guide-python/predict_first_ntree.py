@@ -2,12 +2,12 @@
 Demo for prediction using number of trees
 =========================================
 """
+
 import os
 
 import numpy as np
-from sklearn.datasets import load_svmlight_file
-
 import xgboost as xgb
+from sklearn.datasets import load_svmlight_file
 
 CURRENT_DIR = os.path.dirname(__file__)
 train = os.path.join(CURRENT_DIR, "../data/agaricus.txt.train")

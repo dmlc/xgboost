@@ -13,7 +13,7 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.14
+    rev: v0.16.5
     hooks:
       - id: ruff-check
         args:

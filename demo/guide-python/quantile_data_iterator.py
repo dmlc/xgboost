@@ -25,7 +25,6 @@ from typing import Callable
 
 import cupy
 import numpy
-
 import xgboost
 
 COLS = 64

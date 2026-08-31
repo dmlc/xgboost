@@ -1,7 +1,6 @@
 from typing import Any, List
 
 import pytest
-
 from xgboost import testing as tm
 
 

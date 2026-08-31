@@ -1,8 +1,7 @@
-from xgboost import dask as dxgb
-from xgboost import testing as tm
-
 import dask.array as da
 import dask.distributed
+from xgboost import dask as dxgb
+from xgboost import testing as tm
 
 
 def train_result(client, param, dtrain, num_rounds):

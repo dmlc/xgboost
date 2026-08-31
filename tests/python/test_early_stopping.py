@@ -2,7 +2,6 @@ from typing import Tuple
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.updater import get_basescore

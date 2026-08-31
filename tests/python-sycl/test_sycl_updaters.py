@@ -1,11 +1,11 @@
-import numpy as np
 import gc
+import os
+import sys
+
+import numpy as np
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
-
-import sys
-import os
+from hypothesis import assume, given, note, settings, strategies
 
 # sys.path.append("tests/python")
 # import testing as tm
@@ -26,8 +26,10 @@ parameter_strategy = strategies.fixed_dictionaries(
         "colsample_bylevel": strategies.floats(0.5, 1.0),
     }
 ).filter(
-    lambda x: (x["max_depth"] > 0 or x["max_leaves"] > 0)
-    and (x["max_depth"] > 0 or x["grow_policy"] == "lossguide")
+    lambda x: (
+        (x["max_depth"] > 0 or x["max_leaves"] > 0)
+        and (x["max_depth"] > 0 or x["grow_policy"] == "lossguide")
+    )
 )
 
 

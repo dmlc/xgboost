@@ -1,11 +1,10 @@
 import sys
 import unittest
-import pytest
 
 import numpy as np
+import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
-
+from hypothesis import assume, given, note, settings, strategies
 from xgboost import testing as tm
 
 rng = np.random.RandomState(1994)

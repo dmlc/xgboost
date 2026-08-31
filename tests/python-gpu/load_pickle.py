@@ -6,9 +6,8 @@ import os
 
 import numpy as np
 import pytest
-from test_gpu_pickling import build_dataset, load_pickle, model_path
-
 import xgboost as xgb
+from test_gpu_pickling import build_dataset, load_pickle, model_path
 
 
 class TestLoadPickle:

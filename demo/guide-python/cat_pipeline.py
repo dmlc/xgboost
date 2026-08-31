@@ -23,12 +23,11 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.compose import make_column_selector, make_column_transformer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OrdinalEncoder
-
-import xgboost as xgb
 
 
 def make_example_data() -> Tuple[pd.DataFrame, pd.Series, List[str]]:

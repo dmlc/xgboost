@@ -4,11 +4,10 @@ Using rmm with Dask
 """
 
 import dask
+import xgboost as xgb
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 from sklearn.datasets import make_classification
-
-import xgboost as xgb
 
 
 def main(client):

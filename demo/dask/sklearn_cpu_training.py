@@ -5,7 +5,6 @@ Use scikit-learn regressor interface with CPU histogram tree method
 
 from dask import array as da
 from dask.distributed import Client, LocalCluster
-
 from xgboost import dask as dxgb
 
 

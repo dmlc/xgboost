@@ -14,6 +14,7 @@ import pickle
 from urllib.error import HTTPError
 
 import numpy as np
+import xgboost as xgb
 from sklearn.datasets import (
     fetch_california_housing,
     load_digits,
@@ -22,8 +23,6 @@ from sklearn.datasets import (
 )
 from sklearn.metrics import confusion_matrix, mean_squared_error
 from sklearn.model_selection import GridSearchCV, KFold, train_test_split
-
-import xgboost as xgb
 
 rng = np.random.RandomState(31337)
 

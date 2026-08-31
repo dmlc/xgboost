@@ -1,6 +1,7 @@
+import json
+
 import numpy as np
 import xgboost as xgb
-import json
 
 rng = np.random.RandomState(1994)
 

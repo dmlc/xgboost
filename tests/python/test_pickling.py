@@ -3,7 +3,6 @@ import os
 import pickle
 
 import numpy as np
-
 import xgboost as xgb
 
 kRows = 100

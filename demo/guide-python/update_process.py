@@ -10,9 +10,8 @@ experiment.
 from urllib.error import HTTPError
 
 import numpy as np
-from sklearn.datasets import fetch_california_housing, make_regression
-
 import xgboost as xgb
+from sklearn.datasets import fetch_california_housing, make_regression
 
 
 def main() -> None:
