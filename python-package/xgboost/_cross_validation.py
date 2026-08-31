@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import ctypes
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 
@@ -580,6 +580,7 @@ class CvDataIter(DataIter):
         """Number of batches this iterator produces."""
         return len(self.batch_ptr) - 1
 
+    @override
     def next(self, input_data: Callable) -> bool:
         if self.it == self.n_batches:
             return False
@@ -590,6 +591,7 @@ class CvDataIter(DataIter):
         self.it += 1
         return True
 
+    @override
     def reset(self) -> None:
         self.it = 0
 
