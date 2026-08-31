@@ -227,7 +227,7 @@ def sort_data_by_qid(**kwargs: List[Any]) -> Dict[str, List[Any]]:
     # implementation and GPU compatibility, a simple concat is used.
     #
     # In case it might become useful one day, I managed to get a CPU version working,
-    # albeit qutie slow (much slower than concatenated sort). The implementation merges
+    # albeit quite slow (much slower than concatenated sort). The implementation merges
     # everything into a single Dask DF and runs `DF.sort_values`, then retrieve the
     # individual X,y,qid, ... from calculated partition values `client.compute([p for p
     # in df.partitions])`. It was to avoid creating mismatched partitions.
