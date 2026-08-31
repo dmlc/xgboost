@@ -359,6 +359,9 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
 namespace {
 void ReadPredictionCache(cv::FoldPredictions const* predts, HostDeviceVector<float> const& predt,
                          float const** out_data, size_t* out_n_rows, size_t* out_n_columns) {
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_n_rows);
+  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
   CHECK_EQ(predt.Size() % predts->output_length, 0);
   *out_n_columns = predts->output_length;
@@ -371,9 +374,6 @@ XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float c
                                     size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  xgboost_CHECK_C_ARG_PTR(out_data);
-  xgboost_CHECK_C_ARG_PTR(out_n_rows);
-  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   // Bound by the fold count, not the unit count: this getter must not reach the refit cache.
   CHECK_LT(k, predts->layout.k_folds);
@@ -385,9 +385,6 @@ XGB_DLL int XGBCvFoldPredictionsGetRefit(FoldPredictionsHandle hdl, float const*
                                          size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  xgboost_CHECK_C_ARG_PTR(out_data);
-  xgboost_CHECK_C_ARG_PTR(out_n_rows);
-  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   ReadPredictionCache(predts, predts->Refit().predictions, out_data, out_n_rows, out_n_columns);
   API_END();
@@ -397,9 +394,6 @@ XGB_DLL int XGBCvFoldPredictionsGetValid(FoldPredictionsHandle hdl, float const*
                                          size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  xgboost_CHECK_C_ARG_PTR(out_data);
-  xgboost_CHECK_C_ARG_PTR(out_n_rows);
-  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   ReadPredictionCache(predts, predts->Validation().predictions, out_data, out_n_rows,
                       out_n_columns);
@@ -423,6 +417,9 @@ XGB_DLL int XGBCvFoldGpairsCreate(FoldGpairsHandle* out) {
 namespace {
 void ReadGpairs(linalg::Matrix<GradientPair> const& gpair, float const** out_data,
                 size_t const** out_shape, size_t* out_len) {
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_shape);
+  xgboost_CHECK_C_ARG_PTR(out_len);
   *out_shape = gpair.Shape().data();
   *out_len = gpair.Shape().size();
   *out_data = reinterpret_cast<float const*>(gpair.Data()->ConstDevicePointer());
@@ -432,9 +429,6 @@ void ReadGpairs(linalg::Matrix<GradientPair> const& gpair, float const** out_dat
 XGB_DLL int XGBCvFoldGpairsGet(FoldGpairsHandle hdl, size_t k, float const** out_data,
                                size_t const** out_shape, size_t* out_len) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out_shape);
-  xgboost_CHECK_C_ARG_PTR(out_len);
-  xgboost_CHECK_C_ARG_PTR(out_data);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto gpairs = static_cast<cv::FoldGpairs const*>(hdl);
   // Bound by the fold count, not the unit count: this getter must not reach the refit
@@ -447,9 +441,6 @@ XGB_DLL int XGBCvFoldGpairsGet(FoldGpairsHandle hdl, size_t k, float const** out
 XGB_DLL int XGBCvFoldGpairsGetRefit(FoldGpairsHandle hdl, float const** out_data,
                                     size_t const** out_shape, size_t* out_len) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out_shape);
-  xgboost_CHECK_C_ARG_PTR(out_len);
-  xgboost_CHECK_C_ARG_PTR(out_data);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto gpairs = static_cast<cv::FoldGpairs const*>(hdl);
   ReadGpairs(gpairs->Refit(), out_data, out_shape, out_len);

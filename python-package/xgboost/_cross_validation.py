@@ -414,10 +414,8 @@ class FoldPredictions:
         return self._as_array(data, n_rows, n_columns, copy)
 
     def get_refit(self, copy: bool = True) -> cp.ndarray:
-        """Retrieve the training prediction cache of the full-data model.
-
-        Unlike a fold's cache, every row of this one is used: the full-data model holds
-        nothing out. Requires a run created with ``refit=True``.
+        """Retrieve the training prediction cache of the full-data model. Requires a run
+        created with ``refit=True``.
 
         """
         data = ctypes.POINTER(ctypes.c_float)()
@@ -516,10 +514,8 @@ class FoldGpairs:
         return self._as_arrays(data, shape, n_dims, copy)
 
     def get_refit(self, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
-        """Retrieve the gradient of the full-data model.
-
-        Defined for every row, since the full-data model holds nothing out. Requires a run
-        created with ``refit=True``.
+        """Retrieve the gradient of the full-data model. Requires a run created with
+        ``refit=True``.
 
         """
         data = ctypes.POINTER(ctypes.c_float)()
