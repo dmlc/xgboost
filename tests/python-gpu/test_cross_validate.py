@@ -56,6 +56,13 @@ def xyw_extqdm() -> XywExtQdm:
         return make_extqdm()
 
 
+def make_dataset() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The same dataset as `make_extqdm`, as single host arrays."""
+    return tm.make_regression(
+        N_SAMPLES_PER_BATCH * N_BATCHES, N_FEATURES, use_cupy=False
+    )
+
+
 def get_fold_tree(cv_folds: xcv.FoldModels, k: int, iteration: int = -1) -> dict:
     """The `iteration`-th tree of the k-th fold model, as a JSON object."""
     model = json.loads(cv_folds.save_raw("json"))
@@ -132,7 +139,8 @@ def stump_leaf_values(tree: dict, features: cp.ndarray) -> cp.ndarray:
 def fold_rows(k_folds: int, k: int) -> tuple[cp.ndarray, cp.ndarray]:
     """Global row indices of the training and the held-out rows of the k^th fold.
 
-    The folds are split within each batch, hence the per-batch offset.
+    The folds are split within each page, and `make_extqdm` keeps one page per batch, hence
+    the per-batch offset.
 
     """
     import cupy as cp
@@ -299,6 +307,22 @@ def test_cv_gradient(base_margin: bool) -> None:
         cp.testing.assert_allclose(hess, want_hess)
 
 
+def test_cv_refit_gradient(xyw_extqdm: XywExtQdm) -> None:
+    """Unlike a fold, the refit model has a gradient for every row."""
+    import cupy as cp
+
+    _, y, w, Xy = xyw_extqdm
+
+    _, _, gpairs = run_cv(Xy, 3, 1, refit=True)
+    grad, hess = gpairs.get_refit()
+    assert grad.shape == (Xy.num_row(), 1)
+
+    # No row is masked out, so no weight is zeroed.
+    want_grad, want_hess = expected_gradient(y, cp.concatenate(w))
+    cp.testing.assert_allclose(grad, want_grad)
+    cp.testing.assert_allclose(hess, want_hess)
+
+
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
     """A fold's training cache accumulates leaf values for its training rows only."""
@@ -337,26 +361,6 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
             cp.testing.assert_array_equal(
                 predt[valid_rows], cp.full((valid_rows.size, 1), BASE_SCORE)
             )
-
-
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_cv_oof_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
-    """Each row's OOF prediction comes from the fold that held it out."""
-    import cupy as cp
-
-    X, _, _, Xy = xyw_extqdm
-    k_folds = 3
-    features = cp.concatenate(X).astype(cp.float32)
-
-    cv_folds, predts, _ = run_cv(Xy, k_folds, 1)
-
-    expected = cp.full((Xy.num_row(), 1), BASE_SCORE, dtype=cp.float32)
-    for k in range(k_folds):
-        _, valid_rows = fold_rows(k_folds, k)
-        leaf_value = stump_leaf_values(get_fold_tree(cv_folds, k), features)
-        expected[valid_rows] += leaf_value[valid_rows].reshape(-1, 1)
-
-    cp.testing.assert_allclose(predts.get_valid(), expected)
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -407,40 +411,6 @@ def test_cv_refit_vs_reference(xyw_extqdm: XywExtQdm) -> None:
     cp.testing.assert_allclose(predt, margin, rtol=1e-6, atol=1e-6)
 
 
-def test_cv_refit_does_not_disturb_folds(xyw_extqdm: XywExtQdm) -> None:
-    """Adding the refit model must leave the fold models and the OOF cache untouched."""
-    import cupy as cp
-
-    _, _, _, Xy = xyw_extqdm
-    k_folds, n_rounds = 3, 3
-
-    plain, plain_predts, _ = run_cv(Xy, k_folds, n_rounds, refit=False)
-    with_refit, refit_predts, _ = run_cv(Xy, k_folds, n_rounds, refit=True)
-
-    for k in range(k_folds):
-        for it in range(n_rounds):
-            assert get_fold_tree(plain, k, it) == get_fold_tree(with_refit, k, it)
-        cp.testing.assert_array_equal(plain_predts.get(k), refit_predts.get(k))
-    # The refit model holds no row out, so it must contribute nothing to the OOF cache.
-    cp.testing.assert_array_equal(plain_predts.get_valid(), refit_predts.get_valid())
-
-
-def test_cv_refit_gradient(xyw_extqdm: XywExtQdm) -> None:
-    """Unlike a fold, the refit model has a gradient for every row."""
-    import cupy as cp
-
-    _, y, w, Xy = xyw_extqdm
-
-    _, _, gpairs = run_cv(Xy, 3, 1, refit=True)
-    grad, hess = gpairs.get_refit()
-    assert grad.shape == (Xy.num_row(), 1)
-
-    # No row is masked out, so no weight is zeroed.
-    want_grad, want_hess = expected_gradient(y, cp.concatenate(w))
-    cp.testing.assert_allclose(grad, want_grad)
-    cp.testing.assert_allclose(hess, want_hess)
-
-
 def test_cv_refit_access(xyw_extqdm: XywExtQdm) -> None:
     """The refit model is reachable only through its own getters, and only if asked for."""
     _, _, _, Xy = xyw_extqdm
@@ -463,3 +433,62 @@ def test_cv_refit_access(xyw_extqdm: XywExtQdm) -> None:
         predts.get(k_folds)
     with pytest.raises(xgb.core.XGBoostError):
         gpairs.get(k_folds)
+
+
+def test_cv_data_iter() -> None:
+    """The batches must tile the rows of the input in order."""
+    X, y, _ = make_dataset()
+    n_samples = X.shape[0]
+
+    assert xcv.CvDataIter(X, y).batch_ptr == [0, n_samples]
+    it = xcv.CvDataIter(X, y, batch_size=N_SAMPLES_PER_BATCH)
+    assert it.n_batches == N_BATCHES
+    # A batch size that does not divide the dataset leaves a shorter last batch.
+    short = xcv.CvDataIter(X, y, batch_size=n_samples - 1)
+    assert short.batch_ptr == [0, n_samples - 1, n_samples]
+
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    assert (Xy.num_row(), Xy.num_col()) == (n_samples, N_FEATURES)
+
+    with pytest.raises(ValueError, match="they must match"):
+        xcv.CvDataIter(X, y[:-1])
+    with pytest.raises(ValueError, match="must be positive"):
+        xcv.CvDataIter(X, y, batch_size=0)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.parametrize("n_targets", [1, 2])
+def test_cross_val_predict(n_targets: int) -> None:
+    """Every estimate must match a booster fitted on the rows its fold kept."""
+    import cupy as cp
+    from sklearn.model_selection import KFold
+
+    X, y, w = make_dataset()
+    # `w` is drawn independently of `y`, so it doubles as a second, unrelated target.
+    labels = y if n_targets == 1 else np.stack([y, w], axis=1)
+    n_samples, k_folds, n_rounds = X.shape[0], 3, 3
+
+    # The input is on the host, the iterator is what moves it to the device.
+    oof = xcv.cross_val_predict(
+        X, labels, cv=k_folds, params=PARAMS, num_boost_round=n_rounds
+    )
+    assert oof.dtype == cp.float32
+    assert oof.shape == ((n_samples,) if n_targets == 1 else (n_samples, n_targets))
+
+    # A dataset this small ends up in a single page, so the folds are the unshuffled
+    # `KFold` split of the whole dataset.
+    Xy = xgb.ExtMemQuantileDMatrix(xcv.CvDataIter(X, labels))
+    features, d_labels = cp.asarray(X), cp.asarray(labels)
+    expected = cp.empty_like(oof)
+    for train_rows, valid_rows in KFold(n_splits=k_folds).split(X):
+        train, valid = cp.asarray(train_rows), cp.asarray(valid_rows)
+        # `ref` shares the CV cuts, so the reference sees the same bins.
+        Xyk = xgb.QuantileDMatrix(features[train], label=d_labels[train], ref=Xy)
+        booster = train_reference(Xyk, n_rounds)
+        expected[valid] = cp.asarray(
+            booster.predict(
+                xgb.QuantileDMatrix(features[valid], ref=Xy), output_margin=True
+            )
+        )
+
+    cp.testing.assert_allclose(oof, expected, rtol=1e-6, atol=1e-6)

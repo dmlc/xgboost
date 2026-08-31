@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 
 from ._c_api import _LIB, _check_call, make_jcargs
-from .core import ExtMemQuantileDMatrix, ctypes2buffer
+from ._typing import ArrayLike
+from .core import DataIter, ExtMemQuantileDMatrix, ctypes2buffer
 
 if TYPE_CHECKING:
     import cupy as cp
@@ -530,3 +532,124 @@ class FoldGpairs:
             )
         )
         return self._as_arrays(data, shape, n_dims, copy)
+
+
+def _n_rows(data: ArrayLike) -> int:
+    shape = getattr(data, "shape", None)
+    return len(data) if shape is None else int(shape[0])
+
+
+def _to_device(data: ArrayLike) -> Any:
+    import cupy as cp
+
+    return cp.asarray(data)
+
+
+DFT_BATCH_SIZE = 2**20
+
+
+class CvDataIter(DataIter):
+    """Split ``X`` and ``y`` into the batches of a fused cross-validation matrix."""
+
+    def __init__(
+        self, X: ArrayLike, y: ArrayLike, *, batch_size: int = DFT_BATCH_SIZE
+    ) -> None:
+        # First, so that the base class is whole even if the arguments are rejected below.
+        super().__init__(cache_prefix=None, on_host=True)
+
+        n_samples = _n_rows(X)
+        if n_samples == 0:
+            raise ValueError("`X` has no row.")
+        if _n_rows(y) != n_samples:
+            raise ValueError(
+                f"`X` has {n_samples} rows, `y` has {_n_rows(y)}, they must match."
+            )
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("`batch_size` must be positive.")
+
+        self.X = X
+        self.y = y
+        # Batch boundaries in the global row index space, the space that the fold indices
+        # and the prediction caches are indexed by as well.
+        self.batch_ptr = [*range(0, n_samples, batch_size), n_samples]
+        self.it = 0
+
+    @property
+    def n_batches(self) -> int:
+        """Number of batches this iterator produces."""
+        return len(self.batch_ptr) - 1
+
+    @override
+    def next(self, input_data: Callable) -> bool:
+        if self.it == self.n_batches:
+            return False
+        begin, end = self.batch_ptr[self.it], self.batch_ptr[self.it + 1]
+        input_data(
+            data=_to_device(self.X[begin:end]), label=_to_device(self.y[begin:end])
+        )
+        self.it += 1
+        return True
+
+    @override
+    def reset(self) -> None:
+        self.it = 0
+
+
+def cross_val_predict(
+    X: ArrayLike,
+    y: ArrayLike,
+    *,
+    cv: int = 5,
+    params: dict[str, Any] | None = None,
+    num_boost_round: int = 10,
+) -> cp.ndarray:
+    """Generate cross-validated estimates for each input data point.
+
+    Parameters
+    ----------
+    X :
+        Predictor. Must support row slicing, like a numpy or a cupy array.
+    y :
+        Label, with as many rows as `X`.
+    cv :
+        Number of folds, at least 2. A splitter object is not accepted. Each fold holds out
+        a contiguous window of every external-memory page.
+    params :
+        Booster parameters accepted by the CV tree method, like `learning_rate`.
+    num_boost_round :
+        Number of boosting rounds, shared by every fold model.
+
+    Returns
+    -------
+    The estimate of every row, on the device, in the row order of `X`. The shape is
+    ``(n_samples,)`` for a single target and ``(n_samples, n_targets)`` otherwise.
+
+    """
+    cv = int(cv)
+    if cv < 2:
+        raise ValueError(f"`cv` must be at least 2, got {cv}.")
+    num_boost_round = int(num_boost_round)
+    if num_boost_round < 0:
+        raise ValueError(
+            f"`num_boost_round` must not be negative, got {num_boost_round}."
+        )
+    params = params if params is not None else {}
+    max_bin = params.get("max_bin", None)
+
+    Xy = ExtMemQuantileDMatrix(CvDataIter(X, y), max_bin=max_bin)
+    models = FoldModels(data=Xy, k_folds=cv)
+    fold_info = FoldInfoBatches(Xy, k_folds=cv)
+    predts = FoldPredictions()
+    models.init_prediction(Xy, fold_info, out=predts)
+    gpairs = FoldGpairs()
+    tree_method = FoldTreeMethod(models, Xy, params=params or {})
+
+    for iteration in range(num_boost_round):
+        models.get_gradient(Xy, iteration, fold_info, predts, out=gpairs)
+        tree_method.update(models, Xy, fold_info, gpairs, predts)
+
+    # The cache holds raw margins, which the squared error objective leaves in the
+    # prediction domain already.
+    oof = predts.get_valid()
+    return oof.reshape(-1) if oof.shape[1] == 1 else oof
