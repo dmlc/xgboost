@@ -107,6 +107,47 @@ public class BoosterImplTest {
   }
 
   @Test
+  public void testSetParamsAsBatch() throws XGBoostError {
+    DMatrix trainMat = new DMatrix(this.train_uri);
+    Map<String, Object> params = new LinkedHashMap<>();
+    // This order is invalid when each parameter triggers configuration independently.
+    params.put("objective", "multi:softprob");
+    params.put("num_class", 3);
+
+    Map<String, DMatrix> watches = new HashMap<>();
+    watches.put("train", trainMat);
+
+    Booster booster = XGBoost.train(trainMat, params, 1, watches, null, null);
+    float[][] predictions = booster.predict(trainMat);
+    TestCase.assertEquals(3, predictions[0].length);
+  }
+
+  @Test
+  public void testPredictionIterationEnd() throws XGBoostError {
+    DMatrix trainMat = new DMatrix(this.train_uri);
+    DMatrix testMat = new DMatrix(this.test_uri);
+    Map<String, Object> params = new HashMap<String, Object>() {
+      {
+        put("max_depth", 2);
+        put("objective", "binary:logistic");
+        put("num_parallel_tree", 3);
+      }
+    };
+    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>() {
+      {
+        put("train", trainMat);
+      }
+    };
+
+    Booster booster = XGBoost.train(trainMat, params, 2, watches, null, null);
+    float[][] firstIteration = booster.predictLeaf(testMat, 1);
+    float[][] allIterations = booster.predictLeaf(testMat, 0);
+
+    TestCase.assertEquals(3, firstIteration[0].length);
+    TestCase.assertEquals(6, allIterations[0].length);
+  }
+
+  @Test
   public void inplacePredictTest() throws XGBoostError {
     /* Data Generation */
     // Generate a training set.

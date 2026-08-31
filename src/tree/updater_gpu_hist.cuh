@@ -636,27 +636,6 @@ class MultiTargetHistMaker {
     }
   }
 
-  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             RegTree const* p_tree) {
-    xgboost_NVTX_FN_RANGE();
-
-    CHECK_EQ(out_position.size(), 1);
-    auto d_position = out_position.front().ConstDeviceSpan();
-    CHECK_EQ(out_preds_d.Shape(0), d_position.size());
-    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
-    thrust::for_each_n(this->ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
-                       out_preds_d.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                         auto [sample_idx, target_idx] =
-                             linalg::UnravelIndex(i, out_preds_d.Shape());
-                         bst_node_t nidx = d_position[sample_idx];
-                         nidx = SamplePosition::Decode(nidx);
-                         auto weight = mt_tree.LeafValue(nidx);
-                         out_preds_d(sample_idx, target_idx) += weight(target_idx);
-                       });
-    return true;
-  }
-
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree,
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();

@@ -40,9 +40,9 @@ object PredictFirstNTree {
     // train a model
     val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
-    // predict use 1 tree
+    // predict using the first boosting iteration
     val predicts1 = booster.predict(testMat, false, 1)
-    // by default all trees are used to do predict
+    // by default all boosting iterations are used for prediction
     val predicts2 = booster.predict(testMat)
 
     val eval = new CustomEval

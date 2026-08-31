@@ -1,4 +1,4 @@
-name: Build Python wheels targeting Windows ARM64
+name: Windows aarch64
 
 on:
   push:
@@ -61,6 +61,13 @@ jobs:
           $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
           python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
 
+      - name: Upload Python wheel xgboost as workflow artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: python-wheel-win-arm64-xgboost
+          path: python-package/wheelhouse/xgboost-*.whl
+          retention-days: 1
+
       - name: Upload Python wheel xgboost
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
@@ -98,3 +105,34 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  test-python-wheel-Win-ARM64:
+    name: Test xgboost wheel for Windows ARM64
+    needs: python-wheels-Win-ARM64
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: python -m pip install hypothesis pytest scikit-learn pandas
+
+      - name: Download Python wheel
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: python-wheel-win-arm64-xgboost
+          path: wheelhouse
+
+      - name: Install Python wheel
+        run: |
+          $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
+          python -m pip install -v $wheelFile
+          python -c "import xgboost; print(xgboost.build_info())"
+
+      - name: Run Python tests
+        run: |
+          python -m pytest -v -s -rxXs --durations=0 tests/python/test_basic.py

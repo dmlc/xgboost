@@ -5,8 +5,8 @@ XGBoost Python Package (CPU only)
 |PyPI version|
 
 The ``xgboost-cpu`` package provides for a minimal installation, with no support for the
-GPU algorithms or federated learning. It is provided to allow XGBoost to be installed in a
-space-constrained environment.
+GPU algorithms. It is provided to allow XGBoost to be installed in a space-constrained
+environment.
 
 Note. ``xgboost-cpu`` package is only provided for x86_64 (amd64) Linux and Windows
 platforms.  For other platforms, please install ``xgboost`` from

@@ -147,7 +147,7 @@ void JsonWriter::Visit(JsonBoolean const* boolean) {
 }
 
 // Value
-std::string Value::TypeStr() const {
+std::string_view Value::TypeStr() const {
   switch (kind_) {
     case ValueKind::kString:
       return "String";

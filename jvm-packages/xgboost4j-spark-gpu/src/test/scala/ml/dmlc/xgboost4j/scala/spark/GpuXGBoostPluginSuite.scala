@@ -205,7 +205,8 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setFeaturesCol(features)
         .setNumRound(2)
       val (_, configs) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
-      assert(configs("use_rmm") == true)
+      assert(configs("use_cuda_async_pool") == true)
+      assert(!configs.contains("use_rmm"))
 
       // No exception
       classifier.fit(df)

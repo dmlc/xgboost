@@ -29,20 +29,19 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
 
-* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-  memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-  (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
-  :doc:`/python/rmm-examples/index` for details.
+* ``use_rmm``:
+
+  .. deprecated:: 3.5.0
+
+    The RMM plugin has been deprecated, use the CUDA async pool instead.
 
 * ``use_cuda_async_pool`` [default=false]
 
   Whether to use the device memory pool in the CUDA driver. This option is not available
   if XGBoost is built with RMM support, as it is the same as using the RMM
-  `CudaAsyncMemoryResource` pool.
+  ``CudaAsyncMemoryResource`` pool.
 
   .. versionadded:: 3.2.0
-
-  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
@@ -270,13 +269,13 @@ Parameters for Non-Exact Tree Methods
 
 * ``max_cached_hist_node``, [default = 65536]
 
-  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the
-  ``approx`` tree methods.
+  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the ``approx`` tree methods.
 
   .. versionadded:: 2.0.0
 
-  - For most of the cases this parameter should not be set except for growing deep
-    trees. After 3.0, this parameter affects GPU algorithms as well.
+  - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
+  - After 3.0, this parameter affects GPU algorithms as well.
 
 
 .. _cat-param:
@@ -410,10 +409,13 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
+
+    .. deprecated:: 3.5.0
+
+      Use ``binary:logistic`` and request raw margin predictions with ``output_margin=True`` instead.
+
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
-
-    + ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
   - ``survival:cox``: Cox regression for right censored survival time data (negative values are considered right censored).
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).

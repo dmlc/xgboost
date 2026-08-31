@@ -42,7 +42,6 @@ xgb.params(
   seed_per_iteration = NULL,
   device = NULL,
   disable_default_eval_metric = NULL,
-  use_rmm = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
@@ -94,7 +93,6 @@ Version added: 2.0.0
 \item \code{"binary:logitraw"}: logistic regression for binary classification, output score before logistic transformation
 \item \code{"binary:hinge"}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 \item \code{"count:poisson"}: Poisson regression for count data, output mean of Poisson distribution.
-\code{"max_delta_step"} is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 \item \code{"survival:cox"}: Cox regression for right censored survival time data (negative values are considered right censored).
 
 Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function \code{h(t) = h0(t) * HR}).
@@ -383,11 +381,6 @@ To get GPU support, the R package for XGBoost must be installed from source or f
 
 \item{disable_default_eval_metric}{(default= \code{FALSE})
 Flag to disable default metric. Set to 1 or \code{TRUE} to disable.}
-
-\item{use_rmm}{Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-(compiled) with the RMM plugin enabled. Valid values are \code{TRUE} and \code{FALSE}. See
-\href{https://xgboost.readthedocs.io/en/latest/python/rmm-examples/index.html}{Using XGBoost with RAPIDS Memory Manager (RMM) plugin} for details.}
 
 \item{max_cached_hist_node}{(for Non-Exact Tree Methods) (default = 65536)
 Maximum number of cached nodes for histogram. This can be used with the \code{"hist"} and the

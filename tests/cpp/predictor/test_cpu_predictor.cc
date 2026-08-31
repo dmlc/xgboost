@@ -167,9 +167,9 @@ TEST(CpuPredictor, InplacePredict) {
 }
 
 namespace {
-void TestUpdatePredictionCache(bool use_subsampling) {
+void TestTrainingPredictionCache(bool use_subsampling) {
   std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
-  LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
+  LearnerModelState mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;
@@ -189,20 +189,18 @@ void TestUpdatePredictionCache(bool use_subsampling) {
     std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};
   }
 
-  PredictionCacheEntry predtion_cache;
-  predtion_cache.predictions.Resize(kRows * kClasses, 0);
-  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker
-  // prediction values
-  gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
+  // After one training iteration, GBTree's prediction cache contains cached predictions.
+  gbm->DoBoost(dmat, &gpair, nullptr);
+  auto const& prediction_cache = gbm->PredictionCache(dmat.get());
 
-  PredictionCacheEntry out_predictions;
+  HostDeviceVector<float> out_predictions;
   // perform prediction from scratch on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
+  gbm->PredictBatch(dmat, &out_predictions, false, 0, 0);
 
-  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-  std::vector<float>& predtion_cache_from_train = predtion_cache.predictions.HostVector();
+  std::vector<float>& out_predictions_h = out_predictions.HostVector();
+  auto const& prediction_cache_from_train = prediction_cache.predictions.ConstHostVector();
   for (size_t i = 0; i < out_predictions_h.size(); ++i) {
-    ASSERT_NEAR(out_predictions_h[i], predtion_cache_from_train[i], kRtEps);
+    ASSERT_NEAR(out_predictions_h[i], prediction_cache_from_train[i], kRtEps);
   }
 }
 }  // namespace
@@ -226,9 +224,9 @@ TEST(CPUPredictor, CategoricalPredictLeaf) {
   TestCategoricalPredictLeaf(&ctx);
 }
 
-TEST(CpuPredictor, UpdatePredictionCache) {
-  TestUpdatePredictionCache(false);
-  TestUpdatePredictionCache(true);
+TEST(CpuPredictor, TrainingPredictionCache) {
+  TestTrainingPredictionCache(false);
+  TestTrainingPredictionCache(true);
 }
 
 TEST(CpuPredictor, LesserFeatures) {

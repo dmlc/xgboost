@@ -1,9 +1,11 @@
 import os
 import subprocess
+import sys
 
 import pytest
-
 from xgboost import testing as tm
+
+PYTHON = sys.executable
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
@@ -16,14 +18,14 @@ pytestmark = [
 @pytest.mark.mgpu
 def test_dask_training() -> None:
     script = os.path.join(tm.demo_dir(__file__), "dask", "gpu_training.py")
-    cmd = ["python", script]
+    cmd = [PYTHON, script]
     subprocess.check_call(cmd)
 
 
 @pytest.mark.mgpu
 def test_dask_sklearn_demo() -> None:
     script = os.path.join(tm.demo_dir(__file__), "dask", "sklearn_gpu_training.py")
-    cmd = ["python", script]
+    cmd = [PYTHON, script]
     subprocess.check_call(cmd)
 
 
@@ -31,5 +33,5 @@ def test_dask_sklearn_demo() -> None:
 @pytest.mark.skipif(**tm.no_cupy())
 def test_forward_logging_demo() -> None:
     script = os.path.join(tm.demo_dir(__file__), "dask", "forward_logging.py")
-    cmd = ["python", script]
+    cmd = [PYTHON, script]
     subprocess.check_call(cmd)

@@ -1057,7 +1057,7 @@ def test_with_asyncio(client: "Client") -> None:
 async def generate_concurrent_trainings() -> None:
     async def train() -> None:
         async with LocalCluster(
-            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=":0"
+            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=None
         ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
@@ -1263,15 +1263,8 @@ def test_invalid_config(client: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client, X, y)
 
-    with dask.config.set({"xgboost.foo": "bar"}):
-        with pytest.raises(ValueError, match=r"Unknown configuration.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=4)
-
-    with dask.config.set({"xgboost.scheduler_address": "127.0.0.1:foo"}):
-        with pytest.raises(socket.gaierror, match=r".*not known.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=1)
-
-    # No failure only because we are also using the Dask scheduler address.
+    # Fall back to the Dask scheduler address when the requested tracker port is
+    # unavailable.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]

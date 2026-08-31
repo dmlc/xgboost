@@ -7,7 +7,7 @@
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal, TestFederatedGlobal
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_quantile.h"
 
@@ -246,16 +246,10 @@ TEST(GPUQuantileProperty, Invariants) {
 }
 
 TEST(GPUQuantileProperty, RowSplit) {
-#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+#if defined(XGBOOST_USE_NCCL)
   auto n_gpus = curt::AllVisibleGPUs();
-#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+#endif  // defined(XGBOOST_USE_NCCL)
   for (auto const& c : quantile_test::ContainerAnchorCases()) {
-#if defined(XGBOOST_USE_FEDERATED)
-    collective::TestFederatedGlobal(n_gpus, [&] {
-      SCOPED_TRACE(c.name);
-      DoMGPURowSplitProperty(c);
-    });
-#endif  // defined(XGBOOST_USE_FEDERATED)
 #if defined(XGBOOST_USE_NCCL)
     collective::TestDistributedGlobal(
         n_gpus,
@@ -498,13 +492,8 @@ void TestSameOnAllWorkers() {
 }  // anonymous namespace
 
 TEST(GPUQuantile, SameOnAllWorkers) {
-#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
-  auto n_gpus = curt::AllVisibleGPUs();
-#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
-#if defined(XGBOOST_USE_FEDERATED)
-  collective::TestFederatedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
-#endif  // defined(XGBOOST_USE_FEDERATED)
 #if defined(XGBOOST_USE_NCCL)
+  auto n_gpus = curt::AllVisibleGPUs();
   collective::TestDistributedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
 #endif  // defined(XGBOOST_USE_NCCL)
 }

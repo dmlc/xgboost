@@ -25,7 +25,7 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 class TreeRefresher : public TreeUpdater {
  public:
   explicit TreeRefresher(Context const *ctx) : TreeUpdater(ctx) {}
-  void Configure(const Args &) override {}
+  std::set<std::string> Configure(const Args &) override { return {}; }
   void LoadConfig(Json const &) override {}
   void SaveConfig(Json *) const override {}
 

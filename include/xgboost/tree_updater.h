@@ -19,6 +19,7 @@
 #include <xgboost/tree_model.h>          // for RegTree
 
 #include <functional>  // for function
+#include <set>         // for set
 #include <string>      // for string
 #include <vector>      // for vector
 
@@ -44,8 +45,9 @@ class TreeUpdater : public Configurable {
   /**
    * @brief Initialize the updater with given arguments.
    * @param args arguments to the objective function.
+   * @return Names of parameters consumed by the updater.
    */
-  virtual void Configure(const Args& args) = 0;
+  virtual std::set<std::string> Configure(const Args& args) = 0;
   /**
    * @brief Whether this updater can be used for updating existing trees.
    *
@@ -71,24 +73,6 @@ class TreeUpdater : public Configurable {
   virtual void Update(tree::TrainParam const* param, GradientContainer* gpair, DMatrix* p_fmat,
                       common::Span<HostDeviceVector<bst_node_t>> out_position,
                       std::vector<RegTree*> const& out_trees) = 0;
-
-  /**
-   * @brief Determines whether updater has enough knowledge about a given dataset to
-   *        quickly update prediction cache for the training data and performs the update
-   *        if possible.
-   *
-   * @param p_fmat data matrix
-   * @param out_preds prediction cache to be updated
-   *
-   * @return boolean indicating whether updater has capability to update the prediction
-   *         cache. If true, the prediction cache will have been updated by the time this
-   *         function returns.
-   */
-  virtual bool UpdatePredictionCache(DMatrix const* /*data*/,
-                                     common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
-                                     linalg::MatrixView<float> /*out_preds*/) {
-    return false;
-  }
 
   [[nodiscard]] virtual char const* Name() const = 0;
 

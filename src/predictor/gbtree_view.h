@@ -41,8 +41,8 @@ class GBTreeModelView {
                            bst_tree_t tree_begin, bst_tree_t tree_end, CopyViews&& copy)
       : tree_begin{tree_begin},
         tree_end{tree_end},
-        n_groups{model.learner_model_param->OutputLength()},
-        n_features{model.learner_model_param->num_feature} {
+        n_groups{model.learner_model_state->OutputLength()},
+        n_features{model.learner_model_state->num_feature} {
     // Make sure the trees are pulled to target device without race.
     std::lock_guard guard{model.Mutex()};
     // Create tree views.

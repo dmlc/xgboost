@@ -504,34 +504,6 @@ struct GPUHistMakerDevice {
     }
   }
 
-  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             RegTree const* p_tree) {
-    CHECK(p_tree);
-    CHECK(out_preds_d.Device().IsCUDA());
-    CHECK_EQ(out_preds_d.Device().ordinal, ctx_->Ordinal());
-
-    CHECK_EQ(out_position.size(), 1);
-    auto d_position = out_position.front().ConstDeviceSpan();
-    CHECK_EQ(out_preds_d.Size(), d_position.size());
-
-    // Use the nodes from tree, the leaf value might be changed by the objective since the
-    // last update tree call.
-    dh::CachingDeviceUVector<RegTree::Node> nodes;
-    // We can remove the CPU copy once we refactor the GPU hist to use the device tree.
-    dh::CopyTo(p_tree->GetNodes(DeviceOrd::CPU()), &nodes, this->ctx_->CUDACtx()->Stream());
-    common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
-    CHECK_EQ(out_preds_d.Shape(1), 1);
-    dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
-                [=] XGBOOST_DEVICE(std::size_t idx) mutable {
-                  bst_node_t nidx = d_position[idx];
-                  nidx = SamplePosition::Decode(nidx);
-                  auto weight = d_nodes[nidx].LeafValue();
-                  out_preds_d(idx, 0) += weight;
-                });
-    return true;
-  }
-
   void ApplySplit(const GPUExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
 
@@ -678,13 +650,14 @@ class GPUHistMaker : public TreeUpdater {
       : TreeUpdater(ctx),
         task_{task},
         column_sampler_{std::make_shared<common::ColumnSampler>()} {};
-  void Configure(const Args& args) override {
+  std::set<std::string> Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
-    hist_maker_param_.UpdateAllowUnknown(args);
+    auto used = UpdateAndGetUsedParameters(&hist_maker_param_, args);
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
+    return used;
   }
 
   void LoadConfig(Json const& in) override {
@@ -762,26 +735,6 @@ class GPUHistMaker : public TreeUpdater {
     p_scimpl_->UpdateTree(gpair_hdv, p_fmat, p_tree, p_out_position);
   }
 
-  bool UpdatePredictionCache(DMatrix const* p_fmat,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             linalg::MatrixView<float> p_out_preds) override {
-    if (p_scimpl_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != p_fmat) {
-      return false;
-    }
-    if (out_position.size() > 1) {
-      return false;
-    }
-
-    xgboost_NVTX_FN_RANGE();
-
-    if (this->p_last_tree_->IsMultiTarget()) {
-      CHECK(p_mtimpl_);
-      return p_mtimpl_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
-    } else {
-      return p_scimpl_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
-    }
-  }
-
   [[nodiscard]] char const* Name() const override { return "grow_gpu_hist"; }
 
  private:
@@ -812,13 +765,14 @@ class GPUGlobalApproxMaker : public TreeUpdater {
       : TreeUpdater(ctx),
         column_sampler_{std::make_shared<common::ColumnSampler>()},
         task_{task} {};
-  void Configure(Args const& args) override {
+  std::set<std::string> Configure(Args const& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
-    hist_maker_param_.UpdateAllowUnknown(args);
+    auto used = UpdateAndGetUsedParameters(&hist_maker_param_, args);
     initialised_ = false;
 
     monitor_.Init(this->Name());
+    return used;
   }
 
   void LoadConfig(Json const& in) override {
@@ -898,21 +852,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     gpair->SetDevice(ctx_->Device());
     maker_->UpdateTree(gpair, p_fmat, p_tree, p_out_position);
-  }
-
-  bool UpdatePredictionCache(DMatrix const* p_fmat,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             linalg::MatrixView<float> p_out_preds) override {
-    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != p_fmat) {
-      return false;
-    }
-    if (out_position.size() > 1) {
-      return false;
-    }
-    monitor_.Start(__func__);
-    bool result = maker_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
-    monitor_.Stop(__func__);
-    return result;
   }
 
   [[nodiscard]] char const* Name() const override { return "grow_gpu_approx"; }

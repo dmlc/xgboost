@@ -931,7 +931,6 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' - `"binary:logistic"`: logistic regression for binary classification, output probability
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 #' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
-#'   `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 #' - `"survival:cox"`: Cox regression for right censored survival time data (negative values are considered right censored).
 #'
 #'   Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function `h(t) = h0(t) * HR`).
@@ -1154,7 +1153,6 @@ xgboost <- function(
   seed_per_iteration = NULL,
   device = NULL,
   disable_default_eval_metric = NULL,
-  use_rmm = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,

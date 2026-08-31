@@ -11,9 +11,12 @@ dependencies:
 - pytest
 - boto3
 - hypothesis
-- cupy>=13.2,<14
 - python-graphviz
 - pip
-- py-ubjson
 - loky>=3.5.1
 - pyarrow
+# CUDA
+- cupy
+- cuda-version=13.3
+- pip:
+  - py-ubjson

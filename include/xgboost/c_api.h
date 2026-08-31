@@ -1038,13 +1038,31 @@ XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer, int end_layer,
 XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int *out);
 
 /**
- * @brief set parameters
+ * @brief Set and apply one parameter as a single-element configuration batch.
+ *
+ * @deprecated Prefer XGBoosterSetParams when setting multiple parameters so they are configured
+ * together.
+ *
  * @param handle handle
  * @param name  parameter name
  * @param value value of parameter
  * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle, const char *name, const char *value);
+
+/**
+ * @brief Set and apply multiple parameters as one configuration step.
+ *
+ * The configuration is a JSON object with a `params` array containing name-value pairs. The array
+ * is ordered and preserves repeated parameters such as `eval_metric`. A successful return means
+ * that no configuration is pending. For example:
+ * `{"params": [["tree_method", "hist"], ["eval_metric", "mae"], ["eval_metric", "rmse"]]}`.
+ *
+ * @param handle Handle to the booster.
+ * @param config JSON-encoded parameter batch.
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config);
 /**
  * @example c-api-demo.c
  */
@@ -1122,37 +1140,7 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle d
  */
 
 /**
- * @brief make prediction based on dmat (deprecated, use \ref XGBoosterPredictFromDMatrix instead)
- * \deprecated
- * \see XGBoosterPredictFromDMatrix()
- *
- * @param handle handle
- * @param dmat data matrix
- * @param option_mask bit-mask of options taken in prediction, possible values
- *          0:normal prediction
- *          1:output margin instead of transformed value
- *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
- *          4:output feature contributions to individual predictions
- * @param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
- *    when the parameter is set to 0, we will use all the trees
- * @param training Whether the prediction function is used as part of a training loop.
- *    Prediction can be run in 2 scenarios:
- *    1. Given data matrix X, obtain prediction y_pred from the model.
- *    2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
- *       during training, and the prediction result will be different from the one obtained by normal
- *       inference step due to dropped trees.
- *    Set training=false for the first scenario. Set training=true for the second scenario.
- *    The second scenario applies when you are defining a custom objective function.
- * @param out_len used to store length of returning result
- * @param out_result used to set a pointer to array
- * @return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int option_mask,
-                             unsigned ntree_limit, int training, bst_ulong *out_len,
-                             const float **out_result);
-
-/**
- * @brief Make prediction from DMatrix, replacing \ref XGBoosterPredict.
+ * @brief Make prediction from DMatrix.
  *
  * @param handle Booster handle
  * @param dmat   DMatrix handle
@@ -1672,11 +1660,6 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
 
 /**
  * @brief Handle to the tracker.
- *
- *   There are currently two types of tracker in XGBoost, first one is `rabit`, while the
- *   other one is `federated`.  `rabit` is used for normal collective communication, while
- *   `federated` is used for federated learning.
- *
  */
 typedef void *TrackerHandle; /* NOLINT */
 
@@ -1685,8 +1668,8 @@ typedef void *TrackerHandle; /* NOLINT */
  *
  * @param config JSON encoded parameters.
  *
- *   - dmlc_communicator: String, the type of tracker to create. Available options are
- *                        `rabit` and `federated`. See @ref TrackerHandle for more info.
+ *   - dmlc_communicator: String, the type of tracker to create. The only available option
+ *                        is `rabit`. See @ref TrackerHandle for more info.
  *   - n_workers: Integer, the number of workers.
  *   - port: (Optional) Integer, the port this tracker should listen to.
  *   - timeout: (Optional) Integer, timeout in seconds for various networking
@@ -1699,12 +1682,6 @@ typedef void *TrackerHandle; /* NOLINT */
  *   - sortby: (Optional) Integer.
  *     + 0: Sort workers by their host name.
  *     + 1: Sort workers by task IDs.
- *
- *   Some `federated` specific configurations:
- *   - federated_secure: Boolean, whether this is a secure server. False for testing.
- *   - server_key_path: Path to the server key. Used only if this is a secure server.
- *   - server_cert_path: Path to the server certificate. Used only if this is a secure server.
- *   - client_cert_path: Path to the client certificate. Used only if this is a secure server.
  *
  * @param handle The handle to the created tracker.
  *
@@ -1770,7 +1747,6 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  * @param config JSON encoded configuration. Accepted JSON keys are:
  *   - dmlc_communicator: The type of the communicator, this should match the tracker type.
  *     * rabit: Use Rabit. This is the default if the type is unspecified.
- *     * federated: Use the gRPC interface for Federated Learning.
  *
  * Only applicable to the `rabit` communicator:
  *   - dmlc_tracker_uri: Hostname or IP address of the tracker.
@@ -1779,15 +1755,6 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle);
  *   - dmlc_retry: The number of retries for connection failure.
  *   - dmlc_timeout: Timeout in seconds.
  *   - dmlc_nccl_path: Path to the nccl shared library `libnccl.so`.
- *
- * Only applicable to the `federated` communicator (use upper case for environment variables, use
- * lower case for runtime configuration):
- *   - federated_server_address: Address of the federated server.
- *   - federated_world_size: Number of federated workers.
- *   - federated_rank: Rank of the current worker.
- *   - federated_server_cert_path: Server certificate file path. Only needed for the SSL mode.
- *   - federated_client_key_path: Client key file path. Only needed for the SSL mode.
- *   - federated_client_cert_path: Client certificate file path. Only needed for the SSL mode.
  *
  * @return 0 when success, -1 when failure happens
  */

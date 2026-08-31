@@ -113,7 +113,7 @@ def test_reduced_grad() -> None:
 
 
 def test_with_iter() -> None:
-    if build_info().get("USE_RMM", False) is True or sys.platform.startswith("win"):
+    if build_info().get("USE_RMM", False) is True:
         with config_context(use_rmm=True):
             run_with_iter("cuda")
     else:

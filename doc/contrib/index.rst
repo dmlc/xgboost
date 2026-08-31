@@ -6,7 +6,7 @@ XGBoost has been developed by community members. Everyone is welcome to contribu
 
 * Code reviews for pull requests
 * Documentation and usage examples
-* Community participation in forums and issues
+* Community participation in `GitHub Discussions <https://github.com/dmlc/xgboost/discussions>`_ and issues
 * Code readability and developer guide
 
   - We welcome contributions that add code comments to improve readability.

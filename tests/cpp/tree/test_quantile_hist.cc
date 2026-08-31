@@ -145,7 +145,7 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
       RandomDataGenerator{kNBig, kCols, 0.0f}.Seed(0).Batches(8).GenerateSparsePageDMatrix(
           "part_resize_big_first", true);
 
-  std::size_t shape_large[2]{dmat_large->Info().num_row_, n_targets_size};
+  std::size_t shape_large[2]{static_cast<std::size_t>(dmat_large->Info().num_row_), n_targets_size};
   GradientContainer gpair_large;
   gpair_large.gpair = linalg::Matrix<GradientPair>{shape_large, ctx.Device()};
   FillGradients(&gpair_large.gpair);
@@ -174,7 +174,7 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
   std::vector<bst_node_t> tail_before(tail_elems);
   std::memcpy(tail_before.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
 
-  std::size_t shape_small[2]{dmat_small->Info().num_row_, n_targets_size};
+  std::size_t shape_small[2]{static_cast<std::size_t>(dmat_small->Info().num_row_), n_targets_size};
   GradientContainer gpair_small;
   gpair_small.gpair = linalg::Matrix<GradientPair>{shape_small, ctx.Device()};
   FillGradients(&gpair_small.gpair);

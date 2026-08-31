@@ -670,6 +670,27 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParam(
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterSetParams
+ * Signature: (JLjava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParams(JNIEnv *jenv,
+                                                                                 jclass jcls,
+                                                                                 jlong jhandle,
+                                                                                 jstring jconfig) {
+  auto handle = reinterpret_cast<BoosterHandle>(jhandle);
+  std::unique_ptr<char const, Deleter<char const>> config{
+      jenv->GetStringUTFChars(jconfig, nullptr), [&](char const *ptr) {
+        if (ptr) {
+          jenv->ReleaseStringUTFChars(jconfig, ptr);
+        }
+      }};
+  int ret = XGBoosterSetParams(handle, config.get());
+  JVM_CHECK_CALL(ret);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterUpdateOneIter
  * Signature: (JIJ)V
  */
@@ -766,28 +787,40 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterPredict
- * Signature: (JJIJ)[F
+ * Method:    XGBoosterPredictFromDMatrix
+ * Signature: (JJIIZ[[F)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict(
-    JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint joption_mask, jint jntree_limit,
-    jobjectArray jout) {
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDMatrix(
+    JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint jpredict_type, jint jiteration_end,
+    jboolean jtraining, jobjectArray jout) {
+  API_BEGIN();
   auto handle = reinterpret_cast<BoosterHandle>(jhandle);
   auto dmat = reinterpret_cast<DMatrixHandle>(jdmat);
-  bst_ulong len;
+
+  xgboost::Json config{xgboost::Object{}};
+  config["type"] = xgboost::Integer{static_cast<std::int32_t>(jpredict_type)};
+  config["iteration_begin"] = xgboost::Integer{0};
+  config["iteration_end"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(jiteration_end)};
+  config["training"] = xgboost::Boolean{static_cast<bool>(jtraining)};
+  config["strict_shape"] = xgboost::Boolean{false};
+  auto s_config = xgboost::Json::Dump(config);
+
+  bst_ulong const *out_shape;
+  bst_ulong out_dim;
   float const *result;
-  int ret =
-      XGBoosterPredict(handle, dmat, joption_mask, (unsigned int)jntree_limit,
-                       /* training = */ 0,  // Currently this parameter is not supported by JVM
-                       &len, &result);
+  auto ret =
+      XGBoosterPredictFromDMatrix(handle, dmat, s_config.c_str(), &out_shape, &out_dim, &result);
   JVM_CHECK_CALL(ret);
-  if (len) {
-    jsize jlen = static_cast<jsize>(len);
-    jfloatArray jarray = jenv->NewFloatArray(jlen);
-    jenv->SetFloatArrayRegion(jarray, 0, jlen, result);
+
+  auto n = std::accumulate(
+      out_shape, out_shape + out_dim, std::size_t{1},
+      [](std::size_t acc, bst_ulong dim) { return acc * static_cast<std::size_t>(dim); });
+  if (n != 0) {
+    jfloatArray jarray = jenv->NewFloatArray(n);
+    jenv->SetFloatArrayRegion(jarray, 0, n, result);
     jenv->SetObjectArrayElement(jout, 0, jarray);
   }
-  return ret;
+  API_END();
 }
 
 /*

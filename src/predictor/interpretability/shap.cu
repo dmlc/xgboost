@@ -1196,7 +1196,7 @@ void DispatchByBatchLoader(Context const* ctx, DMatrix* p_fmat, bst_feature_t n_
 template <typename Fn>
 void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView const& new_enc,
                 gbm::GBTreeModel const& model, Fn&& fn) {
-  auto n_features = model.learner_model_param->num_feature;
+  auto n_features = model.learner_model_state->num_feature;
   if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
     DispatchByBatchLoader(ctx, p_fmat, n_features, std::move(acc), fn);
@@ -1216,9 +1216,9 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1244,7 +1244,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
@@ -1264,9 +1264,9 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   }
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1293,7 +1293,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {

@@ -16,36 +16,14 @@ Stable Release
 Python
 ------
 
-Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
+Pre-built binary wheels are uploaded to PyPI (Python Package Index) for each release. Supported platforms are Linux (x86_64, aarch64), Windows (x86_64, aarch64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
-  # Pip 21.3+ is required
   pip install xgboost
 
 
-You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run
-into permission errors.
-
-.. note:: Parts of the Python package now require glibc 2.28+
-
-  Starting from 2.1.0, XGBoost Python package will be distributed in two variants:
-
-  * ``manylinux_2_28``: for recent Linux distros with glibc 2.28 or newer. This variant comes with all features enabled.
-  * ``manylinux2014``: for old Linux distros with glibc older than 2.28. This variant does not support GPU algorithms or federated learning.
-
-  The ``pip`` package manager will automatically choose the correct variant depending on your system.
-
-  Starting from **May 31, 2025**, we will stop distributing the ``manylinux2014`` variant and exclusively
-  distribute the ``manylinux_2_28`` variant. We made this decision so that our CI/CD pipeline won't have
-  depend on software components that reached end-of-life (such as CentOS 7). We strongly encourage
-  everyone to migrate to recent Linux distros in order to use future versions of XGBoost.
-
-  Note. If you want to use GPU algorithms or federated learning on an older Linux distro, you have
-  two alternatives:
-
-  1. Upgrade to a recent Linux distro with glibc 2.28+.  OR
-  2. Build XGBoost from the source.
+You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run into permission errors.
 
 .. note:: Windows users need to install Visual C++ Redistributable
 
@@ -55,7 +33,6 @@ into permission errors.
   you have Visual Studio installed, you already have access to
   necessary libraries and thus don't need to install Visual C++
   Redistributable.
-
 
 Capabilities of binary wheels for each platform:
 
@@ -67,7 +44,7 @@ Capabilities of binary wheels for each platform:
 +=====================+=========+======================+
 | Linux x86_64        | |tick|  |  |tick|              |
 +---------------------+---------+----------------------+
-| Linux aarch64       | |tick|  |  |cross|             |
+| Linux aarch64       | |tick|  |  |tick|              |
 +---------------------+---------+----------------------+
 | MacOS x86_64        | |cross| |  |cross|             |
 +---------------------+---------+----------------------+
@@ -75,15 +52,36 @@ Capabilities of binary wheels for each platform:
 +---------------------+---------+----------------------+
 | Windows             | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
+| Windows aarch64     | |cross| |  |cross|             |
++---------------------+---------+----------------------+
 
-Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on
-modern Jetson or Graviton machines provides the same GPU functionality as the
-Linux x86_64 wheel. Multi-node and multi-GPU training remain experimental on
-ARM64 at this time.
+Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on modern
+Jetson or Graviton machines provides the same GPU functionality as the Linux x86_64
+wheel.
+
+.. _wheel-cuda:
+
+CUDA toolkit variants (Linux)
+*****************************
+The default ``xgboost`` wheel for Linux x86_64 and aarch64 is built with CUDA Toolkit 13.x:
+
+.. code-block:: bash
+
+  pip install xgboost
+
+Users with GPU whose NVIDIA driver supports CUDA 12 but not CUDA 13 can instead install the CUDA 12 package:
+
+.. code-block:: bash
+
+  pip uninstall xgboost xgboost-cu12
+  pip install xgboost-cu12
+
+The CUDA 12 package is a driver-compatibility option.
+
 
 Minimal installation (CPU-only)
 *******************************
-The default installation with ``pip`` will install the full XGBoost package, including the support for the GPU algorithms and federated learning.
+The default installation with ``pip`` will install the full XGBoost package, including support for GPU algorithms.
 
 You may choose to reduce the size of the installed package and save the disk space, by opting to install ``xgboost-cpu`` instead:
 
@@ -91,8 +89,7 @@ You may choose to reduce the size of the installed package and save the disk spa
 
   pip install xgboost-cpu
 
-The ``xgboost-cpu`` variant will have drastically smaller disk footprint, but does not provide some features, such as the GPU algorithms and
-federated learning.
+The ``xgboost-cpu`` variant has a drastically smaller disk footprint, but does not provide GPU algorithms.
 
 Conda
 *****

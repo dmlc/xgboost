@@ -19,7 +19,7 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
-#include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
+#include "hist/evaluate_splits.h"            // for HistEvaluator
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
@@ -126,17 +126,6 @@ class GlobalApproxBuilder {
     monitor_->Stop(__func__);
 
     return nodes.front();
-  }
-
-  void UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
-                             linalg::MatrixView<float> out_preds) const {
-    monitor_->Start(__func__);
-    // Caching prediction seems redundant for approx tree method, as sketching takes up
-    // majority of training time.
-    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_);
-    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
-    monitor_->Stop(__func__);
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
@@ -262,7 +251,9 @@ class GlobalApproxUpdater : public TreeUpdater {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const &args) override {
+    return UpdateAndGetUsedParameters(&hist_param_, args);
+  }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
@@ -307,19 +298,6 @@ class GlobalApproxUpdater : public TreeUpdater {
       hist_param_.CheckTreesSynchronized(ctx_, p_tree);
       ++t_idx;
     }
-  }
-
-  bool UpdatePredictionCache(DMatrix const *p_fmat,
-                             common::Span<HostDeviceVector<bst_node_t>> out_position,
-                             linalg::MatrixView<float> out_preds) override {
-    if (p_fmat != cached_ || !pimpl_) {
-      return false;
-    }
-    if (out_position.size() > 1) {
-      return false;
-    }
-    this->pimpl_->UpdatePredictionCache(p_fmat, out_position.front().ConstHostSpan(), out_preds);
-    return true;
   }
 };
 

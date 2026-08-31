@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 3.4.0)
+project(xgboost LANGUAGES CXX C VERSION 3.5.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -65,7 +65,6 @@ option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ni
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
@@ -112,7 +111,6 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
 address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
-option(PLUGIN_FEDERATED "Build with Federated Learning" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
 option(PLUGIN_SYCL "SYCL plugin" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
@@ -163,6 +161,9 @@ endif()
 if(PLUGIN_RMM AND NOT (USE_CUDA))
   message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
 endif()
+if(PLUGIN_RMM)
+  message(DEPRECATION "`PLUGIN_RMM` has been deprecated in v3.5.0. Use the CUDA async pool instead.")
+endif()
 if(PLUGIN_RMM AND NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
   message(SEND_ERROR "`PLUGIN_RMM` must be used with GCC or Clang compiler.")
 endif()
@@ -177,24 +178,13 @@ endif()
 if(BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
   message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
 endif()
-if(PLUGIN_FEDERATED)
-  if(CMAKE_CROSSCOMPILING)
-    message(SEND_ERROR "Cannot cross compile with federated learning support")
-  endif()
-  if(BUILD_STATIC_LIB)
-    message(SEND_ERROR "Cannot build static lib with federated learning support")
-  endif()
-  if(R_LIB OR JVM_BINDINGS)
-    message(SEND_ERROR "Cannot enable federated learning support when R or JVM packages are enabled.")
-  endif()
-  if(WIN32)
-    message(SEND_ERROR "Federated learning not supported for Windows platform")
-  endif()
-endif()
 
 #-- Removed options
 if(USE_AVX)
   message(SEND_ERROR  "The option `USE_AVX` is deprecated as experimental AVX features have been removed from XGBoost.")
+endif()
+if(PLUGIN_FEDERATED)
+  message(SEND_ERROR "The option `PLUGIN_FEDERATED` has been removed from XGBoost.")
 endif()
 if(PLUGIN_LZ4)
   message(SEND_ERROR  "The option `PLUGIN_LZ4` is removed from XGBoost.")
@@ -207,6 +197,9 @@ if(USE_S3)
 endif()
 if(USE_AZURE)
   message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
+endif()
+if(USE_DMLC_GTEST)
+  message(SEND_ERROR "The option `USE_DMLC_GTEST` has been removed from XGBoost")
 endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
@@ -308,7 +301,17 @@ if(BUILD_WITH_SYSTEM_DMLC)
   find_package(dmlc REQUIRED)
 else()
   set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  # dmlc-core also has a 'GOOGLE_TEST' option.
+  #
+  # Setting it to OFF prevents dmlc-core's tests from being built alongside
+  # XGBoost's (relies on CMake CMP0077). Doing that in a function avoids
+  # changing the value of 'GOOGLE_TEST' for the rest of XGBoost's CMake.
+  #
+  function(xgboost_add_dmlc_core_without_tests)
+    set(GOOGLE_TEST OFF)
+    add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  endfunction()
+  xgboost_add_dmlc_core_without_tests()
 endif()
 
 if(MSVC)
@@ -323,7 +326,7 @@ endif()
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 # dmlc-core
-if(BUILD_WTIH_SYSTEM_DMLC)
+if(BUILD_WITH_SYSTEM_DMLC)
   target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
 else()
   target_link_libraries(objxgboost PUBLIC dmlc)
@@ -403,11 +406,13 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
-  # Provide versioned shared object
+  # R installs the library itself and expects an unversioned regular file.
   add_library(xgboost SHARED)
-  set_target_properties(xgboost PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+  if(NOT R_LIB)
+    set_target_properties(xgboost PROPERTIES
+      VERSION ${PROJECT_VERSION}
+      SOVERSION ${PROJECT_VERSION_MAJOR})
+  endif()
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -422,6 +427,7 @@ foreach(target xgboost objxgboost)
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
+
 if(NOT BUILD_WITH_SYSTEM_DMLC)
   xgboost_target_properties(dmlc)
   xgboost_target_link_libraries(dmlc)
@@ -435,7 +441,7 @@ if(JVM_BINDINGS)
 endif()
 
 if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
-  patch_openmp_path_macos(xgboost libxgboost)
+  patch_openmp_path_macos(xgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
@@ -444,15 +450,12 @@ else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif()
 
-#-- Installing XGBoost
+#-- R shared library naming
 if(R_LIB)
-  include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
   if(APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif()
-  setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif()
 if(MINGW)
   set_target_properties(xgboost PROPERTIES PREFIX "")

@@ -566,7 +566,8 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_
         std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
                                                  std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   } else {
-    CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
+    CudaArrayIterForTest iter{this->sparsity_, static_cast<std::size_t>(this->rows_), this->cols_,
+                              1};
     p_fmat =
         std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
                                                  std::numeric_limits<float>::quiet_NaN(), 0, bins_);
@@ -634,7 +635,8 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
     HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
     const common::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
   Context ctx;
-  auto iter = NumpyArrayIterForTest{&ctx, x, n_samples / n_batches, n_features, n_batches};
+  auto iter = NumpyArrayIterForTest{&ctx, x, static_cast<std::size_t>(n_samples / n_batches),
+                                    n_features, static_cast<std::size_t>(n_batches)};
 
   auto prefix = tempdir.Path() / "temp";
   auto config = ExtMemConfig{
@@ -652,9 +654,8 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
-                                                  LearnerModelParam const* learner_model_param,
+                                                  LearnerModelState const* learner_model_param,
                                                   Context const* ctx) {
-  auto caches = std::make_shared<PredictionContainer>();
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -672,9 +673,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};
   }
 
-  PredictionCacheEntry predts;
-
-  gbm->DoBoost(p_dmat.get(), &gpair, &predts, nullptr);
+  gbm->DoBoost(p_dmat, &gpair, nullptr);
 
   return gbm;
 }

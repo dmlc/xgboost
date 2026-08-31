@@ -62,6 +62,19 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             xgb.DMatrix(data)
 
+    def test_dmatrix_numpy_non_native_byte_order(self):
+        data = np.arange(1, 7, dtype=np.float32).reshape(2, 3)
+        labels = np.arange(1, 3, dtype=np.float32)
+        swapped_data = data.astype(data.dtype.newbyteorder("S"))
+        swapped_labels = labels.astype(labels.dtype.newbyteorder("S"))
+        assert not swapped_data.dtype.isnative
+        assert not swapped_labels.dtype.isnative
+
+        dmat = xgb.DMatrix(swapped_data, label=swapped_labels)
+
+        np.testing.assert_array_equal(dmat.get_data().toarray(), data)
+        np.testing.assert_array_equal(dmat.get_label(), labels)
+
     def test_np_view(self):
         # Sliced Float32 array
         y = np.array([12, 34, 56], np.float32)[::2]
@@ -80,6 +93,20 @@ class TestDMatrix:
         from_array = dmat.get_uint_info("group_ptr")
         assert from_view.shape == from_array.shape
         assert (from_view == from_array).all()
+
+    @pytest.mark.skipif(
+        np.dtype(np.longdouble).itemsize != 16,
+        reason="128-bit NumPy floating point is not supported on this platform",
+    )
+    def test_np_float128_view(self):
+        base = np.arange(1, 401, dtype=np.longdouble).reshape(100, 4)
+        view = base[:2, ::2]
+        assert view.strides == (4 * view.itemsize, 2 * view.itemsize)
+
+        dmat = xgb.DMatrix(view)
+        np.testing.assert_array_equal(
+            dmat.get_data().toarray(), view.astype(np.float32)
+        )
 
     def test_slice(self):
         X = rng.randn(100, 100)

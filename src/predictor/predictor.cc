@@ -9,11 +9,11 @@
 #include <string>   // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for Args, bst_group_t, bst_idx_t
+#include "xgboost/base.h"                // for bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/learner.h"             // for LearnerModelParam
+#include "xgboost/learner.h"             // for LearnerModelState
 #include "xgboost/linalg.h"              // for Tensor, TensorView
 #include "xgboost/logging.h"             // for CHECK_EQ, CHECK_NE, LOG
 
@@ -22,8 +22,6 @@ DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
 
 namespace xgboost {
-void Predictor::Configure(Args const&) {}
-
 Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {
@@ -55,34 +53,34 @@ void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base
 
 void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_preds,
                                    gbm::GBTreeModel const& model) const {
-  CHECK_NE(model.learner_model_param->num_output_group, 0);
+  CHECK_NE(model.learner_model_state->num_output_group, 0);
 
   if (!ctx_->Device().IsCPU()) {
     out_preds->SetDevice(ctx_->Device());
   }
 
   // Cannot rely on the Resize to fill as it might skip if the size is already correct.
-  auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
+  auto n = static_cast<size_t>(model.learner_model_state->OutputLength() * info.num_row_);
   out_preds->Resize(n);
 
   HostDeviceVector<float> const* base_margin = info.base_margin_.Data();
   if (!base_margin->Empty()) {
     ValidateBaseMarginShape(info.base_margin_, info.num_row_,
-                            model.learner_model_param->OutputLength());
+                            model.learner_model_state->OutputLength());
     out_preds->Copy(*base_margin);
     return;
   }
 
-  auto base_score = model.learner_model_param->BaseScore(this->ctx_->Device());
+  auto base_score = model.learner_model_state->BaseScore(this->ctx_->Device());
   if (base_score.Size() == 1) {
     // Fill a scalar
-    out_preds->Fill(model.learner_model_param->BaseScore(DeviceOrd::CPU())(0));
+    out_preds->Fill(model.learner_model_state->BaseScore(DeviceOrd::CPU())(0));
     return;
   }
 
   // Handle multi-output models where base_score is a vector.
   auto predt = linalg::MakeTensorView(this->ctx_, out_preds, info.num_row_,
-                                      model.learner_model_param->OutputLength());
+                                      model.learner_model_state->OutputLength());
   CHECK_EQ(predt.Size(), out_preds->Size());
 
   if (this->ctx_->IsCUDA()) {

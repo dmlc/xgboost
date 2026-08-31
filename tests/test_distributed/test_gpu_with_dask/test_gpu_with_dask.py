@@ -201,11 +201,11 @@ def run_gpu_hist(
 
 
 def test_tree_stats() -> None:
-    with LocalCUDACluster(n_workers=1) as cluster:
+    with LocalCUDACluster(n_workers=1, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             local = run_tree_stats(client, "hist", "cuda")
 
-    with LocalCUDACluster(n_workers=2) as cluster:
+    with LocalCUDACluster(n_workers=2, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             distributed = run_tree_stats(client, "hist", "cuda")
 
@@ -232,7 +232,7 @@ class TestDistributedGPU:
 
     def test_uneven_nan(self) -> None:
         n_workers = 2
-        with LocalCUDACluster(n_workers=n_workers) as cluster:
+        with LocalCUDACluster(n_workers=n_workers, dashboard_address=None) as cluster:
             with Client(cluster) as client:
                 check_uneven_nan(client, "hist", "cuda", n_workers)
 

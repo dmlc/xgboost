@@ -1813,7 +1813,30 @@ class Booster:
         else:
             params_processed["validate_parameters"] = True
 
-        self.set_param(params_processed or {})
+        if isinstance(params_processed, dict):
+            prepared = self._prepare_parameters(params_processed.items())
+        else:
+            prepared = self._prepare_parameters(params_processed)
+        if cache or model_file is not None or params:
+            self._set_params(prepared)
+
+    @staticmethod
+    def _prepare_parameters(params: Iterable[Tuple[str, Any]]) -> List[Tuple[str, str]]:
+        prepared = []
+        for key, val in params:
+            if isinstance(val, np.ndarray):
+                val = val.tolist()
+            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
+                val = val.tolist()
+            if val is not None:
+                prepared.append((key, str(val)))
+        return prepared
+
+    def _set_params(self, params: List[Tuple[str, str]]) -> None:
+        if params:
+            _check_call(
+                _LIB.XGBoosterSetParams(self.handle, make_jcargs(params=params))
+            )
 
     def _transform_monotone_constrains(
         self, value: Union[Dict[str, int], str, Tuple[int, ...]]
@@ -2182,15 +2205,8 @@ class Booster:
             params = params.items()
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
-        for key, val in cast(Iterable[Tuple[str, str]], params):
-            if isinstance(val, np.ndarray):
-                val = val.tolist()
-            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
-                val = val.tolist()
-            if val is not None:
-                _check_call(
-                    _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
-                )
+        prepared = self._prepare_parameters(cast(Iterable[Tuple[str, Any]], params))
+        self._set_params(prepared)
 
     def update(
         self,
