@@ -92,7 +92,7 @@ class LogCallbackRegistry {
 
 using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
-// Redefines LOG_WARNING for controling verbosity
+// Redefines LOG_WARNING for controlling verbosity
 #if defined(LOG_WARNING)
 #undef LOG_WARNING
 #endif  // defined(LOG_WARNING)
@@ -100,7 +100,7 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
   if (::xgboost::ConsoleLogger::ShouldLog(::xgboost::ConsoleLogger::LV::kWarning)) \
   ::xgboost::ConsoleLogger(__FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kWarning)
 
-// Redefines LOG_INFO for controling verbosity
+// Redefines LOG_INFO for controlling verbosity
 #if defined(LOG_INFO)
 #undef LOG_INFO
 #endif  // defined(LOG_INFO)
