@@ -632,8 +632,10 @@ def cross_val_predict(
         raise ValueError(
             f"`num_boost_round` must not be negative, got {num_boost_round}."
         )
+    params = params if params is not None else {}
+    max_bin = params.get("max_bin", None)
 
-    Xy = ExtMemQuantileDMatrix(CvDataIter(X, y))
+    Xy = ExtMemQuantileDMatrix(CvDataIter(X, y), max_bin=max_bin)
     models = FoldModels(data=Xy, k_folds=cv)
     fold_info = FoldInfoBatches(Xy, k_folds=cv)
     predts = FoldPredictions()

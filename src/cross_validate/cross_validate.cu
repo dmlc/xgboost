@@ -292,6 +292,7 @@ class FoldTreeMethod {
     // Resizing keeps the caches of the units that already exist, which is the common case
     // across boosting rounds.
     auto n_units = this->layout_.NumUnits();
+    // FIXME(jiamingy): `MaxCachedHistNodes` should take folds into consideration.
     this->histogram_.resize(n_units);
     this->quantizers_.resize(n_units);
     this->quantized_gpairs_.resize(n_units);
