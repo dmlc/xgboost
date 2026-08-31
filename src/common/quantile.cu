@@ -214,7 +214,7 @@ struct DeviceSketchPayload {
           Span<SketchEntry const>{entries, entries_bytes / sizeof(SketchEntry)}};
 }
 
-XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
+XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
                                                                 Span<SketchEntry const> y,
                                                                 uint64_t k) {
   // Find the merge partition for the k-th output within one column.  The merged prefix of
@@ -238,7 +238,7 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
                                           false, thrust::greater<bool>{});
   auto a_ind = low + (partition_it - need_more_x);
-  return thrust::make_tuple(a_ind, k - a_ind);
+  return cuda::std::make_tuple(a_ind, k - a_ind);
 }
 
 void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
