@@ -51,63 +51,65 @@ namespace {
 }
 }  // namespace
 
-void FoldModels::Resize(std::size_t k_folds) {
-  model_params_.resize(k_folds);
-  properties_.resize(k_folds);
-  objs_.resize(k_folds);
-  models_.resize(k_folds);
+void FoldModels::Resize(std::size_t n_units) {
+  model_params_.resize(n_units);
+  properties_.resize(n_units);
+  objs_.resize(n_units);
+  models_.resize(n_units);
 }
 
-void FoldModels::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
-  CHECK_LT(fold_idx, this->model_params_.size());
-  CHECK_LT(fold_idx, this->properties_.size());
-  CHECK_LT(fold_idx, this->objs_.size());
-  CHECK_LT(fold_idx, this->models_.size());
+void FoldModels::InitUnit(std::size_t unit_idx, std::unique_ptr<ObjFunction> obj) {
+  CHECK_LT(unit_idx, this->model_params_.size());
+  CHECK_LT(unit_idx, this->properties_.size());
+  CHECK_LT(unit_idx, this->objs_.size());
+  CHECK_LT(unit_idx, this->models_.size());
   CHECK(obj);
 
-  auto& param = this->model_params_.at(fold_idx);
+  auto& param = this->model_params_.at(unit_idx);
   param.HandleOldFormat();
   param.Validate(&ctx_);
 
   auto base_score = BaseScore(&ctx_, param, obj.get());
-  this->properties_.at(fold_idx) = LearnerModelParam{&ctx_, param, std::move(base_score),
+  this->properties_.at(unit_idx) = LearnerModelParam{&ctx_, param, std::move(base_score),
                                                      obj->Task(), MultiStrategy::kMultiOutputTree};
-  this->objs_.at(fold_idx) = std::move(obj);
-  this->models_.at(fold_idx) =
-      std::make_unique<gbm::GBTreeModel>(&this->properties_.at(fold_idx), &ctx_);
-  this->models_.at(fold_idx)->Configure(Args{});
+  this->objs_.at(unit_idx) = std::move(obj);
+  this->models_.at(unit_idx) =
+      std::make_unique<gbm::GBTreeModel>(&this->properties_.at(unit_idx), &ctx_);
+  this->models_.at(unit_idx)->Configure(Args{});
 }
 
-FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
+FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain, bool refit) {
   CHECK(dtrain);
   this->ctx_.FromJson(dtrain->Ctx()->ToJson());
   auto const& info = dtrain->Info();
   auto n_features = GetNumFeatures(info);
 
   CHECK_GT(k_folds, 0);
-  this->Resize(k_folds);
+  this->layout_ = UnitLayout{k_folds, refit};
+  auto n_units = this->NumUnits();
+  this->Resize(n_units);
 
+  // The refit unit is configured exactly like a fold, which is what makes it comparable to
+  // a model trained on the full dataset on its own.
   std::string obj_name = "reg:squarederror";  // FIXME(jiamingy): Support more objs.
-  for (std::size_t i = 0; i < k_folds; ++i) {
+  for (std::size_t u = 0; u < n_units; ++u) {
     auto obj = std::unique_ptr<ObjFunction>{ObjFunction::Create(obj_name, &ctx_)};
     obj->Configure(Args{});
 
     auto n_targets = obj->Targets(info);
-    auto& param = model_params_.at(i);
+    auto& param = model_params_.at(u);
     param.num_feature = n_features;
     param.num_target = n_targets;
     param.boost_from_average = false;
     auto base_score = DefaultBaseScore(&ctx_, n_targets);
     param.base_score = base_score.Data()->ConstHostVector();
-    this->InitFold(i, std::move(obj));
+    this->InitUnit(u, std::move(obj));
   }
-  CHECK_EQ(objs_.size(), k_folds);
-  CHECK_EQ(model_params_.size(), k_folds);
-  CHECK_EQ(properties_.size(), k_folds);
-  CHECK_EQ(models_.size(), k_folds);
+  CHECK_EQ(objs_.size(), n_units);
+  CHECK_EQ(model_params_.size(), n_units);
+  CHECK_EQ(properties_.size(), n_units);
+  CHECK_EQ(models_.size(), n_units);
 }
-
-[[nodiscard]] std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
 
 [[nodiscard]] std::int32_t FoldModels::BoostedRounds() const {
   CHECK(!this->models_.empty());
@@ -115,39 +117,38 @@ FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
   auto n_rounds = this->models_.front()->BoostedRounds();
   for (auto const& model : this->models_) {
     CHECK(model);
-    CHECK_EQ(model->BoostedRounds(), n_rounds) << "CV fold models are not synchronized.";
+    CHECK_EQ(model->BoostedRounds(), n_rounds) << "CV models are not synchronized.";
   }
   return n_rounds;
 }
 
-[[nodiscard]] bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
-  CHECK_LT(fold_idx, this->properties_.size());
-  return this->properties_[fold_idx].OutputLength();
+[[nodiscard]] bst_target_t FoldModels::OutputLength(std::size_t unit_idx) const {
+  CHECK_LT(unit_idx, this->properties_.size());
+  return this->properties_[unit_idx].OutputLength();
 }
 
-[[nodiscard]] bst_target_t FoldModels::LeafLength(std::size_t fold_idx) const {
-  CHECK_LT(fold_idx, this->properties_.size());
-  return this->properties_[fold_idx].LeafLength();
+[[nodiscard]] bst_target_t FoldModels::LeafLength(std::size_t unit_idx) const {
+  CHECK_LT(unit_idx, this->properties_.size());
+  return this->properties_[unit_idx].LeafLength();
 }
 
-[[nodiscard]] bst_feature_t FoldModels::NumFeatures(std::size_t fold_idx) const {
-  CHECK_LT(fold_idx, this->properties_.size());
-  return this->properties_[fold_idx].num_feature;
+[[nodiscard]] bst_feature_t FoldModels::NumFeatures(std::size_t unit_idx) const {
+  CHECK_LT(unit_idx, this->properties_.size());
+  return this->properties_[unit_idx].num_feature;
 }
 
-[[nodiscard]] ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
-  CHECK_LT(fold_idx, this->objs_.size());
-  return this->objs_[fold_idx].get();
+[[nodiscard]] ObjFunction* FoldModels::Objective(std::size_t unit_idx) const {
+  CHECK_LT(unit_idx, this->objs_.size());
+  return this->objs_[unit_idx].get();
 }
 
 void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
                                 FoldInfoBatches const& finfo, FoldPredictions* out) const {
   CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  if (out->train.empty()) {
-    out->train.resize(this->KFolds());
-  }
-  CHECK_EQ(out->train.size(), this->KFolds());
+  auto n_units = this->NumUnits();
+  out->layout = this->layout_;
+  out->train.resize(n_units);
 
   // Init validation prediction vector
   auto predictor = CreatePredictor(ctx);
@@ -160,15 +161,16 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
 
   // Init training prediction vector. Like the validation cache, it's indexed by the
   // global row index. The rows held out by a fold are padding, `GetGradient` reads back
-  // only the rows listed in the fold info.
-  for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
-    CHECK_EQ(this->OutputLength(k), output_length)
-        << "All folds must share the same number of outputs.";
+  // only the rows listed in the fold info. The refit unit holds nothing out, so every row
+  // of its cache is used.
+  for (std::size_t u = 0; u < n_units; ++u) {
+    CHECK_EQ(this->OutputLength(u), output_length)
+        << "All CV models must share the same number of outputs.";
     CHECK_EQ(info.labels.Shape(1), output_length);
 
-    auto& predt = out->train.at(k);
+    auto& predt = out->train.at(u);
     predt.Reset();
-    predictor->InitOutPredictions(info, &predt.predictions, *models_.at(k));
+    predictor->InitOutPredictions(info, &predt.predictions, *models_.at(u));
     CHECK_EQ(predt.predictions.Device(), ctx->Device());
     CHECK_EQ(predt.predictions.Size(), info.num_row_ * output_length);
   }
@@ -176,20 +178,38 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
 }
 
 void FoldModels::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
-  CHECK_EQ(new_trees.size(), this->KFolds());
-  CHECK_EQ(this->model_params_.size(), this->KFolds());
-  CHECK_EQ(this->properties_.size(), this->KFolds());
-  CHECK_EQ(this->models_.size(), this->KFolds());
+  auto n_units = this->NumUnits();
+  CHECK_EQ(new_trees.size(), n_units);
+  CHECK_EQ(this->model_params_.size(), n_units);
+  CHECK_EQ(this->properties_.size(), n_units);
+  CHECK_EQ(this->models_.size(), n_units);
 
-  for (std::size_t k = 0; k < this->KFolds(); ++k) {
-    auto const& property = properties_.at(k);
+  for (std::size_t u = 0; u < n_units; ++u) {
+    auto const& property = properties_.at(u);
     if (property.IsVectorLeaf()) {
-      CHECK_EQ(new_trees[k].size(), 1);
+      CHECK_EQ(new_trees[u].size(), 1);
     } else {
-      CHECK_EQ(new_trees[k].size(), property.OutputLength());
+      CHECK_EQ(new_trees[u].size(), property.OutputLength());
     }
-    models_.at(k)->CommitModel(std::move(new_trees[k]));
+    models_.at(u)->CommitModel(std::move(new_trees[u]));
   }
+}
+
+void FoldModels::LoadUnit(std::size_t unit_idx, Json const& in) {
+  auto const& j_unit = get<Object const>(in);
+
+  auto& param = this->model_params_.at(unit_idx);
+  param.FromJson(j_unit.at("learner_model_param"));
+
+  auto const& objective = j_unit.at("objective");
+  auto obj_name = get<String const>(objective["name"]);
+  auto obj = std::unique_ptr<ObjFunction>{ObjFunction::Create(obj_name, &this->ctx_)};
+  obj->LoadConfig(objective);
+  this->InitUnit(unit_idx, std::move(obj));
+
+  auto const& booster = j_unit.at("gradient_booster");
+  CHECK_EQ(get<String const>(booster["name"]), "gbtree");
+  this->models_.at(unit_idx)->LoadModel(booster["model"]);
 }
 
 FoldModels FoldModels::LoadModel(Json const& in) {
@@ -197,35 +217,46 @@ FoldModels FoldModels::LoadModel(Json const& in) {
   Version::Load(in);
 
   auto const& j_folds = get<Array const>(in["cv_folds"]);
+  auto const& j_in = get<Object const>(in);
+  auto refit_it = j_in.find("refit");
+
   FoldModels out;
   out.ctx_ = Context{};
-  out.Resize(j_folds.size());
+  out.layout_ = UnitLayout{j_folds.size(), refit_it != j_in.cend()};
+  out.Resize(out.NumUnits());
 
   for (std::size_t k = 0; k < j_folds.size(); ++k) {
-    auto const& fold = j_folds.at(k);
-    auto const& j_fold = get<Object const>(fold);
-
-    auto& param = out.model_params_.at(k);
-    param.FromJson(j_fold.at("learner_model_param"));
-
-    auto const& objective = j_fold.at("objective");
-    auto obj_name = get<String const>(objective["name"]);
-    auto obj = std::unique_ptr<ObjFunction>{ObjFunction::Create(obj_name, &out.ctx_)};
-    obj->LoadConfig(objective);
-    out.InitFold(k, std::move(obj));
-
-    auto const& booster = j_fold.at("gradient_booster");
-    CHECK_EQ(get<String const>(booster["name"]), "gbtree");
-    out.models_.at(k)->LoadModel(booster["model"]);
+    out.LoadUnit(k, j_folds.at(k));
+  }
+  if (out.HasRefit()) {
+    out.LoadUnit(out.RefitIdx(), refit_it->second);
   }
   return out;
 }
 
+void FoldModels::SaveUnit(std::size_t unit_idx, Json* out) const {
+  CHECK(this->objs_.at(unit_idx));
+  CHECK(this->models_.at(unit_idx));
+
+  auto& unit = *out;
+  unit["learner_model_param"] = this->model_params_.at(unit_idx).ToJson();
+
+  unit["objective"] = Object{};
+  this->objs_.at(unit_idx)->SaveConfig(&unit["objective"]);
+
+  unit["gradient_booster"] = Object{};
+  auto& booster = unit["gradient_booster"];
+  booster["name"] = String{"gbtree"};
+  booster["model"] = Object{};
+  this->models_.at(unit_idx)->SaveModel(&booster["model"]);
+}
+
 void FoldModels::SaveModel(Json* out) const {
   CHECK(out);
-  CHECK_EQ(this->model_params_.size(), this->KFolds());
-  CHECK_EQ(this->properties_.size(), this->KFolds());
-  CHECK_EQ(this->models_.size(), this->KFolds());
+  auto n_units = this->NumUnits();
+  CHECK_EQ(this->model_params_.size(), n_units);
+  CHECK_EQ(this->properties_.size(), n_units);
+  CHECK_EQ(this->models_.size(), n_units);
 
   Version::Save(out);
   (*out)["cv_folds"] = Array{};
@@ -233,21 +264,14 @@ void FoldModels::SaveModel(Json* out) const {
   j_folds.resize(this->KFolds());
 
   for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
-    CHECK(this->objs_.at(k));
-    CHECK(this->models_.at(k));
-
     j_folds[k] = Object{};
-    auto& fold = j_folds[k];
-    fold["learner_model_param"] = this->model_params_.at(k).ToJson();
-
-    fold["objective"] = Object{};
-    this->objs_.at(k)->SaveConfig(&fold["objective"]);
-
-    fold["gradient_booster"] = Object{};
-    auto& booster = fold["gradient_booster"];
-    booster["name"] = String{"gbtree"};
-    booster["model"] = Object{};
-    this->models_.at(k)->SaveModel(&booster["model"]);
+    this->SaveUnit(k, &j_folds[k]);
+  }
+  // The key is absent when the run has no refit model, which is how `LoadModel` recovers
+  // the layout.
+  if (this->HasRefit()) {
+    (*out)["refit"] = Object{};
+    this->SaveUnit(this->RefitIdx(), &(*out)["refit"]);
   }
 }
 }  // namespace xgboost::cv
@@ -258,11 +282,12 @@ namespace {
 using CvAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 }  // namespace
 
-XGB_DLL int XGBCvFoldModelsCreate(size_t k_folds, DMatrixHandle dtrain, FoldModelsHandle* out) {
+XGB_DLL int XGBCvFoldModelsCreate(size_t k_folds, DMatrixHandle dtrain, int refit,
+                                  FoldModelsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  *out = new cv::FoldModels{k_folds, p_fmat};
+  *out = new cv::FoldModels{k_folds, p_fmat, static_cast<bool>(refit)};
   API_END();
 }
 
@@ -334,6 +359,9 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
 namespace {
 void ReadPredictionCache(cv::FoldPredictions const* predts, HostDeviceVector<float> const& predt,
                          float const** out_data, size_t* out_n_rows, size_t* out_n_columns) {
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_n_rows);
+  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   CHECK_GT(predts->output_length, 0) << "The prediction cache is not initialized.";
   CHECK_EQ(predt.Size() % predts->output_length, 0);
   *out_n_columns = predts->output_length;
@@ -346,12 +374,19 @@ XGB_DLL int XGBCvFoldPredictionsGet(FoldPredictionsHandle hdl, size_t k, float c
                                     size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  xgboost_CHECK_C_ARG_PTR(out_data);
-  xgboost_CHECK_C_ARG_PTR(out_n_rows);
-  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
-  CHECK_LT(k, predts->KFolds());
+  // Bound by the fold count, not the unit count: this getter must not reach the refit cache.
+  CHECK_LT(k, predts->layout.k_folds);
   ReadPredictionCache(predts, predts->Training(k).predictions, out_data, out_n_rows, out_n_columns);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsGetRefit(FoldPredictionsHandle hdl, float const** out_data,
+                                         size_t* out_n_rows, size_t* out_n_columns) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  auto predts = static_cast<cv::FoldPredictions const*>(hdl);
+  ReadPredictionCache(predts, predts->Refit().predictions, out_data, out_n_rows, out_n_columns);
   API_END();
 }
 
@@ -359,9 +394,6 @@ XGB_DLL int XGBCvFoldPredictionsGetValid(FoldPredictionsHandle hdl, float const*
                                          size_t* out_n_rows, size_t* out_n_columns) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  xgboost_CHECK_C_ARG_PTR(out_data);
-  xgboost_CHECK_C_ARG_PTR(out_n_rows);
-  xgboost_CHECK_C_ARG_PTR(out_n_columns);
   auto predts = static_cast<cv::FoldPredictions const*>(hdl);
   ReadPredictionCache(predts, predts->Validation().predictions, out_data, out_n_rows,
                       out_n_columns);
@@ -382,18 +414,36 @@ XGB_DLL int XGBCvFoldGpairsCreate(FoldGpairsHandle* out) {
   API_END();
 }
 
+namespace {
+void ReadGpairs(linalg::Matrix<GradientPair> const& gpair, float const** out_data,
+                size_t const** out_shape, size_t* out_len) {
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(out_shape);
+  xgboost_CHECK_C_ARG_PTR(out_len);
+  *out_shape = gpair.Shape().data();
+  *out_len = gpair.Shape().size();
+  *out_data = reinterpret_cast<float const*>(gpair.Data()->ConstDevicePointer());
+}
+}  // namespace
+
 XGB_DLL int XGBCvFoldGpairsGet(FoldGpairsHandle hdl, size_t k, float const** out_data,
                                size_t const** out_shape, size_t* out_len) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out_shape);
-  xgboost_CHECK_C_ARG_PTR(out_len);
-  xgboost_CHECK_C_ARG_PTR(out_data);
   xgboost_CHECK_C_ARG_PTR(hdl);
-  auto gpairs = static_cast<cv::FoldGpairs*>(hdl);
-  CHECK_LT(k, gpairs->KFolds());
-  *out_shape = gpairs->gpairs[k].Shape().data();
-  *out_len = gpairs->gpairs[k].Shape().size();
-  *out_data = reinterpret_cast<float const*>(gpairs->gpairs[k].Data()->ConstDevicePointer());
+  auto gpairs = static_cast<cv::FoldGpairs const*>(hdl);
+  // Bound by the fold count, not the unit count: this getter must not reach the refit
+  // gradient.
+  CHECK_LT(k, gpairs->layout.k_folds);
+  ReadGpairs(gpairs->gpairs[k], out_data, out_shape, out_len);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldGpairsGetRefit(FoldGpairsHandle hdl, float const** out_data,
+                                    size_t const** out_shape, size_t* out_len) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  auto gpairs = static_cast<cv::FoldGpairs const*>(hdl);
+  ReadGpairs(gpairs->Refit(), out_data, out_shape, out_len);
   API_END();
 }
 

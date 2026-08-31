@@ -8,18 +8,17 @@
 #include "../common/device_helpers.cuh"
 #include "../tree/tree_view.h"  // for MultiTargetTreeView
 #include "../tree/updater_gpu_hist.cuh"
-#include "cross_validate.h"
 #include "xgboost/context.h"  // for Context
 #include "xgboost/span.h"     // for Span
 
 namespace xgboost::cv {
-inline void DebugCheckValid(Context const* ctx, FoldInfoBatches const& finfo, std::size_t k,
+inline void DebugCheckValid(Context const* ctx, bst_idx_t n_expected,
                             common::Span<bst_node_t const> d_position) {
-  // Every training row of the fold, and only those, must have received a position.
+  // Every training row of the unit, and only those, must have received a position.
   auto n_valid = thrust::count_if(
       ctx->CUDACtx()->CTP(), dh::tcbegin(d_position), dh::tcend(d_position),
       [] XGBOOST_DEVICE(bst_node_t nidx) { return nidx != RegTree::kInvalidNodeId; });
-  CHECK_EQ(static_cast<std::size_t>(n_valid), finfo.FoldSize(k));
+  CHECK_EQ(static_cast<bst_idx_t>(n_valid), n_expected);
 }
 
 template <template <typename> typename GoLeftOp, typename Acc>
