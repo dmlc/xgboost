@@ -98,13 +98,13 @@ The above snippets build a model using ``LambdaMART`` with the ``NDCG@8`` metric
 Position Bias
 *************
 
-.. versionadded:: 2.0.0
+.. versionchanged:: 3.5.0
 
-.. note::
-
-   The feature is considered experimental. This is a heated research area, and your input is much appreciated!
-
-Obtaining real relevance degrees for query results is an expensive and strenuous, requiring human labelers to label all results one by one. When such labeling task is infeasible, we might want to train the learning-to-rank model on user click data instead, as it is relatively easy to collect. Another advantage of using click data directly is that it can reflect the most up-to-date user preferences `[1] <#references>`__. However, user clicks are often biased,  as users tend to choose results that are displayed in higher positions. User clicks are also noisy, where users might accidentally click on irrelevant documents. To ameliorate these issues, XGBoost implements the ``Unbiased LambdaMART`` `[4] <#references>`__ algorithm to debias the position-dependent click data. The feature can be enabled by the ``lambdarank_unbiased`` parameter; see :ref:`ltr-param` for related options and :ref:`sphx_glr_python_examples_learning_to_rank.py` for a worked example with simulated user clicks.
+   Support for the experimental ``Unbiased LambdaMART`` `[4] <#references>`__ algorithm was
+   removed. Setting ``lambdarank_unbiased`` to true emits a warning and trains standard
+   LambdaMART instead. Position-debiasing algorithms require learned objective state that does
+   not fit XGBoost's stateless objective contract. Users who need this behavior can implement a
+   custom objective and manage the position-bias state within the training session.
 
 ****
 Loss

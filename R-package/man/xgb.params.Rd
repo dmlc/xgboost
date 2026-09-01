@@ -64,7 +64,6 @@ xgb.params(
   lambdarank_normalization = NULL,
   lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
-  lambdarank_bias_norm = NULL,
   ndcg_exp_gain = NULL
 )
 }
@@ -514,10 +513,8 @@ default. In 3.0, we made this an option that users can disable.
 Version added: 3.0.0}
 
 \item{lambdarank_unbiased}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{FALSE})
-Specify whether do we need to debias input click data.}
-
-\item{lambdarank_bias_norm}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = 2.0)
-\eqn{L_p} normalization for position debiasing, default is \eqn{L_2}. Only relevant when \code{lambdarank_unbiased} is set to \code{TRUE}.}
+Compatibility parameter for the removed Unbiased LambdaMART feature. Setting this to \code{TRUE}
+emits a warning and trains standard LambdaRank instead.}
 
 \item{ndcg_exp_gain}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{TRUE})
 Whether we should use exponential gain function for \code{NDCG}. There are two forms of gain function for \code{NDCG}, one is using relevance value directly while the other is using\eqn{2^{rel} - 1} to emphasize on retrieving relevant documents. When \code{ndcg_exp_gain} is \code{TRUE} (the default), relevance degree cannot be greater than 31.}

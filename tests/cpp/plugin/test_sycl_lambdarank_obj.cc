@@ -23,10 +23,10 @@ TEST(SyclObjective, LambdaRankTestNDCGGPair) {
   TestNDCGGPair(&ctx);
 }
 
-TEST(SyclObjective, LambdaRankUnbiasedNDCG) {
+TEST(SyclObjective, LambdaRankRemovedUnbiased) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  TestUnbiasedNDCG(&ctx);
+  TestRemovedUnbiased(&ctx);
 }
 
 TEST(SyclObjective, LambdaRankMAPStat) {
@@ -42,4 +42,3 @@ TEST(SyclObjective, LambdaRankMAPGPair) {
 }
 
 }  // namespace xgboost::obj
-
