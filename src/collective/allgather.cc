@@ -131,7 +131,13 @@ namespace detail {
     offset[i] = offset[i - 1] + global_sizes[i - 1];
   }
 
+  std::size_t total_size = 0;
+  for (auto const& vec : input) {
+    total_size += vec.size();
+  }
+
   std::vector<char> collected;
+  collected.reserve(total_size);
   for (auto const& vec : input) {
     collected.insert(collected.end(), vec.cbegin(), vec.cend());
   }
@@ -141,6 +147,9 @@ namespace detail {
   auto out = common::RestoreType<char const>(recv.ConstHostSpan());
 
   std::vector<std::vector<char>> result;
+  if (offset.size() > 1) {
+    result.reserve(offset.size() - 1);
+  }
   for (std::size_t i = 1; i < offset.size(); ++i) {
     std::vector<char> local(out.cbegin() + offset[i - 1], out.cbegin() + offset[i]);
     result.emplace_back(std::move(local));

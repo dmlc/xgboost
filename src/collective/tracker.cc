@@ -146,6 +146,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   std::sort(workers.begin(), workers.end(), WorkerCmp{this->sortby_});
 
   std::vector<std::thread> bootstrap_threads;
+  bootstrap_threads.reserve(n_workers_);
   for (std::int32_t r = 0; r < n_workers_; ++r) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
@@ -166,6 +167,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     t.join();
   }
 
+  worker_error_handles_.reserve(workers.size());
   for (auto const& w : workers) {
     worker_error_handles_.emplace_back(w.Host(), w.ErrorPort());
   }
