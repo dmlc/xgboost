@@ -5,7 +5,7 @@ Getting started with learning to rank
   .. versionadded:: 2.0.0
 
 This is a demonstration of using XGBoost for learning to rank tasks using the
-MSLR_10k_letor dataset. For more infomation about the dataset, please visit its
+MSLR_10k_letor dataset. For more information about the dataset, please visit its
 `description page <https://www.microsoft.com/en-us/research/project/mslr/>`_.
 
 This is a two-part demo, the first one contains a basic example of using XGBoost to
