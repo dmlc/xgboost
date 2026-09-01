@@ -83,7 +83,7 @@ class DeviceHistogramStorage {
   dh::device_vector<typename GradientSumT::ValueT> overflow_;
   std::map<int, size_t> overflow_nidx_map_;
   // The total number of bins across all features and targets
-  bst_bin_t n_total_bins_;
+  std::size_t n_total_bins_;
   static constexpr std::size_t kNumItemsInGradientSum =
       sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
   static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
@@ -91,7 +91,7 @@ class DeviceHistogramStorage {
  public:
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
-  void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
+  void Reset(Context const* ctx, std::size_t n_total_bins, std::size_t max_cached_nodes) {
     this->n_total_bins_ = n_total_bins;
     auto d_data = data_.data().get();
     dh::LaunchN(data_.size(), ctx->CUDACtx()->Stream(),
@@ -100,7 +100,7 @@ class DeviceHistogramStorage {
     overflow_nidx_map_.clear();
 
     auto max_cached_bin_values =
-        static_cast<std::size_t>(n_total_bins) * max_cached_nodes * kNumItemsInGradientSum;
+        n_total_bins * max_cached_nodes * kNumItemsInGradientSum;
     this->stop_growing_size_ = max_cached_bin_values;
   }
 
@@ -108,7 +108,7 @@ class DeviceHistogramStorage {
     return nidx_map_.find(nidx) != nidx_map_.cend() ||
            overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
   }
-  [[nodiscard]] int Bins() const { return n_total_bins_; }
+  [[nodiscard]] std::size_t Bins() const { return n_total_bins_; }
   [[nodiscard]] size_t HistogramSize() const { return n_total_bins_ * kNumItemsInGradientSum; }
   dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 
@@ -178,8 +178,7 @@ class DeviceHistogramBuilder {
  public:
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
-  // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
-  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
+  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, std::size_t n_total_bins,
              bool force_global_memory);
   // Build histogram for single target and single node.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,

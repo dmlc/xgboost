@@ -567,7 +567,7 @@ DeviceHistogramBuilder::DeviceHistogramBuilder()
 DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
 
 void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
-                                   bst_bin_t n_total_bins, bool force_global_memory) {
+                                   std::size_t n_total_bins, bool force_global_memory) {
   this->monitor_.Start(__func__);
   this->p_impl_->Reset(ctx, force_global_memory);
   this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);

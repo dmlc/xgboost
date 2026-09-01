@@ -239,6 +239,7 @@ struct MultiEvaluateSplitSharedInputs {
   bst_bin_t n_total_bins_per_tar;
   bst_feature_t max_active_feature;
   EvalParam param;
+  bool has_missing;
 
   // Used for testing
   enum OnePass {

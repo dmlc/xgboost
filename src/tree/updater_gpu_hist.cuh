@@ -136,6 +136,7 @@ class MultiTargetHistMaker {
   linalg::Matrix<GradientPair> value_gpair_;
 
   dh::PinnedMemory pinned_;
+  bool has_missing_{true};
 
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_node_t nidx) {
     this->BuildHist(page, k, std::vector{nidx});
@@ -194,7 +195,8 @@ class MultiTargetHistMaker {
                                           cat_storage_size,
                                           this->cuts_->TotalBins(),
                                           max_active_feature,
-                                          d_param};
+                                          d_param,
+                                          this->has_missing_};
   }
 
  public:
@@ -209,6 +211,7 @@ class MultiTargetHistMaker {
                                 param_.colsample_bylevel, param_.colsample_bytree);
     // Clear the per-node allowed-feature sets before growing a new tree.
     this->interaction_constraints_->Reset(this->ctx_);
+    this->has_missing_ = !(p_fmat->IsDense() && !collective::IsDistributed());
 
     // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());

@@ -181,8 +181,7 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     auto forward = out.subspan(0, node.histogram.size());
     agent.Forward(t_hist.data(), forward, target_idx);
   }
-  // TODO(jiamingy): Skip the backward pass if there's no missing value.
-  if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
+  if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward && shared.has_missing) {
     auto backward = out.subspan(node.histogram.size(), node.histogram.size());
     agent.Backward(t_hist.data(), backward, target_idx);
   }
@@ -437,7 +436,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     auto forward = bin_scans[nidx].subspan(0, node.histogram.size());
     agent.template Numerical<kRightDir>(node, shared, forward, &out_candidates[candidate_idx]);
   }
-  if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
+  if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward && shared.has_missing) {
     auto backward = bin_scans[nidx].subspan(node.histogram.size(), node.histogram.size());
     agent.template Numerical<kLeftDir>(node, shared, backward, &out_candidates[candidate_idx]);
   }
