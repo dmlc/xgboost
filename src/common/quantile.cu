@@ -215,8 +215,8 @@ struct DeviceSketchPayload {
 }
 
 XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
-                                                                Span<SketchEntry const> y,
-                                                                uint64_t k) {
+                                                                   Span<SketchEntry const> y,
+                                                                   uint64_t k) {
   // Find the merge partition for the k-th output within one column.  The merged prefix of
   // length k contains i entries from x and j entries from y, where k = i + j.
   auto m = static_cast<uint64_t>(x.size());
