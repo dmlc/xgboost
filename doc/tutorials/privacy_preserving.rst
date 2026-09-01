@@ -53,7 +53,7 @@ To verify model accuracy in encrypted computations, you can run an FHE simulatio
 
   predictions = classifier.predict(X_test, fhe="simulate")
 
-This simulation can be used to evaluate the model. The resulting accuracy of this simulation step is representative of the actual FHE execution without having to pay the cost of an actual FHE execution. 
+This simulation can be used to evaluate the model. The resulting accuracy of this simulation step is representative of the actual FHE execution without having to pay the cost of an actual FHE execution.
 
 When the model is ready, actual Fully Homomorphic Encryption execution can be performed:
 
