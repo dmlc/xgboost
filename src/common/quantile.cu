@@ -277,7 +277,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     }
 
     uint64_t a_ind, b_ind;
-    thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
+    cuda::std::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
 
     assert(b_ind <= d_y_column.size());
     assert(a_ind <= d_x_column.size());
