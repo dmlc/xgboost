@@ -65,7 +65,7 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
   dh::caching_device_vector<size_t> new_column_scan(column_sizes_scan.size());
   std::size_t n_uniques{0};
   if (p_sorted_weights) {
-    using Pair = thrust::tuple<Entry, float>;
+    using Pair = cuda::std::tuple<Entry, float>;
     auto d_sorted_entries = dh::ToSpan(sorted_entries);
     auto d_sorted_weights = dh::ToSpan(*p_sorted_weights);
     auto val_in_it = thrust::make_zip_iterator(d_sorted_entries.data(), d_sorted_weights.data());
@@ -75,8 +75,8 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
                             column_sizes_scan.data().get() + column_sizes_scan.size(), val_in_it,
                             val_in_it + sorted_entries.size(), new_column_scan.data().get(),
                             val_out_it, [=] __device__(Pair const& l, Pair const& r) {
-                              Entry const& le = thrust::get<0>(l);
-                              Entry const& re = thrust::get<0>(r);
+                              Entry const& le = cuda::std::get<0>(l);
+                              Entry const& re = cuda::std::get<0>(r);
                               if (le.index == re.index && IsCat(d_feature_types, le.index)) {
                                 return le.fvalue == re.fvalue;
                               }

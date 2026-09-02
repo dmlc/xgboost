@@ -261,7 +261,7 @@ struct WriteCompressedEllpackFunctor {
   // Tuple[0] = The row index of the input, used as a key to define segments
   // Tuple[1] = Scanned flags of valid elements for each row
   // Tuple[2] = The index in the input data
-  using Tuple = thrust::tuple<bst_idx_t, bst_idx_t, bst_idx_t>;
+  using Tuple = cuda::std::tuple<bst_idx_t, bst_idx_t, bst_idx_t>;
 
   template <bool kIsDenseCompressed>
   __device__ void Write(data::COOTuple const& e, bst_idx_t out_position) {
@@ -287,10 +287,10 @@ struct WriteCompressedEllpackFunctor {
   }
   // Used for sparse data.
   __device__ size_t operator()(Tuple const& out) {
-    auto e = batch.GetElement(thrust::get<2>(out));
+    auto e = batch.GetElement(cuda::std::get<2>(out));
     if (is_valid(e)) {
       // -1 because the scan is inclusive
-      size_t output_position = accessor.row_stride * e.row_idx + thrust::get<1>(out) - 1;
+      size_t output_position = accessor.row_stride * e.row_idx + cuda::std::get<1>(out) - 1;
       this->Write<false>(e, output_position);
     }
     return 0;
@@ -301,8 +301,8 @@ template <typename Tuple>
 struct TupleScanOp {
   __device__ Tuple operator()(Tuple a, Tuple b) {
     // Key equal
-    if (thrust::get<0>(a) == thrust::get<0>(b)) {
-      thrust::get<1>(b) += thrust::get<1>(a);
+    if (cuda::std::get<0>(a) == cuda::std::get<0>(b)) {
+      cuda::std::get<1>(b) += cuda::std::get<1>(a);
       return b;
     }
     // Not equal
@@ -356,7 +356,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
     auto value_iter = dh::MakeTransformIterator<size_t>(cnt, get_is_valid);
 
     auto key_value_index_iter =
-        thrust::make_zip_iterator(thrust::make_tuple(key_iter, value_iter, cnt));
+        thrust::make_zip_iterator(cuda::std::make_tuple(key_iter, value_iter, cnt));
     thrust::transform_output_iterator<decltype(functor), decltype(discard)> out(discard, functor);
     common::InclusiveScan(ctx, key_value_index_iter, out, TupleScanOp<Tuple>{}, batch.Size());
   });

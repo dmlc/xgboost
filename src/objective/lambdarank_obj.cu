@@ -526,8 +526,8 @@ namespace {
 struct ReduceOp {
   template <typename Tup>
   Tup XGBOOST_DEVICE operator()(Tup const& l, Tup const& r) {
-    return thrust::make_tuple(thrust::get<0>(l) + thrust::get<0>(r),
-                              thrust::get<1>(l) + thrust::get<1>(r));
+    return cuda::std::make_tuple(cuda::std::get<0>(l) + cuda::std::get<0>(r),
+                                 cuda::std::get<1>(l) + cuda::std::get<1>(r));
   }
 };
 }  // namespace
@@ -583,11 +583,11 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
   auto key_it = dh::MakeTransformIterator<std::size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) { return i * n_groups; });
-  auto val_it = thrust::make_zip_iterator(thrust::make_tuple(li_it, lj_it));
+  auto val_it = thrust::make_zip_iterator(cuda::std::make_tuple(li_it, lj_it));
   auto out_it =
-      thrust::make_zip_iterator(thrust::make_tuple(li.Values().data(), lj.Values().data()));
+      thrust::make_zip_iterator(cuda::std::make_tuple(li.Values().data(), lj.Values().data()));
 
-  auto init = thrust::make_tuple(0.0, 0.0);
+  auto init = cuda::std::make_tuple(0.0, 0.0);
   std::size_t bytes;
   dh::safe_cuda(cub::DeviceSegmentedReduce::Reduce(nullptr, bytes, val_it, out_it, k, key_it,
                                                    key_it + 1, ReduceOp{}, init,

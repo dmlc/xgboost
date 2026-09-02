@@ -214,9 +214,9 @@ struct DeviceSketchPayload {
           Span<SketchEntry const>{entries, entries_bytes / sizeof(SketchEntry)}};
 }
 
-XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
-                                                                Span<SketchEntry const> y,
-                                                                uint64_t k) {
+XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
+                                                                   Span<SketchEntry const> y,
+                                                                   uint64_t k) {
   // Find the merge partition for the k-th output within one column.  The merged prefix of
   // length k contains i entries from x and j entries from y, where k = i + j.
   auto m = static_cast<uint64_t>(x.size());
@@ -238,7 +238,7 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
                                           false, thrust::greater<bool>{});
   auto a_ind = low + (partition_it - need_more_x);
-  return thrust::make_tuple(a_ind, k - a_ind);
+  return cuda::std::make_tuple(a_ind, k - a_ind);
 }
 
 void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
@@ -277,7 +277,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     }
 
     uint64_t a_ind, b_ind;
-    thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
+    cuda::std::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
 
     assert(b_ind <= d_y_column.size());
     assert(a_ind <= d_x_column.size());
