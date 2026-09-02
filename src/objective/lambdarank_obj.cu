@@ -527,7 +527,7 @@ struct ReduceOp {
   template <typename Tup>
   Tup XGBOOST_DEVICE operator()(Tup const& l, Tup const& r) {
     return cuda::std::make_tuple(cuda::std::get<0>(l) + cuda::std::get<0>(r),
-                              cuda::std::get<1>(l) + cuda::std::get<1>(r));
+                                 cuda::std::get<1>(l) + cuda::std::get<1>(r));
   }
 };
 }  // namespace
