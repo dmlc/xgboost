@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for DeviceOrd
@@ -117,6 +117,7 @@ auto MakeParamsForTest() {
   REFLECT_NAME(LogLoss);
   REFLECT_NAME(Error);
   REFLECT_NAME(PoissonNegLogLik);
+  REFLECT_NAME(TweedieNLogLik);
   REFLECT_NAME(MultiRMSE);
   REFLECT_NAME(Quantile);
   REFLECT_NAME(Expectile);

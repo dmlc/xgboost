@@ -248,6 +248,28 @@ inline void VerifyPoissonNegLogLik(DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"poisson-nloglik"}, device.ordinal);
 }
 
+inline void VerifyTweedieNLogLik(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::unique_ptr<Metric> metric{Metric::Create("tweedie-nloglik@1.5", &ctx)};
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "tweedie-nloglik@1.5");
+  // -a + b = 2 * y / sqrt(p) + 2 * sqrt(p)
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1.0f, 2.0f}, {1.0f, 2.0f}, {}, {}), 4.8284f, 0.001f);
+
+  // rho = 1 used to return -inf
+  // Should match poisson-nloglik, which only differs by log(Gamma(y + 1)) = 0 for these labels
+  std::unique_ptr<Metric> tweedie{Metric::Create("tweedie-nloglik@1.0", &ctx)};
+  std::unique_ptr<Metric> poisson{Metric::Create("poisson-nloglik", &ctx)};
+  tweedie->Configure({});
+  poisson->Configure({});
+  // -y * log(p) + p, averaged over {(1, 1), (2, 2)}
+  EXPECT_NEAR(GetMetricEval(tweedie.get(), {1.0f, 2.0f}, {1.0f, 2.0f}, {}, {}), 0.8069f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(tweedie.get(), {1.0f, 2.0f}, {0.0f, 1.0f}, {}, {}),
+              GetMetricEval(poisson.get(), {1.0f, 2.0f}, {0.0f, 1.0f}, {}, {}), 1e-5);
+
+  CheckDeterministicMetricElementWise(StringView{"tweedie-nloglik@1.0"}, device.ordinal);
+}
+
 inline void VerifyMultiRMSE(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   size_t n_samples = 32, n_targets = 8;
