@@ -645,6 +645,7 @@ class HistMultiEvaluator {
       evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
 
       std::vector<common::ConstGHistRow> node_hist;
+      node_hist.reserve(hist.size());
       for (auto t_hist : hist) {
         node_hist.emplace_back((*t_hist)[entry->nid]);
       }

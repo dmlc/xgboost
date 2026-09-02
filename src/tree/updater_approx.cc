@@ -186,8 +186,10 @@ class GlobalApproxBuilder {
     while (!expand_set.empty()) {
       // candidates that can be further splited.
       std::vector<CPUExpandEntry> valid_candidates;
+      valid_candidates.reserve(expand_set.size());
       // candidates that can be applied.
       std::vector<CPUExpandEntry> applied;
+      applied.reserve(expand_set.size());
       for (auto const &candidate : expand_set) {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);

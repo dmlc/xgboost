@@ -88,6 +88,7 @@ void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch con
                          HostDeviceVector<CatWordT>* out) {
   xgboost_NVTX_FN_RANGE();
   std::vector<CopyBatchItem<CatWordT>> copies;
+  copies.reserve(batch.cat_bits.size());
   for (auto cats : batch.cat_bits) {
     if (!cats.empty()) {
       copies.emplace_back(offset, cats);
@@ -197,6 +198,7 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
   }
 
   std::vector<CopyBatchItem<float>> weight_copies;
+  weight_copies.reserve(batch_size * 3);
   for (std::size_t i = 0; i < batch_size; ++i) {
     auto const nidx = batch.nidxs[i];
     weight_copies.emplace_back(nidx * n_split_targets, batch.base_weight_batch[i]);

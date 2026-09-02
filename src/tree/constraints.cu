@@ -63,12 +63,18 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
   // Represent constraints as CSR format, flatten is the value vector,
   // ptr is row_ptr vector in CSR.
   std::vector<uint32_t> h_feature_constraints_flatten;
+  std::size_t total_constraints = 0;
+  for (auto const& constraints : h_feature_constraints) {
+    total_constraints += constraints.size();
+  }
+  h_feature_constraints_flatten.reserve(total_constraints);
   for (auto const& constraints : h_feature_constraints) {
     for (uint32_t c : constraints) {
       h_feature_constraints_flatten.emplace_back(c);
     }
   }
   std::vector<size_t> h_feature_constraints_ptr;
+  h_feature_constraints_ptr.reserve(h_feature_constraints.size() + 1);
   size_t n_features_in_constraints = 0;
   h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
   for (auto const& v : h_feature_constraints) {
