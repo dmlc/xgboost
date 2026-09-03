@@ -124,16 +124,17 @@ class TreeGenerator {
     std::string result;
     auto is_categorical = tree.SplitType(nid) == FeatureType::kCategorical;
     if (split_index < fmap_.Size()) {
+      // Dispatch based on the feature map, check consistency between the fmap and the
+      // model.
       auto check_categorical = [&]() {
         CHECK(is_categorical) << fmap_.Name(split_index)
-                              << " in feature map is numerical but tree node is categorical.";
+                              << " in feature map is categorical but the tree node is numerical.";
       };
       auto check_numerical = [&]() {
         auto is_numerical = !is_categorical;
         CHECK(is_numerical) << fmap_.Name(split_index)
-                            << " in feature map is categorical but tree node is numerical.";
+                            << " in feature map is numerical but the tree node is categorical.";
       };
-
       switch (fmap_.TypeOf(split_index)) {
         case FeatureMap::kCategorical: {
           check_categorical();
