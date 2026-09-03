@@ -562,7 +562,7 @@ def pandas_transform_data(
             ),
         )
 
-        if npdtypes or dtype in {np.float32, np.float64}:
+        if npdtypes or dtype in {np.dtype(np.float32), np.dtype(np.float64)}:
             array = ser.to_numpy()
         else:
             # Specifying the dtype can significantly slow down the conversion (about
