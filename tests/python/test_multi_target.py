@@ -6,8 +6,9 @@ from typing import Any, Callable, Dict
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     all_reg_objectives,

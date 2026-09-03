@@ -8,8 +8,9 @@ from typing import Optional, Type
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing, make_ltr
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df

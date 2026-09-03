@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.plotting import run_categorical

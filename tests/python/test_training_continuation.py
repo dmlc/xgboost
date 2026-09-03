@@ -3,8 +3,9 @@ from typing import Any
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, settings
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
     make_determinism_strategy,

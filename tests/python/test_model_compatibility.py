@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 import generate_models as gm
 import pytest
+
 import xgboost
 from xgboost import testing as tm
 from xgboost.testing.updater import get_basescore

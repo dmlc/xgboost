@@ -17,8 +17,9 @@ import argparse
 from typing import Dict, Tuple
 
 import numpy as np
-import xgboost as xgb
 from matplotlib import pyplot as plt
+
+import xgboost as xgb
 
 np.random.seed(1994)
 

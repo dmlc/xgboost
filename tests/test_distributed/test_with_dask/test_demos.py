@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 import pytest
+
 from xgboost import testing as tm
 
 PYTHON = sys.executable
