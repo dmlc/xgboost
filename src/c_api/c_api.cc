@@ -1731,7 +1731,7 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/
   auto const cats = bst->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
   if (cats->Empty()) {
-    out = nullptr;
+    *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
     *out = new_cats;
