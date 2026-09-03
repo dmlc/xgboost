@@ -3,6 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.12
+- scikit-build-core>=0.11.0
 - numpy
 - scipy
 - matplotlib
