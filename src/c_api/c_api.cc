@@ -751,7 +751,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/
   auto const cats = p_fmat->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
   if (cats->Empty()) {
-    out = nullptr;
+    *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
     *out = new_cats;
