@@ -186,6 +186,18 @@ def _validate_feature_info(
     return feature_info
 
 
+def _validate_feature_names(feature_names: Sequence[str]) -> None:
+    """Reject names that would corrupt the text-based dump format."""
+    # prohibit the use symbols that may affect parsing. e.g. []<
+    if not all(
+        isinstance(f, str) and not any(x in f for x in ["[", "]", "<"])
+        for f in feature_names
+    ):
+        raise ValueError(
+            "feature_names must be string, and may not contain [, ] or <"
+        )
+
+
 def build_info() -> dict:
     """Build information of XGBoost.  The returned value format is not stable. Also,
     please note that build time dependency is not the same as runtime dependency. For
@@ -1299,13 +1311,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             )
 
         # prohibit the use symbols that may affect parsing. e.g. []<
-        if not all(
-            isinstance(f, str) and not any(x in f for x in ["[", "]", "<"])
-            for f in feature_names
-        ):
-            raise ValueError(
-                "feature_names must be string, and may not contain [, ] or <"
-            )
+        _validate_feature_names(feature_names)
 
         feature_names_bytes = [bytes(f, encoding="utf-8") for f in feature_names]
         c_feature_names = (ctypes.c_char_p * len(feature_names_bytes))(
@@ -2117,6 +2123,8 @@ class Booster:
     def _set_feature_info(self, features: Optional[FeatureInfo], field: str) -> None:
         if features is not None:
             assert isinstance(features, list)
+            if field == "feature_name":
+                _validate_feature_names(features)
             feature_info_bytes = [bytes(f, encoding="utf-8") for f in features]
             c_feature_info = (ctypes.c_char_p * len(feature_info_bytes))(
                 *feature_info_bytes
