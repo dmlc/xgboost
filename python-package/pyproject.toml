@@ -63,6 +63,17 @@ sdist.reproducible = true
 version = "CMakeLists.txt"
 build-type = "Release"
 
+[tool.ruff]
+line-length = 150
+# this should be set to the oldest version of python the project supports
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    # isort
+    "I"
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["xgboost"]
 
