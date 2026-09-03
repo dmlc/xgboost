@@ -98,6 +98,7 @@ disable = [
     "wrong-import-order",
 ]
 dummy-variables-rgx = "(unused|)_.*"
+max-line-length = 150
 reports = false
 
 [tool.pylint.basic]
