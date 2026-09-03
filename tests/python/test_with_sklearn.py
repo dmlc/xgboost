@@ -42,9 +42,7 @@ def test_binary_classification():
             xgb_model = clf.fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
-            err = sum(
-                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-            ) / float(len(preds))
+            err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
 
 
@@ -75,33 +73,21 @@ def test_multiclass_classification(objective):
 
     def check_pred(preds, labels, output_margin):
         if output_margin:
-            err = sum(
-                1 for i in range(len(preds)) if preds[i].argmax() != labels[i]
-            ) / float(len(preds))
+            err = sum(1 for i in range(len(preds)) if preds[i].argmax() != labels[i]) / float(len(preds))
         else:
-            err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(
-                len(preds)
-            )
+            err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(len(preds))
         assert err < 0.4
 
     X, y = load_iris(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier(objective=objective).fit(
-            X[train_index], y[train_index]
-        )
+        xgb_model = xgb.XGBClassifier(objective=objective).fit(X[train_index], y[train_index])
         assert xgb_model.get_booster().num_boosted_rounds() == 100
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
-        preds2 = xgb_model.predict(
-            X[test_index], output_margin=True, iteration_range=(0, 1)
-        )
-        preds3 = xgb_model.predict(
-            X[test_index], output_margin=True, iteration_range=None
-        )
-        preds4 = xgb_model.predict(
-            X[test_index], output_margin=False, iteration_range=(0, 1)
-        )
+        preds2 = xgb_model.predict(X[test_index], output_margin=True, iteration_range=(0, 1))
+        preds3 = xgb_model.predict(X[test_index], output_margin=True, iteration_range=None)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False, iteration_range=(0, 1))
         labels = y[test_index]
 
         check_pred(preds, labels, output_margin=False)
@@ -195,9 +181,7 @@ def test_ranking():
         "min_child_weight": 0.1,
         "max_depth": 6,
     }
-    xgb_model_orig = xgb.train(
-        params_orig, train_data, num_boost_round=4, evals=[(valid_data, "validation")]
-    )
+    xgb_model_orig = xgb.train(params_orig, train_data, num_boost_round=4, evals=[(valid_data, "validation")])
     pred_orig = xgb_model_orig.predict(test_data)
 
     np.testing.assert_almost_equal(pred, pred_orig)
@@ -279,9 +263,7 @@ def test_stacking_classification():
         ("gbm", xgb.sklearn.XGBClassifier()),
         ("svr", make_pipeline(StandardScaler(), LinearSVC(random_state=42))),
     ]
-    clf = StackingClassifier(
-        estimators=estimators, final_estimator=LogisticRegression()
-    )
+    clf = StackingClassifier(estimators=estimators, final_estimator=LogisticRegression())
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
     clf.fit(X_train, y_train).score(X_test, y_test)
@@ -350,13 +332,9 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
     cls.save_model(path)
     with open(path, "r") as fd:
         model = json.load(fd)
-    weights = np.array(
-        model["learner"]["gradient_booster"]["model"]["weights"]
-    ).reshape((cls.n_features_in_ + 1, 3))
+    weights = np.array(model["learner"]["gradient_booster"]["model"]["weights"]).reshape((cls.n_features_in_ + 1, 3))
     weights = weights[:-1, ...]
-    np.testing.assert_allclose(
-        weights / weights.sum(), cls.feature_importances_, rtol=1e-6
-    )
+    np.testing.assert_allclose(weights / weights.sum(), cls.feature_importances_, rtol=1e-6)
 
     with pytest.raises(ValueError):
         cls.set_params(importance_type="cover")
@@ -453,14 +431,7 @@ def test_num_parallel_tree():
     assert len(dump) == 4
 
     config = json.loads(bst.get_booster().save_config())
-    assert (
-        int(
-            config["learner"]["gradient_booster"]["gbtree_model_param"][
-                "num_parallel_tree"
-            ]
-        )
-        == 4
-    )
+    assert int(config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"]) == 4
 
 
 def test_regression():
@@ -474,15 +445,9 @@ def test_regression():
 
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBRegressor().fit
-        preds2 = xgb_model.predict(
-            X[test_index], output_margin=True, iteration_range=(0, np.int16(3))
-        )
-        preds3 = xgb_model.predict(
-            X[test_index], output_margin=True, iteration_range=None
-        )
-        preds4 = xgb_model.predict(
-            X[test_index], output_margin=False, iteration_range=(0, 3)
-        )
+        preds2 = xgb_model.predict(X[test_index], output_margin=True, iteration_range=(0, np.int16(3)))
+        preds3 = xgb_model.predict(X[test_index], output_margin=True, iteration_range=None)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False, iteration_range=(0, 3))
         labels = y[test_index]
 
         assert mean_squared_error(preds, labels) < 25
@@ -504,9 +469,7 @@ def test_parameter_tuning(tree_method: str) -> None:
 
     X, y = get_california_housing()
     reg = xgb.XGBRegressor(learning_rate=0.1, tree_method=tree_method)
-    grid_cv = GridSearchCV(
-        reg, {"max_depth": [2, 4], "n_estimators": [50, 200]}, cv=2, verbose=1
-    )
+    grid_cv = GridSearchCV(reg, {"max_depth": [2, 4], "n_estimators": [50, 200]}, cv=2, verbose=1)
     grid_cv.fit(X, y)
     assert grid_cv.best_score_ < 0.7
     assert grid_cv.best_params_ == {
@@ -522,9 +485,7 @@ def test_regression_with_custom_objective():
     X, y = get_california_housing()
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBRegressor(objective=tm.ls_obj).fit(
-            X[train_index], y[train_index]
-        )
+        xgb_model = xgb.XGBRegressor(objective=tm.ls_obj).fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
     assert mean_squared_error(preds, labels) < 25
@@ -566,9 +527,7 @@ def test_classification_with_custom_objective():
         xgb_model.fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
-        err = sum(
-            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-        ) / float(len(preds))
+        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         assert err < 0.1
 
     # Test that the custom objective function is actually used
@@ -602,9 +561,7 @@ def run_sklearn_api(booster, error, n_est):
     from sklearn.model_selection import train_test_split
 
     iris = load_iris()
-    tr_d, te_d, tr_l, te_l = train_test_split(
-        iris.data, iris.target, train_size=120, test_size=0.2
-    )
+    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120, test_size=0.2)
 
     classifier = xgb.XGBClassifier(booster=booster, n_estimators=n_est)
     classifier.fit(tr_d, tr_l)
@@ -673,9 +630,7 @@ def test_sklearn_nfolds_cv():
     nfolds = 5
     skf = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=seed)
 
-    cv1 = xgb.cv(
-        params, dm, num_boost_round=10, nfold=nfolds, seed=seed, as_pandas=True
-    )
+    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed, as_pandas=True)
     cv2 = xgb.cv(
         params,
         dm,
@@ -790,9 +745,7 @@ def test_parameters_access(tmp_path: Path) -> None:
         return clf
 
     def get_tm(clf: xgb.XGBClassifier) -> str:
-        tm_val = json.loads(clf.get_booster().save_config())["learner"][
-            "gradient_booster"
-        ]["gbtree_train_param"]["tree_method"]
+        tm_val = json.loads(clf.get_booster().save_config())["learner"]["gradient_booster"]["gbtree_train_param"]["tree_method"]
         return tm_val
 
     assert get_tm(clf) == "auto"  # Kept as auto, immutable since 2.0
@@ -1073,12 +1026,7 @@ def test_constraint_parameters():
     reg.fit(X, y)
 
     config = json.loads(reg.get_booster().save_config())
-    assert (
-        config["learner"]["gradient_booster"]["tree_train_param"][
-            "interaction_constraints"
-        ]
-        == "[[0, 1], [2, 3, 4]]"
-    )
+    assert config["learner"]["gradient_booster"]["tree_train_param"]["interaction_constraints"] == "[[0, 1], [2, 3, 4]]"
 
 
 @pytest.mark.filterwarnings("error")
@@ -1089,9 +1037,7 @@ def test_parameter_validation():
     with pytest.warns(Warning, match="foo"):
         reg.fit(X, y)
 
-    reg = xgb.XGBRegressor(
-        n_estimators=2, missing=3, importance_type="gain", verbosity=1
-    )
+    reg = xgb.XGBRegressor(n_estimators=2, missing=3, importance_type="gain", verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
 
@@ -1170,9 +1116,7 @@ def test_pandas_input():
 
     clf_isotonic = CalibratedClassifierCV(FrozenEstimator(model), method="isotonic")
     clf_isotonic.fit(train, target)
-    assert isinstance(
-        clf_isotonic.calibrated_classifiers_[0].estimator.estimator, xgb.XGBClassifier
-    )
+    assert isinstance(clf_isotonic.calibrated_classifiers_[0].estimator.estimator, xgb.XGBClassifier)
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
     train_ser = train["k1"]
@@ -1233,17 +1177,11 @@ def test_boost_from_prediction(tree_method: str) -> None:
 
     X, y = load_iris(return_X_y=True)
 
-    run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, "cpu", X, y, None
-    )
-    run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, "cpu", X, y, pd.DataFrame
-    )
+    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, "cpu", X, y, None)
+    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, "cpu", X, y, pd.DataFrame)
 
     X, y = make_regression(n_samples=100, n_targets=4)
-    run_boost_from_prediction_multi_clasas(
-        xgb.XGBRegressor, tree_method, "cpu", X, y, None
-    )
+    run_boost_from_prediction_multi_clasas(xgb.XGBRegressor, tree_method, "cpu", X, y, None)
 
 
 def test_estimator_type(tmp_path: Path) -> None:
@@ -1271,9 +1209,7 @@ def test_estimator_type(tmp_path: Path) -> None:
 def test_multilabel_classification() -> None:
     from sklearn.datasets import make_multilabel_classification
 
-    X, y = make_multilabel_classification(
-        n_samples=32, n_classes=5, n_labels=3, random_state=0
-    )
+    X, y = make_multilabel_classification(n_samples=32, n_classes=5, n_labels=3, random_state=0)
     clf = xgb.XGBClassifier(tree_method="hist")
     clf.fit(X, y)
     booster = clf.get_booster()
@@ -1309,9 +1245,7 @@ def test_estimator_reg(estimator, check):
         rng = np.random.RandomState(888)
         X = rng.randn(10, 5)
         y = np.full(10, np.inf)
-        with pytest.raises(
-            ValueError, match="contains NaN, infinity or a value too large"
-        ):
+        with pytest.raises(ValueError, match="contains NaN, infinity or a value too large"):
             estimator.fit(X, y)
         return
     elif os.environ["PYTEST_CURRENT_TEST"].find("check_regressor_multioutput") != -1:
@@ -1340,9 +1274,7 @@ def test_categorical(tmp_path: Path) -> None:
     assert reg.feature_types == ft
     assert reg.enable_categorical is True
 
-    onehot, y = tm.make_categorical(
-        n_samples=32, n_features=2, n_categories=3, onehot=True
-    )
+    onehot, y = tm.make_categorical(n_samples=32, n_features=2, n_categories=3, onehot=True)
     reg = xgb.XGBRegressor()
     reg.fit(onehot, y, eval_set=[(onehot, y)])
     from_enc = reg.evals_result()["validation_0"]["rmse"]
@@ -1399,9 +1331,7 @@ def test_evaluation_metric():
     clf.fit(X, y, eval_set=[(X, y)])
     internal = clf.evals_result()
 
-    np.testing.assert_allclose(
-        custom["validation_0"]["merror"], internal["validation_0"]["merror"], atol=1e-6
-    )
+    np.testing.assert_allclose(custom["validation_0"]["merror"], internal["validation_0"]["merror"], atol=1e-6)
 
     clf = xgb.XGBRFClassifier(
         tree_method="hist",
@@ -1447,9 +1377,7 @@ def test_mixed_metrics() -> None:
     assert "hinge_loss" in results
 
     clf = xgb.XGBClassifier(eval_metric=[hamming_loss, log_loss], n_estimators=2)
-    with pytest.raises(
-        NotImplementedError, match="multiple custom metrics is not yet supported."
-    ):
+    with pytest.raises(NotImplementedError, match="multiple custom metrics is not yet supported."):
         clf.fit(X, y, eval_set=[(X, y)])
 
     clf = xgb.XGBClassifier(eval_metric=[123, log_loss], n_estimators=2)
@@ -1609,9 +1537,7 @@ def test_apply_method() -> None:
 
     X_num = np.random.rand(5, 5)
     df = pd.DataFrame(X_num, columns=[f"f{i}" for i in range(X_num.shape[1])])
-    df["test"] = pd.Series(
-        ["one", "two", "three", "four", "five"], dtype="category"
-    )  # <- categorical column
+    df["test"] = pd.Series(["one", "two", "three", "four", "five"], dtype="category")  # <- categorical column
     y = np.arange(len(df))
 
     model = xgb.XGBClassifier()

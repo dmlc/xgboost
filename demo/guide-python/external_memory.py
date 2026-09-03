@@ -86,9 +86,7 @@ def make_batches(
 class Iterator(xgboost.DataIter):
     """A custom iterator for loading files in batches."""
 
-    def __init__(
-        self, device: Literal["cpu", "cuda"], file_paths: List[Tuple[str, str]]
-    ) -> None:
+    def __init__(self, device: Literal["cpu", "cuda"], file_paths: List[Tuple[str, str]]) -> None:
         self.device = device
 
         self._file_paths = file_paths
@@ -175,9 +173,7 @@ def main(work_dir: str, cli_args: argparse.Namespace) -> None:
     """Entry point for training."""
 
     # generate some random data for demo
-    files = make_batches(
-        n_samples_per_batch=1024, n_features=17, n_batches=31, work_dir=work_dir
-    )
+    files = make_batches(n_samples_per_batch=1024, n_features=17, n_batches=31, work_dir=work_dir)
     it = Iterator(cli_args.device, files)
 
     hist_train(it)

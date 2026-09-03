@@ -64,9 +64,7 @@ def test_ndcg_custom_gain():
     )
     ranknet.fit(X, y, qid=q, eval_set=[(X, y)], eval_qid=[q])
     history = ranknet.evals_result()
-    assert (
-        history["validation_0"]["ndcg@32"][0] < history["validation_0"]["ndcg@32"][-1]
-    )
+    assert history["validation_0"]["ndcg@32"][0] < history["validation_0"]["ndcg@32"][-1]
 
 
 def test_ndcg_non_exp() -> None:
@@ -116,9 +114,7 @@ def test_ranking_with_unweighted_data():
         "max_depth": 1,
     }
     evals_result = {}
-    bst = xgboost.train(
-        params, dtrain, 10, evals=[(dtrain, "train")], evals_result=evals_result
-    )
+    bst = xgboost.train(params, dtrain, 10, evals=[(dtrain, "train")], evals_result=evals_result)
     auc_rec = evals_result["train"]["auc"]
     assert all(p <= q for p, q in zip(auc_rec, auc_rec[1:]))
     auc_rec = evals_result["train"]["aucpr"]
@@ -151,9 +147,7 @@ def test_ranking_with_weighted_data():
         "max_depth": 1,
     }
     evals_result = {}
-    bst = xgboost.train(
-        params, dtrain, 10, evals=[(dtrain, "train")], evals_result=evals_result
-    )
+    bst = xgboost.train(params, dtrain, 10, evals=[(dtrain, "train")], evals_result=evals_result)
     auc_rec = evals_result["train"]["auc"]
     assert all(p <= q for p, q in zip(auc_rec, auc_rec[1:]))
     auc_rec = evals_result["train"]["aucpr"]
@@ -282,15 +276,9 @@ class TestRanking:
         cls.dvalid = xgboost.DMatrix(x_valid, y_valid)
         cls.dtest = xgboost.DMatrix(x_test, y_test)
         # set the group counts from the query IDs
-        cls.dtrain.set_group(
-            [len(list(items)) for _key, items in itertools.groupby(qid_train)]
-        )
-        cls.dtest.set_group(
-            [len(list(items)) for _key, items in itertools.groupby(qid_test)]
-        )
-        cls.dvalid.set_group(
-            [len(list(items)) for _key, items in itertools.groupby(qid_valid)]
-        )
+        cls.dtrain.set_group([len(list(items)) for _key, items in itertools.groupby(qid_train)])
+        cls.dtest.set_group([len(list(items)) for _key, items in itertools.groupby(qid_test)])
+        cls.dvalid.set_group([len(list(items)) for _key, items in itertools.groupby(qid_valid)])
         # save the query IDs for testing
         cls.qid_train = qid_train
         cls.qid_test = qid_test
@@ -380,9 +368,7 @@ class TestRanking:
             (self.dtest, self.qid_test),
         ]:
             # size of each group
-            group_sizes = np.array(
-                [len(list(items)) for _key, items in itertools.groupby(qid)]
-            )
+            group_sizes = np.array([len(list(items)) for _key, items in itertools.groupby(qid)])
             # indexes of group boundaries
             group_limits = d.get_uint_info("group_ptr")
             assert len(group_limits) == len(group_sizes) + 1

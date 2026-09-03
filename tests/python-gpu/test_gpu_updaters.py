@@ -110,9 +110,7 @@ class TestGPUUpdaters:
         note(str(gpu_hist_result))
         assert tm.non_increasing(gpu_hist_result["train"][dataset.metric])
 
-        np.testing.assert_allclose(
-            hist_result["train"]["rmse"], gpu_hist_result["train"]["rmse"], rtol=1e-2
-        )
+        np.testing.assert_allclose(hist_result["train"]["rmse"], gpu_hist_result["train"]["rmse"], rtol=1e-2)
 
     @given(
         strategies.integers(10, 400),
@@ -201,9 +199,7 @@ class TestGPUUpdaters:
         cat_parameters: Dict[str, Any],
     ) -> None:
         cat_parameters.update(hist_parameters)
-        dataset = tm.TestDataset(
-            "ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse"
-        )
+        dataset = tm.TestDataset("ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse")
         cat_parameters["tree_method"] = "hist"
         cat_parameters["device"] = "cuda"
         results = train_result(cat_parameters, dataset.get_dmat(), 16)
@@ -217,12 +213,8 @@ class TestGPUUpdaters:
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows: int, cols: int, cats: int) -> None:
-        check_categorical_missing(
-            rows, cols, cats, device="cuda", tree_method="approx", extmem=False
-        )
-        check_categorical_missing(
-            rows, cols, cats, device="cuda", tree_method="hist", extmem=False
-        )
+        check_categorical_missing(rows, cols, cats, device="cuda", tree_method="approx", extmem=False)
+        check_categorical_missing(rows, cols, cats, device="cuda", tree_method="hist", extmem=False)
 
     @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
@@ -231,9 +223,7 @@ class TestGPUUpdaters:
 
     @pytest.mark.parametrize("cats", [32, 64])
     @pytest.mark.parametrize("multi_target", [False, True])
-    def test_categorical_bitfield_boundaries(
-        self, cats: int, multi_target: bool
-    ) -> None:
+    def test_categorical_bitfield_boundaries(self, cats: int, multi_target: bool) -> None:
         check_categorical_bitfield_boundaries("cuda", cats, multi_target)
 
     @pytest.mark.skipif(**tm.no_cupy())
@@ -248,9 +238,7 @@ class TestGPUUpdaters:
         tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_gpu_hist_device_dmatrix(
-        self, param: dict, num_rounds: int, dataset: tm.TestDataset
-    ) -> None:
+    def test_gpu_hist_device_dmatrix(self, param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
         param["tree_method"] = "hist"
@@ -270,9 +258,7 @@ class TestGPUUpdaters:
         tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_external_memory(
-        self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset
-    ) -> None:
+    def test_external_memory(self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
 
@@ -314,9 +300,7 @@ class TestGPUUpdaters:
     @pytest.mark.mgpu
     @given(tm.make_dataset_strategy(), strategies.integers(0, 10))
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_specified_gpu_id_gpu_update(
-        self, dataset: tm.TestDataset, gpu_id: int
-    ) -> None:
+    def test_specified_gpu_id_gpu_update(self, dataset: tm.TestDataset, gpu_id: int) -> None:
         param = {"tree_method": "hist", "device": f"cuda:{gpu_id}"}
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)

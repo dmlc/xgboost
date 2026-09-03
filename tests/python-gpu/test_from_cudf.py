@@ -22,9 +22,7 @@ def test_type_check() -> None:
     assert is_dataframe(df.a)
 
 
-def dmatrix_from_cudf(
-    input_type: Any, DMatrixT: Type[xgb.DMatrix], missing: float = np.nan
-) -> None:
+def dmatrix_from_cudf(input_type: Any, DMatrixT: Type[xgb.DMatrix], missing: float = np.nan) -> None:
     """Test constructing DMatrix from cudf"""
     import pandas as pd
 
@@ -114,12 +112,8 @@ def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
     )
     evals_result_np: Dict[str, Any] = {}
     dtrain_np = xgb.DMatrix(X, y, weight=weights, base_margin=base_margin)
-    xgb.train(
-        params, dtrain_np, evals=[(dtrain_np, "train")], evals_result=evals_result_np
-    )
-    assert np.array_equal(
-        evals_result_cudf["train"]["rmse"], evals_result_np["train"]["rmse"]
-    )
+    xgb.train(params, dtrain_np, evals=[(dtrain_np, "train")], evals_result=evals_result_np)
+    assert np.array_equal(evals_result_cudf["train"]["rmse"], evals_result_np["train"]["rmse"])
 
 
 def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
@@ -147,9 +141,7 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
     assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
     assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
-    assert np.array_equal(
-        dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
-    )
+    assert np.array_equal(dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr"))
 
     # Test setting info with cudf Series
     dmat_cudf.set_info(weight=cudf_floats[cudf_floats.columns[0]])
@@ -159,9 +151,7 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
     assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
     assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
-    assert np.array_equal(
-        dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
-    )
+    assert np.array_equal(dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr"))
 
     run_base_margin_info(cudf.DataFrame, DMatrixT, "cuda")
 

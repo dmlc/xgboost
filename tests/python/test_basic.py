@@ -30,17 +30,13 @@ class TestBasic:
 
         preds = bst.predict(dtrain)
         labels = dtrain.get_label()
-        err = sum(
-            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-        ) / float(len(preds))
+        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(
-            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-        ) / float(len(preds))
+        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -88,9 +84,7 @@ class TestBasic:
         # this is prediction
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(
-            len(preds)
-        )
+        err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -183,9 +177,7 @@ class TestBasic:
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file="不正なパス")
 
-    @pytest.mark.parametrize(
-        "path", ["모델.ubj", "がうる・ぐら.json"], ids=["path-0", "path-1"]
-    )
+    @pytest.mark.parametrize("path", ["모델.ubj", "がうる・ぐら.json"], ids=["path-0", "path-1"])
     def test_unicode_path(self, tmp_path: Path, path: str) -> None:
         model_path = tmp_path / path
         dtrain, _ = tm.load_agaricus(__file__)
@@ -226,9 +218,7 @@ class TestBasic:
         params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
 
         # return np.ndarray
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
@@ -283,10 +273,7 @@ class TestBasic:
                 as_pandas=False,
             )
             output = out.getvalue().strip()
-        solution = (
-            "[array([5., 8.], dtype=float32), array([23., 43., 11.],"
-            + " dtype=float32)]"
-        )
+        solution = "[array([5., 8.], dtype=float32), array([23., 43., 11.]," + " dtype=float32)]"
         assert output == solution
 
 

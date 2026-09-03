@@ -52,9 +52,7 @@ def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
 
         valid = rng.binomial(n=1, p=0.5, size=16).astype(np.bool_)
 
-        df = pd.DataFrame(
-            {alias.label: y, alias.margin: m, alias.weight: w, alias.valid: valid}
-        )
+        df = pd.DataFrame({alias.label: y, alias.margin: m, alias.weight: w, alias.valid: valid})
         if is_feature_cols:
             for j in range(X.shape[1]):
                 df[f"feat-{j}"] = pd.Series(X[:, j])
@@ -98,12 +96,8 @@ def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
     assert df_valid.shape[0] == valid_Xy.num_row()
 
     # margin
-    np.testing.assert_allclose(
-        df_train[alias.margin].to_numpy(), train_Xy.get_base_margin()
-    )
-    np.testing.assert_allclose(
-        df_valid[alias.margin].to_numpy(), valid_Xy.get_base_margin()
-    )
+    np.testing.assert_allclose(df_train[alias.margin].to_numpy(), train_Xy.get_base_margin())
+    np.testing.assert_allclose(df_valid[alias.margin].to_numpy(), valid_Xy.get_base_margin())
     # weight
     np.testing.assert_allclose(df_train[alias.weight].to_numpy(), train_Xy.get_weight())
     np.testing.assert_allclose(df_valid[alias.weight].to_numpy(), valid_Xy.get_weight())
@@ -157,9 +151,7 @@ def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
     sm = _read_csr_matrix_from_unwrapped_spark_vec(pd1)
     assert isinstance(sm, csr_matrix)
 
-    np.testing.assert_array_equal(
-        sm.data, [3.0, 0.0, 13.0, 14.0, 0.0, 0.0, 24.0, 25.0, 0.0, 35.0]
-    )
+    np.testing.assert_array_equal(sm.data, [3.0, 0.0, 13.0, 14.0, 0.0, 0.0, 24.0, 25.0, 0.0, 35.0])
     np.testing.assert_array_equal(sm.indptr, [0, 2, 5, 8, 10])
     np.testing.assert_array_equal(sm.indices, [0, 2, 0, 1, 2, 0, 1, 2, 1, 2])
     assert sm.shape == (4, 3)

@@ -40,15 +40,11 @@ def test_gpu_binary_classification() -> None:
                 n_estimators=4,
                 device="cuda",
             ).fit(X[train_index], y[train_index])
-            cfg: str = json.loads(xgb_model.get_booster().save_config())["learner"][
-                "generic_param"
-            ]["device"]
+            cfg: str = json.loads(xgb_model.get_booster().save_config())["learner"]["generic_param"]["device"]
             assert cfg.startswith("cuda")
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
-            err = sum(
-                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-            ) / float(len(preds))
+            err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
 
 
@@ -69,12 +65,8 @@ def test_boost_from_prediction_gpu_hist(tree_method: str) -> None:
     X, y = load_digits(return_X_y=True)
     X, y = cp.array(X), cp.array(y)
 
-    run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, "cuda", X, y, None
-    )
-    run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, "cuda", X, y, cudf.DataFrame
-    )
+    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, "cuda", X, y, None)
+    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, "cuda", X, y, cudf.DataFrame)
 
 
 def test_num_parallel_tree() -> None:
@@ -91,9 +83,7 @@ def test_categorical(tmp_path: Path) -> None:
     from sklearn.datasets import load_svmlight_file
 
     data_dir = tm.data_dir(__file__)
-    X, y = load_svmlight_file(
-        os.path.join(data_dir, "agaricus.txt.train"), dtype=np.float32
-    )
+    X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"), dtype=np.float32)
     clf = xgb.XGBClassifier(
         tree_method="hist",
         device="cuda",
@@ -109,11 +99,7 @@ def test_categorical(tmp_path: Path) -> None:
 
     with open(model) as fd:
         categorical = json.load(fd)
-        categories_sizes = np.array(
-            categorical["learner"]["gradient_booster"]["model"]["trees"][0][
-                "categories_sizes"
-            ]
-        )
+        categories_sizes = np.array(categorical["learner"]["gradient_booster"]["model"]["trees"][0]["categories_sizes"])
         assert categories_sizes.shape[0] != 0
         np.testing.assert_allclose(categories_sizes, 1)
 
@@ -225,9 +211,7 @@ def test_custom_objective(
 
     params["n_estimators"] = 2
 
-    def wrong_shape(
-        labels: np.ndarray, predt: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def wrong_shape(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:, :-1], hess[:, :-1]
 
@@ -235,9 +219,7 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape, **params)
         clf.fit(X, y)
 
-    def wrong_shape_1(
-        labels: np.ndarray, predt: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def wrong_shape_1(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:-1, :], hess[:-1, :]
 
@@ -245,9 +227,7 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape_1, **params)
         clf.fit(X, y)
 
-    def wrong_shape_2(
-        labels: np.ndarray, predt: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def wrong_shape_2(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:, :], hess[:-1, :]
 
@@ -255,9 +235,7 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape_2, **params)
         clf.fit(X, y)
 
-    def wrong_shape_3(
-        labels: np.ndarray, predt: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def wrong_shape_3(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         grad = grad.reshape(grad.size)
         hess = hess.reshape(hess.size)
@@ -297,24 +275,18 @@ def test_device_ordinal() -> None:
         reg = xgb.XGBRegressor(device=f"cuda:{ordinal}", tree_method="hist")
 
         if correct_ordinal:
-            reg.fit(
-                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
-            )
+            reg.fit(X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w])
             assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
             return
 
         with pytest.raises(ValueError, match="Invalid device ordinal"):
-            reg.fit(
-                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
-            )
+            reg.fit(X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w])
 
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         futures = []
         n_trials = 32
         for i in range(n_trials):
-            fut = executor.submit(
-                worker, ordinal=i % n_devices, correct_ordinal=i % 3 != 0
-            )
+            fut = executor.submit(worker, ordinal=i % n_devices, correct_ordinal=i % 3 != 0)
             futures.append(fut)
 
         for fut in futures:

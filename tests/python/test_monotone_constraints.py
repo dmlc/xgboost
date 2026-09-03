@@ -37,17 +37,13 @@ class TestMonotoneConstraints:
             xgb.train(params, training_dset)
 
         feature_names = ["feature_0", "feature_2"]
-        training_dset_w_feature_names = xgb.DMatrix(
-            x, label=y, feature_names=feature_names
-        )
+        training_dset_w_feature_names = xgb.DMatrix(x, label=y, feature_names=feature_names)
 
         with pytest.raises(ValueError):
             xgb.train(params, training_dset_w_feature_names)
 
         feature_names = ["feature_0", "feature_1"]
-        training_dset_w_feature_names = xgb.DMatrix(
-            x, label=y, feature_names=feature_names
-        )
+        training_dset_w_feature_names = xgb.DMatrix(x, label=y, feature_names=feature_names)
 
         constrained_learner = xgb.train(params, training_dset_w_feature_names)
 

@@ -34,9 +34,7 @@ def test_cat_container() -> None:
 def test_cat_container_model_slice() -> None:
     import pandas as pd
 
-    X = pd.DataFrame(
-        {"cat": pd.Categorical(["a", "b", "a", "c"]), "num": [0.0, 1.0, 2.0, 3.0]}
-    )
+    X = pd.DataFrame({"cat": pd.Categorical(["a", "b", "a", "c"]), "num": [0.0, 1.0, 2.0, 3.0]})
     Xy = xgb.DMatrix(X, label=np.arange(X.shape[0]), enable_categorical=True)
     booster = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=2)
 
@@ -54,15 +52,11 @@ def test_cat_container_model_slice() -> None:
         ("UInt64", [1, np.iinfo(np.int64).max]),
     ],
 )
-def test_pd_cat_nullable_integer(
-    dtype: Literal["Int64", "UInt16", "UInt32", "UInt64"], values: list[int]
-) -> None:
+def test_pd_cat_nullable_integer(dtype: Literal["Int64", "UInt16", "UInt32", "UInt64"], values: list[int]) -> None:
     import pandas as pd
 
     categories = pd.Index(pd.array(values, dtype=dtype))
-    names, codes, temporary = pd_cat_inf(
-        categories, pd.Series([0, -1, 1], dtype=np.int8)
-    )
+    names, codes, temporary = pd_cat_inf(categories, pd.Series([0, -1, 1], dtype=np.int8))
     expected_dtype = np.dtype(dtype.lower())
     converted = temporary[0]
     assert converted.dtype == expected_dtype

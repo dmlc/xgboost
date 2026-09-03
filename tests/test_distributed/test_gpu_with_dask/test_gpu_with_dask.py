@@ -131,12 +131,7 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
         num_boost_round=2,
     )
     from_dmatrix = dxgb.predict(client, out, dtrain).compute()
-    assert (
-        json.loads(out["booster"].save_config())["learner"]["gradient_booster"][
-            "updater"
-        ][0]["name"]
-        == "grow_gpu_hist"
-    )
+    assert json.loads(out["booster"].save_config())["learner"]["gradient_booster"]["updater"][0]["name"] == "grow_gpu_hist"
     inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
     single_node = out["booster"].predict(xgb.DMatrix(X.compute()))
     np.testing.assert_allclose(single_node, from_dmatrix)
@@ -185,9 +180,7 @@ def run_gpu_hist(
         w = None
 
     if DMatrixT is dxgb.DaskQuantileDMatrix:
-        m = DMatrixT(
-            client, data=X, label=y, weight=w, max_bin=params.get("max_bin", 256)
-        )
+        m = DMatrixT(client, data=X, label=y, weight=w, max_bin=params.get("max_bin", 256))
     else:
         m = DMatrixT(client, data=X, label=y, weight=w)
     history = dxgb.train(
@@ -248,9 +241,7 @@ class TestDistributedGPU:
         params=hist_parameter_strategy,
         num_rounds=strategies.integers(1, 20),
         dataset=tm.make_dataset_strategy(),
-        dmatrix_type=strategies.sampled_from(
-            [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]
-        ),
+        dmatrix_type=strategies.sampled_from([dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]),
     )
     @settings(
         deadline=duration(seconds=120),
@@ -290,9 +281,7 @@ class TestDistributedGPU:
         local_cuda_client: Client,
     ) -> None:
         params["tree_method"] = "hist"
-        run_gpu_hist(
-            params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client
-        )
+        run_gpu_hist(params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_multi_regressor(self, local_cuda_client: Client) -> None:
@@ -443,28 +432,19 @@ class TestDistributedGPU:
 
         empty = df.iloc[:0]
         ddf = dask_cudf.concat(
-            [dask_cudf.from_cudf(empty, npartitions=1)]
-            + [dask_cudf.from_cudf(df, npartitions=3)]
-            + [dask_cudf.from_cudf(df, npartitions=3)]
+            [dask_cudf.from_cudf(empty, npartitions=1)] + [dask_cudf.from_cudf(df, npartitions=3)] + [dask_cudf.from_cudf(df, npartitions=3)]
         )
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
         dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
-        bst_empty = dxgb.train(
-            local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
-        )
+        bst_empty = dxgb.train(local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")])
         predt_empty = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
 
-        ddf = dask_cudf.concat(
-            [dask_cudf.from_cudf(df, npartitions=3)]
-            + [dask_cudf.from_cudf(df, npartitions=3)]
-        )
+        ddf = dask_cudf.concat([dask_cudf.from_cudf(df, npartitions=3)] + [dask_cudf.from_cudf(df, npartitions=3)])
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
         dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
-        bst = dxgb.train(
-            local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
-        )
+        bst = dxgb.train(local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")])
 
         predt = dxgb.predict(local_cuda_client, bst, X).compute().values
         cupy.testing.assert_allclose(predt, predt_empty)
@@ -477,11 +457,7 @@ class TestDistributedGPU:
 
         df = df.to_pandas()
         empty = df.iloc[:0]
-        ddf = dd.concat(
-            [dd.from_pandas(empty, npartitions=1)]
-            + [dd.from_pandas(df, npartitions=3)]
-            + [dd.from_pandas(df, npartitions=3)]
-        )
+        ddf = dd.concat([dd.from_pandas(empty, npartitions=1)] + [dd.from_pandas(df, npartitions=3)] + [dd.from_pandas(df, npartitions=3)])
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
 
@@ -490,9 +466,7 @@ class TestDistributedGPU:
         predt = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
         np.testing.assert_allclose(predt, predt_empty)
 
-        in_predt = (
-            dxgb.inplace_predict(local_cuda_client, bst_empty, X).compute().values
-        )
+        in_predt = dxgb.inplace_predict(local_cuda_client, bst_empty, X).compute().values
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
@@ -510,10 +484,7 @@ class TestDistributedGPU:
             dxgb.train(local_cuda_client, {"device": "cuda:0"}, m)
 
         booster = dxgb.train(local_cuda_client, {"device": "cuda"}, m)["booster"]
-        assert (
-            json.loads(booster.save_config())["learner"]["generic_param"]["device"]
-            == "cuda:0"
-        )
+        assert json.loads(booster.save_config())["learner"]["generic_param"]["device"] == "cuda:0"
 
     def test_data_initialization(self, local_cuda_client: Client) -> None:
         X, y, _ = generate_array()
@@ -528,9 +499,7 @@ class TestDistributedGPU:
             with dxgb.CommunicatorContext(**rabit_args):
                 from xgboost.dask.data import _dmatrix_from_list_of_parts
 
-                local_dtrain = _dmatrix_from_list_of_parts(
-                    **data_ref, nthread=7, model=None, Xy_cats=None
-                )
+                local_dtrain = _dmatrix_from_list_of_parts(**data_ref, nthread=7, model=None, Xy_cats=None)
                 fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
                 assert fw_rows == local_dtrain.num_col()
 
@@ -714,9 +683,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         y = y.to_backend("cupy")
 
         m: dxgb.DaskDMatrix = await dxgb.DaskQuantileDMatrix(client, X, y)
-        output = await dxgb.train(
-            client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
-        )
+        output = await dxgb.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=m)
 
         with_m = await dxgb.predict(client, output, m)
         with_X = await dxgb.predict(client, output, X)
@@ -725,12 +692,8 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         assert isinstance(with_X, da.Array)
         assert isinstance(inplace, da.Array)
 
-        cp.testing.assert_allclose(
-            await client.compute(with_m), await client.compute(with_X)
-        )
-        cp.testing.assert_allclose(
-            await client.compute(with_m), await client.compute(inplace)
-        )
+        cp.testing.assert_allclose(await client.compute(with_m), await client.compute(with_X))
+        cp.testing.assert_allclose(await client.compute(with_m), await client.compute(inplace))
 
         client.shutdown()
         return output

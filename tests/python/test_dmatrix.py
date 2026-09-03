@@ -105,9 +105,7 @@ class TestDMatrix:
         assert view.strides == (4 * view.itemsize, 2 * view.itemsize)
 
         dmat = xgb.DMatrix(view)
-        np.testing.assert_array_equal(
-            dmat.get_data().toarray(), view.astype(np.float32)
-        )
+        np.testing.assert_array_equal(dmat.get_data().toarray(), view.astype(np.float32))
 
     def test_slice(self):
         X = rng.randn(100, 100)
@@ -143,9 +141,7 @@ class TestDMatrix:
             evals=[(d2, "d2"), (sliced, "sliced")],
             evals_result=eval_res,
         )
-        np.testing.assert_equal(
-            eval_res["d2"]["mlogloss"], eval_res["sliced"]["mlogloss"]
-        )
+        np.testing.assert_equal(eval_res["d2"]["mlogloss"], eval_res["sliced"]["mlogloss"])
 
         ridxs_arr = np.array(ridxs)[1:]  # handles numpy slice correctly
         sliced = d.slice(ridxs_arr)
@@ -291,9 +287,7 @@ class TestDMatrix:
         bst.predict(dtrain)
 
         i32 = csr_matrix((x.data.astype(np.int32), x.indices, x.indptr), shape=x.shape)
-        f32 = csr_matrix(
-            (i32.data.astype(np.float32), x.indices, x.indptr), shape=x.shape
-        )
+        f32 = csr_matrix((i32.data.astype(np.float32), x.indices, x.indptr), shape=x.shape)
         di32 = xgb.DMatrix(i32)
         df32 = xgb.DMatrix(f32)
         dense = xgb.DMatrix(f32.toarray(), missing=0)
@@ -387,9 +381,7 @@ class TestDMatrix:
     def test_uri_categorical(self):
         path = os.path.join(dpath, "agaricus.txt.train")
         feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
-        Xy = xgb.DMatrix(
-            path + "?indexing_mode=1&format=libsvm", feature_types=feature_types
-        )
+        Xy = xgb.DMatrix(path + "?indexing_mode=1&format=libsvm", feature_types=feature_types)
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
     def test_base_margin(self) -> None:
@@ -405,9 +397,7 @@ class TestDMatrix:
         if n_samples == 0 or n_features == 0 or sparsity == 1.0:
             csr = scipy.sparse.csr_matrix(np.empty((0, 0)))
         else:
-            csr = tm.make_sparse_regression(n_samples, n_features, sparsity, False)[
-                0
-            ].astype(np.float32)
+            csr = tm.make_sparse_regression(n_samples, n_features, sparsity, False)[0].astype(np.float32)
         m = xgb.DMatrix(data=csr)
         ret = m.get_data()
         np.testing.assert_equal(csr.indptr, ret.indptr)

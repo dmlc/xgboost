@@ -83,17 +83,13 @@ def test_shap_multi_output_tree() -> None:
         X.shape[1] + 1,
     )
     np.testing.assert_allclose(contribs.sum(axis=2), margin, rtol=1e-4, atol=1e-4)
-    np.testing.assert_allclose(
-        interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4
-    )
+    np.testing.assert_allclose(interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4)
 
 
 class TestTreeMethodMulti:
     """Integration tests for tree methods."""
 
-    @given(
-        exact_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
-    )
+    @given(exact_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy)
     @settings(deadline=None, print_blob=True)
     def test_exact(self, param: dict, num_rounds: int, dataset: tm.TestDataset) -> None:
         if dataset.name.endswith("-l1"):

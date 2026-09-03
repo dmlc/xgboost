@@ -50,9 +50,7 @@ class TestPlotting:
         for p in ax.patches:
             assert p.get_facecolor() == (1.0, 0, 0, 1.0)  # red
 
-        ax = xgb.plot_importance(
-            booster, color=["r", "r", "b", "b"], title=None, xlabel=None, ylabel=None
-        )
+        ax = xgb.plot_importance(booster, color=["r", "r", "b", "b"], title=None, xlabel=None, ylabel=None)
         assert isinstance(ax, Axes)
         assert ax.get_title() == ""
         assert ax.get_xlabel() == ""

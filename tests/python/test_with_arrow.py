@@ -18,18 +18,14 @@ import pyarrow.csv as pc
 
 
 def test_type_check() -> None:
-    df = pd.DataFrame(
-        [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
-    )
+    df = pd.DataFrame([[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"])
     table = pa.Table.from_pandas(df)
     assert is_dataframe(table)
 
 
 class TestArrowTable:
     def test_arrow_table(self):
-        df = pd.DataFrame(
-            [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
-        )
+        df = pd.DataFrame([[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"])
         table = pa.Table.from_pandas(df)
         dm = xgb.DMatrix(table)
         assert dm.num_row() == 2
@@ -56,9 +52,7 @@ class TestArrowTable:
         np.testing.assert_array_equal(dm.get_label(), np.array([0, 1]))
 
     def test_arrow_table_from_np(self):
-        coldata = np.array(
-            [[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]
-        )
+        coldata = np.array([[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]])
         cols = list(map(pa.array, coldata))
         table = pa.Table.from_arrays(cols, ["a", "b", "c"])
         dm = xgb.DMatrix(table)
@@ -103,9 +97,7 @@ class TestArrowTable:
         y_upper_bound = table["Survival_label_upper_bound"]
         X = table.drop(["Survival_label_lower_bound", "Survival_label_upper_bound"])
 
-        dtrain = xgb.DMatrix(
-            X, label_lower_bound=y_lower_bound, label_upper_bound=y_upper_bound
-        )
+        dtrain = xgb.DMatrix(X, label_lower_bound=y_lower_bound, label_upper_bound=y_upper_bound)
         y_np_up = dtrain.get_float_info("label_upper_bound")
         y_np_low = dtrain.get_float_info("label_lower_bound")
         np.testing.assert_equal(y_np_up, y_upper_bound.to_pandas().values)

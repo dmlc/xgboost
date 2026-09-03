@@ -28,9 +28,7 @@ class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
 
-    @given(
-        exact_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy()
-    )
+    @given(exact_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy())
     @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
@@ -114,15 +112,11 @@ class TestTreeMethod:
         grown = str(booster.get_dump())
 
         params = {"updater": "prune", "process_type": "update", "gamma": "0.2"}
-        booster = xgb.train(
-            params, dtrain=dtrain, num_boost_round=10, xgb_model=booster
-        )
+        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10, xgb_model=booster)
         after_prune = str(booster.get_dump())
         assert grown != after_prune
 
-        booster = xgb.train(
-            params, dtrain=dtrain, num_boost_round=10, xgb_model=booster
-        )
+        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10, xgb_model=booster)
         second_prune = str(booster.get_dump())
         # Second prune should not change the tree
         assert after_prune == second_prune
@@ -215,9 +209,7 @@ class TestTreeMethod:
         note(str(approx_result))
         assert tm.non_increasing(approx_result["train"][dataset.metric])
 
-        np.testing.assert_allclose(
-            hist_result["train"]["rmse"], approx_result["train"]["rmse"]
-        )
+        np.testing.assert_allclose(hist_result["train"]["rmse"], approx_result["train"]["rmse"])
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_invalid_category(self, tree_method: str) -> None:
@@ -295,9 +287,7 @@ class TestTreeMethod:
         tree_method: str,
     ) -> None:
         cat_parameters.update(hist_parameters)
-        dataset = tm.TestDataset(
-            "ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse"
-        )
+        dataset = tm.TestDataset("ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse")
         cat_parameters["tree_method"] = tree_method
         results = train_result(cat_parameters, dataset.get_dmat(), 16)
         tm.non_increasing(results["train"]["rmse"])
@@ -310,18 +300,12 @@ class TestTreeMethod:
     @settings(deadline=None, print_blob=True, max_examples=10)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows: int, cols: int, cats: int) -> None:
-        check_categorical_missing(
-            rows, cols, cats, device="cpu", tree_method="approx", extmem=False
-        )
-        check_categorical_missing(
-            rows, cols, cats, device="cpu", tree_method="hist", extmem=False
-        )
+        check_categorical_missing(rows, cols, cats, device="cpu", tree_method="approx", extmem=False)
+        check_categorical_missing(rows, cols, cats, device="cpu", tree_method="hist", extmem=False)
 
     @pytest.mark.parametrize("cats", [32, 64])
     @pytest.mark.parametrize("multi_target", [False, True])
-    def test_categorical_bitfield_boundaries(
-        self, cats: int, multi_target: bool
-    ) -> None:
+    def test_categorical_bitfield_boundaries(self, cats: int, multi_target: bool) -> None:
         check_categorical_bitfield_boundaries("cpu", cats, multi_target)
 
     @pytest.mark.parametrize("weighted", [True, False])

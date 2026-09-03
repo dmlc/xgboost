@@ -35,9 +35,7 @@ class TestTrainingContinuation:
 
         return [xgb_params_01_binary, xgb_params_02_binary, xgb_params_03_binary]
 
-    def run_training_continuation(
-        self, xgb_params_01, xgb_params_02, xgb_params_03, tmp_path: Path
-    ):
+    def run_training_continuation(self, xgb_params_01, xgb_params_02, xgb_params_03, tmp_path: Path):
         from sklearn.datasets import load_digits
         from sklearn.metrics import mean_squared_error
 
@@ -61,12 +59,8 @@ class TestTrainingContinuation:
         gbdt_02 = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=0)
         gbdt_02.save_model(model_path)
 
-        gbdt_02a = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=gbdt_02
-        )
-        gbdt_02b = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=model_path
-        )
+        gbdt_02a = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=gbdt_02)
+        gbdt_02b = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=model_path)
         ntrees_02a = len(gbdt_02a.get_dump())
         ntrees_02b = len(gbdt_02b.get_dump())
         assert ntrees_02a == 10
@@ -83,12 +77,8 @@ class TestTrainingContinuation:
         gbdt_03 = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=3)
         gbdt_03.save_model(model_path)
 
-        gbdt_03a = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=gbdt_03
-        )
-        gbdt_03b = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=model_path
-        )
+        gbdt_03a = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=gbdt_03)
+        gbdt_03b = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=model_path)
         ntrees_03a = len(gbdt_03a.get_dump())
         ntrees_03b = len(gbdt_03b.get_dump())
         assert ntrees_03a == 10
@@ -102,33 +92,23 @@ class TestTrainingContinuation:
         res1 = mean_squared_error(y_2class, gbdt_04.predict(dtrain_2class))
         res2 = mean_squared_error(
             y_2class,
-            gbdt_04.predict(
-                dtrain_2class, iteration_range=(0, gbdt_04.num_boosted_rounds())
-            ),
+            gbdt_04.predict(dtrain_2class, iteration_range=(0, gbdt_04.num_boosted_rounds())),
         )
         assert res1 == res2
 
-        gbdt_04 = xgb.train(
-            xgb_params_02, dtrain_2class, num_boost_round=7, xgb_model=gbdt_04
-        )
+        gbdt_04 = xgb.train(xgb_params_02, dtrain_2class, num_boost_round=7, xgb_model=gbdt_04)
         res1 = mean_squared_error(y_2class, gbdt_04.predict(dtrain_2class))
         res2 = mean_squared_error(
             y_2class,
-            gbdt_04.predict(
-                dtrain_2class, iteration_range=(0, gbdt_04.num_boosted_rounds())
-            ),
+            gbdt_04.predict(dtrain_2class, iteration_range=(0, gbdt_04.num_boosted_rounds())),
         )
         assert res1 == res2
 
         gbdt_05 = xgb.train(xgb_params_03, dtrain_5class, num_boost_round=7)
-        gbdt_05 = xgb.train(
-            xgb_params_03, dtrain_5class, num_boost_round=3, xgb_model=gbdt_05
-        )
+        gbdt_05 = xgb.train(xgb_params_03, dtrain_5class, num_boost_round=3, xgb_model=gbdt_05)
 
         res1 = gbdt_05.predict(dtrain_5class)
-        res2 = gbdt_05.predict(
-            dtrain_5class, iteration_range=(0, gbdt_05.num_boosted_rounds())
-        )
+        res2 = gbdt_05.predict(dtrain_5class, iteration_range=(0, gbdt_05.num_boosted_rounds()))
         np.testing.assert_almost_equal(res1, res2)
 
     @pytest.mark.skipif(**tm.no_sklearn())

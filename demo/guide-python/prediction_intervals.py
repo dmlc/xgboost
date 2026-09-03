@@ -95,16 +95,10 @@ def base_params(cli_args: argparse.Namespace) -> Dict[str, object]:
     }
 
 
-def train_models(
-    data: Data, alpha: np.ndarray, params: Dict[str, object]
-) -> Tuple[Dict[str, xgb.Booster], Dict[str, Dict[str, Dict]]]:
+def train_models(data: Data, alpha: np.ndarray, params: Dict[str, object]) -> Tuple[Dict[str, xgb.Booster], Dict[str, Dict[str, Dict]]]:
     """Train quantile, expectile, and squared-error models."""
-    quantile_model, quantile_evals = train_interval_model(
-        {**params, "objective": "reg:quantileerror"}, "quantile_alpha", alpha, data
-    )
-    expectile_model, expectile_evals = train_interval_model(
-        {**params, "objective": "reg:expectileerror"}, "expectile_alpha", alpha, data
-    )
+    quantile_model, quantile_evals = train_interval_model({**params, "objective": "reg:quantileerror"}, "quantile_alpha", alpha, data)
+    expectile_model, expectile_evals = train_interval_model({**params, "objective": "reg:expectileerror"}, "expectile_alpha", alpha, data)
     models = {
         "quantile": quantile_model,
         "expectile": expectile_model,
@@ -148,9 +142,7 @@ def plot_prediction_intervals(
     features, target = test_data
     fig, axes = plt.subplots(2, 1, figsize=(10, 12), sharex=True, sharey=True)
 
-    def plot_band(
-        ax: "plt.Axes", pred: np.ndarray, title: str, center_label: str
-    ) -> None:
+    def plot_band(ax: "plt.Axes", pred: np.ndarray, title: str, center_label: str) -> None:
         ax.plot(grid, f(grid), "g:", linewidth=3, label=r"$f(x) = x\,\sin(x)$")
         ax.plot(
             features,
@@ -164,9 +156,7 @@ def plot_prediction_intervals(
         ax.plot(grid, predictions["mean"], "m--", label="Squared-error mean")
         ax.plot(grid, pred[:, 0], "k-")
         ax.plot(grid, pred[:, 2], "k-")
-        ax.fill_between(
-            grid.ravel(), pred[:, 0], pred[:, 2], alpha=0.3, label="90% band"
-        )
+        ax.fill_between(grid.ravel(), pred[:, 0], pred[:, 2], alpha=0.3, label="90% band")
         ax.set_title(title)
         ax.set_ylabel("$y$")
         ax.set_ylim(-10, 25)

@@ -49,9 +49,7 @@ class TestSYCLPredict(unittest.TestCase):
                     "max_depth": 1,
                     "verbosity": 0,
                 }
-                bst = xgb.train(
-                    param, dtrain, iterations, evals=watchlist, evals_result=res
-                )
+                bst = xgb.train(param, dtrain, iterations, evals=watchlist, evals_result=res)
                 assert tm.non_increasing(res["train"]["logloss"])
                 cpu_pred_train = bst.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst.predict(dtest, output_margin=True)
@@ -123,9 +121,7 @@ class TestSYCLPredict(unittest.TestCase):
         assert np.allclose(cpu_train_score, sycl_train_score)
         assert np.allclose(cpu_test_score, sycl_test_score)
 
-    @given(
-        strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
-    )
+    @given(strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None)
     def test_shap(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
@@ -141,9 +137,7 @@ class TestSYCLPredict(unittest.TestCase):
         assume(len(dataset.y) > 0)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
 
-    @given(
-        strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
-    )
+    @given(strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method

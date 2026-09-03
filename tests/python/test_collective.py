@@ -33,9 +33,7 @@ def test_rabit_communicator() -> None:
 
     with get_reusable_executor(max_workers=world_size) as pool:
         for _ in range(world_size):
-            worker = pool.submit(
-                run_rabit_worker, rabit_env=tracker.worker_args(), world_size=world_size
-            )
+            worker = pool.submit(run_rabit_worker, rabit_env=tracker.worker_args(), world_size=world_size)
             workers.append(worker)
 
         for worker in workers:

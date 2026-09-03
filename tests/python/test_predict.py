@@ -30,9 +30,7 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-@pytest.mark.parametrize(
-    "DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix, xgb.ExtMemQuantileDMatrix]
-)
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix, xgb.ExtMemQuantileDMatrix])
 def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
     run_predict_leaf("cpu", DMatrixT)
 
@@ -46,28 +44,20 @@ def test_predict_shape():
     assert predt.shape[0] == X.shape[0]
     assert predt.shape[1] == 1
 
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, strict_shape=True
-    )
+    contrib = reg.get_booster().predict(xgb.DMatrix(X), pred_contribs=True, strict_shape=True)
     assert len(contrib.shape) == 3
     assert contrib.shape[1] == 1
 
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, approx_contribs=True
-    )
+    contrib = reg.get_booster().predict(xgb.DMatrix(X), pred_contribs=True, approx_contribs=True)
     assert len(contrib.shape) == 2
     assert contrib.shape[1] == X.shape[1] + 1
 
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True
-    )
+    interaction = reg.get_booster().predict(xgb.DMatrix(X), pred_interactions=True, approx_contribs=True)
     assert len(interaction.shape) == 3
     assert interaction.shape[1] == X.shape[1] + 1
     assert interaction.shape[2] == X.shape[1] + 1
 
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True, strict_shape=True
-    )
+    interaction = reg.get_booster().predict(xgb.DMatrix(X), pred_interactions=True, approx_contribs=True, strict_shape=True)
     assert len(interaction.shape) == 4
     assert interaction.shape[1] == 1
     assert interaction.shape[2] == X.shape[1] + 1
@@ -114,15 +104,11 @@ class TestInplacePredict:
 
         assert X_obj.dtype.hasobject is True
         assert X.dtype.hasobject is False
-        np.testing.assert_allclose(
-            booster.inplace_predict(X_obj), booster.inplace_predict(X)
-        )
+        np.testing.assert_allclose(booster.inplace_predict(X_obj), booster.inplace_predict(X))
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
-        predt_from_array = booster.inplace_predict(
-            X[:10, ...], iteration_range=(0, 4), missing=self.missing
-        )
+        predt_from_array = booster.inplace_predict(X[:10, ...], iteration_range=(0, 4), missing=self.missing)
         predt_from_dmatrix = booster.predict(test, iteration_range=(0, 4))
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
@@ -135,9 +121,7 @@ class TestInplacePredict:
         range_full = booster.predict(test, iteration_range=(0, self.num_boost_round))
         np.testing.assert_allclose(range_full, default)
 
-        range_full = booster.predict(
-            test, iteration_range=(0, booster.num_boosted_rounds())
-        )
+        range_full = booster.predict(test, iteration_range=(0, booster.num_boosted_rounds()))
         np.testing.assert_allclose(range_full, default)
 
         def predict_dense(x):
@@ -209,9 +193,7 @@ class TestInplacePredict:
         from pandas.api.types import is_bool_dtype
 
         for orig, x in pd_dtypes():
-            dtypes: Union[List, pd.Series] = (
-                orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
-            )
+            dtypes: Union[List, pd.Series] = orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
             if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes.iloc[0]):
                 continue
             y = np.arange(x.shape[0])

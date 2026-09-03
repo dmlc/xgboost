@@ -80,9 +80,7 @@ class TestPandas:
         # 1  2    0    1    0
         # 2  3    0    0    1
         result, _, _ = xgb.data._transform_pandas_df(dummies, enable_categorical=False)
-        exp = np.array(
-            [[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]
-        ).T
+        exp = np.array([[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]).T
         np.testing.assert_array_equal(result.columns, exp)
         dm = xgb.DMatrix(dummies)
         assert dm.num_row() == 3
@@ -178,9 +176,7 @@ class TestPandas:
         X_1 = [4, 3, 2]
         X = pd.DataFrame({"feat_0": X_0, "feat_1": X_1})
         X["feat_0"] = X["feat_0"].astype("category")
-        transformed, _, feature_types = xgb.data._transform_pandas_df(
-            X, enable_categorical=True
-        )
+        transformed, _, feature_types = xgb.data._transform_pandas_df(X, enable_categorical=True)
 
         assert len(transformed.aitfs[0]) == 2
 
@@ -206,9 +202,7 @@ class TestPandas:
             {
                 "A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
                 "B": pd.arrays.SparseArray(np.random.randn(rows)),
-                "C": pd.arrays.SparseArray(
-                    np.random.permutation([True, False] * (rows // 2))
-                ),
+                "C": pd.arrays.SparseArray(np.random.permutation([True, False] * (rows // 2))),
             }
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
@@ -269,25 +263,17 @@ class TestPandas:
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index(
-            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
-        )
+        exp = pd.Index(["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"])
         assert len(cv.columns.intersection(exp)) == 4
 
         # show progress log (result is the same as above)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, verbose_eval=True)
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index(
-            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
-        )
+        exp = pd.Index(["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"])
         assert len(cv.columns.intersection(exp)) == 4
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, verbose_eval=True, show_stdv=False
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, verbose_eval=True, show_stdv=False)
         assert isinstance(cv, pd.DataFrame)
-        exp = pd.Index(
-            ["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"]
-        )
+        exp = pd.Index(["test-error-mean", "test-error-std", "train-error-mean", "train-error-std"])
         assert len(cv.columns.intersection(exp)) == 4
 
         params = {
@@ -333,9 +319,7 @@ class TestPandas:
             "eta": 1,
             "objective": "binary:logistic",
         }
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="auc"
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="auc")
         assert "auc" in cv.columns[0]
 
         params = {
@@ -343,9 +327,7 @@ class TestPandas:
             "eta": 1,
             "objective": "binary:logistic",
         }
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["auc"]
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["auc"])
         assert "auc" in cv.columns[0]
 
         params = {
@@ -354,24 +336,18 @@ class TestPandas:
             "objective": "binary:logistic",
             "eval_metric": ["auc"],
         }
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="error"
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics="error")
         assert "eval_metric" in params
         assert "auc" not in cv.columns[0]
         assert "error" in cv.columns[0]
 
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"]
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"])
         assert "eval_metric" in params
         assert "auc" not in cv.columns[0]
         assert "error" in cv.columns[0]
 
         params = list(params.items())
-        cv = xgb.cv(
-            params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"]
-        )
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=["error"])
         assert isinstance(params, list)
         assert "auc" not in cv.columns[0]
         assert "error" in cv.columns[0]
@@ -399,9 +375,7 @@ class TestPandas:
             # no mutation
             assert df.equals(copy)
             # different from pd.BooleanDtype(), None is converted to False with bool
-            if hasattr(orig.dtypes, "__iter__") and any(
-                dtype == "bool" for dtype in orig.dtypes
-            ):
+            if hasattr(orig.dtypes, "__iter__") and any(dtype == "bool" for dtype in orig.dtypes):
                 assert not predictor_equal(m_orig, m_etype)
             else:
                 assert predictor_equal(m_orig, m_etype)

@@ -23,9 +23,7 @@ class TestInteractionConstraints:
     def test_interaction_constraints_feature_names(self) -> None:
         with pytest.raises(ValueError):
             constraints = [("feature_0", "feature_1")]
-            run_interaction_constraints(
-                tree_method="exact", device="cpu", interaction_constraints=constraints
-            )
+            run_interaction_constraints(tree_method="exact", device="cpu", interaction_constraints=constraints)
 
         with pytest.raises(ValueError):
             constraints = [("feature_0", "feature_3")]

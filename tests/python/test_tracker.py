@@ -208,9 +208,7 @@ def test_rank_assignment() -> None:
             client.gather(futures)
 
 
-ops_strategy = strategies.lists(
-    strategies.sampled_from(["broadcast", "allreduce_max", "allreduce_sum"])
-)
+ops_strategy = strategies.lists(strategies.sampled_from(["broadcast", "allreduce_max", "allreduce_sum"]))
 
 
 @pytest.mark.skipif(**tm.no_loky())
@@ -260,9 +258,7 @@ def test_ops_reuse_comm() -> None:
 
     rng = np.random.default_rng(1994)
     n_examples = 10
-    ops = rng.choice(
-        ["broadcast", "allreduce_sum", "allreduce_max"], size=n_examples
-    ).tolist()
+    ops = rng.choice(["broadcast", "allreduce_sum", "allreduce_max"], size=n_examples).tolist()
 
     n_workers = 8
     n_trials = 8
