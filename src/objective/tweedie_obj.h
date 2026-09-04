@@ -27,10 +27,16 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 struct TweedieGradient {
   float rho;
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    auto grad = -label * expf((1 - rho) * predt) + expf((2 - rho) * predt);
-    auto hess =
-        -label * (1 - rho) * std::exp((1 - rho) * predt) + (2 - rho) * expf((2 - rho) * predt);
-    return {grad * weight, hess * weight};
+    auto a = label * expf((1.0f - rho) * predt);
+    auto b = expf((2.0f - rho) * predt);
+    auto grad = (b - a) * weight;
+    // For one leaf, let A = sum(w_i * a_i) and B = sum(w_i * b_i). Among the affine,
+    // row-additive curvatures c*A + (1-c)*B, matching the exact optimized leaf gain
+    // through cubic order uniquely gives c = rho/3. The resulting unregularized leaf
+    // step is bounded and its quadratic node and split gains lower-bound the realized
+    // full-step loss reduction.
+    auto hess = (rho * a + (3.0f - rho) * b) * weight / 3.0f;
+    return {grad, hess};
   }
 };
 

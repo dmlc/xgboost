@@ -17,14 +17,12 @@ struct PoissonGradient {
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
     auto mu = expf(predt);
     auto grad = (mu - label) * weight;
-    // For one leaf, let M = sum(w_i * mu_i) and Y = sum(w_i * y_i). The score after
-    // adding leaf value d is f(d) = M * exp(d) - Y. At d = 0, f = M - Y and
-    // f' = f'' = M, so Halley's root update is
-    //   d = -2 * f * f' / (2 * f'^2 - f * f'') = 2 * (Y - M) / (Y + M).
-    // Using the positive pseudo-Hessian h_i = w_i * (mu_i + y_i) / 2 makes the
-    // unregularized leaf calculation -sum(g_i) / sum(h_i) produce this update. For M, Y > 0,
-    // it is also 2 * tanh(log(Y / M) / 2), so it moves toward the exact optimum without crossing.
-    auto hess = 0.5f * (mu + label) * weight;
+    // This is the rho=1 endpoint of the bounded-step Tweedie curvature. For a leaf,
+    // M = sum(w_i * mu_i) and Y = sum(w_i * y_i). Among affine, row-additive
+    // curvatures c*Y + (1-c)*M, matching the exact optimized leaf gain through cubic
+    // order gives c=1/3. The resulting quadratic node and split gains lower-bound the
+    // realized unregularized full-step loss reduction.
+    auto hess = (2.0f * mu + label) * weight / 3.0f;
     return {grad, hess};
   }
 };
