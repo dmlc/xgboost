@@ -556,11 +556,12 @@ TEST(GBTree, DropoutPredictionPath) {
     auto tree_margin = full_margin[i] - kBaseMargin;
     return kBaseMargin + gbm::detail::DropoutScale(kDropout) * tree_margin;
   };
-  auto anchor = static_cast<std::size_t>(std::distance(
-      full_margin.cbegin(),
-      std::max_element(full_margin.cbegin(), full_margin.cend(), [](float lhs, float rhs) {
-        return std::abs(lhs - kBaseMargin) < std::abs(rhs - kBaseMargin);
-      })));
+  auto anchor = static_cast<std::size_t>(
+      std::distance(full_margin.cbegin(), std::max_element(full_margin.cbegin(), full_margin.cend(),
+                                                           [kBaseMargin](float lhs, float rhs) {
+                                                             return std::abs(lhs - kBaseMargin) <
+                                                                    std::abs(rhs - kBaseMargin);
+                                                           })));
   ASSERT_GT(std::abs(full_margin[anchor] - kBaseMargin), kRtEps);
 
   bool saw_dropped{false};
