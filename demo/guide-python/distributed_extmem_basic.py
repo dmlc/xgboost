@@ -28,9 +28,10 @@ from functools import partial, update_wrapper, wraps
 from typing import TYPE_CHECKING, Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
-import xgboost
 from loky import get_reusable_executor
 from sklearn.datasets import make_regression
+
+import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
 

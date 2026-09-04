@@ -2,8 +2,9 @@ import sys
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, settings, strategies
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import check_inf, make_ltr
 from xgboost.testing.data_iter import run_mixed_sparsity

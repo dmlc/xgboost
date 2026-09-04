@@ -56,6 +56,7 @@ R-package.Rproj
 R-package/build/*
 *.cache*
 .mypy_cache/
+.ruff_cache/
 doxygen
 
 # java
