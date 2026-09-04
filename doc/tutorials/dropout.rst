@@ -31,13 +31,6 @@ committed normally with its learning-rate-scaled leaf values. Existing and new t
 are never reweighted. Consequently, saved models and inference use the ordinary
 additive-tree path and require no dropout-specific work.
 
-For squared error, the gradient is affine in the margin, so its expectation is exactly
-the ordinary boosting gradient. For nonlinear objectives, the margin remains unbiased
-but the expected gradient can differ.
-
-Because a fresh random mask is used for every training prediction, training can be
-slower than ordinary boosting and early stopping can be noisier.
-
 ************************
 Relation to row sampling
 ************************
