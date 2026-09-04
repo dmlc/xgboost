@@ -567,14 +567,18 @@ def softprob_obj(
         rows = labels.shape[0]
         grad = backend.zeros((rows, classes), dtype=np.float32)
         hess = backend.zeros((rows, classes), dtype=np.float32)
-        eps = 1e-6
+        # Same Hessian floor as the native kernel.  The tests compare this
+        # reimplementation with the native objective at tight tolerance, and a
+        # larger floor can move a node across `min_child_weight`.
+        eps = 1e-16
         for r in range(predt.shape[0]):
             target = labels[r]
             p = softmax(predt[r, :])
             for c in range(predt.shape[1]):
                 assert target >= 0 or target <= classes
                 g = p[c] - 1.0 if c == target else p[c]
-                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                # absolute-residual pseudo-Hessian, matching the native objective
+                h = max(abs(g).item(), eps)
                 grad[r, c] = g
                 hess[r, c] = h
 
