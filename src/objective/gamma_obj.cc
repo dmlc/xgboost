@@ -47,7 +47,7 @@ class GammaRegression : public FitInterceptGlmLike {
       auto valid =
           common::DispatchKernel<GammaValidationKernel>(ctx_, info.labels, GammaLabelCheck{});
       if (!valid) {
-        LOG(FATAL) << GammaDeviance::LabelErrorMsg();
+        LOG(FATAL) << "label must be positive for gamma regression.";
       }
       if (!info.weights_.Empty()) {
         CHECK_EQ(info.weights_.Size(), info.num_row_)
@@ -73,8 +73,8 @@ class GammaRegression : public FitInterceptGlmLike {
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
     auto intercept = base_score->HostView();
     auto valid = std::all_of(linalg::cbegin(intercept), linalg::cend(intercept),
-                             [](float value) { return GammaDeviance::CheckIntercept(value); });
-    CHECK(valid) << GammaDeviance::InterceptErrorMsg();
+                             [](float value) { return value > 0.0f; });
+    CHECK(valid) << "`base_score` must be greater than 0 for gamma regression";
     common::DispatchKernel<GammaProbToMarginKernel>(ctx_, base_score->Data(), GammaProbToMargin{});
   }
 
@@ -82,7 +82,7 @@ class GammaRegression : public FitInterceptGlmLike {
 
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String(GammaDeviance::Name());
+    out["name"] = String{"reg:gamma"};
     out["reg_loss_param"] = ToJson(param_);
   }
 
@@ -98,7 +98,7 @@ class GammaRegression : public FitInterceptGlmLike {
   RegLossParam param_;
 };
 
-XGBOOST_REGISTER_OBJECTIVE(GammaRegression, GammaDeviance::Name())
+XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
     .describe("Gamma regression using the gamma deviance loss with log link.")
     .set_body([]() { return new GammaRegression(); });
 }  // namespace xgboost::obj

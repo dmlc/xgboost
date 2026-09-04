@@ -153,13 +153,13 @@ void TestPoissonRegressionGPair(const Context* ctx) {
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {   1,     1,     1,    1,    1,     1,     1,    1},
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
   CheckObjFunction(obj,
                    {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {},  // Empty weight
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
   // clang-format on
 }
 
@@ -208,13 +208,13 @@ void TestGammaRegressionGPair(const Context* ctx) {
                    {2,   2,   2,   2, 1,    1,    1,    1},
                    {1,   1,   1,   1, 1,    1,    1,    1},
                    {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+                   {1.667f, 1.540f, .875f, .824f, 1, .937f, .604f, .579f});
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
                    {2,   2,   2,   2, 1,    1,    1,    1},
                    {},  // Empty weight
                    {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+                   {1.667f, 1.540f, .875f, .824f, 1, .937f, .604f, .579f});
   // clang-format on
 }
 
@@ -258,15 +258,26 @@ void TestTweedieRegressionGPair(const Context* ctx) {
                    {   0,    0,    0,    0, 1,    1,    1,    1},
                    {   1,    1,    1,    1, 1,    1,    1,    1},
                    {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
-                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+                   {.633f, .693f, 1.424f, 1.558f, 1, 1.056f, 1.759f, 1.890f});
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
                    {   0,    0,    0,    0, 1,    1,    1,    1},
                    {},  // Empty weight.
                    {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
-                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+                   {.633f, .693f, 1.424f, 1.558f, 1, 1.056f, 1.759f, 1.890f});
   // clang-format on
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
+
+  std::unique_ptr<ObjFunction> poisson_endpoint{ObjFunction::Create("reg:tweedie", ctx)};
+  poisson_endpoint->Configure({{"tweedie_variance_power", "1"}});
+  // clang-format off
+  CheckObjFunction(poisson_endpoint,
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
+                   {   1,     1,     1,    1,    1,     1,     1,    1},
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
+  // clang-format on
 }
 
 void TestTweedieRegressionBasic(const Context* ctx) {
