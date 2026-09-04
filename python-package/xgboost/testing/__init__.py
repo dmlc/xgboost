@@ -248,7 +248,8 @@ def make_batches_sparse(
 
 
 class TestDataset:
-    """Contains a dataset in numpy format as well as the relevant objective and metric."""
+    """Contains a dataset in numpy format as well as the relevant objective and
+    metric."""
 
     def __init__(
         self, name: str, get_dataset: Callable, objective: str, metric: str
@@ -538,7 +539,10 @@ def root_mean_square(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x)
+    # Subtract the maximum first, as the native objective does.  The custom
+    # softprob objective below is compared with the native one at tight
+    # tolerance, so the arithmetic has to match closely.
+    e = np.exp(x - np.max(x))
     return e / np.sum(e)
 
 
