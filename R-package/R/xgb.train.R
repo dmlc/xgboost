@@ -700,11 +700,11 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Retained tree predictions are scaled by `1 / (1 - dropout_rate)`. Existing and new trees
 #' are not reweighted, and inference uses the ordinary additive-tree path.
 #'
-#' range: \eqn{[0.0, 1.0)}
+#' range: \eqn{[0.0, 0.999999]}
 #' @param skip_drop (for Tree Boosters) (default=0.0)
 #' Deprecated alias for `dropout_rate`. If both are specified, `dropout_rate` takes precedence.
 #'
-#' range: \eqn{[0.0, 1.0)}
+#' range: \eqn{[0.0, 0.999999]}
 #' @param sample_type,normalize_type,rate_drop,one_drop Deprecated dropout parameters that are
 #' accepted temporarily but ignored, with removal warnings.
 #' @param feature_selector (for Linear Booster) (default= `"cyclic"`)

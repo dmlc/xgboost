@@ -48,7 +48,7 @@ Parameters
 **********
 
 * ``dropout_rate``: probability of independently dropping each existing tree before
-  gradient computation. The valid range is ``[0.0, 1.0)`` and the default is ``0.0``.
+  gradient computation. The valid range is ``[0.0, 0.999999]`` and the default is ``0.0``.
 
 ``skip_drop`` is accepted as a deprecated alias for ``dropout_rate``. When both are
 specified, ``dropout_rate`` takes precedence. ``sample_type``, ``normalize_type``,

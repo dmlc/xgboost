@@ -312,7 +312,7 @@ Additional dropout parameters for tree boosters
 * ``dropout_rate`` [default=0.0]
 
   - Probability of independently dropping each existing tree before gradient computation.
-  - range: [0.0, 1.0)
+  - range: [0.0, 0.999999]
 
   For dropout probability :math:`p`, the temporary margin is
 
@@ -329,7 +329,7 @@ Additional dropout parameters for tree boosters
 
   - Deprecated alias for ``dropout_rate``. If both are specified, ``dropout_rate`` takes
     precedence.
-  - range: [0.0, 1.0)
+  - range: [0.0, 0.999999]
 
 ``sample_type``, ``normalize_type``, ``rate_drop``, and ``one_drop`` are deprecated and ignored.
 They are accepted temporarily to ease migration and emit removal warnings.

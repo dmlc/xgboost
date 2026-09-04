@@ -23,7 +23,7 @@ private[spark] trait DartBoosterParams extends Params {
 
   final val dropoutRate = new DoubleParam(this, "dropout_rate", "Probability of independently " +
     "dropping each existing tree before gradient computation",
-    ParamValidators.inRange(0, 1, true, false))
+    ParamValidators.inRange(0, 0.999999, true, true))
 
   final def getDropoutRate: Double = $(dropoutRate)
 
@@ -50,7 +50,7 @@ private[spark] trait DartBoosterParams extends Params {
   final def getOneDrop: Boolean = $(oneDrop)
 
   final val skipDrop = new DoubleParam(this, "skip_drop", "Deprecated alias for dropout_rate",
-    ParamValidators.inRange(0, 1, true, false))
+    ParamValidators.inRange(0, 0.999999, true, true))
 
   final def getSkipDrop: Double = $(skipDrop)
 

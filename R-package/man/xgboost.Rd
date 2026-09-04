@@ -532,12 +532,12 @@ Probability of independently dropping each existing tree before gradient computa
 Retained tree predictions are scaled by \code{1 / (1 - dropout_rate)}. Existing and new trees
 are not reweighted, and inference uses the ordinary additive-tree path.
 
-range: \eqn{[0.0, 1.0)}}
+range: \eqn{[0.0, 0.999999]}}
 
 \item{skip_drop}{(for Tree Boosters) (default=0.0)
 Deprecated alias for \code{dropout_rate}. If both are specified, \code{dropout_rate} takes precedence.
 
-range: \eqn{[0.0, 1.0)}}
+range: \eqn{[0.0, 0.999999]}}
 
 \item{sample_type, normalize_type, rate_drop, one_drop}{Deprecated dropout parameters that are
 accepted temporarily but ignored, with removal warnings.}

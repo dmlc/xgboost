@@ -233,7 +233,7 @@ def test_dropout_multi_output_eta() -> None:
             "base_score": 0.0,
             "reg_lambda": 0.0,
             "min_child_weight": 0.0,
-            "dropout_rate": 0.0,
+            "dropout_rate": 0.5,
             "seed": 3,
         },
         Xy,
@@ -241,4 +241,6 @@ def test_dropout_multi_output_eta() -> None:
     )
 
     pred = booster.predict(Xy, output_margin=True)
-    np.testing.assert_allclose(pred, y, atol=1e-6)
+    # The first-round tree predicts 1. In the second round it is either dropped, making
+    # the new tree predict 1, or retained and scaled to 2, making the new tree predict -1.
+    np.testing.assert_allclose(np.abs(pred - y), y, atol=1e-6)
