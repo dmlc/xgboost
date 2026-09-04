@@ -40,21 +40,30 @@ def run_booster_check(booster: xgboost.Booster, name: str) -> None:
     elif name.find("logitraw") != -1:
         assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert config["learner"]["learner_model_param"]["num_class"] == str(0)
-        assert config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
+        )
     elif name.find("logit") != -1:
         assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert config["learner"]["learner_model_param"]["num_class"] == str(0)
-        assert config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
+        )
     elif name.find("ltr") != -1:
         assert config["learner"]["learner_train_param"]["objective"] == "rank:ndcg"
     elif name.find("aft") != -1:
         assert config["learner"]["learner_train_param"]["objective"] == "survival:aft"
-        assert config["learner"]["objective"]["aft_loss_param"]["aft_loss_distribution"] == "normal"
+        assert (
+            config["learner"]["objective"]["aft_loss_param"]["aft_loss_distribution"]
+            == "normal"
+        )
     else:
         assert name.find("reg") != -1
         assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert get_basescore(config) == [0.5]
-        assert config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
+        )
 
 
 def get_n_rounds(name: str) -> int:
@@ -70,16 +79,22 @@ def run_scikit_model_check(name: str, path: str) -> None:
         reg = xgboost.XGBRegressor()
         reg.load_model(path)
         config = json.loads(reg.get_booster().save_config())
-        assert config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
+        )
         assert len(reg.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         run_model_param_check(name, config)
     elif name.find("cls") != -1:
         cls = xgboost.XGBClassifier()
         cls.load_model(path)
         n_rounds = get_n_rounds(name)
-        assert len(cls.get_booster().get_dump()) == n_rounds * gm.kForests * gm.kClasses, path
+        assert (
+            len(cls.get_booster().get_dump()) == n_rounds * gm.kForests * gm.kClasses
+        ), path
         config = json.loads(cls.get_booster().save_config())
-        assert config["learner"]["learner_train_param"]["objective"] == "multi:softprob", path
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "multi:softprob"
+        ), path
         run_model_param_check(name, config)
     elif name.find("ltr") != -1:
         ltr = xgboost.XGBRanker()
@@ -93,14 +108,18 @@ def run_scikit_model_check(name: str, path: str) -> None:
         logit.load_model(path)
         assert len(logit.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         config = json.loads(logit.get_booster().save_config())
-        assert config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
+        )
         run_model_param_check(name, config)
     elif name.find("logit") != -1:
         logit = xgboost.XGBClassifier()
         logit.load_model(path)
         assert len(logit.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         config = json.loads(logit.get_booster().save_config())
-        assert config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
+        assert (
+            config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
+        )
         run_model_param_check(name, config)
     else:
         assert False
@@ -109,7 +128,8 @@ def run_scikit_model_check(name: str, path: str) -> None:
 def download(path: str) -> None:
     """Download the model files from S3."""
     zip_path, _ = urllib.request.urlretrieve(
-        "https://xgboost-ci-jenkins-artifacts.s3-us-west-2" + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.2.zip"
+        "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
+        + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.2.zip"
     )
     sha = "49d4d4db667a73590099dad9dca4f078532df05c5ea6e035ad4fa09596b1905a"
     with open(zip_path, "rb") as fd:
@@ -128,7 +148,9 @@ def test_model_compatibility() -> None:
     if not os.path.exists(path):
         download(path)
 
-    models = [os.path.join(root, f) for root, subdir, files in os.walk(path) for f in files]
+    models = [
+        os.path.join(root, f) for root, subdir, files in os.walk(path) for f in files
+    ]
     assert len(models) == 54
 
     for path in models:

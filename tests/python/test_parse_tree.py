@@ -29,13 +29,19 @@ class TestTreesToDataFrame:
         txt_dump = booster.get_dump(with_stats=True)
         tree_list = [tree.split("/n") for tree in txt_dump]
         split_trees = [tree[0].split(item_to_get)[1:] for tree in tree_list]
-        res = sum([float(line.split(splitter)[0]) for tree in split_trees for line in tree])
+        res = sum(
+            [float(line.split(splitter)[0]) for tree in split_trees for line in tree]
+        )
         return res
 
     def test_trees_to_dataframe(self):
         bst = self.build_model(max_depth=5, num_round=10)
-        gain_from_dump = self.parse_dumped_model(booster=bst, item_to_get="gain", splitter=",")
-        cover_from_dump = self.parse_dumped_model(booster=bst, item_to_get="cover", splitter="\n")
+        gain_from_dump = self.parse_dumped_model(
+            booster=bst, item_to_get="gain", splitter=","
+        )
+        cover_from_dump = self.parse_dumped_model(
+            booster=bst, item_to_get="cover", splitter="\n"
+        )
         # method being tested
         df = bst.trees_to_dataframe()
 
@@ -52,7 +58,10 @@ class TestTreesToDataFrame:
         assert non_leaf["Yes"].isin(all_ids).all()
         assert non_leaf["No"].isin(all_ids).all()
         assert non_leaf["Missing"].isin(all_ids).all()
-        assert ((non_leaf["Missing"] == non_leaf["Yes"]) | (non_leaf["Missing"] == non_leaf["No"])).all()
+        assert (
+            (non_leaf["Missing"] == non_leaf["Yes"])
+            | (non_leaf["Missing"] == non_leaf["No"])
+        ).all()
         # Numerical splits have a real threshold; leaves have a missing split.
         assert non_leaf["Split"].notna().all()
         assert df[df.Feature == "Leaf"]["Split"].isna().all()

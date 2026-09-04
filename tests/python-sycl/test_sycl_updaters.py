@@ -26,7 +26,12 @@ parameter_strategy = strategies.fixed_dictionaries(
         "colsample_bytree": strategies.floats(0.5, 1.0),
         "colsample_bylevel": strategies.floats(0.5, 1.0),
     }
-).filter(lambda x: (x["max_depth"] > 0 or x["max_leaves"] > 0) and (x["max_depth"] > 0 or x["grow_policy"] == "lossguide"))
+).filter(
+    lambda x: (
+        (x["max_depth"] > 0 or x["max_leaves"] > 0)
+        and (x["max_depth"] > 0 or x["grow_policy"] == "lossguide")
+    )
+)
 
 
 def train_result(param, dmat, num_rounds):

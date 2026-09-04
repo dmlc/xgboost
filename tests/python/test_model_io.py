@@ -79,7 +79,9 @@ class TestBoosterIO:
         bst.load_model(bytearray(pretty, encoding="ascii"))
 
         rng = np.random.default_rng()
-        X = rng.random(size=from_jraw.num_features() * 10).reshape((10, from_jraw.num_features()))
+        X = rng.random(size=from_jraw.num_features() * 10).reshape(
+            (10, from_jraw.num_features())
+        )
         predt_from_jraw = from_jraw.predict(xgb.DMatrix(X))
         predt_from_bst = bst.predict(xgb.DMatrix(X))
         np.testing.assert_allclose(predt_from_jraw, predt_from_bst)
@@ -145,7 +147,9 @@ class TestBoosterIO:
         def dump_assertions(dump: List[str]) -> None:
             """Assertions for the expected dump from Booster"""
             assert len(dump) == 1, "Exepcted only 1 tree to be dumped."
-            assert len(dump[0].splitlines()) == 3, "Expected 1 root and 2 leaves - 3 lines."
+            assert len(dump[0].splitlines()) == 3, (
+                "Expected 1 root and 2 leaves - 3 lines."
+            )
 
         # load the model again using Path
         bst2 = xgb.Booster(model_file=save_path)
@@ -237,7 +241,9 @@ def save_load_model(model_path: str) -> None:
 
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
-        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         assert err < 0.1
         assert xgb_model.get_booster().attr("scikit_learn") is None
 
@@ -309,8 +315,12 @@ def test_sklearn_model(tmp_path: Path) -> None:
     # mclass
     X, y = load_digits(n_class=10, return_X_y=True)
     # small test_size to force early stop
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.01, random_state=1)
-    clf = xgb.XGBClassifier(n_estimators=64, tree_method="hist", early_stopping_rounds=2)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.01, random_state=1
+    )
+    clf = xgb.XGBClassifier(
+        n_estimators=64, tree_method="hist", early_stopping_rounds=2
+    )
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
     score = clf.best_score
     intercept = clf.intercept_

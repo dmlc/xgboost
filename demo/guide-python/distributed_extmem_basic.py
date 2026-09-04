@@ -55,7 +55,9 @@ def device_mem_total() -> int:
     return total
 
 
-def make_batches(n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int) -> List[Tuple[str, str]]:
+def make_batches(
+    n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
+) -> List[Tuple[str, str]]:
     """Create multiple batches of synthetic data and return their file paths."""
     files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(rank)
@@ -224,11 +226,16 @@ def hist_train(
         assert n_threads is not None
         n_threads = max(n_threads // coll.get_world_size(), 1)
         it = Iterator(device, files)
-        Xy = xgboost.ExtMemQuantileDMatrix(it, missing=np.nan, enable_categorical=False, nthread=n_threads)
+        Xy = xgboost.ExtMemQuantileDMatrix(
+            it, missing=np.nan, enable_categorical=False, nthread=n_threads
+        )
         # Check the device is correctly set.
         if device == "cuda":
             # Check the first device
-            assert int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0]) < coll.get_world_size()
+            assert (
+                int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
+                < coll.get_world_size()
+            )
         booster = xgboost.train(
             {
                 "tree_method": "hist",

@@ -79,10 +79,18 @@ class TestEvalMetrics:
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
 
-        gbdt_01 = xgb.train(self.xgb_params_01, dtrain, 10, watchlist, early_stopping_rounds=2)
-        gbdt_02 = xgb.train(self.xgb_params_02, dtrain, 10, watchlist, early_stopping_rounds=2)
-        gbdt_03 = xgb.train(self.xgb_params_03, dtrain, 10, watchlist, early_stopping_rounds=2)
-        gbdt_04 = xgb.train(self.xgb_params_04, dtrain, 10, watchlist, early_stopping_rounds=2)
+        gbdt_01 = xgb.train(
+            self.xgb_params_01, dtrain, 10, watchlist, early_stopping_rounds=2
+        )
+        gbdt_02 = xgb.train(
+            self.xgb_params_02, dtrain, 10, watchlist, early_stopping_rounds=2
+        )
+        gbdt_03 = xgb.train(
+            self.xgb_params_03, dtrain, 10, watchlist, early_stopping_rounds=2
+        )
+        gbdt_04 = xgb.train(
+            self.xgb_params_04, dtrain, 10, watchlist, early_stopping_rounds=2
+        )
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
         assert gbdt_03.predict(dvalid)[0] != gbdt_04.predict(dvalid)[0]
@@ -157,10 +165,14 @@ class TestEvalMetrics:
         n_samples = 32
         n_features = 10
 
-        X = rng.normal(0, 1, size=n_samples * n_features).reshape((n_samples, n_features))
+        X = rng.normal(0, 1, size=n_samples * n_features).reshape(
+            (n_samples, n_features)
+        )
 
         alpha, loc, beta = 5.0, 11.1, 22
-        y = stats.gamma.rvs(alpha, loc=loc, scale=beta, size=n_samples, random_state=rng)
+        y = stats.gamma.rvs(
+            alpha, loc=loc, scale=beta, size=n_samples, random_state=rng
+        )
         reg = xgb.XGBRegressor(
             tree_method="hist",
             objective="reg:gamma",

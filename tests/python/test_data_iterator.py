@@ -61,7 +61,9 @@ def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
 
 
 def test_with_cat_single() -> None:
-    X, y = tm.make_categorical(n_samples=128, n_features=3, n_categories=6, onehot=False)
+    X, y = tm.make_categorical(
+        n_samples=128, n_features=3, n_categories=6, onehot=False
+    )
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
     from_it = xgb.train({}, Xy, num_boost_round=3)
 
@@ -197,7 +199,9 @@ def test_data_iterator(
 
 
 class IterForCacheTest(xgb.DataIter):
-    def __init__(self, x: np.ndarray, y: np.ndarray, w: np.ndarray, release_data: bool) -> None:
+    def __init__(
+        self, x: np.ndarray, y: np.ndarray, w: np.ndarray, release_data: bool
+    ) -> None:
         self.kwargs = {"data": x, "label": y, "weight": w}
         super().__init__(release_data=release_data)
 
@@ -284,7 +288,9 @@ def test_cat_check(tmp_path: Path) -> None:
     strategies.integers(1, 4),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
-def test_quantile_objective(n_samples_per_batch: int, n_features: int, n_batches: int) -> None:
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
     check_quantile_loss_extmem(
         n_samples_per_batch,
         n_features,
@@ -309,7 +315,9 @@ def test_quantile_objective(n_samples_per_batch: int, n_features: int, n_batches
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
 @tm.timeout(45)
-def test_extmem_qdm(n_samples_per_batch: int, n_features: int, n_batches: int, n_bins: int) -> None:
+def test_extmem_qdm(
+    n_samples_per_batch: int, n_features: int, n_batches: int, n_bins: int
+) -> None:
     check_extmem_qdm(
         n_samples_per_batch,
         n_features,
@@ -327,7 +335,9 @@ def test_extmem_qdm(n_samples_per_batch: int, n_features: int, n_batches: int, n
     strategies.integers(2, 16),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
-def test_categorical_extmem_qdm(n_samples_per_batch: int, n_batches: int, n_bins: int) -> None:
+def test_categorical_extmem_qdm(
+    n_samples_per_batch: int, n_batches: int, n_bins: int
+) -> None:
     check_extmem_qdm(
         n_samples_per_batch,
         4,
@@ -341,7 +351,9 @@ def test_categorical_extmem_qdm(n_samples_per_batch: int, n_batches: int, n_bins
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_categorical_missing(tree_method: str) -> None:
-    check_categorical_missing(1024, 4, 5, device="cpu", tree_method=tree_method, extmem=True)
+    check_categorical_missing(
+        1024, 4, 5, device="cpu", tree_method=tree_method, extmem=True
+    )
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])

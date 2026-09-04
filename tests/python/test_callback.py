@@ -60,7 +60,9 @@ class TestCallbacks:
                 num_periods = rounds // int(verbose_eval)
                 # Extra information is required for latest iteration
                 is_extra_info_required = num_periods * int(verbose_eval) < (rounds - 1)
-                assert len(output.split("\n")) == (1 + num_periods + int(is_extra_info_required))
+                assert len(output.split("\n")) == (
+                    1 + num_periods + int(is_extra_info_required)
+                )
 
         evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
         params = {"objective": "binary:logistic", "eval_metric": "error"}
@@ -144,7 +146,9 @@ class TestCallbacks:
         D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
         D_valid = xgb.DMatrix(breast_cancer.va[0], breast_cancer.va[1])
         early_stopping_rounds = 5
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds, metric_name="CustomErr", data_name="Train")
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, metric_name="CustomErr", data_name="Train"
+        )
         # Specify which dataset and which metric should be used for early stopping.
         booster = xgb.train(
             {
@@ -192,7 +196,9 @@ class TestCallbacks:
     def test_early_stopping_skl(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
         early_stopping_rounds = 5
-        cls = xgb.XGBClassifier(early_stopping_rounds=early_stopping_rounds, eval_metric="error")
+        cls = xgb.XGBClassifier(
+            early_stopping_rounds=early_stopping_rounds, eval_metric="error"
+        )
         cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format="json")
@@ -202,7 +208,9 @@ class TestCallbacks:
         X, y = breast_cancer.full
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
-        cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop])
+        cls = xgb.XGBClassifier(
+            eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop]
+        )
         cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format="json")
@@ -212,7 +220,9 @@ class TestCallbacks:
         X, y = breast_cancer.full
         n_estimators = 100
         early_stopping_rounds = 5
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds, save_best=True)
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=True
+        )
         cls = xgb.XGBClassifier(
             n_estimators=n_estimators,
             eval_metric=tm.eval_error_metric_skl,
@@ -223,7 +233,9 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) == booster.best_iteration + 1
 
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds, save_best=True)
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=True
+        )
         cls = xgb.XGBClassifier(
             booster="gblinear",
             n_estimators=10,
@@ -234,7 +246,9 @@ class TestCallbacks:
             cls.fit(X, y, eval_set=[(X, y)])
 
         # No error
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds, save_best=False)
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=False
+        )
         xgb.XGBClassifier(
             booster="gblinear",
             n_estimators=10,
@@ -242,12 +256,18 @@ class TestCallbacks:
             callbacks=[early_stop],
         ).fit(X, y, eval_set=[(X, y)])
 
-    def test_early_stopping_continuation(self, breast_cancer: BreastCancer, tmp_path: Path) -> None:
+    def test_early_stopping_continuation(
+        self, breast_cancer: BreastCancer, tmp_path: Path
+    ) -> None:
         X, y = breast_cancer.full
 
         early_stopping_rounds = 5
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds, save_best=True)
-        cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop])
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=True
+        )
+        cls = xgb.XGBClassifier(
+            eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop]
+        )
         cls.fit(X, y, eval_set=[(X, y)])
 
         booster = cls.get_booster()
@@ -265,7 +285,10 @@ class TestCallbacks:
         )
         cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
-        assert booster.num_boosted_rounds() == booster.best_iteration + early_stopping_rounds + 1
+        assert (
+            booster.num_boosted_rounds()
+            == booster.best_iteration + early_stopping_rounds + 1
+        )
 
     def test_early_stopping_multiple_metrics(self):
         from sklearn.datasets import make_classification
@@ -296,7 +319,9 @@ class TestCallbacks:
     def test_check_point(self, breast_cancer: BreastCancer, tmp_path: Path) -> None:
         X, y = breast_cancer.full
         m = xgb.DMatrix(X, y)
-        check_point = xgb.callback.TrainingCheckPoint(directory=tmp_path, interval=1, name="model")
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=tmp_path, interval=1, name="model"
+        )
         xgb.train(
             {"objective": "binary:logistic"},
             m,
@@ -305,9 +330,13 @@ class TestCallbacks:
             callbacks=[check_point],
         )
         for i in range(1, 10):
-            assert (tmp_path / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}").exists()
+            assert (
+                tmp_path / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}"
+            ).exists()
 
-        check_point = xgb.callback.TrainingCheckPoint(directory=tmp_path, interval=1, as_pickle=True, name="model")
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=tmp_path, interval=1, as_pickle=True, name="model"
+        )
         xgb.train(
             {"objective": "binary:logistic"},
             m,

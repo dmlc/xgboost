@@ -74,7 +74,9 @@ _GPU_ADDRESSES = _probe_gpu_addresses()
 _NUM_GPUS = len(_GPU_ADDRESSES)
 _GPU_DISCOVERY_SCRIPT = os.path.join(os.path.dirname(__file__), "discover_gpu.sh")
 _HAS_GPU_SPARK_MODE = bool(_GPU_ADDRESSES)
-_GPU_SKIP_REASON = "local_cluster_gpu requires CUDA-enabled XGBoost and visible GPUs via nvidia-smi."
+_GPU_SKIP_REASON = (
+    "local_cluster_gpu requires CUDA-enabled XGBoost and visible GPUs via nvidia-smi."
+)
 
 SPARK_MODES = [
     pytest.param("local", id="local"),
@@ -218,7 +220,11 @@ class TestRegressor:
         y_train, y_test = y[~is_val], y[is_val]
         rows = []
         for i in range(len(y)):
-            vec = Vectors.dense(X[i, :]) if i % 2 == 0 else Vectors.sparse(X.shape[1], {1: float(X[i, 1]), 2: float(X[i, 2])})
+            vec = (
+                Vectors.dense(X[i, :])
+                if i % 2 == 0
+                else Vectors.sparse(X.shape[1], {1: float(X[i, 1]), 2: float(X[i, 2])})
+            )
             rows.append(
                 (
                     i,
@@ -229,11 +235,17 @@ class TestRegressor:
                     bool(is_val[i]),
                 )
             )
-        df = spark.createDataFrame(rows, ["row_id", "features", "label", "weight", "base_margin", "is_val"])
-        return RegData(X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df)
+        df = spark.createDataFrame(
+            rows, ["row_id", "features", "label", "weight", "base_margin", "is_val"]
+        )
+        return RegData(
+            X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
+        )
 
     @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
-    def test_regressor(self, spark: SparkSession, reg_data: RegData, num_workers: int) -> None:
+    def test_regressor(
+        self, spark: SparkSession, reg_data: RegData, num_workers: int
+    ) -> None:
         device = _spark_test_device(spark)
 
         reg_param = {
@@ -253,8 +265,18 @@ class TestRegressor:
             **reg_param,
         ).fit(reg_data.df)
         pred_result = spark_regressor.transform(reg_data.df)
-        preds = pred_result.orderBy("row_id").select("prediction").toPandas()["prediction"].to_numpy()
-        pred_contribs = np.array(pred_result.orderBy("row_id").select("pred_contribs").toPandas()["pred_contribs"].tolist())
+        preds = (
+            pred_result.orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        pred_contribs = np.array(
+            pred_result.orderBy("row_id")
+            .select("pred_contribs")
+            .toPandas()["pred_contribs"]
+            .tolist()
+        )
         iter_range = (0, 1)
         spark_iter_regressor = SparkXGBRegressor(
             weight_col="weight",
@@ -263,10 +285,18 @@ class TestRegressor:
             num_workers=num_workers,
             **reg_param,
         ).fit(reg_data.df)
-        iter_preds = spark_iter_regressor.transform(reg_data.df).orderBy("row_id").select("prediction").toPandas()["prediction"].to_numpy()
+        iter_preds = (
+            spark_iter_regressor.transform(reg_data.df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         train_history = spark_regressor.training_summary.train_objective_history["rmse"]
-        valid_history = spark_regressor.training_summary.validation_objective_history["rmse"]
+        valid_history = spark_regressor.training_summary.validation_objective_history[
+            "rmse"
+        ]
         assert len(train_history) > 0
         assert len(valid_history) > 0
         assert len(train_history) == len(valid_history)
@@ -289,13 +319,27 @@ class TestRegressor:
         }
 
         base = SparkXGBRegressor(n_estimators=2, **params).fit(reg_data.df)
-        continued = SparkXGBRegressor(n_estimators=4, xgb_model=base.get_booster(), **params).fit(reg_data.df)
+        continued = SparkXGBRegressor(
+            n_estimators=4, xgb_model=base.get_booster(), **params
+        ).fit(reg_data.df)
 
-        preds_base = base.transform(reg_data.df).select("prediction").toPandas()["prediction"].to_numpy()
-        preds_cont = continued.transform(reg_data.df).select("prediction").toPandas()["prediction"].to_numpy()
+        preds_base = (
+            base.transform(reg_data.df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        preds_cont = (
+            continued.transform(reg_data.df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         ref_base = XGBRegressor(n_estimators=2, **params).fit(reg_data.X, reg_data.y)
-        ref_cont = XGBRegressor(n_estimators=4, **params).fit(reg_data.X, reg_data.y, xgb_model=ref_base.get_booster())
+        ref_cont = XGBRegressor(n_estimators=4, **params).fit(
+            reg_data.X, reg_data.y, xgb_model=ref_base.get_booster()
+        )
 
         assert np.allclose(preds_cont, ref_cont.predict(reg_data.X), rtol=1e-3)
         assert not np.allclose(preds_base, preds_cont, rtol=1e-6)
@@ -306,16 +350,22 @@ class TestRegressor:
             "max_depth": 3,
             "objective": "reg:squarederror",
         }
-        spark_model = SparkXGBRegressor(base_margin_col="base_margin", **params).fit(reg_data.df)
+        spark_model = SparkXGBRegressor(base_margin_col="base_margin", **params).fit(
+            reg_data.df
+        )
         preds = (
-            spark_model.transform(reg_data.df.select("row_id", "features", "base_margin"))
+            spark_model.transform(
+                reg_data.df.select("row_id", "features", "base_margin")
+            )
             .orderBy("row_id")
             .select("prediction")
             .toPandas()["prediction"]
             .to_numpy()
         )
 
-        ref = XGBRegressor(**params).fit(reg_data.X, reg_data.y, base_margin=reg_data.base_margin)
+        ref = XGBRegressor(**params).fit(
+            reg_data.X, reg_data.y, base_margin=reg_data.base_margin
+        )
         expected = ref.predict(reg_data.X, base_margin=reg_data.base_margin)
 
         assert np.allclose(preds, expected, rtol=1e-3)
@@ -323,12 +373,22 @@ class TestRegressor:
     def test_regressor_save_load(self, reg_data: RegData, tmp_path: Path) -> None:
         train_df = reg_data.df.select("features", "label")
         model = SparkXGBRegressor(n_estimators=5, max_depth=3).fit(train_df)
-        preds_before = model.transform(train_df).select("prediction").toPandas()["prediction"].to_numpy()
+        preds_before = (
+            model.transform(train_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         path = str(tmp_path / "spark-xgb-reg-model")
         model.save(path)
         loaded = SparkXGBRegressorModel.load(path)
-        preds_after = loaded.transform(train_df).select("prediction").toPandas()["prediction"].to_numpy()
+        preds_after = (
+            loaded.transform(train_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         assert np.allclose(preds_before, preds_after, rtol=1e-6)
 
@@ -369,7 +429,9 @@ class TestRegressor:
             reg.fit(df_train)
 
     @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
-    def test_callbacks(self, spark: SparkSession, reg_data: RegData, tmp_path: Path) -> None:
+    def test_callbacks(
+        self, spark: SparkSession, reg_data: RegData, tmp_path: Path
+    ) -> None:
         train_df = reg_data.df.select("row_id", "features", "label")
         device = _spark_test_device(spark)
 
@@ -385,7 +447,9 @@ class TestRegressor:
         }
 
         path = str(tmp_path / "spark-xgb-reg-cb")
-        regressor = SparkXGBRegressor(callbacks=[LearningRateScheduler(custom_lr)], **reg_params)
+        regressor = SparkXGBRegressor(
+            callbacks=[LearningRateScheduler(custom_lr)], **reg_params
+        )
         regressor.save(path)
         regressor = SparkXGBRegressor.load(path)
         loaded_callbacks = regressor.getOrDefault(regressor.callbacks)
@@ -393,9 +457,17 @@ class TestRegressor:
         assert len(loaded_callbacks) == 1
 
         model = regressor.fit(train_df)
-        preds = model.transform(train_df).orderBy("row_id").select("prediction").toPandas()["prediction"].to_numpy()
+        preds = (
+            model.transform(train_df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
-        ref = XGBRegressor(callbacks=[LearningRateScheduler(custom_lr)], **reg_params).fit(reg_data.X, reg_data.y)
+        ref = XGBRegressor(
+            callbacks=[LearningRateScheduler(custom_lr)], **reg_params
+        ).fit(reg_data.X, reg_data.y)
         assert np.allclose(preds, ref.predict(reg_data.X), rtol=1e-3)
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
@@ -456,7 +528,11 @@ class TestClassifier:
         y_train, y_test = y[~is_val], y[is_val]
         rows = []
         for i in range(len(y)):
-            vec = Vectors.dense(X[i, :]) if i % 2 == 0 else Vectors.sparse(X.shape[1], {1: float(X[i, 1]), 2: float(X[i, 2])})
+            vec = (
+                Vectors.dense(X[i, :])
+                if i % 2 == 0
+                else Vectors.sparse(X.shape[1], {1: float(X[i, 1]), 2: float(X[i, 2])})
+            )
             rows.append(
                 (
                     i,
@@ -467,11 +543,17 @@ class TestClassifier:
                     bool(is_val[i]),
                 )
             )
-        df = spark.createDataFrame(rows, ["row_id", "features", "label", "weight", "base_margin", "is_val"])
-        return ClfData(X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df)
+        df = spark.createDataFrame(
+            rows, ["row_id", "features", "label", "weight", "base_margin", "is_val"]
+        )
+        return ClfData(
+            X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
+        )
 
     @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
-    def test_classifier(self, spark: SparkSession, clf_data: ClfData, num_workers: int) -> None:
+    def test_classifier(
+        self, spark: SparkSession, clf_data: ClfData, num_workers: int
+    ) -> None:
         train_df = clf_data.df
         X = clf_data.X
         y = clf_data.y
@@ -505,8 +587,18 @@ class TestClassifier:
         ).fit(train_df)
 
         pred_result = spark_cls.transform(train_df)
-        preds = pred_result.orderBy("row_id").select("prediction").toPandas()["prediction"].to_numpy()
-        proba = np.array(pred_result.orderBy("row_id").select("probability").toPandas()["probability"].tolist())
+        preds = (
+            pred_result.orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        proba = np.array(
+            pred_result.orderBy("row_id")
+            .select("probability")
+            .toPandas()["probability"]
+            .tolist()
+        )
 
         assert preds.shape == ref.predict(X).shape
         assert proba.shape == ref.predict_proba(X).shape
@@ -521,7 +613,9 @@ class TestClassifier:
             atol=2e-2,
         )
 
-    def test_classifier_model_save_load(self, clf_data: ClfData, tmp_path: Path) -> None:
+    def test_classifier_model_save_load(
+        self, clf_data: ClfData, tmp_path: Path
+    ) -> None:
         train_df = clf_data.df.select("features", "label")
         test_df = clf_data.df.select("features")
         path = str(tmp_path / "spark-xgb-clf-model")
@@ -530,26 +624,53 @@ class TestClassifier:
         model.save(path)
         loaded_model = SparkXGBClassifierModel.load(path)
         assert model.uid == loaded_model.uid
-        pred_before = model.transform(test_df).select("prediction").toPandas()["prediction"].to_numpy()
-        pred_after = loaded_model.transform(test_df).select("prediction").toPandas()["prediction"].to_numpy()
+        pred_before = (
+            model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        pred_after = (
+            loaded_model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
         assert np.allclose(pred_before, pred_after, rtol=1e-6)
 
         with pytest.raises(AssertionError, match="Expected class name"):
             SparkXGBRegressorModel.load(path)
 
-    def test_classifier_model_pipeline_save_load(self, clf_data: ClfData, tmp_path: Path) -> None:
+    def test_classifier_model_pipeline_save_load(
+        self, clf_data: ClfData, tmp_path: Path
+    ) -> None:
         train_df = clf_data.df.select("features", "label")
         test_df = clf_data.df.select("features")
         path = str(tmp_path / "spark-xgb-clf-pipeline")
         classifier = SparkXGBClassifier()
         pipeline = Pipeline(stages=[classifier])
-        pipeline = pipeline.copy(extra={getattr(classifier, k): v for k, v in {"max_depth": 5, "n_estimators": 10}.items()})
+        pipeline = pipeline.copy(
+            extra={
+                getattr(classifier, k): v
+                for k, v in {"max_depth": 5, "n_estimators": 10}.items()
+            }
+        )
         model = pipeline.fit(train_df)
         model.save(path)
 
         loaded_model = PipelineModel.load(path)
-        pred_before = model.transform(test_df).select("prediction").toPandas()["prediction"].to_numpy()
-        pred_after = loaded_model.transform(test_df).select("prediction").toPandas()["prediction"].to_numpy()
+        pred_before = (
+            model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        pred_after = (
+            loaded_model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
         assert np.allclose(pred_before, pred_after, rtol=1e-6)
 
     def test_classifier_params(self, spark: SparkSession) -> None:
@@ -616,7 +737,9 @@ class TestClassifier:
             "label",
             spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0),
         )
-        vector_assembler = VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+        vector_assembler = (
+            VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+        )
         data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
         classifier = SparkXGBClassifier(
             tree_method=tree_method,
@@ -629,7 +752,9 @@ class TestClassifier:
 
     def test_classifier_with_cross_validator(self, clf_data: ClfData) -> None:
         xgb_classifier = SparkXGBClassifier(n_estimators=1)
-        param_maps = ParamGridBuilder().addGrid(xgb_classifier.max_depth, [1, 2]).build()
+        param_maps = (
+            ParamGridBuilder().addGrid(xgb_classifier.max_depth, [1, 2]).build()
+        )
         cv_bin = CrossValidator(
             estimator=xgb_classifier,
             estimatorParamMaps=param_maps,
@@ -665,21 +790,39 @@ class TestClassifier:
     def test_classifier_array_col_as_feature(self, clf_data: ClfData) -> None:
         vector_train = clf_data.df.select("row_id", "features", "label")
         vector_test = clf_data.df.select("row_id", "features")
-        train_dataset = vector_train.withColumn("features", vector_to_array(spark_sql_func.col("features")))
-        test_dataset = vector_test.withColumn("features", vector_to_array(spark_sql_func.col("features")))
+        train_dataset = vector_train.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
+        test_dataset = vector_test.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
         params = {"n_estimators": 10, "max_depth": 3}
         vector_model = SparkXGBClassifier(**params).fit(vector_train)
         array_model = SparkXGBClassifier(**params).fit(train_dataset)
 
-        vector_pred = vector_model.transform(vector_test).orderBy("row_id").select("prediction", "probability").toPandas()
-        array_pred = array_model.transform(test_dataset).orderBy("row_id").select("prediction", "probability").toPandas()
+        vector_pred = (
+            vector_model.transform(vector_test)
+            .orderBy("row_id")
+            .select("prediction", "probability")
+            .toPandas()
+        )
+        array_pred = (
+            array_model.transform(test_dataset)
+            .orderBy("row_id")
+            .select("prediction", "probability")
+            .toPandas()
+        )
         vector_proba = np.array(vector_pred["probability"].tolist())
         array_proba = np.array(array_pred["probability"].tolist())
         array_label = array_pred["prediction"].to_numpy()
 
-        assert np.allclose(array_pred["prediction"].to_numpy(), vector_pred["prediction"].to_numpy())
+        assert np.allclose(
+            array_pred["prediction"].to_numpy(), vector_pred["prediction"].to_numpy()
+        )
         assert np.allclose(array_proba, vector_proba, rtol=1e-3)
-        assert np.allclose(array_proba.sum(axis=1), np.ones(array_proba.shape[0]), atol=1e-6)
+        assert np.allclose(
+            array_proba.sum(axis=1), np.ones(array_proba.shape[0]), atol=1e-6
+        )
         assert np.all((array_proba >= 0.0) & (array_proba <= 1.0))
         assert np.allclose(array_label, np.argmax(array_proba, axis=1))
 
@@ -737,16 +880,25 @@ class TestClassifier:
         py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
         assert py_cls.getOrDefault(py_cls.featuresCol) == "f1"
         assert py_cls.getOrDefault(py_cls.labelCol) == "l1"
-        with pytest.raises(ValueError, match="Please use param name features_col instead"):
+        with pytest.raises(
+            ValueError, match="Please use param name features_col instead"
+        ):
             SparkXGBClassifier(featuresCol="f1")
 
     def test_param_value_converter(self) -> None:
         py_cls = SparkXGBClassifier(missing=np.float64(1.0), sketch_eps=np.float64(0.3))
         # don't check by isinstance(v, float) because for numpy scalar it will also return True
         assert py_cls.getOrDefault(py_cls.missing).__class__.__name__ == "float"
-        assert py_cls.getOrDefault(py_cls.arbitrary_params_dict)["sketch_eps"].__class__.__name__ == "float64"
+        assert (
+            py_cls.getOrDefault(py_cls.arbitrary_params_dict)[
+                "sketch_eps"
+            ].__class__.__name__
+            == "float64"
+        )
 
-    def test_device_and_gpu_params(self, clf_data: ClfData, spark: SparkSession) -> None:
+    def test_device_and_gpu_params(
+        self, clf_data: ClfData, spark: SparkSession
+    ) -> None:
         clf = SparkXGBClassifier(device="cuda", tree_method="exact")
         with pytest.raises(ValueError, match="not supported for distributed"):
             clf.fit(clf_data.df.select("features", "label"))
@@ -771,10 +923,14 @@ class TestClassifier:
         clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         assert clf._run_on_gpu(spark)
 
-    def test_gpu_transform(self, clf_data: ClfData, tmp_path: Path, spark: SparkSession) -> None:
+    def test_gpu_transform(
+        self, clf_data: ClfData, tmp_path: Path, spark: SparkSession
+    ) -> None:
         """local mode"""
         classifier = SparkXGBClassifier(device="cpu", n_estimators=10)
-        model: SparkXGBClassifierModel = classifier.fit(clf_data.df.select("features", "label"))
+        model: SparkXGBClassifierModel = classifier.fit(
+            clf_data.df.select("features", "label")
+        )
 
         path = "file:" + str(tmp_path)
         model.write().overwrite().save(path)
@@ -830,9 +986,13 @@ class TestClassifier:
             .set("spark.task.cpus", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        msg_match = "The `spark.executor.resource.gpu.amount` is required for training on GPU"
+        msg_match = (
+            "The `spark.executor.resource.gpu.amount` is required for training on GPU"
+        )
         with pytest.raises(ValueError, match=msg_match):
-            classifier_on_gpu._validate_gpu_params(_mock_ss("4.0.0", standalone_bad_conf))
+            classifier_on_gpu._validate_gpu_params(
+                _mock_ss("4.0.0", standalone_bad_conf)
+            )
 
         # Without spark.task.resource.gpu.amount shouldn't throw error
         # since stage-level scheduling is available and will handle it.
@@ -886,10 +1046,14 @@ class TestClassifier:
         classifier_on_gpu = SparkXGBClassifier(device="cuda")
 
         # the correct configurations should not skip stage-level scheduling
-        assert not classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", standalone_conf))
+        assert not classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", standalone_conf)
+        )
 
         # not run on GPU
-        assert classifier_on_cpu._skip_stage_level_scheduling(_mock_ss("4.0.0", standalone_conf))
+        assert classifier_on_cpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", standalone_conf)
+        )
 
         # spark.executor.cores is not set
         bad_conf = (
@@ -899,7 +1063,9 @@ class TestClassifier:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # spark.executor.cores=1
         bad_conf = (
@@ -910,7 +1076,9 @@ class TestClassifier:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # spark.executor.resource.gpu.amount is not set
         bad_conf = (
@@ -920,7 +1088,9 @@ class TestClassifier:
             .set("spark.task.cpus", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # spark.executor.resource.gpu.amount>1
         bad_conf = (
@@ -931,7 +1101,9 @@ class TestClassifier:
             .set("spark.executor.resource.gpu.amount", "2")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # spark.task.resource.gpu.amount is not set
         bad_conf = (
@@ -941,7 +1113,9 @@ class TestClassifier:
             .set("spark.task.cpus", "1")
             .set("spark.executor.resource.gpu.amount", "1")
         )
-        assert not classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert not classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # spark.task.resource.gpu.amount=1
         bad_conf = (
@@ -952,7 +1126,9 @@ class TestClassifier:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "1")
         )
-        assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", bad_conf))
+        assert classifier_on_gpu._skip_stage_level_scheduling(
+            _mock_ss("4.0.0", bad_conf)
+        )
 
         # For Yarn and K8S
         for mode in ["yarn", "k8s://"]:
@@ -967,9 +1143,13 @@ class TestClassifier:
                 )
 
                 if gpu_amount == "1.0":
-                    assert classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", conf))
+                    assert classifier_on_gpu._skip_stage_level_scheduling(
+                        _mock_ss("4.0.0", conf)
+                    )
                 else:
-                    assert not classifier_on_gpu._skip_stage_level_scheduling(_mock_ss("4.0.0", conf))
+                    assert not classifier_on_gpu._skip_stage_level_scheduling(
+                        _mock_ss("4.0.0", conf)
+                    )
 
     def test_collective_conf(self, spark: SparkSession, tmp_path: Path) -> None:
         classifier = SparkXGBClassifier(
@@ -983,13 +1163,17 @@ class TestClassifier:
             launch_tracker_on_driver=False,
             coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58892),
         )
-        with pytest.raises(ValueError, match="You must enable launch_tracker_on_driver"):
+        with pytest.raises(
+            ValueError, match="You must enable launch_tracker_on_driver"
+        ):
             classifier._get_tracker_args(spark)
 
         avail_tracker_port = get_avail_port()
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=avail_tracker_port),
+            coll_cfg=Config(
+                tracker_host_ip="127.0.0.1", tracker_port=avail_tracker_port
+            ),
             num_workers=2,
         )
         launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args(spark)
@@ -1171,7 +1355,13 @@ class TestPySparkLocalLETOR:
         assert ranker.getOrDefault(ranker.objective) == "rank:pairwise"
         model = ranker.fit(ltr_data.ranker_df)
         test_df = ltr_data.ranker_df.where(spark_sql_func.col("isVal"))
-        pred_result = model.transform(test_df).orderBy("row_id").select("prediction").toPandas()["prediction"].to_numpy()
+        pred_result = (
+            model.transform(test_df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
         assert np.allclose(pred_result, expected, rtol=1e-3)
 
     def test_ranker_same_qid_in_same_partition(self, spark: SparkSession) -> None:

@@ -48,7 +48,9 @@ def test_polars_basic(
     df = pl.DataFrame({"a": [True, False, False], "b": [False, False, True]})
     Xy = DMatrixT(df)
 
-    np.testing.assert_equal(Xy.get_data().data, np.array([1.0, m, m, m, m, 1.0], dtype=np.float32))
+    np.testing.assert_equal(
+        Xy.get_data().data, np.array([1.0, m, m, m, m, 1.0], dtype=np.float32)
+    )
 
 
 def test_polars_missing() -> None:
@@ -177,5 +179,8 @@ def test_categorical() -> None:
         schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4][::-1]))],
     )
     predt_1 = booster.inplace_predict(df_rev)
-    assert df["f1"].cat.get_categories().to_list() != df_rev["f1"].cat.get_categories().to_list()
+    assert (
+        df["f1"].cat.get_categories().to_list()
+        != df_rev["f1"].cat.get_categories().to_list()
+    )
     np.testing.assert_allclose(predt_0, predt_1)

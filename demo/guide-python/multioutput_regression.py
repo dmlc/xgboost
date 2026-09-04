@@ -27,7 +27,9 @@ from matplotlib import pyplot as plt
 import xgboost as xgb
 
 
-def plot_predt(y: np.ndarray, y_predt: np.ndarray, name: str, ax: matplotlib.axes.Axes) -> None:
+def plot_predt(
+    y: np.ndarray, y_predt: np.ndarray, name: str, ax: matplotlib.axes.Axes
+) -> None:
     """Plot the prediction from the model."""
     s = 25
     ax.scatter(y[:, 0], y[:, 1], c="navy", s=s, edgecolor="black", label=name)
@@ -78,7 +80,9 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
         assert dtrain.num_row() == predt.shape[0]
         return np.ones(predt.shape)
 
-    def squared_log(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
+    def squared_log(
+        predt: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Tuple[np.ndarray, np.ndarray]:
         grad = gradient(predt, dtrain)
         hess = hessian(predt, dtrain)
         # both numpy.ndarray and cupy.ndarray works.
@@ -113,7 +117,9 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
     if ax:
         plot_predt(y, y_predt, f"PyRMSE-{strategy}", ax)
 
-    np.testing.assert_allclose(results["Train"]["rmse"], results["Train"]["PyRMSE"], rtol=1e-2)
+    np.testing.assert_allclose(
+        results["Train"]["rmse"], results["Train"]["PyRMSE"], rtol=1e-2
+    )
 
 
 if __name__ == "__main__":

@@ -30,7 +30,9 @@ def local_cuda_client(request: Any, pytestconfig: pytest.Config) -> Generator:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption("--use-rmm-pool", action="store_true", default=False, help="Use RMM pool")
+    parser.addoption(
+        "--use-rmm-pool", action="store_true", default=False, help="Use RMM pool"
+    )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: Sequence) -> None:

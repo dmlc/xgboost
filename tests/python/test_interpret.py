@@ -41,7 +41,9 @@ def test_shap_values_uses_sklearn_iteration_range() -> None:
     reg.get_booster().set_attr(best_iteration="3")
 
     values, bias = interpret.shap_values(reg, X, iteration_range=(0, 0))
-    contribs = reg.get_booster().predict(xgb.DMatrix(X), pred_contribs=True, iteration_range=(0, 4))
+    contribs = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_contribs=True, iteration_range=(0, 4)
+    )
 
     np.testing.assert_allclose(values, contribs[:, :-1])
     np.testing.assert_allclose(bias, contribs[:, -1])
@@ -68,7 +70,9 @@ def test_shap_values_validates_get_booster() -> None:
 def test_shap_values_uses_missing_for_array_like_data() -> None:
     X = np.array([[0.0, 1.0], [2.0, 0.0], [3.0, 4.0]])
     y = np.array([0.0, 1.0, 1.0])
-    booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y, missing=0.0), 4)
+    booster = xgb.train(
+        {"tree_method": "hist"}, xgb.DMatrix(X, label=y, missing=0.0), 4
+    )
 
     values, bias = interpret.shap_values(booster, X, missing=0.0)
     contribs = booster.predict(xgb.DMatrix(X, missing=0.0), pred_contribs=True)

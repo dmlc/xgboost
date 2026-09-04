@@ -124,12 +124,16 @@ def test_categorical_extmem_qdm(
 
 
 def test_invalid_device_extmem_qdm() -> None:
-    it = tm.IteratorForTest(*tm.make_batches(16, 4, 2, use_cupy=False), cache="cache", on_host=True)
+    it = tm.IteratorForTest(
+        *tm.make_batches(16, 4, 2, use_cupy=False), cache="cache", on_host=True
+    )
     Xy = xgb.ExtMemQuantileDMatrix(it)
     with pytest.raises(ValueError, match="cannot be used for GPU"):
         xgb.train({"device": "cuda"}, Xy)
 
-    it = tm.IteratorForTest(*tm.make_batches(16, 4, 2, use_cupy=True), cache="cache", on_host=True)
+    it = tm.IteratorForTest(
+        *tm.make_batches(16, 4, 2, use_cupy=True), cache="cache", on_host=True
+    )
     Xy = xgb.ExtMemQuantileDMatrix(it)
     with pytest.raises(ValueError, match="cannot be used for CPU"):
         xgb.train({"device": "cpu"}, Xy)
@@ -164,7 +168,9 @@ def test_concat_pages() -> None:
     strategies.integers(1, 4),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
-def test_quantile_objective(n_samples_per_batch: int, n_features: int, n_batches: int) -> None:
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
     check_quantile_loss_extmem(
         n_samples_per_batch,
         n_features,
@@ -185,7 +191,9 @@ def test_quantile_objective(n_samples_per_batch: int, n_features: int, n_batches
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())
 def test_categorical_missing(tree_method: str) -> None:
-    check_categorical_missing(1024, 4, 5, device="cuda", tree_method=tree_method, extmem=True)
+    check_categorical_missing(
+        1024, 4, 5, device="cuda", tree_method=tree_method, extmem=True
+    )
 
 
 @pytest.mark.parametrize(

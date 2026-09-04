@@ -100,7 +100,9 @@ def test_shap_multi_output_tree() -> None:
         X.shape[1] + 1,
     )
     np.testing.assert_allclose(contribs.sum(axis=2), margin, rtol=1e-4, atol=1e-4)
-    np.testing.assert_allclose(interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(
+        interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4
+    )
 
 
 def test_absolute_error() -> None:

@@ -16,7 +16,9 @@ plt.rcParams.update({"font.size": 13})
 
 
 # pylint: disable=redefined-outer-name
-def plot_censored_labels(X: np.ndarray, y_lower: np.ndarray, y_upper: np.ndarray) -> None:
+def plot_censored_labels(
+    X: np.ndarray, y_lower: np.ndarray, y_upper: np.ndarray
+) -> None:
     """Function to visualize censored labels"""
 
     def replace_inf(x: np.ndarray, target_value: float) -> np.ndarray:
@@ -79,14 +81,18 @@ class PlotIntermediateModel(xgb.callback.TrainingCallback):
         y_pred = model.predict(dmat)
         # "Accuracy" = the number of data points whose ranged label (y_lower, y_upper)
         #              includes the corresponding predicted label (y_pred)
-        acc = np.sum(np.logical_and(y_pred >= y_lower, y_pred <= y_upper) / len(X) * 100)
+        acc = np.sum(
+            np.logical_and(y_pred >= y_lower, y_pred <= y_upper) / len(X) * 100
+        )
         accuracy_history.append(acc)
 
         # Plot ranged labels as well as predictions by the model
         plt.subplot(5, 3, epoch + 1)
         plot_censored_labels(X, y_lower, y_upper)
         y_pred_grid_pts = model.predict(xgb.DMatrix(grid_pts))
-        plt.plot(grid_pts, y_pred_grid_pts, "r-", label="XGBoost AFT model", linewidth=4)
+        plt.plot(
+            grid_pts, y_pred_grid_pts, "r-", label="XGBoost AFT model", linewidth=4
+        )
         plt.title(f"Iteration {epoch}", x=0.5, y=0.8)
         plt.xlim((0.8, 5.2))
         plt.ylim((1 if np.min(y_pred) < 6 else 6, 200))

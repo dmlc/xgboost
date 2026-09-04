@@ -127,7 +127,9 @@ def merror(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
     return "PyMError", np.sum(errors) / kRows
 
 
-def plot_history(custom_results: Dict[str, Dict], native_results: Dict[str, Dict]) -> None:
+def plot_history(
+    custom_results: Dict[str, Dict], native_results: Dict[str, Dict]
+) -> None:
     axs: np.ndarray
     fig, axs = plt.subplots(2, 1)  # type: ignore
     ax0 = axs[0]
@@ -190,14 +192,18 @@ def main(args: argparse.Namespace) -> None:
     # We are reimplementing the loss function in XGBoost, so it should
     # be the same for normal cases.
     assert np.all(predt_custom == predt_native)
-    np.testing.assert_allclose(custom_results["train"]["PyMError"], native_results["train"]["merror"])
+    np.testing.assert_allclose(
+        custom_results["train"]["PyMError"], native_results["train"]["merror"]
+    )
 
     if args.plot != 0:
         plot_history(custom_results, native_results)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Arguments for custom softmax objective function demo.")
+    parser = argparse.ArgumentParser(
+        description="Arguments for custom softmax objective function demo."
+    )
     parser.add_argument(
         "--plot",
         type=int,

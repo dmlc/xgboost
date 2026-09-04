@@ -9,7 +9,9 @@ from xgboost.testing.dask import check_external_memory, get_rabit_args
 
 @pytest.mark.parametrize("is_qdm", [True, False])
 @gen_cluster(client=True)
-async def test_external_memory(client: Client, s: Scheduler, a: Worker, b: Worker, is_qdm: bool) -> None:
+async def test_external_memory(
+    client: Client, s: Scheduler, a: Worker, b: Worker, is_qdm: bool
+) -> None:
     workers = [a.address, b.address]
     n_workers = len(workers)
     args = await get_rabit_args(client, n_workers)

@@ -27,7 +27,9 @@ class TestModels:
         assert isinstance(bst, xgb.core.Booster)
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         assert err < 0.2
 
     def test_dart(self, tmp_path: Path) -> None:
@@ -46,7 +48,9 @@ class TestModels:
         # this is prediction
         preds = bst.predict(dtest, iteration_range=(0, num_round))
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -70,7 +74,9 @@ class TestModels:
             return "logloss", np.sum(np.log(np.where(labels, preds, 1 - preds)))
 
         # check whether custom evaluation metrics work
-        bst = xgb.train(param, dtrain, num_round, evals=watchlist, custom_metric=my_logloss)
+        bst = xgb.train(
+            param, dtrain, num_round, evals=watchlist, custom_metric=my_logloss
+        )
         preds3 = bst.predict(dtest, iteration_range=(0, num_round))
         assert all(preds3 == preds)
 
@@ -79,12 +85,16 @@ class TestModels:
         param["learning_rate"] = 0.1
         param["rate_drop"] = 0.1
         preds_list = []
-        for p in [[p0, p1] for p0 in ["uniform", "weighted"] for p1 in ["tree", "forest"]]:
+        for p in [
+            [p0, p1] for p0 in ["uniform", "weighted"] for p1 in ["tree", "forest"]
+        ]:
             param["sample_type"] = p[0]
             param["normalize_type"] = p[1]
             bst = xgb.train(param, dtrain, num_round, evals=watchlist)
             preds = bst.predict(dtest, iteration_range=(0, num_round))
-            err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+            ) / float(len(preds))
             assert err < 0.1
             preds_list.append(preds)
 
@@ -113,7 +123,9 @@ class TestModels:
         assert booster.num_boosted_rounds() == 4
         booster.set_param({"tree_method": "approx"})
         assert booster.num_boosted_rounds() == 4
-        booster = xgb.train({"tree_method": "hist"}, X, num_boost_round=4, xgb_model=booster)
+        booster = xgb.train(
+            {"tree_method": "hist"}, X, num_boost_round=4, xgb_model=booster
+        )
         assert booster.num_boosted_rounds() == 8
         with pytest.warns(UserWarning, match="`updater`"):
             booster = xgb.train(
@@ -133,7 +145,9 @@ class TestModels:
         assert booster.num_boosted_rounds() == 4
         booster.set_param({"updater": "shotgun"})
         assert booster.num_boosted_rounds() == 4
-        booster = xgb.train({"booster": "gblinear"}, X, num_boost_round=4, xgb_model=booster)
+        booster = xgb.train(
+            {"booster": "gblinear"}, X, num_boost_round=4, xgb_model=booster
+        )
         assert booster.num_boosted_rounds() == 8
 
     def test_custom_objective(self) -> None:
@@ -340,9 +354,13 @@ class TestModels:
             booster[:end] = booster  # type: ignore
 
         sliced_0 = booster[1:3]
-        np.testing.assert_allclose(booster.predict(dtrain, iteration_range=(1, 3)), sliced_0.predict(dtrain))
+        np.testing.assert_allclose(
+            booster.predict(dtrain, iteration_range=(1, 3)), sliced_0.predict(dtrain)
+        )
         sliced_1 = booster[3:7]
-        np.testing.assert_allclose(booster.predict(dtrain, iteration_range=(3, 7)), sliced_1.predict(dtrain))
+        np.testing.assert_allclose(
+            booster.predict(dtrain, iteration_range=(3, 7)), sliced_1.predict(dtrain)
+        )
 
         predt_0 = sliced_0.predict(dtrain, output_margin=True)
         predt_1 = sliced_1.predict(dtrain, output_margin=True)
@@ -369,7 +387,9 @@ class TestModels:
         from sklearn.datasets import make_classification
 
         num_classes = 3
-        X, y = make_classification(n_samples=1000, n_informative=5, n_classes=num_classes)
+        X, y = make_classification(
+            n_samples=1000, n_informative=5, n_classes=num_classes
+        )
         dtrain = xgb.DMatrix(data=X, label=y)
         num_parallel_tree = 4
         num_boost_round = 16
@@ -391,11 +411,15 @@ class TestModels:
 
         assert booster[...].num_boosted_rounds() == num_boost_round
 
-        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False)
+        self.run_slice(
+            booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False
+        )
 
         bytesarray = booster.save_raw(raw_format="ubj")
         booster = xgb.Booster(model_file=bytesarray)
-        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False)
+        self.run_slice(
+            booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False
+        )
 
     @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("ext", ["json", "ubj"])

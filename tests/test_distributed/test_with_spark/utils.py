@@ -20,7 +20,11 @@ class UtilsTest(unittest.TestCase):
             "key1": None,
             "key3": 0,
         }
-        actual_default_params = _get_default_params_from_func(Foo.func1, unsupported_params)
-        self.assertEqual(len(expected_default_params.keys()), len(actual_default_params.keys()))
+        actual_default_params = _get_default_params_from_func(
+            Foo.func1, unsupported_params
+        )
+        self.assertEqual(
+            len(expected_default_params.keys()), len(actual_default_params.keys())
+        )
         for k, v in actual_default_params.items():
             self.assertEqual(expected_default_params[k], v)

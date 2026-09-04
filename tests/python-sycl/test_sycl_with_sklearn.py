@@ -21,10 +21,14 @@ def test_sycl_binary_classification():
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
-            xgb_model = cls(random_state=42, device="sycl", n_estimators=4).fit(X[train_index], y[train_index])
+            xgb_model = cls(random_state=42, device="sycl", n_estimators=4).fit(
+                X[train_index], y[train_index]
+            )
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
-            err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+            ) / float(len(preds))
             print(preds)
             print(labels)
             print(err)
