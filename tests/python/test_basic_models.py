@@ -32,13 +32,13 @@ class TestModels:
         ) / float(len(preds))
         assert err < 0.2
 
-    def test_dart(self, tmp_path: Path) -> None:
+    def test_dropout(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {
             "max_depth": 5,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
-            "booster": "dart",
+            "booster": "gbtree",
             "verbosity": 1,
         }
         # specify validations set to watch performance
@@ -55,7 +55,7 @@ class TestModels:
         assert err < 0.1
 
         dtest_path = tmp_path / "dtest.dmatrix"
-        model_path = tmp_path / "xgboost.model.dart.ubj"
+        model_path = tmp_path / "xgboost.model.dropout.ubj"
         # save dmatrix into binary buffer
         dtest.save_binary(dtest_path)
         # save model
@@ -80,27 +80,16 @@ class TestModels:
         preds3 = bst.predict(dtest, iteration_range=(0, num_round))
         assert all(preds3 == preds)
 
-        # check whether sample_type and normalize_type work
+        # Check prediction dropout training.
         num_round = 50
         param["learning_rate"] = 0.1
-        param["rate_drop"] = 0.1
-        preds_list = []
-        for p in [
-            [p0, p1] for p0 in ["uniform", "weighted"] for p1 in ["tree", "forest"]
-        ]:
-            param["sample_type"] = p[0]
-            param["normalize_type"] = p[1]
-            bst = xgb.train(param, dtrain, num_round, evals=watchlist)
-            preds = bst.predict(dtest, iteration_range=(0, num_round))
-            err = sum(
-                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-            ) / float(len(preds))
-            assert err < 0.1
-            preds_list.append(preds)
-
-        for ii in range(len(preds_list)):
-            for jj in range(ii + 1, len(preds_list)):
-                assert np.sum(np.abs(preds_list[ii] - preds_list[jj])) > 0
+        param["dropout_rate"] = 0.1
+        bst = xgb.train(param, dtrain, num_round, evals=watchlist)
+        preds = bst.predict(dtest, iteration_range=(0, num_round))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
+        assert err < 0.1
 
     def test_boost_from_prediction(self):
         # Re-construct dtrain here to avoid modification

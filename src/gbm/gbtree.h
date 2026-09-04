@@ -84,8 +84,11 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   }
 };
 
-/** @brief Dart training parameters */
+/** @brief Tree dropout training parameters. */
 struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
+  /*! \brief probability of dropping each tree before gradient computation */
+  float dropout_rate;
+  // Legacy DART parameters, retained temporarily for parsing and warnings.
   DartSampleType sample_type;
   /*! \brief type of normalization algorithm */
   int normalize_type;
@@ -97,34 +100,38 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
   float skip_drop;
 
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
+    DMLC_DECLARE_FIELD(dropout_rate)
+        .set_range(0.0f, 1.0f - kRtEps)
+        .set_default(0.0f)
+        .describe("Probability of dropping each tree before gradient computation.");
     DMLC_DECLARE_FIELD(sample_type)
         .set_default(DartSampleType::kUniform)
         .add_enum("uniform", DartSampleType::kUniform)
         .add_enum("weighted", DartSampleType::kWeighted)
-        .describe("Different types of sampling algorithm.");
+        .describe("Deprecated and ignored. Tree dropout is sampled uniformly.");
     DMLC_DECLARE_FIELD(normalize_type)
         .set_default(0)
         .add_enum("tree", 0)
         .add_enum("forest", 1)
-        .describe("Different types of normalization algorithm.");
+        .describe("Deprecated and ignored. Dropout normalization is applied to predictions.");
     DMLC_DECLARE_FIELD(rate_drop)
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
-        .describe("Fraction of trees to drop during the dropout.");
+        .describe("Deprecated and ignored. Use dropout_rate instead.");
     DMLC_DECLARE_FIELD(one_drop).set_default(false).describe(
-        "Whether at least one tree should always be dropped during the dropout.");
+        "Deprecated and ignored. Independent dropout can retain all trees.");
     DMLC_DECLARE_FIELD(skip_drop)
-        .set_range(0.0f, 1.0f)
+        .set_range(0.0f, 1.0f - kRtEps)
         .set_default(0.0f)
-        .describe("Probability of skipping the dropout during a boosting iteration.");
+        .describe("Deprecated alias for dropout_rate.");
   }
 
-  [[nodiscard]] bool HasDropout() const {
-    return this->rate_drop != 0.0f || this->one_drop || this->skip_drop != 0.0f;
-  }
+  [[nodiscard]] bool HasDropout() const { return this->dropout_rate != 0.0f; }
 };
 
 namespace detail {
+inline float DropoutScale(float dropout_rate) { return 1.0f / (1.0f - dropout_rate); }
+
 // From here on, layer becomes concrete trees.
 inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& model,
                                                      bst_layer_t begin, bst_layer_t end) {
@@ -363,8 +370,7 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  [[nodiscard]] std::vector<float> DropTrees(bool is_training);
-  [[nodiscard]] std::size_t NormalizeTrees(std::size_t size_new_trees);
+  [[nodiscard]] std::vector<float> DropoutWeights(bool is_training);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
@@ -389,8 +395,6 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // indexes of dropped trees
-  std::vector<size_t> idx_drop_;
   mutable PredictionContainer prediction_cache_;
   common::Monitor monitor_;
 };

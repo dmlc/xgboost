@@ -18,44 +18,43 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.param._
 
-/**
- * Dart booster parameters, more details can be found at
- * https://xgboost.readthedocs.io/en/stable/parameter.html#
- * additional-parameters-for-dart-booster-booster-dart
- */
+/** Dropout parameters for tree boosters. */
 private[spark] trait DartBoosterParams extends Params {
 
-  final val sampleType = new Param[String](this, "sample_type", "Type of sampling algorithm, " +
-    "options: {'uniform', 'weighted'}", ParamValidators.inArray(Array("uniform", "weighted")))
+  final val dropoutRate = new DoubleParam(this, "dropout_rate", "Probability of independently " +
+    "dropping each existing tree before gradient computation",
+    ParamValidators.inRange(0, 0.999999, true, true))
+
+  final def getDropoutRate: Double = $(dropoutRate)
+
+  final val sampleType = new Param[String](this, "sample_type", "Deprecated and ignored; " +
+    "scheduled for removal", ParamValidators.inArray(Array("uniform", "weighted")))
 
   final def getSampleType: String = $(sampleType)
 
-  final val normalizeType = new Param[String](this, "normalize_type", "type of normalization" +
-    " algorithm, options: {'tree', 'forest'}",
+  final val normalizeType = new Param[String](this, "normalize_type", "Deprecated and ignored; " +
+    "scheduled for removal",
     ParamValidators.inArray(Array("tree", "forest")))
 
   final def getNormalizeType: String = $(normalizeType)
 
-  final val rateDrop = new DoubleParam(this, "rate_drop", "Dropout rate (a fraction of previous " +
-    "trees to drop during the dropout)",
+  final val rateDrop = new DoubleParam(this, "rate_drop", "Deprecated and ignored; scheduled " +
+    "for removal",
     ParamValidators.inRange(0, 1, true, true))
 
   final def getRateDrop: Double = $(rateDrop)
 
-  final val oneDrop = new BooleanParam(this, "one_drop", "When this flag is enabled, at least " +
-    "one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout " +
-    "from the original DART paper)")
+  final val oneDrop = new BooleanParam(this, "one_drop", "Deprecated and ignored; scheduled " +
+    "for removal")
 
   final def getOneDrop: Boolean = $(oneDrop)
 
-  final val skipDrop = new DoubleParam(this, "skip_drop", "Probability of skipping the dropout " +
-    "procedure during a boosting iteration.\nIf a dropout is skipped, new trees are added " +
-    "in the same manner as gbtree.\nNote that non-zero skip_drop has higher priority than " +
-    "rate_drop or one_drop.",
-    ParamValidators.inRange(0, 1, true, true))
+  final val skipDrop = new DoubleParam(this, "skip_drop", "Deprecated alias for dropout_rate",
+    ParamValidators.inRange(0, 0.999999, true, true))
 
   final def getSkipDrop: Double = $(skipDrop)
 
-  setDefault(sampleType -> "uniform", normalizeType -> "tree", rateDrop -> 0, skipDrop -> 0)
+  setDefault(dropoutRate -> 0, sampleType -> "uniform", normalizeType -> "tree", rateDrop -> 0,
+    skipDrop -> 0)
 
 }

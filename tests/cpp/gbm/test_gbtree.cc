@@ -10,6 +10,7 @@
 #include <algorithm>  // for fill
 #include <limits>     // for numeric_limits
 #include <memory>     // for shared_ptr
+#include <numeric>    // for accumulate
 #include <optional>   // for optional
 #include <string>     // for string
 
@@ -398,18 +399,20 @@ TEST(GBTree, LoadLegacyDartJson) {
   LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
-      CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
+      CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &ctx)};
 
   Json model{Object{}};
   Json config{Object{}};
   gbm->SaveModel(&model);
   gbm->SaveConfig(&config);
 
+  auto n_trees = get<Array const>(model["model"]["trees"]).size();
+  std::vector<Json> weights(n_trees, Json{Number{0.5}});
+
   Json legacy_model{Object{}};
   legacy_model["name"] = String{"dart"};
   legacy_model["gbtree"] = model;
-  legacy_model["weight_drop"] = model["model"]["weight_drop"];
-  get<Object>(legacy_model["gbtree"]["model"]).erase("weight_drop");
+  legacy_model["weight_drop"] = Array{std::move(weights)};
 
   Json legacy_config{Object{}};
   legacy_config["name"] = String{"dart"};
@@ -428,7 +431,7 @@ TEST(GBTree, LoadLegacyDartJson) {
 
   ASSERT_EQ(get<String>(canonical_model["name"]), "gbtree");
   ASSERT_EQ(get<String>(canonical_config["name"]), "gbtree");
-  ASSERT_NE(get<Array>(canonical_model["model"]["weight_drop"]).size(), 0ul);
+  ASSERT_EQ(get<Array>(canonical_model["model"]["weight_drop"]).size(), n_trees);
   ASSERT_TRUE(IsA<Object>(canonical_config["dart_train_param"]));
 }
 
@@ -439,41 +442,143 @@ TEST(GBTree, DropoutJsonIO) {
   LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
-      CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
+      CreateTrainedGBM("gbtree", Args{{"dropout_rate", "0.5"}}, kRows, kCols, &mparam, &ctx)};
 
-  Json model{Object()};
-  model["model"] = Object();
-  auto& j_model = model["model"];
-  model["config"] = Object();
-  auto& j_param = model["config"];
-
+  Json j_model{Object{}};
+  Json j_config{Object{}};
   gbm->SaveModel(&j_model);
-  gbm->SaveConfig(&j_param);
+  gbm->SaveConfig(&j_config);
 
-  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree") << model;
-  ASSERT_EQ(get<String>(model["config"]["name"]), "gbtree");
-  ASSERT_NE(get<Array>(model["model"]["model"]["weight_drop"]).size(), 0ul);
-  ASSERT_TRUE(IsA<Object>(model["config"]["dart_train_param"]));
+  ASSERT_EQ(get<String>(j_model["name"]), "gbtree");
+  ASSERT_EQ(get<String>(j_config["name"]), "gbtree");
+  auto const& tree_model = get<Object const>(j_model["model"]);
+  ASSERT_EQ(tree_model.find("weight_drop"), tree_model.cend());
+  ASSERT_EQ(get<String>(j_config["dart_train_param"]["dropout_rate"]), "0.5");
 
   std::string malformed_str = Json::Dump(j_model);
   auto malformed_model = Json::Load(StringView{malformed_str});
   auto n_trees = get<Array const>(malformed_model["model"]["trees"]).size();
-  std::vector<Json> wrong_weights(n_trees + 1);
-  for (auto& weight : wrong_weights) {
-    weight = Number{1.0};
-  }
+  std::vector<Json> wrong_weights(n_trees + 1, Json{Number{1.0}});
   malformed_model["model"]["weight_drop"] = Array{std::move(wrong_weights)};
   std::unique_ptr<GradientBooster> invalid{GradientBooster::Create("gbtree", &ctx, &mparam)};
   EXPECT_ANY_THROW(invalid->LoadModel(malformed_model));
 
   auto legacy_model = j_model;
-  legacy_model["weight_drop"] = legacy_model["model"]["weight_drop"];
-  get<Object>(legacy_model["model"]).erase("weight_drop");
+  std::vector<Json> legacy_weights(n_trees, Json{Number{0.5}});
+  legacy_model["weight_drop"] = Array{std::move(legacy_weights)};
   std::unique_ptr<GradientBooster> loaded{GradientBooster::Create("gbtree", &ctx, &mparam)};
   loaded->LoadModel(legacy_model);
   Json canonical_model{Object{}};
   loaded->SaveModel(&canonical_model);
-  ASSERT_NE(get<Array>(canonical_model["model"]["weight_drop"]).size(), 0ul);
+  ASSERT_EQ(get<Array>(canonical_model["model"]["weight_drop"]).size(), n_trees);
+}
+
+TEST(GBTree, DropoutParameters) {
+  Context ctx;
+  LearnerModelState mparam{MakeMP(4, .5, 1)};
+  std::unique_ptr<GradientBooster> gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+
+  testing::internal::CaptureStderr();
+  gbm->Configure({{"skip_drop", "0.25"}});
+  auto warning = testing::internal::GetCapturedStderr();
+  EXPECT_NE(warning.find("interpreted as `dropout_rate`"), std::string::npos);
+
+  Json config{Object{}};
+  gbm->SaveConfig(&config);
+  EXPECT_EQ(get<String>(config["dart_train_param"]["dropout_rate"]), "0.25");
+
+  testing::internal::CaptureStderr();
+  gbm->Configure({{"dropout_rate", "0.5"},
+                  {"skip_drop", "0.25"},
+                  {"rate_drop", "0.1"},
+                  {"one_drop", "1"},
+                  {"sample_type", "weighted"},
+                  {"normalize_type", "forest"}});
+  warning = testing::internal::GetCapturedStderr();
+  EXPECT_NE(warning.find("`skip_drop` is deprecated"), std::string::npos);
+  for (auto const* unused : {"rate_drop", "one_drop", "sample_type", "normalize_type"}) {
+    EXPECT_NE(warning.find(std::string("`") + unused + "` is no longer used"), std::string::npos);
+  }
+  gbm->SaveConfig(&config);
+  EXPECT_EQ(get<String>(config["dart_train_param"]["dropout_rate"]), "0.5");
+
+  EXPECT_ANY_THROW(gbm->Configure({{"dropout_rate", "1.0"}}));
+}
+
+TEST(GBTree, DropoutPredictionIsUnbiased) {
+  float constexpr kDropout = 0.25f;
+  float constexpr kRetain = 1.0f - kDropout;
+  float constexpr kBase = 0.3f;
+  float constexpr kLabel = 0.7f;
+  std::vector<std::vector<float>> const cases{
+      {1.0f, 2.0f, 3.0f}, {1.0f, -1.0f, 2.0f}, {10.0f, 0.1f, -0.2f}, {-2.0f, -1.0f, 4.0f}};
+
+  for (auto const& contributions : cases) {
+    auto full_margin = kBase + std::accumulate(contributions.cbegin(), contributions.cend(), 0.0f);
+    double expected_margin{0.0};
+    double expected_squared_error_gradient{0.0};
+    auto n_masks = std::size_t{1} << contributions.size();
+    for (std::size_t mask = 0; mask < n_masks; ++mask) {
+      double probability{1.0};
+      double retained_sum{0.0};
+      for (std::size_t i = 0; i < contributions.size(); ++i) {
+        bool retained = mask & (std::size_t{1} << i);
+        probability *= retained ? kRetain : kDropout;
+        if (retained) {
+          retained_sum += contributions[i];
+        }
+      }
+      auto margin = kBase + gbm::detail::DropoutScale(kDropout) * retained_sum;
+      expected_margin += probability * margin;
+      expected_squared_error_gradient += probability * (margin - kLabel);
+    }
+    EXPECT_NEAR(expected_margin, full_margin, 1e-6);
+    EXPECT_NEAR(expected_squared_error_gradient, full_margin - kLabel, 1e-6);
+  }
+}
+
+TEST(GBTree, DropoutPredictionPath) {
+  size_t constexpr kRows = 16, kCols = 4;
+  float constexpr kBaseMargin = 3.0f;
+  float constexpr kDropout = 0.5f;
+
+  Context ctx;
+  LearnerModelState mparam{MakeMP(kCols, 0.5f, 1)};
+  auto gbm = CreateTrainedGBM("gbtree", Args{{"dropout_rate", "0.5"}}, kRows, kCols, &mparam, &ctx);
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  dmat->Info().base_margin_.Reshape(kRows, 1);
+  dmat->Info().base_margin_.Data()->HostVector().assign(kRows, kBaseMargin);
+
+  HostDeviceVector<float> inference;
+  gbm->PredictBatch(dmat, &inference, false, 0, 0);
+  auto const& full_margin = inference.ConstHostVector();
+  auto const expected_retained = [&](std::size_t i) {
+    auto tree_margin = full_margin[i] - kBaseMargin;
+    return kBaseMargin + gbm::detail::DropoutScale(kDropout) * tree_margin;
+  };
+  auto anchor = static_cast<std::size_t>(
+      std::distance(full_margin.cbegin(), std::max_element(full_margin.cbegin(), full_margin.cend(),
+                                                           [kBaseMargin](float lhs, float rhs) {
+                                                             return std::abs(lhs - kBaseMargin) <
+                                                                    std::abs(rhs - kBaseMargin);
+                                                           })));
+  ASSERT_GT(std::abs(full_margin[anchor] - kBaseMargin), kRtEps);
+
+  bool saw_dropped{false};
+  bool saw_retained{false};
+  for (std::size_t sample = 0; sample < 64; ++sample) {
+    HostDeviceVector<float> training;
+    gbm->PredictBatch(dmat, &training, true, 0, 0);
+    auto const& values = training.ConstHostVector();
+    auto dropped = std::abs(values[anchor] - kBaseMargin) < kRtEps;
+    saw_dropped |= dropped;
+    saw_retained |= !dropped;
+    for (std::size_t i = 0; i < values.size(); ++i) {
+      ASSERT_NEAR(values[i], dropped ? kBaseMargin : expected_retained(i), kRtEps * 8);
+    }
+  }
+  EXPECT_TRUE(saw_dropped);
+  EXPECT_TRUE(saw_retained);
 }
 
 namespace {
@@ -499,7 +604,7 @@ class Dart : public testing::TestWithParam<char const*> {
 
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
     learner->Configure({{"booster", "dart"}});
-    learner->Configure({{"rate_drop", "0.5"}});
+    learner->Configure({{"dropout_rate", "0.5"}});
     learner->Configure();
 
     for (size_t i = 0; i < 16; ++i) {
@@ -560,7 +665,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
             {"subsample", "0.5"},
             {"max_depth", "2"}};
   if (booster == "dart") {
-    args.emplace_back("rate_drop", "0.5");
+    args.emplace_back("dropout_rate", "0.5");
   }
   learner->Configure(args);
 
@@ -677,10 +782,11 @@ TEST(GBTree, Slice) { TestModelSlice("gbtree"); }
 
 TEST(Dart, Slice) {
   auto [model, sliced_model] = TestModelSlice("dart");
-  auto const& weights =
-      get<Array const>(model["learner"]["gradient_booster"]["model"]["weight_drop"]);
-  auto const& trees = get<Array const>(model["learner"]["gradient_booster"]["model"]["trees"]);
-  ASSERT_EQ(weights.size(), trees.size());
+  for (auto const* candidate : {&model, &sliced_model}) {
+    auto const& tree_model =
+        get<Object const>((*candidate)["learner"]["gradient_booster"]["model"]);
+    ASSERT_EQ(tree_model.find("weight_drop"), tree_model.cend());
+  }
 }
 
 TEST(GBTree, FeatureScore) {

@@ -196,7 +196,7 @@ test_that("predict feature contributions works", {
   }
 })
 
-test_that("SHAPs sum to predictions, with or without DART", {
+test_that("SHAPs sum to predictions, with or without dropout", {
   d <- cbind(
     x1 = rnorm(100),
     x2 = rnorm(100),
@@ -206,16 +206,14 @@ test_that("SHAPs sum to predictions, with or without DART", {
     rnorm(100)
   nrounds <- 30
 
-  for (booster in list("gbtree", "dart")) {
+  for (dropout_rate in list(0, .01)) {
     fit <- xgb.train(
-      params = c(
-        list(
-          nthread = 2,
-          booster = booster,
-          objective = "reg:squarederror",
-          eval_metric = "rmse"),
-        if (booster == "dart")
-          list(rate_drop = .01, one_drop = TRUE)),
+      params = list(
+        nthread = 2,
+        booster = "gbtree",
+        objective = "reg:squarederror",
+        eval_metric = "rmse",
+        dropout_rate = dropout_rate),
       data = xgb.DMatrix(d, label = y, nthread = 1),
       nrounds = nrounds)
 

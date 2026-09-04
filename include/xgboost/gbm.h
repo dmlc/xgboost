@@ -83,8 +83,8 @@ class GradientBooster : public Model, public Configurable {
    *
    * \param dmat     The feature matrix.
    * \param out_preds output vector to hold the predictions
-   * \param training Whether the prediction value is used for training.  For dart booster
-   *                 drop out is performed during training.
+   * \param training Whether the prediction value is used for training. Tree dropout is
+   *                 performed during training when enabled.
    * \param begin    Beginning of boosted tree layer used for prediction.
    * \param end      End of booster layer. 0 means do not limit trees.
    */
