@@ -502,10 +502,10 @@ std::vector<float> GBTree::DropoutWeights(bool is_training) {
   std::vector<float> weights(model_.trees.size(), 1.0f);
   std::copy(model_.weight_drop.cbegin(), model_.weight_drop.cend(), weights.begin());
 
-  std::uniform_real_distribution<> runif(0.0, 1.0);
+  std::bernoulli_distribution drop_tree{dparam_.dropout_rate};
   auto& rnd = ctx_->Rng();
   for (auto& weight : weights) {
-    if (runif(rnd) < dparam_.dropout_rate) {
+    if (drop_tree(rnd)) {
       weight = 0.0f;
     }
   }
