@@ -64,9 +64,8 @@ test_that("parameter validation works", {
   correct <- function() {
     params <- list(
       max_depth = 2,
-      booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      booster = "gbtree",
+      dropout_rate = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     )
@@ -76,9 +75,8 @@ test_that("parameter validation works", {
   incorrect <- function() {
     params <- list(
       max_depth = 2,
-      booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      booster = "gbtree",
+      dropout_rate = 0.5,
       objective = "reg:squarederror",
       nthread = n_threads,
       foo = "bar",
@@ -94,7 +92,7 @@ test_that("parameter validation works", {
 })
 
 
-test_that("dart prediction works", {
+test_that("dropout prediction works", {
   nrounds <- 32
   set.seed(1994)
 
@@ -113,9 +111,8 @@ test_that("dart prediction works", {
     nrounds = nrounds,
     params = xgb.params(
       max_depth = 2,
-      booster = "dart",
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      booster = "gbtree",
+      dropout_rate = 0.5,
       learning_rate = 1,
       nthread = n_threads,
       objective = "reg:squarederror"
@@ -132,11 +129,10 @@ test_that("dart prediction works", {
   dtrain <- xgb.DMatrix(data = d, label = y, nthread = n_threads)
   booster_by_train <- xgb.train(
     params = xgb.params(
-      booster = "dart",
+      booster = "gbtree",
       max_depth = 2,
       learning_rate = 1,
-      rate_drop = 0.5,
-      one_drop = TRUE,
+      dropout_rate = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     ),

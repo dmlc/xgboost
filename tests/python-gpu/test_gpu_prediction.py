@@ -546,16 +546,16 @@ class TestGPUPredict:
             params = {
                 "tree_method": "hist",
                 "device": "cuda:0",
-                "booster": "dart",
-                "rate_drop": 0.5,
+                "booster": "gbtree",
+                "dropout_rate": 0.5,
                 "objective": "binary:logistic",
             }
         else:
             params = {
                 "tree_method": "hist",
                 "device": "cuda:0",
-                "booster": "dart",
-                "rate_drop": 0.5,
+                "booster": "gbtree",
+                "dropout_rate": 0.5,
                 "objective": "multi:softprob",
                 "num_class": n_classes,
             }

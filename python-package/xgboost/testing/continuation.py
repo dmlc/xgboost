@@ -70,7 +70,7 @@ def run_training_continuation_determinism(
     tree_method: str,
     subsample: float,
     sampling_method: str,
-    rate_drop: float,
+    dropout_rate: float,
     colsample_bylevel: float,
     num_class: int,
     seed_per_iteration: bool,
@@ -119,7 +119,7 @@ def run_training_continuation_determinism(
         "objective": objective,
         "subsample": subsample,
         "sampling_method": sampling_method,
-        "rate_drop": rate_drop,
+        "dropout_rate": dropout_rate,
         "colsample_bylevel": colsample_bylevel,
         "seed_per_iteration": seed_per_iteration,
     }
@@ -162,7 +162,7 @@ def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStra
         {
             "subsample": strategies.sampled_from([0.5, 1.0]),
             "sampling_method": strategies.sampled_from(["uniform", "gradient_based"]),
-            "rate_drop": strategies.sampled_from([0.0, 0.5]),
+            "dropout_rate": strategies.sampled_from([0.0, 0.5]),
             "colsample_bylevel": strategies.sampled_from([0.5, 1.0]),
             "tree_method": strategies.sampled_from(tree_methods),
             "num_class": strategies.sampled_from([1, 3]),

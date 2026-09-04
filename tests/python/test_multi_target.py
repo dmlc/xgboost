@@ -196,9 +196,9 @@ def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cpu", grow_policy)
 
 
-@pytest.mark.parametrize("use_dart", [False, True], ids=["gbtree", "dart"])
-def test_mixed_strategy(use_dart: bool) -> None:
-    run_mixed_strategy("cpu", use_dart)
+@pytest.mark.parametrize("use_dropout", [False, True], ids=["gbtree", "dropout"])
+def test_mixed_strategy(use_dropout: bool) -> None:
+    run_mixed_strategy("cpu", use_dropout)
 
 
 def test_feature_importance_strategy_compare() -> None:
@@ -219,7 +219,7 @@ def test_gradient_based_sampling_accuracy() -> None:
     run_gradient_based_sampling_accuracy("cpu")
 
 
-def test_dart_normalization_multi_output_eta() -> None:
+def test_dropout_multi_output_eta() -> None:
     X = np.array([[0.0]], dtype=np.float32)
     y = np.array([[1.0, 1.0]], dtype=np.float32)
     Xy = xgb.DMatrix(X, label=y)
@@ -233,9 +233,7 @@ def test_dart_normalization_multi_output_eta() -> None:
             "base_score": 0.0,
             "reg_lambda": 0.0,
             "min_child_weight": 0.0,
-            "rate_drop": 0.0,
-            "one_drop": True,
-            "normalize_type": "tree",
+            "dropout_rate": 0.0,
             "seed": 3,
         },
         Xy,

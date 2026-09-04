@@ -390,7 +390,9 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setNdcgExpGain(value: Boolean): T = set(ndcgExpGain, value).asInstanceOf[T]
 
-  // Setters for Dart
+  // Setters for tree dropout
+  def setDropoutRate(value: Double): T = set(dropoutRate, value).asInstanceOf[T]
+
   def setSampleType(value: String): T = set(sampleType, value).asInstanceOf[T]
 
   def setNormalizeType(value: String): T = set(normalizeType, value).asInstanceOf[T]
