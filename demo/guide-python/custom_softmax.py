@@ -79,8 +79,9 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.n
             assert 0 <= target < kClasses
             pc = float(p[c])
             g = pc - 1.0 if c == target else pc
+            # Absolute-residual pseudo-Hessian, matching the native objective.
+            h = max(abs(g) * weight, eps)
             g = g * weight
-            h = max(2.0 * pc * (1.0 - pc) * weight, eps)
             grad[r, c] = g
             hess[r, c] = h
 

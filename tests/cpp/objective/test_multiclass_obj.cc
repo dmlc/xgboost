@@ -22,14 +22,14 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
 		   {1.0f, 0.0f},	       // labels
 		   {1.0f, 1.0f},	       // weights
 		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
-		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
+		   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});	 // hess = |grad|
 
   CheckObjFunction(obj,
 		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
 		   {1.0f, 0.0f},	       // labels
                    {},                         // weights
 		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
-		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
+		   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});	 // hess = |grad|
 
   ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
