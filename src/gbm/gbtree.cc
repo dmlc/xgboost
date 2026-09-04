@@ -577,12 +577,9 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
                           bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
   auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
-  auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
   auto dropout_weights = this->DropoutWeights(is_training);
-  auto apply_dropout = !dropout_weights.empty();
-  if (apply_dropout) {
-    tree_weights_override = &dropout_weights;
-  }
+  std::vector<float> const* tree_weights_override =
+      dropout_weights.empty() ? nullptr : &dropout_weights;
 
   // An ordinary prediction can reuse a cached prefix of the model output. A randomly masked
   // training prediction and a legacy weighted model cannot participate in this cache.
@@ -622,7 +619,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     predictor->InitOutPredictions(p_fmat->Info(), &cache->predictions, model_);
   }
 
-  if (apply_dropout) {
+  if (tree_weights_override) {
     // Protect the base score or base margin from the normalization applied below.
     ScalePrediction(ctx_, &cache->predictions, 1.0f - dparam_.dropout_rate);
   }
@@ -633,7 +630,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     predictor->PredictBatch(p_fmat.get(), &cache->predictions, model_, tree_begin, tree_end,
                             tree_weights_override);
   }
-  if (apply_dropout) {
+  if (tree_weights_override) {
     ScalePrediction(ctx_, &cache->predictions, detail::DropoutScale(dparam_.dropout_rate));
   }
 
