@@ -35,11 +35,13 @@ additive-tree path and require no dropout-specific work.
 Relation to row sampling
 ************************
 
-``dropout_rate`` is not directly comparable to ``1 - subsample``. Row sampling changes
-only the tree fitted in the current round, whereas prediction dropout perturbs the
-accumulated ensemble and can have a stronger effect as the ensemble grows. When
-comparing the two forms of regularization, start with a ``dropout_rate`` lower than the
-omitted-row fraction and tune it independently together with the learning rate.
+Dropout introduces variance into training. Like row subsampling, this can help reduce
+overfitting. However, subsampling perturbs only the tree fitted in the current round, so
+its relative influence on the total ensemble prediction diminishes as the ensemble
+grows. Dropout instead perturbs every accumulated tree at the same per-tree probability,
+so its effect does not vanish merely because the ensemble contains more trees.
+Consequently, ``dropout_rate`` will often need to be smaller than the omitted-row
+fraction ``1 - subsample`` and should be tuned independently.
 
 **********
 Parameters
