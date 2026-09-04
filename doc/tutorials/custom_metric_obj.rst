@@ -313,7 +313,7 @@ access ``DMatrix``:
             p = softmax(predt[r, :])
             for c in range(predt.shape[1]):
                 g = p[c] - 1.0 if c == target else p[c]
-                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                h = max(abs(g).item(), eps)  # absolute-residual pseudo-Hessian
                 grad[r, c] = g
                 hess[r, c] = h
 

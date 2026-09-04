@@ -248,7 +248,8 @@ def make_batches_sparse(
 
 
 class TestDataset:
-    """Contains a dataset in numpy format as well as the relevant objective and metric."""
+    """Contains a dataset in numpy format as well as the relevant objective and
+    metric."""
 
     def __init__(
         self, name: str, get_dataset: Callable, objective: str, metric: str
@@ -538,7 +539,10 @@ def root_mean_square(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x)
+    # Subtract the maximum first, as the native objective does.  The custom
+    # softprob objective below is compared with the native one at tight
+    # tolerance, so the arithmetic has to match closely.
+    e = np.exp(x - np.max(x))
     return e / np.sum(e)
 
 
@@ -567,14 +571,18 @@ def softprob_obj(
         rows = labels.shape[0]
         grad = backend.zeros((rows, classes), dtype=np.float32)
         hess = backend.zeros((rows, classes), dtype=np.float32)
-        eps = 1e-6
+        # Same Hessian floor as the native kernel.  The tests compare this
+        # reimplementation with the native objective at tight tolerance, and a
+        # larger floor can move a node across `min_child_weight`.
+        eps = 1e-16
         for r in range(predt.shape[0]):
             target = labels[r]
             p = softmax(predt[r, :])
             for c in range(predt.shape[1]):
                 assert target >= 0 or target <= classes
                 g = p[c] - 1.0 if c == target else p[c]
-                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                # absolute-residual pseudo-Hessian, matching the native objective
+                h = max(abs(g).item(), eps)
                 grad[r, c] = g
                 hess[r, c] = h
 
