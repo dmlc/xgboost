@@ -43,9 +43,10 @@ def softmax(x: np.ndarray) -> np.ndarray:
 
 
 def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
-    """Loss function. Computing the gradient and upper bound on the
-    Hessian with a diagonal structure for XGBoost (note that this is
-    not the true Hessian).
+    """Loss function. Computing the gradient and a diagonal pseudo-Hessian
+    for XGBoost (note that this is neither the true Hessian nor an upper
+    bound on it; it is the absolute residual |p - y|, which keeps every leaf
+    value bounded).
     Reimplements the `multi:softprob` inside XGBoost.
 
     """
@@ -67,7 +68,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.n
 
     eps = 1e-6
 
-    # compute the gradient and hessian upper bound, slow iterations in Python, only
+    # compute the gradient and pseudo-Hessian, slow iterations in Python, only
     # suitable for demo.  Also the one in native XGBoost core is more robust to
     # numeric overflow as we don't do anything to mitigate the `exp` in
     # `softmax` here.

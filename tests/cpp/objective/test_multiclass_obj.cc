@@ -17,11 +17,13 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
+  // Non-unit, distinct weights so that the test detects the weight scaling of both the
+  // gradient and the pseudo-Hessian.
   CheckObjFunction(obj, {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f},     // preds
                    {1.0f, 0.0f},                                  // labels
-                   {1.0f, 1.0f},                                  // weights
-                   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f},  // grad
-                   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});   // hess = |grad|
+                   {0.5f, 2.0f},                                  // weights
+                   {0.12f, -0.45f, 0.33f, -0.67f, 0.18f, 0.49f},  // grad = w (p - y)
+                   {0.12f, 0.45f, 0.33f, 0.67f, 0.18f, 0.49f});   // hess = w |p - y|
 
   CheckObjFunction(obj, {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f},     // preds
                    {1.0f, 0.0f},                                  // labels
