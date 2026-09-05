@@ -36,6 +36,8 @@ def _set_pyspark_xgb_cls_param_attrs(
             return {k: param_value_converter(nv) for k, nv in v.items()}
         if isinstance(v, list):
             return [param_value_converter(nv) for nv in v]
+        if isinstance(v, tuple):
+            return tuple(param_value_converter(nv) for nv in v)
         return v
 
     def set_param_attrs(attr_name: str, param: Param) -> None:
