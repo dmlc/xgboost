@@ -162,7 +162,7 @@ class GBLinear : public GradientBooster {
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
-    auto base_score = learner_model_state_->BaseScore(ctx_);
+    auto base_score = learner_model_state_->BaseScore(ctx_->Device());
     // start collecting the contributions
     for (const auto& batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
