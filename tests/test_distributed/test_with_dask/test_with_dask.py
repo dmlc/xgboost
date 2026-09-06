@@ -107,6 +107,59 @@ def test_xgbclassifier_classes_type_and_value(
     np.testing.assert_array_equal(est.classes_, np.array([0, 1]))
 
 
+def test_dask_classifier_refit_preserves_requested_objective(client: "Client") -> None:
+    X, y = make_classification(
+        n_samples=36,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        n_classes=3,
+        n_clusters_per_class=1,
+        random_state=19,
+    )
+    multiclass_X = da.from_array(X, chunks=(12, -1))
+    multiclass_y = da.from_array(y, chunks=12)
+    classifier = dxgb.DaskXGBClassifier(n_estimators=2, tree_method="hist")
+    classifier.client = client
+    requested_objective = classifier.objective
+    classifier.fit(multiclass_X, multiclass_y)
+
+    config = json.loads(classifier.get_booster().save_config())
+    assert classifier.objective == classifier.get_params()["objective"] == requested_objective
+    assert config["learner"]["objective"]["name"] == "multi:softprob"
+
+    binary = y < 2
+    classifier.fit(
+        da.from_array(X[binary], chunks=(12, -1)), da.from_array(y[binary], chunks=12)
+    )
+    config = json.loads(classifier.get_booster().save_config())
+    assert config["learner"]["objective"]["name"] == "binary:logistic"
+
+
+def test_dask_loaded_softmax_rejects_predict_proba(
+    client: "Client", tmp_path: Path
+) -> None:
+    X, y = make_classification(
+        n_samples=36,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        n_classes=3,
+        n_clusters_per_class=1,
+        random_state=19,
+    )
+    path = tmp_path / "softmax.json"
+    xgb.XGBClassifier(
+        objective="multi:softmax", n_estimators=2, tree_method="hist", n_jobs=1
+    ).fit(X, y).save_model(path)
+
+    classifier = dxgb.DaskXGBClassifier()
+    classifier.client = client
+    classifier.load_model(path)
+    with pytest.raises(ValueError, match="multi:softmax"):
+        classifier.predict_proba(da.from_array(X, chunks=(12, -1)))
+
+
 def test_from_dask_dataframe(client: "Client") -> None:
     X_, y_, _ = generate_array()
 

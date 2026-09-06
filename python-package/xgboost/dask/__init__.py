@@ -1755,8 +1755,7 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
             xgb_model=model,
         )
         self._Booster = results["booster"]
-        if not callable(self.objective):
-            self.objective = params["objective"]
+        self._effective_objective = params["objective"]
         self._set_evaluation_result(results["history"])
         return self
 
@@ -1784,7 +1783,8 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
         base_margin: Optional[_DaskCollection],
         iteration_range: Optional[IterationRange],
     ) -> _DaskCollection:
-        if self.objective == "multi:softmax":
+        objective = getattr(self, "_effective_objective", self.objective)
+        if objective == "multi:softmax":
             raise ValueError(
                 "multi:softmax doesn't support `predict_proba`.  "
                 "Switch to `multi:softproba` instead"
@@ -1838,6 +1838,10 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
         )
         if output_margin:
             return pred_probs
+
+        objective = getattr(self, "_effective_objective", self.objective)
+        if objective == "multi:softmax":
+            return pred_probs.astype(numpy.int32)
 
         if len(pred_probs.shape) == 1:
             preds = (pred_probs > 0.5).astype(int)

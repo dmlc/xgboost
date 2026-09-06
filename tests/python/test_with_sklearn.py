@@ -48,6 +48,85 @@ def test_binary_classification():
             assert err < 0.1
 
 
+def _tiny_multiclass_data():
+    from sklearn.datasets import make_classification
+
+    return make_classification(
+        n_samples=36,
+        n_features=4,
+        n_informative=3,
+        n_redundant=0,
+        n_classes=3,
+        n_clusters_per_class=1,
+        random_state=19,
+    )
+
+
+def _native_classifier_objective(clf):
+    config = json.loads(clf.get_booster().save_config())
+    return config["learner"]["objective"]["name"]
+
+
+def test_classifier_refit_multiclass_to_binary():
+    from sklearn.base import clone
+
+    X, y = _tiny_multiclass_data()
+    binary = y < 2
+    kwargs = dict(n_estimators=2, tree_method="hist", n_jobs=1, random_state=23)
+    refit = xgb.XGBClassifier(**kwargs).fit(X, y, verbose=False)
+    assert refit.objective == refit.get_params()["objective"] == "binary:logistic"
+    assert _native_classifier_objective(refit) == "multi:softprob"
+    assert clone(refit).objective == "binary:logistic"
+
+    refit.fit(X[binary], y[binary], verbose=False)
+    fresh = xgb.XGBClassifier(**kwargs).fit(X[binary], y[binary], verbose=False)
+    assert _native_classifier_objective(refit) == "binary:logistic"
+    np.testing.assert_allclose(refit.predict_proba(X[binary]), fresh.predict_proba(X[binary]))
+
+
+def test_classifier_set_params_does_not_reset_effective_objective():
+    X, y = _tiny_multiclass_data()
+    estimator = xgb.XGBClassifier(
+        n_estimators=2, tree_method="hist", n_jobs=2, random_state=23
+    ).fit(X, y, verbose=False)
+
+    before = estimator.predict(X)
+    estimator.set_params(n_jobs=1)
+    config = json.loads(estimator.get_booster().save_config())["learner"]
+    assert config["objective"]["name"] == "multi:softprob"
+    assert int(config["generic_param"]["nthread"]) == 1
+    np.testing.assert_allclose(estimator.predict(X), before)
+
+
+def test_classifier_set_params_objective_is_respected():
+    X, y = _tiny_multiclass_data()
+    clf = xgb.XGBClassifier(n_estimators=2, tree_method="hist", n_jobs=1)
+    clf.fit(X, y, verbose=False)
+    clf.set_params(objective="multi:softmax")
+
+    assert clf.objective == "multi:softmax"
+    assert clf.get_params()["objective"] == "multi:softmax"
+    assert _native_classifier_objective(clf) == "multi:softmax"
+    assert clf.predict_proba(X).shape == (X.shape[0], 3)
+
+
+def test_classifier_load_then_scratch_refit(tmp_path: Path):
+    X, y = _tiny_multiclass_data()
+    binary = y < 2
+    kwargs = dict(n_estimators=2, tree_method="hist", n_jobs=1, random_state=23)
+    model = xgb.XGBClassifier(**kwargs).fit(X, y, verbose=False)
+    path = tmp_path / "classifier.json"
+    model.save_model(path)
+
+    loaded = xgb.XGBClassifier(n_jobs=1)
+    loaded.load_model(path)
+
+    loaded.fit(X[binary], y[binary], verbose=False)
+    fresh = xgb.XGBClassifier(n_jobs=1).fit(X[binary], y[binary], verbose=False)
+    assert _native_classifier_objective(loaded) == "binary:logistic"
+    np.testing.assert_allclose(loaded.predict_proba(X[binary]), fresh.predict_proba(X[binary]))
+
+
 def test_predict_proba_logitraw():
     # Regression test for `binary:logitraw` producing an invalid first column in
     # `predict_proba`, since the raw margin isn't a probability and can't be expanded
@@ -66,6 +145,29 @@ def test_predict_proba_logitraw():
 
     raw = clf.get_booster().inplace_predict(X)
     np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
+
+
+@pytest.mark.parametrize("objective", ["binary:logitraw", "multi:softmax"])
+def test_loaded_classifier_uses_effective_output_link(tmp_path: Path, objective: str):
+    from scipy.special import expit, softmax
+
+    X, y = _tiny_multiclass_data()
+    if objective == "binary:logitraw":
+        X, y = X[y < 2], y[y < 2]
+    clf = xgb.XGBClassifier(
+        objective=objective, n_estimators=3, tree_method="hist", n_jobs=1
+    ).fit(X, y, verbose=False)
+    path = tmp_path / "classifier.json"
+    clf.save_model(path)
+    loaded = xgb.XGBClassifier(n_jobs=1)
+    loaded.load_model(path)
+    raw = loaded.get_booster().inplace_predict(X)
+    if objective == "binary:logitraw":
+        raw = expit(raw)
+        raw = np.vstack((1.0 - raw, raw)).T
+    else:
+        raw = softmax(loaded.predict(X, output_margin=True), axis=1)
+    np.testing.assert_allclose(loaded.predict_proba(X), raw, rtol=1e-5)
 
 
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
