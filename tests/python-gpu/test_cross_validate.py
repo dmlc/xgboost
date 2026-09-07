@@ -6,6 +6,7 @@ from __future__ import annotations
 import ctypes
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,7 +21,10 @@ if TYPE_CHECKING:
 
 
 type XywExtQdm = tuple[
-    list[cp.ndarray], list[cp.ndarray], list[cp.ndarray], xgb.ExtMemQuantileDMatrix
+    list[cp.ndarray],
+    list[cp.ndarray],
+    list[cp.ndarray] | None,
+    xgb.ExtMemQuantileDMatrix,
 ]
 
 N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES = 16, 4, 2
@@ -43,11 +47,23 @@ def cuda_async_pool() -> Iterator[None]:
         yield
 
 
-def make_extqdm() -> XywExtQdm:
-    """A fresh external-memory matrix over `N_BATCHES` equally sized batches."""
+def make_extqdm(n_targets: int = 1) -> XywExtQdm:
+    """A fresh external-memory matrix over `N_BATCHES` equally sized batches.
+
+    Under `n_targets=2` the weight becomes a second, unrelated target and the matrix carries
+    none. Either way the batching is the same, so `fold_rows` describes both.
+
+    """
+    import cupy as cp
+
     X, y, w = tm.make_batches(N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES, use_cupy=True)
-    it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
-    return X, y, w, xgb.ExtMemQuantileDMatrix(it)
+    multi = n_targets == 2
+    labels = [cp.stack([yi, wi], axis=1) for yi, wi in zip(y, w)] if multi else y
+    weights = None if multi else w
+    it = tm.IteratorForTest(
+        X, labels, weights, cache=None, min_cache_page_bytes=0, on_host=True
+    )
+    return X, labels, weights, xgb.ExtMemQuantileDMatrix(it)
 
 
 @fixture(scope="module")
@@ -197,6 +213,45 @@ def train_reference(Xy: xgb.DMatrix, n_rounds: int) -> xgb.Booster:
     )
 
 
+@dataclass
+class CvState:
+    """The handles of one fused CV run, wired to each other and ready to boost."""
+
+    Xy: xgb.ExtMemQuantileDMatrix
+    cv_folds: xcv.FoldModels
+    folds: xcv.FoldInfoBatches
+    predts: xcv.FoldPredictions
+    gpairs: xcv.FoldGpairs
+    tree_method: xcv.FoldTreeMethod
+
+    def boost(self, it: int) -> None:
+        """One round: the gradient of every unit, then one tree for each."""
+        self.cv_folds.get_gradient(
+            self.Xy, it, self.folds, self.predts, out=self.gpairs
+        )
+        self.tree_method.update(
+            self.cv_folds, self.Xy, self.folds, self.gpairs, self.predts
+        )
+
+
+def make_cv_state(
+    Xy: xgb.ExtMemQuantileDMatrix, k_folds: int, refit: bool = False
+) -> CvState:
+    """Set a run up to the point where `boost` can be called, growing nothing yet."""
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds, refit=refit)
+    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
+    predts = xcv.FoldPredictions()
+    cv_folds.init_prediction(Xy, folds, out=predts)
+    return CvState(
+        Xy=Xy,
+        cv_folds=cv_folds,
+        folds=folds,
+        predts=predts,
+        gpairs=xcv.FoldGpairs(),
+        tree_method=xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS),
+    )
+
+
 def run_cv(
     Xy: xgb.ExtMemQuantileDMatrix, k_folds: int, n_rounds: int, refit: bool = False
 ) -> tuple[xcv.FoldModels, xcv.FoldPredictions, xcv.FoldGpairs]:
@@ -206,16 +261,38 @@ def run_cv(
     were grown.
 
     """
-    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds, refit=refit)
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
-    predts = xcv.FoldPredictions()
-    cv_folds.init_prediction(Xy, folds, out=predts)
-    gpairs = xcv.FoldGpairs()
-    tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS)
+    state = make_cv_state(Xy, k_folds, refit)
     for it in range(n_rounds):
-        cv_folds.get_gradient(Xy, it, folds, predts, out=gpairs)
-        tree_method.update(cv_folds, Xy, folds, gpairs, predts)
-    return cv_folds, predts, gpairs
+        state.boost(it)
+    return state.cv_folds, state.predts, state.gpairs
+
+
+def run_cv_eval(
+    Xy: xgb.ExtMemQuantileDMatrix,
+    k_folds: int,
+    n_rounds: int,
+    *,
+    refit: bool = False,
+    metrics: str | list[str] | None = None,
+    eval_train: bool = True,
+) -> tuple[xcv.FoldModels, xcv.FoldPredictions, xcv.CvEvalResult]:
+    """`run_cv`, evaluating after every round; the result is the last round's."""
+    state = make_cv_state(Xy, k_folds, refit)
+    evaluator = xcv.FoldEvaluator(
+        state.cv_folds, metrics=metrics, eval_train=eval_train
+    )
+    result = None
+    for it in range(n_rounds):
+        state.boost(it)
+        # After the update, so the value labelled round `it` describes `it + 1` trees.
+        result = evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, it)
+    assert result is not None
+    return state.cv_folds, state.predts, result
+
+
+def eval_reference(booster: xgb.Booster, Xy: xgb.DMatrix) -> float:
+    """`Booster.eval` reports a line, `[0]\\tname-metric:value`; this is the value."""
+    return float(booster.eval(Xy).split(":")[-1])
 
 
 def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
@@ -286,6 +363,7 @@ def test_cv_gradient(base_margin: bool) -> None:
     k_folds = 3
     # A local matrix: setting a base margin would leak into the other tests.
     _, y, w, Xy = make_extqdm()
+    assert w is not None  # Single-target, so the matrix carries a weight.
     margin = None
     if base_margin:
         # A distinct margin for every row, the gradient of a row must be calculated from
@@ -410,6 +488,15 @@ def test_cv_refit_vs_reference(xyw_extqdm: XywExtQdm) -> None:
     assert predt.shape == (Xy.num_row(), 1)
     cp.testing.assert_allclose(predt, margin, rtol=1e-6, atol=1e-6)
 
+    # The refit unit trains inside the same page loop as the folds, but it must not disturb
+    # them: the fold trees are the ones the same run without a refit unit grows.
+    plain_folds, plain_predts, _ = run_cv(Xy, k_folds, n_rounds)
+    for k in range(k_folds):
+        for it in range(n_rounds):
+            assert get_fold_tree(cv_folds, k, it) == get_fold_tree(plain_folds, k, it)
+        cp.testing.assert_array_equal(predts.get(k), plain_predts.get(k))
+    cp.testing.assert_array_equal(predts.get_valid(), plain_predts.get_valid())
+
 
 def test_cv_refit_access(xyw_extqdm: XywExtQdm) -> None:
     """The refit model is reachable only through its own getters, and only if asked for."""
@@ -492,3 +579,133 @@ def test_cross_val_predict(n_targets: int) -> None:
         )
 
     cp.testing.assert_allclose(oof, expected, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.parametrize("n_targets", [1, 2])
+def test_cv_evaluate_vs_reference(xyw_extqdm: XywExtQdm, n_targets: int) -> None:
+    """Both values of a fold must match a booster fitted on that fold's rows alone.
+
+    The oracle is the metric itself, which also pins the multi-target semantics: `rmse` pools
+    every element into one value rather than averaging per-target values.
+
+    """
+    import cupy as cp
+
+    k_folds, n_rounds = 3, 3
+    # One target reuses the module fixture; two need a matrix of their own.
+    X, y, w, Xy = xyw_extqdm if n_targets == 1 else make_extqdm(n_targets)
+    weights = None if w is None else cp.concatenate(w)
+
+    _, _, result = run_cv_eval(Xy, k_folds, n_rounds)
+    assert result.train is not None
+    assert result.train.dtype == result.valid.dtype == np.float64
+
+    features, labels = cp.concatenate(X), cp.concatenate(y)
+
+    def subset(rows: cp.ndarray) -> xgb.QuantileDMatrix:
+        # `ref` shares the CV cuts, so the reference sees the same bins.
+        wk = None if weights is None else weights[rows]
+        return xgb.QuantileDMatrix(
+            features[rows], label=labels[rows], weight=wk, ref=Xy
+        )
+
+    for k in range(k_folds):
+        train_rows, valid_rows = fold_rows(k_folds, k)
+        Xyk = subset(train_rows)
+        booster = train_reference(Xyk, n_rounds)
+        assert result.train[0, k] == pytest.approx(
+            eval_reference(booster, Xyk), rel=1e-6
+        )
+        assert result.valid[0, k] == pytest.approx(
+            eval_reference(booster, subset(valid_rows)), rel=1e-6
+        )
+
+
+def test_cv_evaluate_request(xyw_extqdm: XywExtQdm) -> None:
+    """The request decides the names and both axes of the buffer, and bad ones are rejected."""
+    _, _, _, Xy = xyw_extqdm
+    k_folds = 3
+    metrics = ["mae", "error@0.5", "error@0.7"]
+
+    # Names come back under `Metric::Name()`, which drops a parameter left at its default and
+    # keeps one that is not. `refit=True` adds a unit that trains but is not scored.
+    _, _, both = run_cv_eval(Xy, k_folds, 1, metrics=metrics, refit=True)
+    assert both.names == ("mae", "error", "error@0.7")
+    assert both.train is not None
+    assert both.train.shape == both.valid.shape == (3, k_folds)
+    # The rows differ, so they are not one metric repeated.
+    assert not np.allclose(both.valid[0], both.valid[1])
+
+    # `eval_train=False` drops the training section, which Python decides from the shorter
+    # buffer, and leaves the held-out one untouched.
+    _, _, valid_only = run_cv_eval(
+        Xy, k_folds, 1, metrics=metrics, refit=True, eval_train=False
+    )
+    assert valid_only.train is None
+    np.testing.assert_allclose(valid_only.valid, both.valid, rtol=1e-6)
+
+    _, _, one = run_cv_eval(Xy, k_folds, 1, metrics="mae")
+    assert one.names == ("mae",)
+
+    # Not evaluating is a matter of not building an evaluator, so there is no request for it.
+    with pytest.raises(xgb.core.XGBoostError, match="must name at least one metric"):
+        run_cv_eval(Xy, k_folds, 1, metrics=[])
+
+    # Rejected while the evaluator is built, once per half of the gate: `ndcg` keeps a
+    # per-DMatrix cache and fails the `MetricNoCache` cast, `cox-nloglik` fails the deny list.
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+    for metric in ("ndcg", "cox-nloglik"):
+        with pytest.raises(
+            xgb.core.XGBoostError, match=f"`{metric}` metric is not supported"
+        ):
+            xcv.FoldEvaluator(cv_folds, metrics=[metric])
+
+
+def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
+    """Evaluating out of step with the update, or on rows a fold cannot split, must fail."""
+    _, _, _, Xy = xyw_extqdm
+    state = make_cv_state(Xy, 3)
+    evaluator = xcv.FoldEvaluator(state.cv_folds)
+
+    stale = "not from the round being evaluated"
+    # Before the update, which is the ordering mistake a driver would make.
+    with pytest.raises(xgb.core.XGBoostError, match=stale):
+        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, 0)
+
+    state.boost(0)
+    with pytest.raises(xgb.core.XGBoostError, match=stale):
+        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, 1)
+    with pytest.raises(xgb.core.XGBoostError, match="needs a committed round"):
+        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, -1)
+
+    # A local matrix, since a group would leak into the other tests through the fixture.
+    _, _, _, grouped = make_extqdm()
+    grouped.set_info(
+        group=np.array([0, N_SAMPLES_PER_BATCH, N_SAMPLES_PER_BATCH * N_BATCHES])
+    )
+    gstate = make_cv_state(grouped, 3)
+    with pytest.raises(xgb.core.XGBoostError, match="does not support ranking data"):
+        xcv.FoldEvaluator(gstate.cv_folds).evaluate(
+            gstate.cv_folds, grouped, gstate.folds, gstate.predts, 0
+        )
+
+
+def test_cv_evaluate_is_inert(xyw_extqdm: XywExtQdm) -> None:
+    """Evaluating every round must not change what the run produces."""
+    import cupy as cp
+
+    _, _, _, Xy = xyw_extqdm
+    k_folds, n_rounds = 3, 3
+
+    quiet_folds, quiet_predts, _ = run_cv(Xy, k_folds, n_rounds, refit=True)
+    loud_folds, loud_predts, _ = run_cv_eval(Xy, k_folds, n_rounds, refit=True)
+
+    # Every tree of every unit, byte for byte.
+    assert json.loads(quiet_folds.save_raw("json")) == json.loads(
+        loud_folds.save_raw("json")
+    )
+    for k in range(k_folds):
+        cp.testing.assert_array_equal(quiet_predts.get(k), loud_predts.get(k))
+    cp.testing.assert_array_equal(quiet_predts.get_valid(), loud_predts.get_valid())
+    cp.testing.assert_array_equal(quiet_predts.get_refit(), loud_predts.get_refit())

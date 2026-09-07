@@ -5,13 +5,16 @@
 from __future__ import annotations
 
 import ctypes
-from collections.abc import Callable
+import json
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 
 from ._c_api import _LIB, _check_call, make_jcargs
 from ._typing import ArrayLike
+from .compat import py_str
 from .core import DataIter, ExtMemQuantileDMatrix, ctypes2buffer
 
 if TYPE_CHECKING:
@@ -137,6 +140,28 @@ _LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
+]
+
+_LIB.XGBCvFoldEvaluatorCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldEvaluatorCreate.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_char_p,
+    ctypes.POINTER(ctypes.c_void_p),
+]
+
+_LIB.XGBCvFoldEvaluatorFree.restype = ctypes.c_int
+_LIB.XGBCvFoldEvaluatorFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvFoldEvaluatorEval.restype = ctypes.c_int
+_LIB.XGBCvFoldEvaluatorEval.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_char_p),
+    ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
 ]
 
 
@@ -532,6 +557,95 @@ class FoldGpairs:
             )
         )
         return self._as_arrays(data, shape, n_dims, copy)
+
+
+@dataclass(frozen=True)
+class CvEvalResult:
+    """Metric values of one boosting round.
+
+    ``train`` and ``valid`` are ``(n_metrics, k_folds)`` in the order of ``names``, and
+    ``train`` is ``None`` under ``eval_train=False``. The CV score of a metric is
+    ``valid[m].mean()``. A refit model is not scored.
+
+    """
+
+    names: tuple[str, ...]
+    train: np.ndarray | None
+    valid: np.ndarray
+
+
+class FoldEvaluator:
+    """Metric evaluation for fused cross-validation.
+
+    No metric parameter is supported yet; ``metrics=None`` uses the objective's default.
+
+    """
+
+    def __init__(
+        self,
+        cv_folds: FoldModels,
+        *,
+        metrics: str | Sequence[str] | None = None,
+        eval_train: bool = True,
+    ) -> None:
+        config: dict[str, Any] = {}
+        # Absent, not empty, so that C++ tells "use the default" from "evaluate nothing".
+        if metrics is not None:
+            config["eval_metric"] = (
+                [metrics] if isinstance(metrics, str) else list(metrics)
+            )
+        config["eval_train"] = eval_train
+
+        hdl = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGBCvFoldEvaluatorCreate(
+                cv_folds.handle,
+                make_jcargs(**config),
+                ctypes.byref(hdl),
+            )
+        )
+        self.handle = hdl
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            hdl = self.handle
+            del self.handle
+            _check_call(_LIB.XGBCvFoldEvaluatorFree(hdl))
+
+    def evaluate(
+        self,
+        cv_folds: FoldModels,
+        data: ExtMemQuantileDMatrix,
+        fold_info: FoldInfoBatches,
+        predt: FoldPredictions,
+        iteration: int,
+    ) -> CvEvalResult:
+        """Evaluate every metric on the round whose trees were last committed."""
+        c_meta = ctypes.c_char_p()
+        c_values = ctypes.POINTER(ctypes.c_double)()
+        _check_call(
+            _LIB.XGBCvFoldEvaluatorEval(
+                self.handle,
+                cv_folds.handle,
+                data.handle,
+                fold_info.handle,
+                predt.handle,
+                ctypes.c_int(iteration),
+                ctypes.byref(c_meta),
+                ctypes.byref(c_values),
+            )
+        )
+
+        # The shape comes back with the names.
+        meta = json.loads(py_str(c_meta.value))
+        n_sections = meta["shape"][0]
+        values = np.ctypeslib.as_array(c_values, shape=tuple(meta["shape"])).copy()
+
+        return CvEvalResult(
+            names=tuple(meta["names"]),
+            train=values[0] if n_sections == 2 else None,
+            valid=values[-1],
+        )
 
 
 def _n_rows(data: ArrayLike) -> int:
