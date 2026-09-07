@@ -329,8 +329,7 @@ def test_sklearn_model(tmp_path: Path) -> None:
     clf = xgb.XGBClassifier()
     clf.load_model(model_path)
     assert clf.classes_.size == 10
-    config = json.loads(clf.get_booster().save_config())
-    assert config["learner"]["objective"]["name"] == "multi:softprob"
+    assert clf.objective == "multi:softprob"
     np.testing.assert_allclose(intercept, clf.intercept_)
 
     np.testing.assert_equal(clf.classes_, np.arange(10))

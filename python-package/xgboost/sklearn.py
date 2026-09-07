@@ -1104,10 +1104,7 @@ class XGBModel(XGBModelBase):
 
         if self.__sklearn_is_fitted__():
             parameters = self.get_xgb_params()
-            updated = {key: parameters[key] for key in params if key in parameters}
-            self.get_booster().set_param(updated)
-            if self._get_type() == "classifier" and "objective" in updated:
-                self._effective_objective = updated["objective"]
+            self.get_booster().set_param(parameters)
 
         return self
 
@@ -1221,14 +1218,17 @@ class XGBModel(XGBModelBase):
 
         booster = self.get_booster()
 
+        self.objective = config["learner"]["objective"]["name"]
         self.booster = config["learner"]["gradient_booster"]["name"]
+        self.base_score = json.loads(
+            config["learner"]["learner_model_param"]["base_score"]
+        )
         self.feature_types = booster.feature_types
         self.enable_categorical = self.feature_types is not None and any(
             ft == CAT_T for ft in self.feature_types
         )
 
         if is_classifier(self):
-            self._effective_objective = config["learner"]["objective"]["name"]
             self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
             # binary classification is treated as regression in XGBoost.
             self.n_classes_ = 2 if self.n_classes_ < 2 else self.n_classes_
@@ -1761,17 +1761,24 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 cp = import_cupy()
 
                 classes = cp.unique(y.values)
-                self.n_classes_ = len(classes)
-                expected_classes = cp.array(self.classes_)
             elif _is_cupy_alike(y):
                 cp = import_cupy()
 
                 classes = cp.unique(y)
-                self.n_classes_ = len(classes)
-                expected_classes = cp.array(self.classes_)
             else:
                 classes = np.unique(np.asarray(y))
-                self.n_classes_ = len(classes)
+
+            n_classes = len(classes)
+            if self.__sklearn_is_fitted__() and self.n_classes_ != n_classes:
+                raise ValueError(
+                    "The number of classes in the new labels does not match the "
+                    f"number of classes in the fitted model: {self.n_classes_} "
+                    f"!= {n_classes}"
+                )
+            self.n_classes_ = n_classes
+            if _is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_alike(y):
+                expected_classes = cp.array(self.classes_)
+            else:
                 expected_classes = self.classes_
             if (
                 classes.shape != expected_classes.shape
@@ -1834,7 +1841,9 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 callbacks=self.callbacks,
             )
 
-            self._effective_objective = params["objective"]
+            if not callable(self.objective):
+                self.objective = params["objective"]
+
             self._set_evaluation_result(evals_result)
             return self
 
@@ -1854,7 +1863,6 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
         with config_context(verbosity=self.verbosity):
-            objective = getattr(self, "_effective_objective", self.objective)
             class_probs = super().predict(
                 X=X,
                 output_margin=output_margin,
@@ -1873,7 +1881,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 # multi-label
                 column_indexes = np.zeros(class_probs.shape)
                 column_indexes[class_probs > 0.5] = 1
-            elif objective == "multi:softmax":
+            elif self.objective == "multi:softmax":
                 return class_probs.astype(np.int32)
             else:
                 # turns soft logit into class label
@@ -1925,8 +1933,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         # binary:logistic: Expand the prob vector into 2-class matrix after predict.
         # binary:logitraw: Apply the sigmoid to the raw margin, then expand the same
         #                  way as binary:logistic.
-        objective = getattr(self, "_effective_objective", self.objective)
-        if objective == "multi:softmax":
+        if self.objective == "multi:softmax":
             raw_predt = super().predict(
                 X=X,
                 validate_features=validate_features,
@@ -1942,7 +1949,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
-        if objective == "binary:logitraw" and self.n_classes_ <= 2:
+        if self.objective == "binary:logitraw":
             # `binary:logitraw` outputs the raw margin instead of a probability, so it
             # needs to be transformed into a probability before it can be expanded into
             # a 2-class matrix.

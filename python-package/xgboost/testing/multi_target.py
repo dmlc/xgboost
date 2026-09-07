@@ -104,9 +104,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
         learning_rate=learning_rate,
     )
     clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "binary:logistic"
-    config = json.loads(clf.get_booster().save_config())
-    assert config["learner"]["objective"]["name"] == "multi:softprob"
+    assert clf.objective == "multi:softprob"
     assert non_increasing(clf.evals_result()["validation_0"]["mlogloss"])
     if learning_rate is not None and abs(learning_rate - 1.0) < 1e-5:
         assert clf.evals_result()["validation_0"]["mlogloss"][-1] < 0.045
