@@ -1131,7 +1131,8 @@ class XGBModel(XGBModelBase):
         if callable(getattr(cp.__class__.__bases__[0], "get_params", None)):
             cp.__class__ = cp.__class__.__bases__[0]
         # Otherwise, skip it and assume the next class will have it.
-        # This is here primarily for cases where the first class in MRO is a scikit-learn mixin.
+        # This is primarily for cases where the first class in MRO is a
+        # scikit-learn mixin.
         else:
             cp.__class__ = cp.__class__.__bases__[1]
         params.update(cp.__class__.get_params(cp, deep))
@@ -1761,12 +1762,15 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 cp = import_cupy()
 
                 classes = cp.unique(y.values)
+                expected_classes = cp.arange(len(classes))
             elif _is_cupy_alike(y):
                 cp = import_cupy()
 
                 classes = cp.unique(y)
+                expected_classes = cp.arange(len(classes))
             else:
                 classes = np.unique(np.asarray(y))
+                expected_classes = np.arange(len(classes))
 
             n_classes = len(classes)
             if self.__sklearn_is_fitted__() and self.n_classes_ != n_classes:
@@ -1776,10 +1780,6 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                     f"!= {n_classes}"
                 )
             self.n_classes_ = n_classes
-            if _is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_alike(y):
-                expected_classes = cp.array(self.classes_)
-            else:
-                expected_classes = self.classes_
             if (
                 classes.shape != expected_classes.shape
                 or not (classes == expected_classes).all()
