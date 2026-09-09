@@ -18,28 +18,13 @@
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for LaunchN
 #include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
+#include "./gather.cuh"                  // for GatherRows
 #include "./tree_method.cuh"             // for RouteHeldOut
 #include "cross_validate.h"
 #include "xgboost/json.h"  // for Json
 
 namespace xgboost::cv {
 namespace {
-// Gather the predictions of the rows listed in `ridxs` into a dense buffer that the objective
-// function can consume.
-[[nodiscard]] HostDeviceVector<float> GatherPrediction(Context const* ctx,
-                                                       HostDeviceVector<float> const& predt,
-                                                       common::Span<bst_idx_t const> ridxs,
-                                                       bst_target_t n_columns) {
-  HostDeviceVector<float> out(ridxs.size() * n_columns, 0.0f, ctx->Device());
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_out = out.DeviceSpan();
-  dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
-    auto ridx = ridxs[i / n_columns];
-    d_out[i] = d_predt[ridx * n_columns + (i % n_columns)];
-  });
-  return out;
-}
-
 // Scatter the gradient of a batch back into the global gradient buffer of a fold.
 void ScatterBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batch_gpair,
                        common::Span<bst_idx_t const> ridxs,
@@ -133,7 +118,8 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
       CHECK_EQ(fold_info.labels.Size(), ridxs.size() * output_length);
       auto const& fold_preds = predts.Prediction(k);
       CHECK_EQ(fold_preds.Size(), info.num_row_ * output_length);
-      auto preds = GatherPrediction(ctx, fold_preds, ridxs, output_length);
+      HostDeviceVector<float> preds(ridxs.size() * output_length, 0.0f, ctx->Device());
+      GatherRows(ctx, fold_preds.ConstDeviceSpan(), ridxs, 0, output_length, preds.DeviceSpan());
 
       linalg::Matrix<GradientPair> batch_gpair;
       this->Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
@@ -307,7 +293,7 @@ class FoldTreeMethod {
     for (std::size_t u = 0; u < n_units; ++u) {
       auto const& unit_gpair = gpairs.gpairs.at(u);
       CHECK_EQ(p_fmat->Info().num_row_, unit_gpair.Shape(0));
-      auto n_train = this->layout_.IsRefit(u) ? info.num_row_ : finfo.FoldSize(u);
+      auto n_train = this->layout_.IsRefit(u) ? info.num_row_ : finfo.TrainFoldSize(u);
       CHECK_GT(n_train, 0) << "Every CV model must have at least one training row. `k_folds` must "
                               "be at least 2, a single fold holds out all of its rows.";
       CHECK_GT(unit_gpair.Shape(1), 0);
@@ -547,7 +533,7 @@ class FoldTreeMethod {
       }
 
       if (this->hist_param_.debug_synchronize) {
-        auto n_train = this->layout_.IsRefit(u) ? n_samples : finfo.FoldSize(u);
+        auto n_train = this->layout_.IsRefit(u) ? n_samples : finfo.TrainFoldSize(u);
         DebugCheckValid(this->ctx_, n_train, d_position);
       }
       tr_predt.Update(1);

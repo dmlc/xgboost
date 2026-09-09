@@ -5,17 +5,22 @@
 #pragma once
 
 #include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t, uint8_t
+#include <limits>   // for numeric_limits
 #include <memory>   // for unique_ptr
+#include <string>   // for string
 #include <vector>   // for vector
 
 #include "../gbm/gbtree.h"  // for PredictionCacheEntry
 #include "../gbm/gbtree_model.h"
 #include "../learner_model_param_legacy.h"
+#include "../metric/metric_common.h"     // for MetricNoCache
 #include "kfolds.h"                      // for FoldInfo
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json
 #include "xgboost/linalg.h"              // for Matrix
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
@@ -86,7 +91,12 @@ class FoldModels {
   [[nodiscard]] bst_target_t OutputLength(std::size_t unit_idx) const;
   [[nodiscard]] bst_target_t LeafLength(std::size_t unit_idx) const;
   [[nodiscard]] bst_feature_t NumFeatures(std::size_t unit_idx) const;
+  [[nodiscard]] Context const* Ctx() const noexcept(true) { return &this->ctx_; }
   [[nodiscard]] ObjFunction* Objective(std::size_t unit_idx) const;
+
+  void EvalTransform(HostDeviceVector<float>* io_predt) const {
+    this->Objective(0)->EvalTransform(io_predt);
+  }
   void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
                       FoldPredictions* out) const;
   void GetGradient(Context const* ctx, MetaInfo const& info, FoldPredictions const& predts,
@@ -102,11 +112,19 @@ struct FoldInfoBatches {
   std::vector<FoldInfo> batches;
 
   [[nodiscard]] std::size_t Size() const { return batches.size(); }
-  // Number of training rows in the k^th fold.
-  [[nodiscard]] std::size_t FoldSize(std::size_t k) const {
+  // Number of rows the k^th fold trains on.
+  [[nodiscard]] std::size_t TrainFoldSize(std::size_t k) const {
     std::size_t acc = 0;
     for (auto const& batch : this->batches) {
       acc += batch.ridxs.at(k).Size();
+    }
+    return acc;
+  }
+  // Number of rows the k^th fold holds out.
+  [[nodiscard]] std::size_t ValidFoldSize(std::size_t k) const {
+    std::size_t acc = 0;
+    for (auto const& batch : this->batches) {
+      acc += batch.valid_ridxs.at(k).Size();
     }
     return acc;
   }
@@ -157,6 +175,69 @@ struct FoldGpairs {
     return gpairs.at(layout.RefitIdx());
   }
 };
+
+/** @brief Metric values of one round, row-major `(n_metrics, k_folds)` per section. */
+struct FoldEvalResult {
+  std::vector<std::string> names;
+  std::size_t k_folds{0};
+  bool eval_train{true};
+  std::vector<double> values;
+
+  void Reset(std::size_t k_folds, bool eval_train) {
+    this->k_folds = k_folds;
+    this->eval_train = eval_train;
+    // A value never recorded must read as NaN, not as the previous round's number.
+    this->values.assign(this->NumMetrics() * k_folds * (eval_train ? 2 : 1),
+                        std::numeric_limits<double>::quiet_NaN());
+  }
+
+  [[nodiscard]] std::size_t NumMetrics() const noexcept { return this->names.size(); }
+  [[nodiscard]] std::size_t TrainIdx(std::size_t metric, std::size_t fold) const {
+    return metric * this->k_folds + fold;
+  }
+  [[nodiscard]] std::size_t ValidIdx(std::size_t metric, std::size_t fold) const {
+    auto skip = this->eval_train ? this->NumMetrics() * this->k_folds : 0;
+    return skip + this->TrainIdx(metric, fold);
+  }
+};
+
+/**
+ * @brief Metric evaluation of a fused CV run, over the prediction caches and the fold indices.
+ */
+class FoldEvaluator {
+  enum class Split : std::uint8_t { kTrain, kValid };
+
+  // `Metric::Create` stores the pointer, so every metric points into this member.
+  Context ctx_;
+  std::vector<std::unique_ptr<MetricNoCache>> metrics_;
+  bool eval_train_{true};
+
+  // Scratch, one split at a time, which also keeps `EvalTransform` off the caches.
+  HostDeviceVector<float> predt_;
+  MetaInfo info_;
+  FoldEvalResult result_;
+
+  [[nodiscard]] Context const* Ctx() const noexcept(true) { return &this->ctx_; }
+  void Reset(MetaInfo const& info, FoldInfoBatches const& finfo, FoldPredictions const& predts);
+  void ResizeScratch(MetaInfo const& info, bst_idx_t n_rows);
+  void EvalFold(FoldModels const& models, MetaInfo const& info, FoldInfoBatches const& finfo,
+                FoldPredictions const& predts, std::size_t k, Split split);
+
+ public:
+  // `models` is read and not retained. `config` carries the metric names and `eval_train`.
+  FoldEvaluator(FoldModels const& models, Json const& config);
+  // Neither copyable nor movable: a move would strand every metric on the old `ctx_`.
+  FoldEvaluator(FoldEvaluator const&) = delete;
+  FoldEvaluator& operator=(FoldEvaluator const&) = delete;
+  FoldEvaluator(FoldEvaluator&&) = delete;
+  FoldEvaluator& operator=(FoldEvaluator&&) = delete;
+
+  // Every metric on every split of the round just committed; `iter` is what asserts the
+  // caches are that round's. `models` supplies the transform, per call so none is held.
+  [[nodiscard]] FoldEvalResult const& Eval(FoldModels const& models, MetaInfo const& info,
+                                           FoldInfoBatches const& finfo,
+                                           FoldPredictions const& predts, std::int32_t iter);
+};
 }  // namespace xgboost::cv
 
 using FoldModelsHandle = void*;
@@ -164,3 +245,4 @@ using FoldInfoBatchesHandle = void*;
 using FoldPredictionsHandle = void*;
 using FoldGpairsHandle = void*;
 using TreeMethodHandle = void*;
+using FoldEvaluatorHandle = void*;
