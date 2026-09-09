@@ -10,7 +10,7 @@ python3 ops/script/prepare_sdist.py
 
 cd python-package
 python --version
-python -m build --sdist --no-isolation
+python -m build --sdist
 pip install -v ./dist/xgboost-*.tar.gz
 cd ..
 python -c 'import xgboost'
