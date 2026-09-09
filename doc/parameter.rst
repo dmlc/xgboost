@@ -407,6 +407,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter and properties.
 
+  - ``reg:normal``: Normal-distribution negative log-likelihood. The two outputs are the
+    conditional mean and log variance. See :ref:`normal-distribution-objective` for details.
+
+    .. versionadded:: 3.5.0
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
 
@@ -493,6 +498,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression
+    - ``normal-nloglik``: negative log-likelihood for normal-distribution regression
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
     - ``gamma-deviance``: residual deviance for gamma regression
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
@@ -517,6 +523,53 @@ Parameters for Tweedie Regression (``objective=reg:tweedie``)
   - range: (1,2)
   - Set closer to 2 to shift towards a gamma distribution
   - Set closer to 1 to shift towards a Poisson distribution.
+
+.. _normal-distribution-objective:
+
+Normal Distribution Regression (``objective=reg:normal``)
+==========================================================
+
+This objective estimates a conditional normal distribution from a scalar response. It produces
+two outputs for every row: the mean :math:`\mu` and log variance
+:math:`s=\log(\sigma^2)`. Predictions have shape ``(n_rows, 2)`` with columns ``[mean,
+log_variance]``.
+
+Up to an additive constant, the per-row negative log-likelihood is
+
+.. math::
+
+   \ell(\mu, s; y) = \frac{1}{2}\left[s + (y-\mu)^2 e^{-s}\right].
+
+The mean coordinate uses its exact diagonal Hessian. For log variance, define the standardized
+squared residual :math:`z=(y-\mu)^2e^{-s}`. The objective retains the exact gradient and uses the
+bounded-step curvature
+
+.. math::
+
+   g_s = \frac{1-z}{2}, \qquad h_s = \frac{1+2z}{6}.
+
+For a fixed mean and an unregularized leaf, this produces a log-variance update bounded to
+:math:`(-3, 3/2)`. This avoids the unbounded observed-Newton update when the current variance is
+too large relative to the squared residual.
+
+The vector-valued intercept is estimated as the weighted response mean and log weighted residual
+variance. By default, XGBoost builds one tree for each output. Set ``multi_strategy`` to
+``multi_output_tree`` to use shared-topology vector leaves.
+
+.. code-block:: python
+
+   params = {
+       "objective": "reg:normal",
+       "multi_strategy": "multi_output_tree",
+   }
+   model = xgb.train(params, dtrain)
+   prediction = model.predict(dtest)
+   mean = prediction[:, 0]
+   log_variance = prediction[:, 1]
+
+The Gaussian training likelihood is unbounded below if the mean model interpolates observations
+while the predicted variance collapses. Use validation data and early stopping when selecting the
+number of boosting rounds.
 
 Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================

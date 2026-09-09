@@ -365,6 +365,48 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   }
 }
 
+void TestNormalRegression(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:normal", ctx)};
+  obj->Configure({});
+  CheckConfigReload(obj, "reg:normal");
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"normal-nloglik"});
+
+  MetaInfo info;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {1.0f, 3.0f};
+  info.weights_.HostVector() = {1.0f, 3.0f};
+  ASSERT_EQ(obj->Targets(info), 2);
+
+  HostDeviceVector<float> preds{{0.0f, 0.0f, 2.0f, std::log(4.0f)}};
+  linalg::Matrix<GradientPair> gpair;
+  obj->GetGradient(preds, info, 0, &gpair);
+  auto result = gpair.HostView();
+  ASSERT_EQ(result.Shape(0), 2);
+  ASSERT_EQ(result.Shape(1), 2);
+  EXPECT_NEAR(result(0, 0).GetGrad(), -1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 0).GetHess(), 1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetGrad(), 0.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetHess(), 0.5f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetGrad(), -0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetHess(), 0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetGrad(), 1.125f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetHess(), 0.75f, kRtEps);
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  auto intercept = base_score.HostView();
+  ASSERT_EQ(intercept.Size(), 2);
+  EXPECT_NEAR(intercept(0), 2.5f, kRtEps);
+  EXPECT_NEAR(intercept(1), std::log(0.75f), kRtEps);
+
+  HostDeviceVector<float> wrong_size{{0.0f, 0.0f}};
+  EXPECT_ANY_THROW(obj->GetGradient(wrong_size, info, 0, &gpair));
+
+  info.labels.Reshape(1, 2);
+  EXPECT_ANY_THROW(obj->Targets(info));
+}
+
 void TestCoxRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};

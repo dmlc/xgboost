@@ -6,6 +6,7 @@
 #include <xgboost/linalg.h>
 #include <xgboost/metric.h>
 
+#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,7 +52,7 @@ std::shared_ptr<DMatrix> MakeRowWeightData() {
 }
 
 HostDeviceVector<float> MakePredictions(std::string const& name) {
-  auto n_predictions = name == "merror" || name == "mlogloss" ? 4 : 2;
+  auto n_predictions = name == "merror" || name == "mlogloss" || name == "normal-nloglik" ? 4 : 2;
   return HostDeviceVector<float>(n_predictions, 0.5f);
 }
 
@@ -140,5 +141,26 @@ TEST(MetricInvalidInput, MultiTargetLabels) {
   HostDeviceVector<float> rank_predts(4, 0.5f);
   ASSERT_THAT([&] { GetMultiMetricEval(rank_metric.get(), rank_predts, labels); },
               GMockThrow("multi-target"));
+}
+
+TEST(Metric, NormalNLogLik) {
+  auto ctx = MakeCUDACtx(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("normal-nloglik", &ctx)};
+  metric->Configure({});
+
+  auto data = EmptyDMatrix();
+  auto& info = data->Info();
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {0.0f, 2.0f};
+  info.weights_.HostVector() = {1.0f, 3.0f};
+  HostDeviceVector<float> predts{{0.0f, 0.0f, 1.0f, std::log(4.0f)}};
+
+  auto const log_two_pi = std::log(2.0 * std::acos(-1.0));
+  auto const expected = (0.5 * log_two_pi + 3.0 * 0.5 * (log_two_pi + std::log(4.0) + 0.25)) / 4.0;
+  EXPECT_NEAR(metric->Evaluate(predts, data), expected, kRtEps);
+
+  predts.Resize(2);
+  EXPECT_ANY_THROW(metric->Evaluate(predts, data));
 }
 }  // namespace xgboost

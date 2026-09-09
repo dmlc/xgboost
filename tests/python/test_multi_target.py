@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 # pylint: disable=missing-function-docstring
+import json
 from typing import Any, Callable, Dict
 
 import numpy as np
@@ -87,6 +88,51 @@ def test_shap_multi_output_tree() -> None:
         interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4
     )
 
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_normal_distribution(multi_strategy: str) -> None:
+    rng = np.random.default_rng(20260909)
+    X = rng.normal(size=(256, 4)).astype(np.float32)
+    expected_mean = X[:, 0] - 0.5 * X[:, 1]
+    expected_log_variance = -0.5 + 0.75 * X[:, 2]
+    y = (
+        expected_mean
+        + np.exp(0.5 * expected_log_variance) * rng.normal(size=X.shape[0])
+    ).astype(np.float32)
+    Xy = xgb.DMatrix(X, y)
+
+    evals_result: dict = {}
+    booster = xgb.train(
+        {
+            "objective": "reg:normal",
+            "tree_method": "hist",
+            "multi_strategy": multi_strategy,
+            "eta": 0.1,
+            "max_depth": 2,
+            "min_child_weight": 0,
+        },
+        Xy,
+        num_boost_round=8,
+        evals=[(Xy, "train")],
+        evals_result=evals_result,
+        verbose_eval=False,
+    )
+
+    predictions = booster.predict(Xy)
+    assert predictions.shape == (X.shape[0], 2)
+    assert np.isfinite(predictions).all()
+    assert evals_result["train"]["normal-nloglik"][-1] < evals_result["train"][
+        "normal-nloglik"
+    ][0]
+
+    config = json.loads(booster.save_config())
+    base_score = np.asarray(
+        json.loads(config["learner"]["learner_model_param"]["base_score"])
+    )
+    expected_intercept = np.asarray(
+        [np.mean(y), np.log(np.mean(np.square(y - np.mean(y))))]
+    )
+    np.testing.assert_allclose(base_score, expected_intercept, rtol=2e-5, atol=2e-5)
 
 class TestTreeMethodMulti:
     """Integration tests for tree methods."""
