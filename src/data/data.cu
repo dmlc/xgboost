@@ -183,6 +183,7 @@ void Gather(Context const* ctx, linalg::MatrixView<float const> in,
     return;
   }
   auto& out = *p_out;
+  out.SetDevice(ctx->Device());  // Avoid h2d copy during reshape
   out.Reshape(ridx.size(), in.Shape(1));
   auto d_out = out.View(ctx->Device());
 
