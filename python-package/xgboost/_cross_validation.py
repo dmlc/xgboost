@@ -612,6 +612,7 @@ class FoldEvaluator:
             del self.handle
             _check_call(_LIB.XGBCvFoldEvaluatorFree(hdl))
 
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
     def evaluate(
         self,
         cv_folds: FoldModels,
