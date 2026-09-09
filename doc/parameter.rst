@@ -540,7 +540,8 @@ tree for each output. Set ``multi_strategy`` to ``multi_output_tree`` to use sha
 leaves.
 
 For numerical stability, the objective adds float epsilon to squared residuals when estimating
-variance. This provides a small fixed noise floor when the mean model interpolates observations.
+variance. This small fixed noise floor prevents training from driving the variance toward zero when
+the mean model interpolates observations.
 
 Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================
