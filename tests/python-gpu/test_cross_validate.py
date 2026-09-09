@@ -663,7 +663,7 @@ def test_cv_evaluate_request(xyw_extqdm: XywExtQdm) -> None:
 
 
 def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
-    """Evaluating out of step with the update, or on rows a fold cannot split, must fail."""
+    """Evaluating out of step, on another run's caches, or on rows a fold cannot split."""
     _, _, _, Xy = xyw_extqdm
     state = make_cv_state(Xy, 3)
     evaluator = xcv.FoldEvaluator(state.cv_folds)
@@ -678,6 +678,12 @@ def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
         evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, 1)
     with pytest.raises(xgb.core.XGBoostError, match="needs a committed round"):
         evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, -1)
+
+    # Caches of a run with a refit unit describe one unit more than these models do. Read
+    # before anything else, so an unboosted run is enough to reach it.
+    refit = make_cv_state(Xy, 3, refit=True)
+    with pytest.raises(xgb.core.XGBoostError, match="describe 4 training units"):
+        evaluator.evaluate(state.cv_folds, Xy, state.folds, refit.predts, 0)
 
     # A local matrix, since a group would leak into the other tests through the fixture.
     _, _, _, grouped = make_extqdm()
