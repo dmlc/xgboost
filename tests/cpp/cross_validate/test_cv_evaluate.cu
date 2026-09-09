@@ -17,8 +17,6 @@
 #include "../helpers.h"  // for GMockThrow, MakeCUDACtx, RandomDataGenerator
 #include "xgboost/json.h"
 
-// Only what `tests/python-gpu/test_cross_validate.py` cannot reach; it owns the values, the
-// names, and every error a driver can provoke through the C API.
 namespace xgboost::cv {
 namespace {
 constexpr float kPredt = 0.25f;
@@ -110,7 +108,6 @@ TEST(FoldEvaluator, EmptyWindow) {
   }
 }
 
-// Python has no `params` argument left to send a metric parameter through.
 TEST(FoldEvaluator, StrayParameter) {
   EvalRun run{{16}, 3};
   auto config = MakeConfig("rmse");
