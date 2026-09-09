@@ -534,38 +534,10 @@ two outputs for every row: the mean :math:`\mu` and log variance
 :math:`s=\log(\sigma^2)`. Predictions have shape ``(n_rows, 2)`` with columns ``[mean,
 log_variance]``.
 
-Up to an additive constant, the per-row negative log-likelihood is
-
-.. math::
-
-   \ell(\mu, s; y) = \frac{1}{2}\left[s + (y-\mu)^2 e^{-s}\right].
-
-The mean coordinate uses its exact diagonal Hessian. For log variance, define the standardized
-squared residual :math:`z=(y-\mu)^2e^{-s}`. The objective retains the exact gradient and uses the
-bounded-step curvature
-
-.. math::
-
-   g_s = \frac{1-z}{2}, \qquad h_s = \frac{1+2z}{6}.
-
-For a fixed mean and an unregularized leaf, this produces a log-variance update bounded to
-:math:`(-3, 3/2)`. This avoids the unbounded observed-Newton update when the current variance is
-too large relative to the squared residual.
-
 The vector-valued intercept is estimated as the weighted response mean and log weighted residual
-variance. By default, XGBoost builds one tree for each output. Set ``multi_strategy`` to
-``multi_output_tree`` to use shared-topology vector leaves.
-
-.. code-block:: python
-
-   params = {
-       "objective": "reg:normal",
-       "multi_strategy": "multi_output_tree",
-   }
-   model = xgb.train(params, dtrain)
-   prediction = model.predict(dtest)
-   mean = prediction[:, 0]
-   log_variance = prediction[:, 1]
+variance. The default evaluation metric is ``normal-nloglik``. By default, XGBoost builds one
+tree for each output. Set ``multi_strategy`` to ``multi_output_tree`` to use shared-topology vector
+leaves.
 
 The Gaussian training likelihood is unbounded below if the mean model interpolates observations
 while the predicted variance collapses. Use validation data and early stopping when selecting the
