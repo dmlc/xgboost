@@ -147,7 +147,7 @@ void FoldEvaluator::Reset(MetaInfo const& info, FoldInfoBatches const& finfo,
   for (std::size_t k = 0; k < predts.layout.k_folds; ++k) {
     CHECK_GT(finfo.ValidFoldSize(k), 0)
         << "Fold " << k << " holds out no row, so it cannot be evaluated. `k_folds` must not "
-        << "exceed the number of rows in the dataset.";
+        << "exceed the number of rows in the data batch.";
   }
 
   this->result_.Reset(predts.layout.k_folds, this->eval_train_);
