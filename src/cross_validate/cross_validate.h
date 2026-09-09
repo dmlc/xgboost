@@ -207,11 +207,10 @@ struct FoldEvalResult {
 class FoldEvaluator {
   enum class Split : std::uint8_t { kTrain, kValid };
 
-  // Owned: `Metric::Create` stores the pointer, so every metric points into this member.
+  // `Metric::Create` stores the pointer, so every metric points into this member.
   Context ctx_;
   std::vector<std::unique_ptr<MetricNoCache>> metrics_;
   bool eval_train_{true};
-  UnitLayout layout_;
 
   // Scratch, one split at a time, which also keeps `EvalTransform` off the caches.
   HostDeviceVector<float> predt_;

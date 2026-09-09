@@ -131,9 +131,8 @@ void FoldEvaluator::ResizeScratch(MetaInfo const& info, bst_idx_t n_rows) {
 void FoldEvaluator::Reset(MetaInfo const& info, FoldInfoBatches const& finfo,
                           FoldPredictions const& predts) {
   CHECK(!finfo.Empty());
-  this->layout_ = predts.layout;
   // What keeps the refit unit out of the fold path.
-  CHECK_EQ(finfo.KFolds(), this->layout_.k_folds);
+  CHECK_EQ(finfo.KFolds(), predts.layout.k_folds);
 
   // Fold indices are drawn per batch, so a group spanning batches would be split.
   CHECK(info.group_ptr_.empty())
@@ -145,13 +144,13 @@ void FoldEvaluator::Reset(MetaInfo const& info, FoldInfoBatches const& finfo,
   CHECK_EQ(predts.Validation().predictions.Size(), info.num_row_ * output_length);
 
   // Global, not per batch, and unchecked it would report `sqrt(0) == 0`.
-  for (std::size_t k = 0; k < this->layout_.k_folds; ++k) {
+  for (std::size_t k = 0; k < predts.layout.k_folds; ++k) {
     CHECK_GT(finfo.ValidFoldSize(k), 0)
         << "Fold " << k << " holds out no row, so it cannot be evaluated. `k_folds` must not "
         << "exceed the number of rows in the dataset.";
   }
 
-  this->result_.Reset(this->layout_.k_folds, this->eval_train_);
+  this->result_.Reset(predts.layout.k_folds, this->eval_train_);
 }
 
 void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
@@ -191,6 +190,7 @@ void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
                                                         FoldInfoBatches const& finfo,
                                                         FoldPredictions const& predts,
                                                         std::int32_t iter) {
+  CheckLayout(models.Layout(), predts.layout, "prediction caches");
   this->Reset(info, finfo, predts);
 
   // The caches agree with each other before and after a round, so only the round number
@@ -203,11 +203,11 @@ void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
   CHECK_EQ(predts.Validation().version, expected) << kStale;
 
   if (this->eval_train_) {
-    for (std::size_t k = 0; k < this->layout_.k_folds; ++k) {
+    for (std::size_t k = 0; k < models.Layout().k_folds; ++k) {
       this->EvalFold(models, info, finfo, predts, k, Split::kTrain);
     }
   }
-  for (std::size_t k = 0; k < this->layout_.k_folds; ++k) {
+  for (std::size_t k = 0; k < models.Layout().k_folds; ++k) {
     this->EvalFold(models, info, finfo, predts, k, Split::kValid);
   }
   return this->result_;
