@@ -681,9 +681,7 @@ def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
 
     # A local matrix, since a group would leak into the other tests through the fixture.
     _, _, _, grouped = make_extqdm()
-    grouped.set_info(
-        group=np.array([0, N_SAMPLES_PER_BATCH, N_SAMPLES_PER_BATCH * N_BATCHES])
-    )
+    grouped.set_info(qid=np.full(shape=(N_SAMPLES_PER_BATCH * N_BATCHES), fill_value=0))
     gstate = make_cv_state(grouped, 3)
     with pytest.raises(xgb.core.XGBoostError, match="does not support ranking data"):
         xcv.FoldEvaluator(gstate.cv_folds).evaluate(
