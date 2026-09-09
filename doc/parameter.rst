@@ -539,9 +539,8 @@ variance. The default evaluation metric is ``normal-nloglik``. By default, XGBoo
 tree for each output. Set ``multi_strategy`` to ``multi_output_tree`` to use shared-topology vector
 leaves.
 
-The Gaussian training likelihood is unbounded below if the mean model interpolates observations
-while the predicted variance collapses. Use validation data and early stopping when selecting the
-number of boosting rounds.
+For numerical stability, the objective adds float epsilon to squared residuals when estimating
+variance. This provides a small fixed noise floor when the mean model interpolates observations.
 
 Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================

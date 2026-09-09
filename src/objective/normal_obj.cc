@@ -7,13 +7,11 @@
 
 #include <dmlc/registry.h>
 
-#include <algorithm>  // for max
-#include <cmath>      // for log
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t
-#include <limits>     // for numeric_limits
-#include <set>        // for set
-#include <string>     // for string
+#include <cmath>    // for log
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <set>      // for set
+#include <string>   // for string
 
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
 #include "../common/linalg_op.h"        // for ElementWiseKernel
@@ -78,7 +76,7 @@ void NormalInitEstimationCpu(Context const* ctx, MetaInfo const& info,
   base_score->Reshape(2);
   auto out = base_score->HostView();
   out(0) = mean_value;
-  out(1) = std::log(std::max(variance.HostView()(0), std::numeric_limits<float>::epsilon()));
+  out(1) = std::log(variance.HostView()(0) + kNormalMinVariance);
 }
 
 auto const kRegisterNormalGradientCpu =

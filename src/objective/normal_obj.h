@@ -6,7 +6,8 @@
 #ifndef XGBOOST_OBJECTIVE_NORMAL_OBJ_H_
 #define XGBOOST_OBJECTIVE_NORMAL_OBJ_H_
 
-#include <cmath>  // for expf
+#include <cmath>   // for expf
+#include <limits>  // for numeric_limits
 
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/context.h"             // for Context
@@ -15,12 +16,16 @@
 #include "xgboost/linalg.h"              // for Matrix, Vector
 
 namespace xgboost::obj {
+constexpr float kNormalMinVariance = std::numeric_limits<float>::epsilon();
+
 struct NormalGradient {
   XGBOOST_DEVICE void operator()(float mean, float log_variance, float label, float weight,
                                  GradientPair* out_mean, GradientPair* out_log_variance) const {
     auto residual = mean - label;
     auto precision = expf(-log_variance);
-    auto standardized_residual = residual * residual * precision;
+    // A fixed noise floor keeps the scale optimum finite when the mean interpolates the label.
+    // Without it, zero residuals drive log variance toward -infinity until expf overflows.
+    auto standardized_residual = (residual * residual + kNormalMinVariance) * precision;
 
     *out_mean = {weight * residual * precision, weight * precision};
     auto grad_log_variance = 0.5f * (1.0f - standardized_residual);

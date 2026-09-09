@@ -5,10 +5,8 @@
  */
 #include <dmlc/registry.h>
 
-#include <algorithm>  // for max
-#include <cmath>      // for logf
-#include <cstddef>    // for size_t
-#include <limits>     // for numeric_limits
+#include <cmath>    // for logf
+#include <cstddef>  // for size_t
 
 #include "../common/device_helpers.cuh"  // for LaunchN
 #include "../common/kernel.h"            // for KernelRegistration
@@ -83,7 +81,7 @@ void NormalInitEstimationCuda(Context const* ctx, MetaInfo const& info,
   auto variance_view = variance.View(device);
   dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) mutable {
     out(0) = mean_view(0);
-    out(1) = logf(max(variance_view(0), std::numeric_limits<float>::epsilon()));
+    out(1) = logf(variance_view(0) + kNormalMinVariance);
   });
 }
 

@@ -134,6 +134,38 @@ def test_normal_distribution(multi_strategy: str) -> None:
     )
     np.testing.assert_allclose(base_score, expected_intercept, rtol=2e-5, atol=2e-5)
 
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_normal_distribution_constant_label(multi_strategy: str) -> None:
+    X = np.arange(64 * 4, dtype=np.float32).reshape(64, 4)
+    y = np.full(X.shape[0], 2.5, dtype=np.float32)
+    Xy = xgb.DMatrix(X, y)
+    evals_result: dict = {}
+    booster = xgb.train(
+        {
+            "objective": "reg:normal",
+            "tree_method": "hist",
+            "multi_strategy": multi_strategy,
+            "eta": 1.0,
+            "max_depth": 8,
+            "min_child_weight": 0,
+            "lambda": 0,
+        },
+        Xy,
+        num_boost_round=32,
+        evals=[(Xy, "train")],
+        evals_result=evals_result,
+        verbose_eval=False,
+    )
+    predictions = booster.predict(Xy)
+    assert np.isfinite(predictions).all()
+    np.testing.assert_allclose(predictions[:, 0], y)
+    np.testing.assert_allclose(
+        predictions[:, 1], np.log(np.finfo(np.float32).eps), rtol=1e-6
+    )
+    assert np.isfinite(evals_result["train"]["normal-nloglik"]).all()
+
+
 class TestTreeMethodMulti:
     """Integration tests for tree methods."""
 
