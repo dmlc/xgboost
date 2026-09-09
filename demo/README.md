@@ -99,6 +99,7 @@ Please send pull requests if you find ones that are missing here.
 - Chris Deotte, 1st place winner of [Kaggle Playground Series S5E6](https://www.kaggle.com/competitions/playground-series-s5e6) (Jun 2025). One of 9 ensembled models — XGBoost trained on original data with tree depth 18. Link to [writeup](https://www.kaggle.com/competitions/playground-series-s5e6/writeups/chris-deotte-1st-place-fast-gpu-experimentation-wi).
 - Mahog, 1st place winner of [Kaggle Playground Series S5E11 - Predicting Loan Payback](https://www.kaggle.com/competitions/playground-series-s5e11) (Nov 2025). The winning solution reported XGBoost as its best single model. Link to [writeup](https://www.kaggle.com/competitions/playground-series-s5e11/writeups/1st-place-a-lot-of-features-a-lot-of-models-an).
 
+- Optimistix, 1st place winner of [Kaggle Playground Series S6E5 - Predicting F1 Pit Stops](https://www.kaggle.com/competitions/playground-series-s6e5/overview) (May 2026). An ensemble including XGBoost, LightGBM, CatBoost, RealMLP, TabM, and other models. Link to [write-up](https://www.kaggle.com/competitions/playground-series-s6e5/writeups/1st-place-by-the-skin-of-my-teeth).
 ## Talks
 - XGBoost: A Scalable Tree Boosting System ([video] (https://www.youtube.com/watch?v=Vly8xGnNiWs) + [slides](https://speakerdeck.com/datasciencela/tianqi-chen-xgboost-overview-and-latest-news-la-meetup-talk)) by Tianqi Chen at the Los Angeles Data Science meetup
 
