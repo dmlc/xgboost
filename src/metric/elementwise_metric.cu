@@ -367,7 +367,9 @@ class NormalNLogLik : public MetricNoCache {
           auto mean = predts[sample_id * 2];
           auto log_variance = predts[sample_id * 2 + 1];
           auto residual = labels(sample_id, target_id) - mean;
-          auto loss = 0.5f * (kLogTwoPi + log_variance + residual * residual * expf(-log_variance));
+          auto standardized_residual =
+              residual == 0.0f ? 0.0f : expf(2.0f * logf(fabsf(residual)) - log_variance);
+          auto loss = 0.5f * (kLogTwoPi + log_variance + standardized_residual);
           auto weight = weights[sample_id];
           return std::make_tuple(weight * loss, weight);
         });

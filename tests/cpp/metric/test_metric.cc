@@ -160,7 +160,22 @@ TEST(Metric, NormalNLogLik) {
   auto const expected = (0.5 * log_two_pi + 3.0 * 0.5 * (log_two_pi + std::log(4.0) + 0.25)) / 4.0;
   EXPECT_NEAR(metric->Evaluate(predts, data), expected, kRtEps);
 
-  predts.Resize(2);
+  info.num_row_ = 1;
+  info.labels.Reshape(1, 1);
+  info.labels.Data()->HostVector() = {0.0f};
+  info.weights_.HostVector() = {1.0f};
+  predts.HostVector() = {0.0f, -100.0f};
+  EXPECT_NEAR(metric->Evaluate(predts, data), 0.5 * (log_two_pi - 100.0), kRtEps);
+
+  constexpr float kSmallResidual = 1.0e-20f;
+  info.labels.Data()->HostVector() = {kSmallResidual};
+  auto const standardized_residual =
+      std::exp(2.0 * std::log(static_cast<double>(kSmallResidual)) + 100.0);
+  auto const expected_small_residual = 0.5 * (log_two_pi - 100.0 + standardized_residual);
+  EXPECT_NEAR(metric->Evaluate(predts, data), expected_small_residual,
+              1.0e-5 * expected_small_residual);
+
+  predts.Resize(1);
   EXPECT_ANY_THROW(metric->Evaluate(predts, data));
 }
 }  // namespace xgboost
