@@ -188,12 +188,6 @@ inline void AssertGPUSupport() {
 #endif  // XGBOOST_USE_CUDA
 }
 
-inline void AssertNvCompSupport() {
-#ifndef XGBOOST_USE_NVCOMP
-  LOG(FATAL) << "XGBoost is not compiled with NVCOMP support.";
-#endif  // XGBOOST_USE_CUDA
-}
-
 inline void AssertNCCLSupport() {
 #if !defined(XGBOOST_USE_NCCL)
   LOG(FATAL) << "XGBoost version not compiled with NCCL support.";

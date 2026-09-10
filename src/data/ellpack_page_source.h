@@ -14,7 +14,6 @@
 
 #include "../common/compressed_iterator.h"  // for CompressedByteT
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
-#include "../common/device_compression.h"   // for SnappyDecomprMgr
 #include "../common/hist_util.h"            // for HistogramCuts
 #include "../common/ref_resource_view.h"    // for RefResourceView
 #include "../data/batch_utils.h"            // for AutoHostRatio
@@ -26,22 +25,12 @@
 #include "xgboost/data.h"                   // for BatchParam
 #include "xgboost/span.h"                   // for Span
 
-namespace xgboost::curt {
-class StreamPool;
-}
-namespace xgboost::common::cuda_impl {
-class HostPinnedMemPool;
-}  // namespace xgboost::common::cuda_impl
-
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
   // The size ratio the host cache vs. the total cache
   double cache_host_ratio{::xgboost::cuda_impl::AutoHostRatio()};
   float missing{std::numeric_limits<float>::quiet_NaN()};
-  // The ratio of the cache that can be compressed. Used for testing.
-  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
-  bool allow_decomp_fallback{false};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;   // The number of rows for each batch after concatenation.
@@ -52,9 +41,7 @@ struct EllpackCacheInfo {
   EllpackCacheInfo(BatchParam param, ExtMemConfig const& config)
       : param{std::move(param)},
         cache_host_ratio{config.cache_host_ratio},
-        missing{config.missing},
-        hw_decomp_ratio{config.hw_decomp_ratio},
-        allow_decomp_fallback{config.allow_decomp_fallback} {}
+        missing{config.missing} {}
 
   // Only effective for host-based cache.
   // The number of batches for the concatenated cache.
@@ -73,13 +60,9 @@ struct EllpackMemCache {
   // The device portion of each page.
   using DPage = common::RefResourceView<common::CompressedByteT>;
   std::vector<DPage> d_pages;
-  // Storage for decompression parameters and the compressed buffer.
-  using CPage = std::pair<dc::SnappyDecomprMgr, common::RefResourceView<std::uint8_t>>;
-  // Compressed host page.
-  std::vector<CPage> c_pages;
 
-  using PagePtr = std::tuple<EllpackPageImpl const*, DPage const*, CPage const*>;
-  using PageRef = std::tuple<std::unique_ptr<EllpackPageImpl>&, DPage&, CPage&>;
+  using PagePtr = std::tuple<EllpackPageImpl const*, DPage const*>;
+  using PageRef = std::tuple<std::unique_ptr<EllpackPageImpl>&, DPage&>;
 
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
@@ -90,13 +73,8 @@ struct EllpackMemCache {
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
   double const cache_host_ratio;
-  float const hw_decomp_ratio;
-  bool const allow_decomp_fallback;
 
-  std::unique_ptr<curt::StreamPool> streams;  // For decompression
-  std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool;
-
-  explicit EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers);
+  explicit EllpackMemCache(EllpackCacheInfo cinfo);
   ~EllpackMemCache();
 
   // The number of bytes of the entire cache.

@@ -17,9 +17,6 @@
 #if defined(XGBOOST_USE_NCCL)
 #include <nccl.h>
 #endif  // defined(XGBOOST_USE_NCCL)
-#if defined(XGBOOST_USE_NVCOMP)
-#include <nvcomp/version.h>
-#endif  // defined(XGBOOST_USE_NVCOMP)
 #if defined(XGBOOST_USE_RMM)
 #include <rmm/version_config.hpp>
 #endif  // defined(XGBOOST_USE_RMM)
@@ -60,15 +57,6 @@ void XGBBuildInfoDevice(Json *p_info) {
   info["RMM_VERSION"] = v;
 #else
   info["USE_RMM"] = Boolean{false};
-#endif
-
-#if defined(XGBOOST_USE_NVCOMP)
-  info["USE_NVCOMP"] = Boolean{true};
-  v = {Json{Integer{NVCOMP_VER_MAJOR}}, Json{Integer{NVCOMP_VER_MINOR}},
-       Json{Integer{NVCOMP_VER_PATCH}}};
-  info["NVCOMP_VERSION"] = v;
-#else
-  info["USE_NVCOMP"] = Boolean{false};
 #endif
 }
 
