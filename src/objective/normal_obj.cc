@@ -35,11 +35,11 @@ void NormalGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds,
   out_gpair->SetDevice(DeviceOrd::CPU());
   out_gpair->Reshape(info.num_row_, 2);
   auto gpair = out_gpair->HostView();
-  linalg::cpu_impl::ElementWiseKernel(labels, ctx->Threads(),
-                                      [=](std::size_t i, std::size_t) mutable {
-                                        NormalGradient{}(predt(i, 0), predt(i, 1), labels(i, 0),
-                                                         weights[i], &gpair(i, 0), &gpair(i, 1));
-                                      });
+  NormalGradient gradient;
+  linalg::cpu_impl::ElementWiseKernel(
+      labels, ctx->Threads(), [=](std::size_t i, std::size_t) mutable {
+        gradient(predt(i, 0), predt(i, 1), labels(i, 0), weights[i], &gpair(i, 0), &gpair(i, 1));
+      });
 }
 
 void NormalInitEstimationCpu(Context const* ctx, MetaInfo const& info,

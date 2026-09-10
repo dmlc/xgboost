@@ -121,9 +121,10 @@ def test_normal_distribution(multi_strategy: str) -> None:
     predictions = booster.predict(Xy)
     assert predictions.shape == (X.shape[0], 2)
     assert np.isfinite(predictions).all()
-    assert evals_result["train"]["normal-nloglik"][-1] < evals_result["train"][
-        "normal-nloglik"
-    ][0]
+    assert (
+        evals_result["train"]["normal-nloglik"][-1]
+        < evals_result["train"]["normal-nloglik"][0]
+    )
 
     config = json.loads(booster.save_config())
     base_score = np.asarray(

@@ -31,11 +31,11 @@ void NormalGradientCuda(Context const* ctx, HostDeviceVector<float> const& preds
   out_gpair->SetDevice(device);
   out_gpair->Reshape(info.num_row_, 2);
   auto gpair = out_gpair->View(device);
+  NormalGradient gradient;
   linalg::cuda_impl::ElementWiseKernel(
       labels,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t) mutable {
-        NormalGradient{}(predt(i, 0), predt(i, 1), labels(i, 0), weights[i], &gpair(i, 0),
-                         &gpair(i, 1));
+        gradient(predt(i, 0), predt(i, 1), labels(i, 0), weights[i], &gpair(i, 0), &gpair(i, 1));
       },
       ctx->CUDACtx()->Stream());
 }
