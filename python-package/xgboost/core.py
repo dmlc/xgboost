@@ -533,7 +533,7 @@ def require_keyword_args(
 
         Parameters
         ----------
-        f :
+        func :
             function to check arguments on.
 
         """
@@ -3355,7 +3355,7 @@ class Booster:
             The name of the feature.
         fmap:
             The name of feature map file.
-        bin :
+        bins :
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.
