@@ -149,6 +149,21 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   final def getInferBatchSize: Int = $(inferBatchSize)
 
   /**
+   * Whether to preserve Spark ML SparseVector inputs when building DMatrix for training and
+   * prediction. This requires missing=0.0 so that omitted sparse entries have the same semantics
+   * as dense zeros. DenseVector inputs remain dense. Default: false.
+   *
+   * @group param
+   */
+  final val enableSparseDataOptim = new BooleanParam(this, "enableSparseDataOptim",
+    "Whether to preserve Spark ML SparseVector inputs when building DMatrix for training and " +
+      "prediction. This requires missing=0.0 and a single Vector featuresCol. DenseVector " +
+      "inputs remain dense. Default: false.")
+
+  /** @group getParam */
+  final def getEnableSparseDataOptim: Boolean = $(enableSparseDataOptim)
+
+  /**
    * the value treated as missing. default: Float.NaN
    */
   final val missing = new FloatParam(this, "missing", "The value treated as missing")
@@ -209,14 +224,16 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   final def getCacheHostRatio: Float = $(cacheHostRatio)
 
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
-    numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
+    numEarlyStoppingRounds -> 0, forceRepartition -> false, enableSparseDataOptim -> false,
+    missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
     maxQuantileBatches -> -1, minCachePageBytes -> -1)
 
-  addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
-    labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    forceRepartition, featuresCols, customEval, customObj, featureTypes, featureNames)
+  addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize,
+    enableSparseDataOptim, featuresCol, labelCol, baseMarginCol, weightCol, predictionCol,
+    leafPredictionCol, contribPredictionCol, forceRepartition, featuresCols, customEval,
+    customObj, featureTypes, featureNames)
 
   def setNumWorkers(value: Int): T = set(numWorkers, value).asInstanceOf[T]
 
@@ -237,6 +254,9 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setContribPredictionCol(value: String): T = set(contribPredictionCol, value).asInstanceOf[T]
 
   def setInferBatchSize(value: Int): T = set(inferBatchSize, value).asInstanceOf[T]
+
+  def setEnableSparseDataOptim(value: Boolean): T =
+    set(enableSparseDataOptim, value).asInstanceOf[T]
 
   def setMissing(value: Float): T = set(missing, value).asInstanceOf[T]
 
@@ -262,6 +282,24 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setCacheHostRatio(value: Float): T = set(cacheHostRatio, value)
     .asInstanceOf[T]
+
+  protected[spark] def validateSparseDataOptim(): Unit = {
+    if (getEnableSparseDataOptim) {
+      require(getMissing == 0.0f,
+        "If enableSparseDataOptim is true, missing must be 0.0.")
+    }
+  }
+
+  protected[spark] def validateSparseDataOptim(schema: StructType): Unit = {
+    validateSparseDataOptim()
+    if (getEnableSparseDataOptim) {
+      require(getFeaturesCols.isEmpty,
+        "If enableSparseDataOptim is true, featuresCols is not supported. " +
+          "Use a single Spark ML Vector featuresCol instead.")
+      require(SparkUtils.isVectorType(schema(getFeaturesCol).dataType),
+        "If enableSparseDataOptim is true, featuresCol must have Spark ML Vector type.")
+    }
+  }
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]
