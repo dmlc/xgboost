@@ -92,12 +92,11 @@ void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> con
     });
   });
 }
-}                        // namespace xgboost
+}  // namespace xgboost
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *c_json_config,
                                             DMatrixHandle *out) {
   API_BEGIN();
 
@@ -110,13 +109,11 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CudfAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *c_json_config,
                                                   DMatrixHandle *out) {
   API_BEGIN();
   std::string json_str{data};
@@ -124,8 +121,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CupyAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
