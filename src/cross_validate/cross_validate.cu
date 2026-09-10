@@ -129,10 +129,6 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
   }
 }
 
-// Copying a page to the device pays off once the kernels read enough of it. Same crossover
-// as `GPUHistMakerDevice::NeedCopy`.
-inline constexpr std::size_t kNeedCopyThreshold = 4;
-
 class FoldTreeMethod {
   Context const* ctx_{nullptr};
   DMatrix const* p_last_fmat_{nullptr};
@@ -426,23 +422,6 @@ class FoldTreeMethod {
     }
   }
 
-  [[nodiscard]] bool NeedCopy(DMatrix const* p_fmat, std::vector<LevelNodes> const& level) const {
-    xgboost_NVTX_FN_RANGE();
-    if (p_fmat->SingleColBlock()) {
-      return true;  // Use the default for in-core data.
-    }
-    CHECK_EQ(level.size(), this->state_.NumUnits());
-    bst_idx_t n_visits = 0;
-    for (std::size_t u = 0; u < level.size(); ++u) {
-      for (auto const& part : this->state_.At(u).partitioners) {
-        for (auto nidx : level[u].partition.nidx) {
-          n_visits += part->GetRows(nidx).size();
-        }
-      }
-    }
-    return n_visits * kNeedCopyThreshold > p_fmat->Info().num_row_;
-  }
-
   // Decide how each child of this unit's candidates obtains its histogram. Subtraction
   // needs the parent histogram, which the allocation below can evict from the overflow
   // cache; the single-model maker discovers that afterwards and re-streams the pages, while
@@ -485,8 +464,11 @@ class FoldTreeMethod {
     auto has_build = std::any_of(level.cbegin(), level.cend(), [](LevelNodes const& nodes) {
       return !nodes.nodes_to_build.empty();
     });
-    auto prefetch_copy = has_build && this->NeedCopy(p_fmat, level);
-    prefetch_copy = true;
+    // FIXME(jiamingy): No good heuristic at the moment. One idea is to gather the feature
+    // bin on host before finalizing the partition. We only need a single element (node
+    // split feature) for each row, which could dramatically reduce the size of H2D
+    // transfer.
+    bool prefetch_copy = true;
 
     std::int32_t batch_idx = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
