@@ -140,6 +140,8 @@ def test_normal_distribution(multi_strategy: str) -> None:
 def test_normal_distribution_constant_label(multi_strategy: str) -> None:
     X = np.arange(64 * 4, dtype=np.float32).reshape(64, 4)
     y = np.full(X.shape[0], 2.5, dtype=np.float32)
+    # A perfect mean fit has zero residual variance. Verify that the fixed noise floor gives the
+    # log-variance output a finite equilibrium instead of letting it decrease toward -infinity.
     Xy = xgb.DMatrix(X, y)
     evals_result: dict = {}
     booster = xgb.train(
