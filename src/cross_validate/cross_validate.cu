@@ -6,7 +6,7 @@
 #include <thrust/count.h>  // for count_if
 #include <thrust/fill.h>   // for fill
 
-#include <algorithm>  // for any_of, copy_if, max
+#include <algorithm>  // for copy_if, max
 #include <iterator>   // for back_inserter, size
 #include <limits>     // for numeric_limits
 #include <memory>     // for make_shared, make_unique, unique_ptr
@@ -454,11 +454,6 @@ class FoldTreeMethod {
     xgboost_NVTX_FN_RANGE();
     auto n_units = this->state_.NumUnits();
     CHECK_EQ(level.size(), n_units);
-    // One decision for the whole pass, as the single-model maker makes it: copying the page
-    // pays off only if there is a histogram to build from it.
-    auto has_build = std::any_of(level.cbegin(), level.cend(), [](LevelNodes const& nodes) {
-      return !nodes.nodes_to_build.empty();
-    });
     // FIXME(jiamingy): No good heuristic at the moment. One idea is to gather the feature
     // bin on host before finalizing the partition. We only need a single element (node
     // split feature) for each row, which could dramatically reduce the size of H2D
