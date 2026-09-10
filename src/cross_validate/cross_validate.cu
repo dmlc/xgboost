@@ -281,10 +281,7 @@ class FoldTreeMethod {
     // unconditionally when colsample is disabled, and that is null until Init runs.
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
-    // Column sampling is rejected, so the tree-level set is the feature set of every node of
-    // every unit and the depth argument is ignored. Fetched after `Init`, which resizes the
-    // set to zero and back, and given a device here, because the short-circuit return is the
-    // one exit of `GetFeatureSet` that does not set one.
+    // FIXME(jiamingy): Support column sampling.
     this->feature_set_ = this->column_sampler_->GetFeatureSet(ctx_, 0);
     CHECK(this->feature_set_);
     this->feature_set_->SetDevice(ctx_->Device());
@@ -413,7 +410,7 @@ class FoldTreeMethod {
       dh::LaunchN(n_targets, ctx_->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) mutable {
         d_root_weights(u, t) = base_weight[t] * eta;
       });
-      // The root's coverage is the sum of the hessians of both children.
+
       auto root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
       unit.tree->SetRoot(d_root_weights.Slice(u, linalg::All()), root_sum_hess);
 
@@ -422,11 +419,9 @@ class FoldTreeMethod {
     }
   }
 
-  // Decide how each child of this unit's candidates obtains its histogram. Subtraction
-  // needs the parent histogram, which the allocation below can evict from the overflow
-  // cache; the single-model maker discovers that afterwards and re-streams the pages, while
-  // here the sibling is instead built by the page pass that is about to happen anyway. A
-  // tight histogram cache then costs an extra kernel, never an extra page fetch.
+  // The single-model maker discovers that afterwards and re-streams the pages, while here
+  // the sibling is instead built by the page pass that is about to happen anyway. A tight
+  // histogram cache then costs an extra kernel, but not an extra page fetch.
   void AssignChildren(UnitState* p_unit, LevelNodes* out) {
     xgboost_NVTX_FN_RANGE();
     auto& unit = *p_unit;
@@ -575,7 +570,7 @@ class FoldTreeMethod {
 
     tree::ExpandBatch batch{this->param_.learning_rate};
     for (auto const& candidate : candidates) {
-      // Categorical splits are rejected by CheckSupportedParams.
+      // FIXME(jiamingy): Support categorical features.
       CHECK(!candidate.split.is_cat);
       batch.Push(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                  candidate.split.dir == tree::kLeftDir, weights.Base(candidate.nidx),
@@ -590,9 +585,6 @@ class FoldTreeMethod {
                                    dh::ToSpan(d_candidates), n_targets);
   }
 
-  // One level of every unit: apply the splits, stream the pages once to partition the
-  // training rows, route the held-out rows and build the child histograms, obtain the
-  // remaining children by subtraction, then evaluate them and advance the frontiers.
   void GrowLevel(DMatrix* p_fmat, FoldInfoBatches const& finfo) {
     xgboost_NVTX_FN_RANGE();
     auto n_units = this->state_.NumUnits();
@@ -611,8 +603,7 @@ class FoldTreeMethod {
       // between the pages of a level, and each pull copies the tree's host arrays.
       nodes.tree_view.emplace(ctx_->Device(), false, unit.tree.get());
       nodes.partition = HistMaker::CreatePartitionNodes(unit.tree.get(), unit.expand_set);
-      // The nodes whose children may split again. The children of the rest are leaves, so
-      // no histogram is ever built for them.
+      // The nodes whose children may split again. The children of the rest are leaves.
       std::copy_if(unit.expand_set.cbegin(), unit.expand_set.cend(),
                    std::back_inserter(unit.candidates),
                    [&](MultiExpandEntry const& e) { return unit.driver->IsChildValid(e); });
@@ -621,9 +612,6 @@ class FoldTreeMethod {
       }
     }
 
-    // The pass runs whenever any unit is active, even at `max_depth` where no unit has a
-    // candidate and nothing is built: the partitioner node count must keep up with the
-    // tree's, and a held-out row advances one level per pass.
     this->PartitionAndBuildHist(p_fmat, finfo, level);
 
     for (std::size_t u = 0; u < n_units; ++u) {
@@ -632,9 +620,7 @@ class FoldTreeMethod {
         continue;
       }
       auto const& nodes = level[u];
-      // The root histogram is the first allocation of a round, so it stays in the resident
-      // cache for the whole round and the children of the root are subtractable under any
-      // budget. This is what fails loudly if subtraction stops being used at all.
+      // Root cannot fail.
       if (this->n_levels_ == 0) {
         CHECK_EQ(nodes.sub.size(), unit.candidates.size());
       }
@@ -664,8 +650,8 @@ class FoldTreeMethod {
     auto n_units = this->state_.NumUnits();
     auto n_samples = info.num_row_;
 
-    // A single scratch buffer is enough, a unit is finished before the next one starts.
-    // Scratch buffer for the leaf position of each row, reused by every unit.
+    // Scratch buffer for the leaf position of each row, reused by every unit. A unit is
+    // finished before the next one starts.
     dh::DeviceUVector<bst_node_t> positions;
     positions.resize(n_samples);
     auto d_position = dh::ToSpan(positions);
@@ -724,12 +710,7 @@ class FoldTreeMethod {
 
                         auto ridx = valid_idx[ridx_in_set];
                         auto nidx = d_oof_position[ridx];
-                        // `LeafValue` maps a node id to a leaf row without testing for a
-                        // leaf, so an unfinished walk would read a wrong leaf, or past the
-                        // weight matrix. Dereferencing `nidx` here is safe either way:
-                        // `Reset` seeds every position with the root and `RouteHeldOut` only
-                        // ever descends, so the sentinel the training kernel above guards
-                        // against cannot reach this one.
+
                         KERNEL_CHECK(tree.IsLeaf(nidx));
                         d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
                       });

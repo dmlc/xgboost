@@ -333,10 +333,7 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
         leaves = [i for i, c in enumerate(tree["left_children"]) if c == -1]
         assert len({get_leaf_weight(tree, i)[0] for i in leaves}) > 1
 
-
-def test_cv_tree_method_rejects(xyw_extqdm: XywExtQdm) -> None:
-    """Loss-guided growth would make the page passes scale with the node count."""
-    _, _, _, Xy = xyw_extqdm
+    # Check grow policy
     state = make_cv_state(Xy, 3, params={**PARAMS, "grow_policy": "lossguide"})
     # The parameters are checked from `InitDataOnce`, which the first update runs.
     with pytest.raises(xgb.core.XGBoostError, match="Only the depthwise grow policy"):

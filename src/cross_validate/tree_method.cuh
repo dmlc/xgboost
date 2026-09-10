@@ -77,11 +77,9 @@ struct UnitState {
 struct FoldTreeState {
   UnitLayout layout;
   bst_target_t n_targets{0};
-  // Held through a pointer because `dh::PinnedMemory` is neither safely movable nor safely
-  // copyable, so a `UnitState` cannot be a vector element by value.
   std::vector<std::unique_ptr<UnitState>> units;
-  // Node position of every held-out row. Not indexed by unit: a row is held out by exactly
-  // one fold, so one array serves them all.
+  // Node position of every held-out row. Not indexed by unit: a row is held out by
+  // exactly one fold, so one array serves them all.
   dh::DeviceUVector<bst_node_t> oof_position;
 
   [[nodiscard]] std::size_t NumUnits() const noexcept(true) { return this->units.size(); }
@@ -115,12 +113,10 @@ struct FoldTreeState {
   }
 };
 
-// The nodes one unit works on at one level. `partition` and `tree_view` are derived from the
-// expand set, and an empty `tree_view` is what says the unit takes no part in this level.
-// `nodes_to_build` and the three subtraction vectors are derived from the candidate list.
-// The subtraction vectors are index-aligned, which is the contract
-// `DeviceHistogramBuilder::SubtractHist` expects; `nodes_to_build` is not part of that
-// alignment.
+// The nodes one unit works on at one level. `partition` and `tree_view` are derived from
+// the expand set, and an empty `tree_view` is what says the unit takes no part in this
+// level.  The subtraction vectors are index-aligned, which is the contract
+// `DeviceHistogramBuilder::SubtractHist` expects.
 struct LevelNodes {
   PartitionNodes partition{0};
   // `MultiTargetTreeView` has no default constructor, and an inactive unit has no view.
