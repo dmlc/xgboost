@@ -85,7 +85,7 @@ struct FoldTreeState {
   dh::DeviceUVector<bst_node_t> oof_position;
 
   [[nodiscard]] std::size_t NumUnits() const noexcept(true) { return this->units.size(); }
-  [[nodiscard]] UnitState& At(std::size_t u) const { return *this->units.at(u); }
+  [[nodiscard]] UnitState& At(std::size_t u) { return *this->units.at(u); }
   [[nodiscard]] bool IsRefit(std::size_t u) const noexcept(true) { return this->layout.IsRefit(u); }
   // Whether any unit still has a level to grow.
   [[nodiscard]] bool Growing() const {
