@@ -419,9 +419,9 @@ class FoldTreeMethod {
     }
   }
 
-  // The single-model maker discovers that afterwards and re-streams the pages, while here
-  // the sibling is instead built by the page pass that is about to happen anyway. A tight
-  // histogram cache then costs an extra kernel, but not an extra page fetch.
+  // The single-model maker discovers a failed subtraction afterwards and re-streams the
+  // pages, while here the sibling is instead built by the page pass that is about to happen
+  // anyway. A tight histogram cache then costs an extra kernel, but not an extra page fetch.
   void AssignChildren(UnitState* p_unit, LevelNodes* out) {
     xgboost_NVTX_FN_RANGE();
     auto& unit = *p_unit;
