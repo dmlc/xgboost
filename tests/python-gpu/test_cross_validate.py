@@ -33,10 +33,11 @@ N_SAMPLES_PER_BATCH, N_FEATURES, N_BATCHES = 16, 4, 2
 # objective default. It cannot be configured from here.
 BASE_SCORE = 0.5
 
-# The CV tree method cannot grow past depth 1 yet. `debug_synchronize` gates the check that
-# every training row of a unit, and only those, received a leaf position; the fused-page-pass
-# check runs either way.
-PARAMS = {"max_depth": 1, "debug_synchronize": True}
+# A depth that leaves the trees ragged on these fixtures, so that the folds run out of
+# candidates at different levels. `debug_synchronize` gates the check that every training row
+# of a unit, and only those, received a leaf position; the fused-page-pass check runs either
+# way.
+PARAMS = {"max_depth": 3, "debug_synchronize": True}
 
 pytestmark = pytest.mark.skipif(**tm.no_cupy())
 
@@ -139,17 +140,21 @@ def get_leaf_weight(tree: dict, nidx: int, n_targets: int = 1) -> list[float]:
     return tree["leaf_weights"][leaf_idx * n_targets : (leaf_idx + 1) * n_targets]
 
 
-def stump_leaf_values(tree: dict, features: cp.ndarray) -> cp.ndarray:
-    """The leaf value every row of `features` reaches in a depth-1 tree."""
-    import cupy as cp
+def tree_depth(tree: dict) -> int:
+    """The number of splits on the longest root-to-leaf path.
 
-    # The device splits on the binned value, whose cut is the smallest value strictly
-    # greater than the raw value, so the raw-feature equivalent of the device comparison is
-    # a strict `<`. `features` must already be float32 to match the split condition.
-    go_left = features[:, tree["split_indices"][0]] < tree["split_conditions"][0]
-    left = get_leaf_weight(tree, tree["left_children"][0])[0]
-    right = get_leaf_weight(tree, tree["right_children"][0])[0]
-    return cp.where(go_left, left, right).astype(cp.float32)
+    `right_children` is the node-to-leaf mapping for a leaf, so it is a child link only
+    where `left_children` says the node is internal.
+
+    """
+
+    def walk(nidx: int) -> int:
+        left = tree["left_children"][nidx]
+        if left == -1:
+            return 0
+        return 1 + max(walk(left), walk(tree["right_children"][nidx]))
+
+    return walk(0)
 
 
 def fold_rows(k_folds: int, k: int) -> tuple[cp.ndarray, cp.ndarray]:
@@ -235,7 +240,10 @@ class CvState:
 
 
 def make_cv_state(
-    Xy: xgb.ExtMemQuantileDMatrix, k_folds: int, refit: bool = False
+    Xy: xgb.ExtMemQuantileDMatrix,
+    k_folds: int,
+    refit: bool = False,
+    params: dict | None = None,
 ) -> CvState:
     """Set a run up to the point where `boost` can be called, growing nothing yet."""
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds, refit=refit)
@@ -248,12 +256,16 @@ def make_cv_state(
         folds=folds,
         predts=predts,
         gpairs=xcv.FoldGpairs(),
-        tree_method=xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS),
+        tree_method=xcv.FoldTreeMethod(cv_folds, Xy, params=params or PARAMS),
     )
 
 
 def run_cv(
-    Xy: xgb.ExtMemQuantileDMatrix, k_folds: int, n_rounds: int, refit: bool = False
+    Xy: xgb.ExtMemQuantileDMatrix,
+    k_folds: int,
+    n_rounds: int,
+    refit: bool = False,
+    params: dict | None = None,
 ) -> tuple[xcv.FoldModels, xcv.FoldPredictions, xcv.FoldGpairs]:
     """Run `n_rounds` rounds of fused cross-validation to completion.
 
@@ -261,7 +273,7 @@ def run_cv(
     were grown.
 
     """
-    state = make_cv_state(Xy, k_folds, refit)
+    state = make_cv_state(Xy, k_folds, refit, params)
     for it in range(n_rounds):
         state.boost(it)
     return state.cv_folds, state.predts, state.gpairs
@@ -296,7 +308,7 @@ def eval_reference(booster: xgb.Booster, Xy: xgb.DMatrix) -> float:
 
 
 def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
-    """The out-parameter protocol, and one round of depth-1 growth."""
+    """The out-parameter protocol, and one round of growth."""
     _, _, _, Xy = xyw_extqdm
     k_folds = 3
 
@@ -312,13 +324,20 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     tree_method.update(cv_folds, Xy, folds, gpairs, predts)
     assert cv_folds.num_boosted_rounds() == 1
 
-    # The data is continuous and random, so every fold has a positive-gain root split.
+    # The data is continuous and random, so every fold splits the root and then keeps
+    # splitting until it runs out of gain or of depth. Which of the two it is differs by
+    # fold, so only the bounds hold for all of them.
     for k in range(k_folds):
         tree = get_fold_tree(cv_folds, k)
-        assert tree["left_children"] == [1, -1, -1]
-        # 0 and 1 are leaf indices here, not "no child".
-        assert tree["right_children"] == [2, 0, 1]
-        assert get_leaf_weight(tree, 1) != get_leaf_weight(tree, 2)
+        assert 1 < tree_depth(tree) <= PARAMS["max_depth"]
+        leaves = [i for i, c in enumerate(tree["left_children"]) if c == -1]
+        assert len({get_leaf_weight(tree, i)[0] for i in leaves}) > 1
+
+    # Check grow policy
+    state = make_cv_state(Xy, 3, params={**PARAMS, "grow_policy": "lossguide"})
+    # The parameters are checked from `InitDataOnce`, which the first update runs.
+    with pytest.raises(xgb.core.XGBoostError, match="Only the depthwise grow policy"):
+        state.boost(0)
 
 
 def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
@@ -403,12 +422,16 @@ def test_cv_refit_gradient(xyw_extqdm: XywExtQdm) -> None:
 
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
-    """A fold's training cache accumulates leaf values for its training rows only."""
+    """A fold's training cache is written for its training rows only.
+
+    What the accumulated value must be is `test_cv_vs_reference`'s claim; this one owns the
+    other half, that the rows a fold holds out are padding it never touches.
+
+    """
     import cupy as cp
 
-    X, _, _, Xy = xyw_extqdm
+    _, _, _, Xy = xyw_extqdm
     k_folds = 3
-    features = cp.concatenate(X).astype(cp.float32)
 
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
     predts = xcv.FoldPredictions()
@@ -417,9 +440,6 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
     gpairs = xcv.FoldGpairs()
     tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS)
 
-    expected = [
-        cp.full((Xy.num_row(), 1), BASE_SCORE, dtype=cp.float32) for _ in range(k_folds)
-    ]
     for it in range(2):
         cv_folds.get_gradient(Xy, it, folds, predts, out=gpairs)
         tree_method.update(cv_folds, Xy, folds, gpairs, predts)
@@ -427,18 +447,14 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
 
         for k in range(k_folds):
             train_rows, valid_rows = fold_rows(k_folds, k)
-            leaf_value = stump_leaf_values(get_fold_tree(cv_folds, k), features)
-            # Neither leaf may be empty, otherwise the check below is vacuous on one side.
-            assert cp.unique(leaf_value[train_rows]).size == 2
-
-            expected[k][train_rows] += leaf_value[train_rows].reshape(-1, 1)
             predt = predts.get(k)
             assert predt.shape == (Xy.num_row(), 1)
-            cp.testing.assert_allclose(predt[train_rows], expected[k][train_rows])
             # The rows held out by the fold are padding, nothing may write to them.
             cp.testing.assert_array_equal(
                 predt[valid_rows], cp.full((valid_rows.size, 1), BASE_SCORE)
             )
+            # Without this, a run that writes nowhere would satisfy the check above.
+            assert cp.all(predt[train_rows] != BASE_SCORE)
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -466,6 +482,30 @@ def test_cv_vs_reference(xyw_extqdm: XywExtQdm) -> None:
         cp.testing.assert_allclose(
             predts.get(k)[train_rows], margin, rtol=1e-6, atol=1e-6
         )
+
+
+def test_cv_hist_subtraction(xyw_extqdm: XywExtQdm) -> None:
+    """A small histogram cache changes how a sibling is obtained, not what is grown.
+
+    The budget is shared by the units, so one node per unit is the tightest there is. It
+    evicts every parent below the root, and the siblings that would have been subtracted are
+    built in the same page pass instead. The two runs must agree bit for bit: a histogram
+    bin is a fixed-point integer, so a parent bin is the exact sum of its children's.
+
+    """
+    import cupy as cp
+
+    _, _, _, Xy = xyw_extqdm
+    k_folds, n_rounds = 3, 2
+
+    subtracted, cached_predts, _ = run_cv(Xy, k_folds, n_rounds)
+    rebuilt, tight_predts, _ = run_cv(
+        Xy, k_folds, n_rounds, params={**PARAMS, "max_cached_hist_node": 1}
+    )
+    assert json.loads(subtracted.save_raw("json")) == json.loads(
+        rebuilt.save_raw("json")
+    )
+    cp.testing.assert_array_equal(cached_predts.get_valid(), tight_predts.get_valid())
 
 
 def test_cv_refit_vs_reference(xyw_extqdm: XywExtQdm) -> None:

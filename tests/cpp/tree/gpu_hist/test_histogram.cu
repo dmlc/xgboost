@@ -57,6 +57,21 @@ TEST(Histogram, DeviceHistogramStorage) {
 
   // Add same node again - should fail
   EXPECT_ANY_THROW(histogram.AllocateHistograms(&ctx, {kNNodes + 1}););
+
+  // The tightest budget there is, which the fused CV tree method can reach by splitting the
+  // parameter between its units. The first allocation after a reset is still resident, and
+  // it survives every later one; the CV subtraction path relies on both.
+  histogram.Reset(&ctx, kNBins, 1);
+  histogram.AllocateHistograms(&ctx, {0});
+  for (int i = 1; i < kNNodes; ++i) {
+    histogram.AllocateHistograms(&ctx, {i});
+    ASSERT_TRUE(histogram.HistogramExists(0));
+    ASSERT_TRUE(histogram.HistogramExists(i));
+    if (i > 1) {
+      // Overflow keeps only the most recent allocation.
+      ASSERT_FALSE(histogram.HistogramExists(i - 1));
+    }
+  }
 }
 
 TEST(Histogram, SubtractionTrack) {
