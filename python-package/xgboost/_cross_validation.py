@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import operator
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, override
@@ -13,8 +14,9 @@ from typing import TYPE_CHECKING, Any, override
 import numpy as np
 
 from ._c_api import _LIB, _check_call, make_jcargs
+from ._data_utils import cuda_array_interface
 from ._typing import ArrayLike
-from .compat import py_str
+from .compat import import_cupy, py_str
 from .core import DataIter, ExtMemQuantileDMatrix, ctypes2buffer
 
 if TYPE_CHECKING:
@@ -38,16 +40,6 @@ _LIB.XGBCvFoldModelsSaveModelToBuffer.argtypes = [
     ctypes.POINTER(ctypes.c_uint64),
     ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
 ]
-
-_LIB.XGBCvFoldInfoBatchesCreate.restype = ctypes.c_int
-_LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
-    ctypes.c_void_p,
-    ctypes.c_size_t,
-    ctypes.POINTER(ctypes.c_void_p),
-]
-
-_LIB.XGBCvFoldInfoBatchesFree.restype = ctypes.c_int
-_LIB.XGBCvFoldInfoBatchesFree.argtypes = [ctypes.c_void_p]
 
 _LIB.XGBCvFoldPredictionsCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldPredictionsCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
@@ -117,7 +109,6 @@ _LIB.XGBCvFoldModelsGetGradient.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
-    ctypes.c_void_p,
     ctypes.c_int,
 ]
 
@@ -134,7 +125,6 @@ _LIB.XGBCvFoldTreeMethodFree.argtypes = [ctypes.c_void_p]
 
 _LIB.XGBCvFoldTreeMethodUpdate.restype = ctypes.c_int
 _LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
-    ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -158,11 +148,86 @@ _LIB.XGBCvFoldEvaluatorEval.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
-    ctypes.c_void_p,
     ctypes.c_int,
     ctypes.POINTER(ctypes.c_char_p),
     ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
 ]
+
+
+_LIB.XGBCvFoldAssignmentCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldAssignmentCreate.argtypes = [
+    ctypes.c_char_p,
+    ctypes.c_uint64,
+    ctypes.POINTER(ctypes.c_void_p),
+]
+_LIB.XGBCvFoldAssignmentFree.restype = ctypes.c_int
+_LIB.XGBCvFoldAssignmentFree.argtypes = [ctypes.c_void_p]
+
+
+def _fold_integer(value: int, name: str, low: int, high: int) -> int:
+    if isinstance(value, (bool, np.bool_)):
+        raise TypeError(f"`{name}` must be an integer.")
+    value = operator.index(value)
+    if not low <= value <= high:
+        raise ValueError(f"`{name}` must be in [{low}, {high}].")
+    return value
+
+
+class FoldAssignment:
+    """Own an immutable GPU copy of one held-out fold ID per row.
+
+    IDs must be integers in ``[0, k_folds)`` with every fold nonempty.
+
+    """
+
+    def __init__(self, fold_ids: ArrayLike, *, k_folds: int) -> None:
+        cp = import_cupy()
+
+        ids = cp.asarray(fold_ids)
+        if ids.ndim != 1 or ids.size < 2 or ids.dtype.kind not in "iu":
+            raise ValueError(
+                "Fold IDs must be a one-dimensional integer array with at least two rows."
+            )
+        k_folds = _fold_integer(
+            k_folds, "k_folds", 2, min(ids.size, np.iinfo(np.uint32).max)
+        )
+        ids = cp.ascontiguousarray(ids, dtype=cp.int64)
+        hdl = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGBCvFoldAssignmentCreate(
+                cuda_array_interface(ids), k_folds, ctypes.byref(hdl)
+            )
+        )
+        self.handle = hdl
+        self._k_folds = k_folds
+
+    @property
+    def k_folds(self) -> int:
+        """Number of nonempty validation folds."""
+        return self._k_folds
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            _check_call(_LIB.XGBCvFoldAssignmentFree(self.handle))
+            del self.handle
+
+
+def make_kfold(
+    n_rows: int, k_folds: int, *, shuffle: bool = False, seed: int = 0
+) -> cp.ndarray:
+    """Return GPU IDs in row-modulo-K order, optionally shuffled globally.
+
+    Pass the result to ``FoldAssignment``. A seed reproduces the permutation for
+    fixed inputs and the same CuPy implementation; features retain their row order.
+    """
+    cp = import_cupy()
+
+    n_rows = _fold_integer(n_rows, "n_rows", 2, np.iinfo(np.uint32).max)
+    k_folds = _fold_integer(k_folds, "k_folds", 2, n_rows)
+    ids = cp.arange(n_rows, dtype=cp.uint32) % k_folds
+    if shuffle:
+        cp.random.RandomState(seed).shuffle(ids)
+    return ids
 
 
 class FoldModels:
@@ -251,16 +316,22 @@ class FoldModels:
     def init_prediction(
         self,
         data: ExtMemQuantileDMatrix,
-        fold_info: FoldInfoBatches,
         out: FoldPredictions,
+        *,
+        assignment: FoldAssignment,
     ) -> FoldPredictions:
-        """Initialize prediction buffers."""
+        """Initialize fresh prediction buffers and retain their fold assignment.
+
+        The assignment must match the matrix's row order and the models' fold count.
+        """
+        if not isinstance(assignment, FoldAssignment):
+            raise TypeError("`assignment` must be a FoldAssignment.")
 
         _check_call(
             _LIB.XGBCvFoldModelsInitPrediction(
                 self.handle,
                 data.handle,
-                fold_info.handle,
+                assignment.handle,
                 out.handle,
             )
         )
@@ -271,7 +342,6 @@ class FoldModels:
         self,
         data: ExtMemQuantileDMatrix,
         iteration: int,
-        fold_info: FoldInfoBatches,
         predt: FoldPredictions,
         out: FoldGpairs,
     ) -> FoldGpairs:
@@ -281,7 +351,6 @@ class FoldModels:
             _LIB.XGBCvFoldModelsGetGradient(
                 self.handle,
                 data.handle,
-                fold_info.handle,
                 predt.handle,
                 out.handle,
                 ctypes.c_int(iteration),
@@ -318,7 +387,6 @@ class FoldTreeMethod:
         self,
         cv_folds: FoldModels,
         data: ExtMemQuantileDMatrix,
-        fold_info: FoldInfoBatches,
         gpairs: FoldGpairs,
         predt: FoldPredictions,
     ) -> None:
@@ -329,44 +397,17 @@ class FoldTreeMethod:
                 self.handle,
                 cv_folds.handle,
                 data.handle,
-                fold_info.handle,
                 gpairs.handle,
                 predt.handle,
             )
         )
 
 
-class FoldInfoBatches:
-    """Meta information used during cross validation."""
-
-    def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
-        if not isinstance(data, ExtMemQuantileDMatrix):
-            raise TypeError(
-                "`data` must be an ExtMemQuantileDMatrix for fused cross-validation."
-            )
-
-        k_folds = int(k_folds)
-        if k_folds <= 0:
-            raise ValueError("`k_folds` must be positive.")
-
-        hdl = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGBCvFoldInfoBatchesCreate(
-                data.handle, ctypes.c_size_t(k_folds), ctypes.byref(hdl)
-            )
-        )
-        self.handle = hdl
-        self.k_folds = k_folds
-
-    def __del__(self) -> None:
-        if hasattr(self, "handle"):
-            hdl = self.handle
-            del self.handle
-            _check_call(_LIB.XGBCvFoldInfoBatchesFree(hdl))
-
-
 class FoldPredictions:
-    """Prediction buffers for each fold."""
+    """Prediction buffers sharing ownership of their fold assignment.
+
+    Initialize once with :py:meth:`FoldModels.init_prediction` before use.
+    """
 
     def __init__(self) -> None:
         hdl = ctypes.c_void_p()
@@ -386,7 +427,7 @@ class FoldPredictions:
         n_columns: ctypes.c_size_t,
         copy: bool,
     ) -> cp.ndarray:
-        import cupy as cp
+        cp = import_cupy()
 
         shape = (int(n_rows.value), int(n_columns.value))
         n_elems = shape[0] * shape[1]
@@ -483,7 +524,7 @@ class FoldGpairs:
     ) -> tuple[cp.ndarray, cp.ndarray]:
         """Split an interleaved gradient-hessian buffer into two strided views."""
 
-        import cupy as cp
+        cp = import_cupy()
 
         array_shape = tuple(int(shape[i]) for i in range(n_dims.value))
         n_elems = int(np.prod(array_shape))
@@ -617,7 +658,6 @@ class FoldEvaluator:
         self,
         cv_folds: FoldModels,
         data: ExtMemQuantileDMatrix,
-        fold_info: FoldInfoBatches,
         predt: FoldPredictions,
         iteration: int,
     ) -> CvEvalResult:
@@ -629,7 +669,6 @@ class FoldEvaluator:
                 self.handle,
                 cv_folds.handle,
                 data.handle,
-                fold_info.handle,
                 predt.handle,
                 ctypes.c_int(iteration),
                 ctypes.byref(c_meta),
@@ -655,7 +694,7 @@ def _n_rows(data: ArrayLike) -> int:
 
 
 def _to_device(data: ArrayLike) -> Any:
-    import cupy as cp
+    cp = import_cupy()
 
     return cp.asarray(data)
 
@@ -715,7 +754,7 @@ def cross_val_predict(
     X: ArrayLike,
     y: ArrayLike,
     *,
-    cv: int = 5,
+    cv: int | FoldAssignment = 5,
     params: dict[str, Any] | None = None,
     num_boost_round: int = 10,
 ) -> cp.ndarray:
@@ -728,8 +767,8 @@ def cross_val_predict(
     y :
         Label, with as many rows as `X`.
     cv :
-        Number of folds, at least 2. A splitter object is not accepted. Each fold holds out
-        a contiguous window of every external-memory page.
+        Number of folds, at least 2, or an existing FoldAssignment in the row order
+        of X. Integer values use global round-robin membership (row index modulo cv).
     params :
         Booster parameters accepted by the CV tree method, like `learning_rate`.
     num_boost_round :
@@ -741,9 +780,11 @@ def cross_val_predict(
     ``(n_samples,)`` for a single target and ``(n_samples, n_targets)`` otherwise.
 
     """
-    cv = int(cv)
-    if cv < 2:
-        raise ValueError(f"`cv` must be at least 2, got {cv}.")
+    assignment = (
+        cv
+        if isinstance(cv, FoldAssignment)
+        else FoldAssignment(make_kfold(_n_rows(X), cv), k_folds=cv)
+    )
     num_boost_round = int(num_boost_round)
     if num_boost_round < 0:
         raise ValueError(
@@ -753,16 +794,15 @@ def cross_val_predict(
     max_bin = params.get("max_bin", None)
 
     Xy = ExtMemQuantileDMatrix(CvDataIter(X, y), max_bin=max_bin)
-    models = FoldModels(data=Xy, k_folds=cv)
-    fold_info = FoldInfoBatches(Xy, k_folds=cv)
+    models = FoldModels(data=Xy, k_folds=assignment.k_folds)
     predts = FoldPredictions()
-    models.init_prediction(Xy, fold_info, out=predts)
+    models.init_prediction(Xy, out=predts, assignment=assignment)
     gpairs = FoldGpairs()
     tree_method = FoldTreeMethod(models, Xy, params=params or {})
 
     for iteration in range(num_boost_round):
-        models.get_gradient(Xy, iteration, fold_info, predts, out=gpairs)
-        tree_method.update(models, Xy, fold_info, gpairs, predts)
+        models.get_gradient(Xy, iteration, predts, out=gpairs)
+        tree_method.update(models, Xy, gpairs, predts)
 
     # The cache holds raw margins, which the squared error objective leaves in the
     # prediction domain already.

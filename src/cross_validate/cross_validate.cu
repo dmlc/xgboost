@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <thrust/count.h>  // for count_if
-#include <thrust/fill.h>   // for fill
+#include <thrust/fill.h>  // for fill
 
 #include <algorithm>  // for copy_if, max
 #include <iterator>   // for back_inserter, size
@@ -19,29 +18,13 @@
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for LaunchN
 #include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
-#include "./gather.cuh"                  // for GatherRows
 #include "./tree_method.cuh"             // for RouteHeldOut
 #include "cross_validate.h"
+#include "kfolds.cuh"
 #include "xgboost/json.h"  // for Json
 
 namespace xgboost::cv {
 namespace {
-// Scatter the gradient of a batch back into the global gradient buffer of a fold.
-void ScatterBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batch_gpair,
-                       common::Span<bst_idx_t const> ridxs,
-                       linalg::Matrix<GradientPair>* out_gpairs) {
-  CHECK_EQ(batch_gpair.Shape(0), ridxs.size());
-  CHECK_EQ(batch_gpair.Shape(1), out_gpairs->Shape(1));
-
-  auto d_batch_gpair = batch_gpair.View(ctx->Device());
-  auto d_out = out_gpairs->View(ctx->Device());
-  dh::LaunchN(d_batch_gpair.Size(), ctx->CUDACtx()->Stream(),
-              [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                auto [ridx, target_idx] = linalg::UnravelIndex(i, d_batch_gpair.Shape());
-                d_out(ridxs[ridx], target_idx) = d_batch_gpair(ridx, target_idx);
-              });
-}
-
 [[nodiscard]] Args JsonToArgs(Json const& config) {
   CHECK(config.GetValue().Type() == Value::ValueKind::kObject)
       << "CV tree method configuration must be a JSON object.";
@@ -71,61 +54,39 @@ void CheckNoUnknownParams(Args const& unknown) {
 }  // namespace
 
 void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
-                             FoldPredictions const& predts, FoldInfoBatches const& finfo,
-                             std::int32_t iter, FoldGpairs* out) const {
-  CHECK(!finfo.Empty());
+                             FoldPredictions const& predts, std::int32_t iter,
+                             FoldGpairs* out) const {
+  auto const& assignment = predts.Assignment();
   CHECK(out);
 
-  auto k_folds = finfo.KFolds();
+  auto k_folds = assignment.KFolds();
   CHECK_EQ(this->KFolds(), k_folds);
   CheckLayout(this->Layout(), predts.layout, "prediction caches");
 
   auto n_units = this->NumUnits();
   auto& gpairs = out->gpairs;
   out->layout = this->Layout();
+  out->assignment = predts.assignment;
   gpairs.resize(n_units);
 
-  // The gradient is indexed by the global row index. Zero out the buffer first, the
-  // validation rows of a fold are never written to and must not contribute to its
-  // histograms.
+  CHECK_EQ(assignment.Size(), info.num_row_);
+  CHECK(info.group_ptr_.empty()) << "Fused CV does not support ranking groups.";
   for (std::size_t u = 0; u < n_units; ++u) {
-    auto& unit_gpair = gpairs.at(u);
-    unit_gpair.SetDevice(ctx->Device());
-    unit_gpair.Reshape(info.num_row_, this->OutputLength(u));
-    unit_gpair.Data()->Fill(GradientPair{});
-  }
-
-  if (this->HasRefit()) {
-    // The refit unit trains on every row, so the global prediction cache and the unsliced
-    // info are already what the objective expects: no gather, slice, or scatter.
-    auto u = this->RefitIdx();
     auto const& predt = predts.Prediction(u);
     CHECK_EQ(predt.Size(), info.num_row_ * this->OutputLength(u));
     this->Objective(u)->GetGradient(predt, info, iter, &gpairs.at(u));
   }
-
-  for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
-    auto const& batch = finfo.batches.at(i);
-    CHECK_EQ(batch.KFolds(), k_folds);
-
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      auto ridxs = batch.TrainingFold(k);
-
-      constexpr std::size_t kNnz = 0;  // fixme
-      auto fold_info = info.Slice(ctx, ridxs, kNnz);
-
-      auto output_length = this->OutputLength(k);
-      CHECK_EQ(fold_info.labels.Shape(1), output_length);
-      CHECK_EQ(fold_info.labels.Size(), ridxs.size() * output_length);
-      auto const& fold_preds = predts.Prediction(k);
-      CHECK_EQ(fold_preds.Size(), info.num_row_ * output_length);
-      HostDeviceVector<float> preds(ridxs.size() * output_length, 0.0f, ctx->Device());
-      GatherRows(ctx, fold_preds.ConstDeviceSpan(), ridxs, 0, output_length, preds.DeviceSpan());
-
-      linalg::Matrix<GradientPair> batch_gpair;
-      this->Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
-      ScatterBatchGpair(ctx, batch_gpair, ridxs, &gpairs.at(k));
-    }
+  auto view = assignment.ReadRows({0, assignment.Size()});
+  for (std::size_t u = 0; u < k_folds; ++u) {
+    auto gpair = gpairs.at(u).View(ctx->Device());
+    auto n_targets = gpair.Shape(1);
+    dh::LaunchN(gpair.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
+      auto row = i / n_targets;
+      auto target = i % n_targets;
+      if (!view.IsTraining(u, row)) {
+        gpair(row, target) = GradientPair{};
+      }
+    });
   }
 }
 
@@ -134,13 +95,13 @@ class FoldTreeMethod {
   DMatrix const* p_last_fmat_{nullptr};
   tree::TrainParam param_;
   tree::HistMakerTrainParam hist_param_;
-  bool initialized_{false};
 
   // FIXME(jiamingy): The columns_sampler_ cannot be shared between folds.
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::shared_ptr<common::HistogramCuts const> cuts_;
   std::unique_ptr<tree::FeatureGroups> feature_groups_;
   std::vector<bst_idx_t> batch_ptr_;
+  std::vector<std::vector<bst_idx_t>> training_counts_;
   common::Span<FeatureType const> feature_types_;
   // The sampled feature set of the round, held for the round so that the device span stays
   // valid. See `Reset` for why one set serves every node of every unit.
@@ -148,6 +109,8 @@ class FoldTreeMethod {
 
   // Everything that is per-unit, and the layout that indexes it.
   FoldTreeState state_;
+  // Non-null after data initialization succeeds.
+  FoldAssignmentPtr assignment_;
 
   // Fusion guard. The number of passes over the Ellpack pages must not depend on the number
   // of folds. Both are reset at the top of Update.
@@ -241,7 +204,7 @@ class FoldTreeMethod {
     CheckNoUnknownParams(unknown);
   }
 
-  void InitDataOnce(DMatrix* p_fmat) {
+  void InitDataOnce(DMatrix* p_fmat, FoldAssignment const& assignment) {
     xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -250,29 +213,35 @@ class FoldTreeMethod {
     auto [cuts, dense_compressed] = tree::InitBatchCuts(ctx_, p_fmat, batch);
     this->cuts_ = std::move(cuts);
     this->batch_ptr_ = p_fmat->BatchPtr();
+    auto n_pages = this->batch_ptr_.size() - 1;
+    this->training_counts_.assign(assignment.KFolds(), std::vector<bst_idx_t>(n_pages));
+    for (std::size_t b = 0; b < n_pages; ++b) {
+      auto counts = assignment.CountValidation(ctx_, {batch_ptr_[b], batch_ptr_[b + 1]});
+      for (std::size_t k = 0; k < assignment.KFolds(); ++k) {
+        training_counts_[k][b] = batch_ptr_[b + 1] - batch_ptr_[b] - counts[k];
+      }
+    }
     this->feature_groups_ = std::make_unique<tree::FeatureGroups>(
         *this->cuts_, dense_compressed, tree::DftMtHistShmemBytes(ctx_->Ordinal()));
 
     this->CheckSupportedParams();
-    initialized_ = true;
   }
 
-  void Reset(FoldModels const& folds, DMatrix* p_fmat, FoldInfoBatches const& finfo,
+  void Reset(FoldModels const& folds, DMatrix* p_fmat, FoldAssignment const& assignment,
              FoldGpairs const& gpairs) {
     xgboost_NVTX_FN_RANGE();
     CHECK(!collective::IsDistributed())
         << "Distributed training is not supported by the CV tree method.";
-    CHECK(!finfo.Empty());
     CHECK(cuts_);
     // The page loops index the partitioners by the page counter, and the prediction cache
     // indexes `batch_ptr_` the same way.
-    CHECK_EQ(p_fmat->NumBatches(), finfo.Size());
-    CHECK_EQ(this->batch_ptr_.size(), finfo.Size() + 1);
+    CHECK_EQ(this->batch_ptr_.size(), p_fmat->NumBatches() + 1);
+    CHECK(this->batch_ptr_ == p_fmat->BatchPtr());
 
     this->state_.layout = gpairs.layout;
     // The guards that keep the refit unit out of the out-of-fold path rely on this: a unit
     // index that is not the refit unit must be a valid index into the fold info.
-    CHECK_EQ(finfo.KFolds(), this->state_.layout.k_folds);
+    CHECK_EQ(assignment.KFolds(), this->state_.layout.k_folds);
 
     auto const& info = p_fmat->Info();
     info.feature_types.SetDevice(ctx_->Device());
@@ -307,7 +276,7 @@ class FoldTreeMethod {
       auto& unit = this->state_.At(u);
       auto const& unit_gpair = gpairs.gpairs.at(u);
       CHECK_EQ(info.num_row_, unit_gpair.Shape(0));
-      auto n_train = this->state_.IsRefit(u) ? info.num_row_ : finfo.TrainFoldSize(u);
+      auto n_train = this->state_.IsRefit(u) ? info.num_row_ : assignment.TrainFoldSize(u);
       CHECK_GT(n_train, 0) << "Every CV model must have at least one training row. `k_folds` must "
                               "be at least 2, a single fold holds out all of its rows.";
       CHECK_GT(unit_gpair.Shape(1), 0);
@@ -339,11 +308,10 @@ class FoldTreeMethod {
       if (this->state_.IsRefit(u)) {
         unit.partitioners.Reset(ctx_, this->batch_ptr_);
       } else {
-        std::vector<common::Span<bst_idx_t const>> fold_ridxs;
-        for (auto const& batch : finfo.batches) {
-          fold_ridxs.emplace_back(batch.TrainingFold(u));
-        }
-        unit.partitioners.Reset(ctx_, fold_ridxs);
+        unit.partitioners.Reset(this->batch_ptr_, this->training_counts_.at(u),
+                                [&](bst_idx_t begin, bst_idx_t end, auto out) {
+                                  assignment.ReadRows({begin, end}).Select(ctx_, u, false, out);
+                                });
       }
 
       if (!unit.evaluator) {
@@ -449,7 +417,7 @@ class FoldTreeMethod {
     }
   }
 
-  void PartitionAndBuildHist(DMatrix* p_fmat, FoldInfoBatches const& finfo,
+  void PartitionAndBuildHist(DMatrix* p_fmat, FoldAssignment const& assignment,
                              std::vector<LevelNodes> const& level) {
     xgboost_NVTX_FN_RANGE();
     auto n_units = this->state_.NumUnits();
@@ -480,8 +448,8 @@ class FoldTreeMethod {
           // A fold-only concept: the refit unit holds nothing out, and the fold info has no
           // entry for it.
           if (!this->state_.IsRefit(u)) {
-            auto valid_idx = finfo.batches[batch_idx].ValidationFold(u);
-            RouteHeldOut(this->ctx_, valid_idx, tree, go_left,
+            auto view = assignment.ReadRows({batch_ptr_[batch_idx], batch_ptr_[batch_idx + 1]});
+            RouteHeldOut(ctx_, view, static_cast<FoldId>(u), tree, go_left,
                          dh::ToSpan(this->state_.oof_position));
           }
 
@@ -580,7 +548,7 @@ class FoldTreeMethod {
                                    dh::ToSpan(d_candidates), n_targets);
   }
 
-  void GrowLevel(DMatrix* p_fmat, FoldInfoBatches const& finfo) {
+  void GrowLevel(DMatrix* p_fmat, FoldAssignment const& assignment) {
     xgboost_NVTX_FN_RANGE();
     auto n_units = this->state_.NumUnits();
     std::vector<LevelNodes> level(n_units);
@@ -607,7 +575,7 @@ class FoldTreeMethod {
       }
     }
 
-    this->PartitionAndBuildHist(p_fmat, finfo, level);
+    this->PartitionAndBuildHist(p_fmat, assignment, level);
 
     for (std::size_t u = 0; u < n_units; ++u) {
       auto& unit = this->state_.At(u);
@@ -639,7 +607,7 @@ class FoldTreeMethod {
 
   // Add the leaf value of the newly grown tree to the training prediction of every row
   // that the unit owns.
-  void UpdatePredictionCache(FoldInfoBatches const& finfo, MetaInfo const& info,
+  void UpdatePredictionCache(FoldAssignment const& assignment, MetaInfo const& info,
                              FoldPredictions* predts) {
     xgboost_NVTX_FN_RANGE();
     auto n_units = this->state_.NumUnits();
@@ -664,7 +632,7 @@ class FoldTreeMethod {
       // refit unit owns every row, so none of them keeps it.
       thrust::fill(ctx_->CUDACtx()->CTP(), dh::tbegin(d_position), dh::tend(d_position),
                    RegTree::kInvalidNodeId);
-      for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
+      for (std::size_t i = 0, n = this->batch_ptr_.size() - 1; i < n; ++i) {
         auto base_ridx = this->batch_ptr_[i];
         auto n_batch_samples = this->batch_ptr_.at(i + 1) - base_ridx;
         // The partitioner and the tree must have grown in lockstep. With fewer nodes than
@@ -696,24 +664,22 @@ class FoldTreeMethod {
         CHECK_EQ(va_predt.Size(), output_length * n_samples);
         auto d_va_predt =
             linalg::MakeTensorView(ctx_->Device(), va_predt.DeviceSpan(), n_samples, output_length);
-        for (auto const& batch : finfo.batches) {
-          auto valid_idx = batch.ValidationFold(u);
-          dh::LaunchN(valid_idx.size() * output_length, this->ctx_->CUDACtx()->Stream(),
-                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                        auto ridx_in_set = i / output_length;
-                        auto target_idx = i % output_length;
-
-                        auto ridx = valid_idx[ridx_in_set];
-                        auto nidx = d_oof_position[ridx];
-
-                        KERNEL_CHECK(tree.IsLeaf(nidx));
-                        d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
-                      });
-        }
+        auto view = assignment.ReadRows({0, n_samples});
+        dh::LaunchN(n_samples * output_length, ctx_->CUDACtx()->Stream(),
+                    [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                      auto ridx = i / output_length;
+                      auto target_idx = i % output_length;
+                      if (!view.IsValidation(u, ridx)) {
+                        return;
+                      }
+                      auto nidx = d_oof_position[ridx];
+                      KERNEL_CHECK(tree.IsLeaf(nidx));
+                      d_va_predt(ridx, target_idx) += tree.LeafValue(nidx)(target_idx);
+                    });
       }
 
       if (this->hist_param_.debug_synchronize) {
-        auto n_train = this->state_.IsRefit(u) ? n_samples : finfo.TrainFoldSize(u);
+        auto n_train = this->state_.IsRefit(u) ? n_samples : assignment.TrainFoldSize(u);
         DebugCheckValid(this->ctx_, n_train, d_position);
       }
       tr_predt.Update(1);
@@ -722,35 +688,42 @@ class FoldTreeMethod {
     predts->valid.Update(1);
   }
 
-  void Update(FoldModels* folds, DMatrix* p_fmat, FoldInfoBatches const& finfo,
-              FoldGpairs const& gpairs, FoldPredictions* predts) {
+  void Update(FoldModels* folds, DMatrix* p_fmat, FoldGpairs const& gpairs,
+              FoldPredictions* predts) {
     xgboost_NVTX_FN_RANGE();
     CHECK(folds);
     CHECK(p_fmat);
     CHECK(predts);
+    auto const& assignment = predts->Assignment();
     CHECK_EQ(p_fmat, p_last_fmat_)
         << "CV tree method update must use the training DMatrix supplied at construction.";
-    CHECK_EQ(folds->KFolds(), finfo.KFolds());
+    CHECK_EQ(folds->KFolds(), assignment.KFolds());
     CheckLayout(folds->Layout(), gpairs.layout, "gradients");
     CheckLayout(folds->Layout(), predts->layout, "prediction caches");
 
-    if (!initialized_) {
-      this->InitDataOnce(p_fmat);
+    CheckPredictionData(p_fmat, *predts);
+    CHECK(gpairs.assignment == predts->assignment)
+        << "CV gradients and prediction caches must use the same fold assignment.";
+    CHECK(!assignment_ || assignment_ == predts->assignment)
+        << "CV tree method must keep the fold assignment from its first update.";
+    if (!assignment_) {
+      this->InitDataOnce(p_fmat, assignment);
+      assignment_ = predts->assignment;
     }
     this->n_page_passes_ = this->n_levels_ = 0;
 
-    this->Reset(*folds, p_fmat, finfo, gpairs);
+    this->Reset(*folds, p_fmat, assignment, gpairs);
     this->InitRoot(p_fmat);
 
     // Level-synchronous across units, so that the partition pass can serve every unit from a
     // single sweep over the pages.
     while (this->state_.Growing()) {
-      this->GrowLevel(p_fmat, finfo);
+      this->GrowLevel(p_fmat, assignment);
       ++this->n_levels_;
     }
 
     this->FinalizeTrees();
-    this->UpdatePredictionCache(finfo, p_fmat->Info(), predts);
+    this->UpdatePredictionCache(assignment, p_fmat->Info(), predts);
     // One root build plus one partition pass per level, independent of the number of units
     // and of whether the histogram cache could serve a subtraction.
     CHECK_EQ(this->n_page_passes_, 1 + this->n_levels_);
@@ -762,24 +735,20 @@ class FoldTreeMethod {
 using namespace xgboost;  // NOLINT
 
 XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
-                                       FoldInfoBatchesHandle c_fold_info,
                                        FoldPredictionsHandle c_predt, FoldGpairsHandle hdl,
                                        int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
-  xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(c_predt);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto p_fmat = CastDMatrixHandle(dtrain);
   auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
-  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
   auto const& info = p_fmat->Info();
-  CHECK(!fold_info->batches.empty());
-  CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
 
   auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
-  cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, *fold_info, iter, fold_gpairs);
+  cv::CheckPredictionData(p_fmat.get(), *predt);
+  cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, iter, fold_gpairs);
 
   API_END();
 }
@@ -808,20 +777,18 @@ XGB_DLL int XGBCvFoldTreeMethodFree(TreeMethodHandle hdl) {
 }
 
 XGB_DLL int XGBCvFoldTreeMethodUpdate(TreeMethodHandle hdl, FoldModelsHandle c_cv_folds,
-                                      DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
-                                      FoldGpairsHandle c_gpairs, FoldPredictionsHandle c_predt) {
+                                      DMatrixHandle dtrain, FoldGpairsHandle c_gpairs,
+                                      FoldPredictionsHandle c_predt) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
-  xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(c_gpairs);
   xgboost_CHECK_C_ARG_PTR(c_predt);
   auto tree_method = static_cast<cv::FoldTreeMethod*>(hdl);
   auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto gpairs = static_cast<cv::FoldGpairs*>(c_gpairs);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
-  tree_method->Update(cv_folds, p_fmat.get(), *fold_info, *gpairs, predt);
+  tree_method->Update(cv_folds, p_fmat.get(), *gpairs, predt);
   API_END();
 }

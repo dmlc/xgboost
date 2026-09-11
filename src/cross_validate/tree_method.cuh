@@ -37,11 +37,14 @@ inline void DebugCheckValid(Context const* ctx, bst_idx_t n_expected,
 }
 
 template <template <typename> typename GoLeftOp, typename Acc>
-void RouteHeldOut(Context const* ctx, common::Span<bst_idx_t const> ridxs,
+void RouteHeldOut(Context const* ctx, MembershipView membership, FoldId fold,
                   tree::MultiTargetTreeView tree, GoLeftOp<Acc> go_left,
                   common::Span<bst_node_t> in_out_position) {
-  dh::LaunchN(ridxs.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
-    auto ridx = ridxs[i];
+  dh::LaunchN(membership.ids.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
+    auto ridx = membership.base_rowid + i;
+    if (!membership.IsValidation(fold, ridx)) {
+      return;
+    }
     auto nidx = in_out_position[ridx];
     if (tree.IsLeaf(nidx)) {
       return;

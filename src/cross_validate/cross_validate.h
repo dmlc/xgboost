@@ -15,7 +15,7 @@
 #include "../gbm/gbtree_model.h"
 #include "../learner_model_param_legacy.h"
 #include "../metric/metric_common.h"     // for MetricNoCache
-#include "kfolds.h"                      // for FoldInfo
+#include "kfolds.h"                      // for FoldAssignment, FoldAssignmentPtr
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -28,7 +28,6 @@
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::cv {
-struct FoldInfoBatches;
 struct FoldPredictions;
 struct FoldGpairs;
 
@@ -97,10 +96,10 @@ class FoldModels {
   void EvalTransform(HostDeviceVector<float>* io_predt) const {
     this->Objective(0)->EvalTransform(io_predt);
   }
-  void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
+  void InitPrediction(DMatrix const* data, FoldAssignmentPtr assignment,
                       FoldPredictions* out) const;
   void GetGradient(Context const* ctx, MetaInfo const& info, FoldPredictions const& predts,
-                   FoldInfoBatches const& finfo, std::int32_t iter, FoldGpairs* out) const;
+                   std::int32_t iter, FoldGpairs* out) const;
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
 
@@ -108,44 +107,26 @@ class FoldModels {
   void SaveModel(Json* out) const;
 };
 
-struct FoldInfoBatches {
-  std::vector<FoldInfo> batches;
-
-  [[nodiscard]] std::size_t Size() const { return batches.size(); }
-  // Number of rows the k^th fold trains on.
-  [[nodiscard]] std::size_t TrainFoldSize(std::size_t k) const {
-    std::size_t acc = 0;
-    for (auto const& batch : this->batches) {
-      acc += batch.ridxs.at(k).Size();
-    }
-    return acc;
-  }
-  // Number of rows the k^th fold holds out.
-  [[nodiscard]] std::size_t ValidFoldSize(std::size_t k) const {
-    std::size_t acc = 0;
-    for (auto const& batch : this->batches) {
-      acc += batch.valid_ridxs.at(k).Size();
-    }
-    return acc;
-  }
-  [[nodiscard]] bool Empty() const { return batches.empty(); }
-  [[nodiscard]] auto KFolds() const noexcept(true) {
-    CHECK(!this->Empty());
-    return this->batches.front().KFolds();
-  }
-};
+// Predictions are indexed by global row ID and independent of physical page layout.
+void CheckPredictionData(DMatrix const* data, FoldPredictions const& predts);
 
 // Prediction caches for all training units, both indexed by the global row index. `train`
 // holds one cache per unit, in which the rows held out by that fold are unused padding; the
 // refit unit holds nothing out, so its cache has no padding. `valid` is a single cache
 // holding the out-of-fold prediction of every row, written by the folds alone.
 struct FoldPredictions {
+  FoldAssignmentPtr assignment;
   std::vector<gbm::PredictionCacheEntry> train;
   gbm::PredictionCacheEntry valid;
   // Number of columns in each cache, shared by all units. A `PredictionCacheEntry` is flat,
   // so this is what makes the buffers self-describing.
   bst_target_t output_length{0};
   UnitLayout layout;
+
+  [[nodiscard]] FoldAssignment const& Assignment() const {
+    CHECK(assignment) << "Initialize CV prediction buffers before using them.";
+    return *assignment;
+  }
 
   [[nodiscard]] gbm::PredictionCacheEntry& Training(std::size_t unit_idx) {
     return train.at(unit_idx);
@@ -168,6 +149,8 @@ struct FoldPredictions {
 // value would leak into the fold's root sum and histograms. The refit unit has a gradient
 // for every row.
 struct FoldGpairs {
+  // Retain the membership used to calculate these gradients.
+  FoldAssignmentPtr assignment;
   std::vector<linalg::Matrix<GradientPair>> gpairs;
   UnitLayout layout;
 
@@ -216,11 +199,12 @@ class FoldEvaluator {
   HostDeviceVector<float> predt_;
   MetaInfo info_;
   FoldEvalResult result_;
+  HostDeviceVector<bst_idx_t> row_scratch_;
 
   [[nodiscard]] Context const* Ctx() const noexcept(true) { return &this->ctx_; }
-  void Reset(MetaInfo const& info, FoldInfoBatches const& finfo, FoldPredictions const& predts);
+  void Reset(MetaInfo const& info, FoldAssignment const& assignment, FoldPredictions const& predts);
   void ResizeScratch(MetaInfo const& info, bst_idx_t n_rows);
-  void EvalFold(FoldModels const& models, MetaInfo const& info, FoldInfoBatches const& finfo,
+  void EvalFold(FoldModels const& models, MetaInfo const& info, FoldAssignment const& assignment,
                 FoldPredictions const& predts, std::size_t k, Split split);
 
  public:
@@ -235,13 +219,11 @@ class FoldEvaluator {
   // Every metric on every split of the round just committed; `iter` is what asserts the
   // caches are that round's. `models` supplies the transform, per call so none is held.
   [[nodiscard]] FoldEvalResult const& Eval(FoldModels const& models, MetaInfo const& info,
-                                           FoldInfoBatches const& finfo,
                                            FoldPredictions const& predts, std::int32_t iter);
 };
 }  // namespace xgboost::cv
 
 using FoldModelsHandle = void*;
-using FoldInfoBatchesHandle = void*;
 using FoldPredictionsHandle = void*;
 using FoldGpairsHandle = void*;
 using TreeMethodHandle = void*;

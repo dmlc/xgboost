@@ -158,22 +158,11 @@ def tree_depth(tree: dict) -> int:
 
 
 def fold_rows(k_folds: int, k: int) -> tuple[cp.ndarray, cp.ndarray]:
-    """Global row indices of the training and the held-out rows of the k^th fold.
-
-    The folds are split within each page, and `make_extqdm` keeps one page per batch, hence
-    the per-batch offset.
-
-    """
+    """Global round-robin membership, independent of external-memory pages."""
     import cupy as cp
-    from sklearn.model_selection import KFold
 
-    # Every batch has the same number of rows here, hence the same within-batch split.
-    train_idx, valid_idx = list(
-        KFold(n_splits=k_folds).split(np.arange(N_SAMPLES_PER_BATCH))
-    )[k]
-    train = [cp.asarray(train_idx) + i * N_SAMPLES_PER_BATCH for i in range(N_BATCHES)]
-    valid = [cp.asarray(valid_idx) + i * N_SAMPLES_PER_BATCH for i in range(N_BATCHES)]
-    return cp.concatenate(train), cp.concatenate(valid)
+    rows = cp.arange(N_BATCHES * N_SAMPLES_PER_BATCH)
+    return rows[rows % k_folds != k], rows[rows % k_folds == k]
 
 
 def fold_weights(w: list[cp.ndarray], k_folds: int, k: int) -> cp.ndarray:
@@ -224,19 +213,14 @@ class CvState:
 
     Xy: xgb.ExtMemQuantileDMatrix
     cv_folds: xcv.FoldModels
-    folds: xcv.FoldInfoBatches
     predts: xcv.FoldPredictions
     gpairs: xcv.FoldGpairs
     tree_method: xcv.FoldTreeMethod
 
     def boost(self, it: int) -> None:
         """One round: the gradient of every unit, then one tree for each."""
-        self.cv_folds.get_gradient(
-            self.Xy, it, self.folds, self.predts, out=self.gpairs
-        )
-        self.tree_method.update(
-            self.cv_folds, self.Xy, self.folds, self.gpairs, self.predts
-        )
+        self.cv_folds.get_gradient(self.Xy, it, self.predts, out=self.gpairs)
+        self.tree_method.update(self.cv_folds, self.Xy, self.gpairs, self.predts)
 
 
 def make_cv_state(
@@ -244,16 +228,19 @@ def make_cv_state(
     k_folds: int,
     refit: bool = False,
     params: dict | None = None,
+    assignment: xcv.FoldAssignment | None = None,
 ) -> CvState:
     """Set a run up to the point where `boost` can be called, growing nothing yet."""
+    if assignment is None:
+        assignment = xcv.FoldAssignment(
+            xcv.make_kfold(Xy.num_row(), k_folds), k_folds=k_folds
+        )
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds, refit=refit)
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
     predts = xcv.FoldPredictions()
-    cv_folds.init_prediction(Xy, folds, out=predts)
+    cv_folds.init_prediction(Xy, out=predts, assignment=assignment)
     return CvState(
         Xy=Xy,
         cv_folds=cv_folds,
-        folds=folds,
         predts=predts,
         gpairs=xcv.FoldGpairs(),
         tree_method=xcv.FoldTreeMethod(cv_folds, Xy, params=params or PARAMS),
@@ -297,7 +284,7 @@ def run_cv_eval(
     for it in range(n_rounds):
         state.boost(it)
         # After the update, so the value labelled round `it` describes `it + 1` trees.
-        result = evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, it)
+        result = evaluator.evaluate(state.cv_folds, Xy, state.predts, it)
     assert result is not None
     return state.cv_folds, state.predts, result
 
@@ -316,12 +303,14 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     assert cv_folds.num_boosted_rounds() == 0
 
     predts = xcv.FoldPredictions()
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
-    assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
+    assignment = xcv.FoldAssignment(
+        xcv.make_kfold(Xy.num_row(), k_folds), k_folds=k_folds
+    )
+    assert cv_folds.init_prediction(Xy, out=predts, assignment=assignment) is predts
     gpairs = xcv.FoldGpairs()
-    assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
+    assert cv_folds.get_gradient(Xy, 0, predts, out=gpairs) is gpairs
     tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS)
-    tree_method.update(cv_folds, Xy, folds, gpairs, predts)
+    tree_method.update(cv_folds, Xy, gpairs, predts)
     assert cv_folds.num_boosted_rounds() == 1
 
     # The data is continuous and random, so every fold splits the root and then keeps
@@ -340,43 +329,10 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
         state.boost(0)
 
 
-def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
-    """The handles and the interleaved gradient buffer the Python layer hands back."""
-    _, _, _, Xy = xyw_extqdm
-    k_folds = 3
-
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
-    assert isinstance(folds.handle, ctypes.c_void_p)
-    assert folds.handle.value is not None
-    assert folds.k_folds == k_folds
-
-    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
-    predts = xcv.FoldPredictions()
-    assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
-    gpairs = xcv.FoldGpairs()
-    assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
-    assert isinstance(gpairs.handle, ctypes.c_void_p)
-    assert gpairs.handle.value is not None
-
-    float_size = ctypes.sizeof(ctypes.c_float)
-    for k in range(k_folds):
-        grad, hess = gpairs.get(k, copy=False)
-        # Gradient and hessian are two strided views over one interleaved buffer, indexed
-        # by the global row index.
-        assert grad.shape == (Xy.num_row(), 1)
-        assert grad.shape == hess.shape
-        assert grad.dtype == hess.dtype
-        assert grad.data.ptr + float_size == hess.data.ptr
-        assert grad.strides == hess.strides == (2 * float_size, 2 * float_size)
-
-    # The buffer is reusable across rounds.
-    assert cv_folds.get_gradient(Xy, 1, folds, predts, out=gpairs) is gpairs
-
-
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.parametrize("base_margin", [False, True])
 def test_cv_gradient(base_margin: bool) -> None:
-    """A fold's gradient covers its training rows and zeroes the rows it holds out."""
+    """Interleaved gradients mask held-out rows; refit uses every row."""
     import cupy as cp
 
     k_folds = 3
@@ -390,34 +346,34 @@ def test_cv_gradient(base_margin: bool) -> None:
         margin = cp.arange(Xy.num_row(), dtype=cp.float32) / Xy.num_row()
         Xy.set_info(base_margin=margin)
 
-    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds, refit=True)
     predts = xcv.FoldPredictions()
-    cv_folds.init_prediction(Xy, folds, out=predts)
+    assignment = xcv.FoldAssignment(
+        xcv.make_kfold(Xy.num_row(), k_folds), k_folds=k_folds
+    )
+    cv_folds.init_prediction(Xy, out=predts, assignment=assignment)
     gpairs = xcv.FoldGpairs()
-    cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs)
+    assert cv_folds.get_gradient(Xy, 0, predts, out=gpairs) is gpairs
 
-    for k in range(k_folds):
-        grad, hess = gpairs.get(k, copy=False)
-        want_grad, want_hess = expected_gradient(y, fold_weights(w, k_folds, k), margin)
+    float_size = ctypes.sizeof(ctypes.c_float)
+    for k in range(k_folds + 1):
+        if k == k_folds:
+            grad, hess = gpairs.get_refit(copy=False)
+            weights = cp.concatenate(w)
+        else:
+            grad, hess = gpairs.get(k, copy=False)
+            weights = fold_weights(w, k_folds, k)
+        # Gradient and hessian are strided views over one buffer in global row order.
+        assert grad.shape == hess.shape == (Xy.num_row(), 1)
+        assert grad.dtype == hess.dtype == cp.float32
+        assert grad.data.ptr + float_size == hess.data.ptr
+        assert grad.strides == hess.strides == (2 * float_size, 2 * float_size)
+        want_grad, want_hess = expected_gradient(y, weights, margin)
         cp.testing.assert_allclose(grad, want_grad)
         cp.testing.assert_allclose(hess, want_hess)
 
-
-def test_cv_refit_gradient(xyw_extqdm: XywExtQdm) -> None:
-    """Unlike a fold, the refit model has a gradient for every row."""
-    import cupy as cp
-
-    _, y, w, Xy = xyw_extqdm
-
-    _, _, gpairs = run_cv(Xy, 3, 1, refit=True)
-    grad, hess = gpairs.get_refit()
-    assert grad.shape == (Xy.num_row(), 1)
-
-    # No row is masked out, so no weight is zeroed.
-    want_grad, want_hess = expected_gradient(y, cp.concatenate(w))
-    cp.testing.assert_allclose(grad, want_grad)
-    cp.testing.assert_allclose(hess, want_hess)
+    # The buffer is reusable across rounds.
+    assert cv_folds.get_gradient(Xy, 1, predts, out=gpairs) is gpairs
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -435,14 +391,16 @@ def test_cv_prediction_cache(xyw_extqdm: XywExtQdm) -> None:
 
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
     predts = xcv.FoldPredictions()
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
-    cv_folds.init_prediction(Xy, folds, out=predts)
+    assignment = xcv.FoldAssignment(
+        xcv.make_kfold(Xy.num_row(), k_folds), k_folds=k_folds
+    )
+    cv_folds.init_prediction(Xy, out=predts, assignment=assignment)
     gpairs = xcv.FoldGpairs()
     tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params=PARAMS)
 
     for it in range(2):
-        cv_folds.get_gradient(Xy, it, folds, predts, out=gpairs)
-        tree_method.update(cv_folds, Xy, folds, gpairs, predts)
+        cv_folds.get_gradient(Xy, it, predts, out=gpairs)
+        tree_method.update(cv_folds, Xy, gpairs, predts)
         assert cv_folds.num_boosted_rounds() == it + 1
 
         for k in range(k_folds):
@@ -588,7 +546,6 @@ def test_cv_data_iter() -> None:
 def test_cross_val_predict(n_targets: int) -> None:
     """Every estimate must match a booster fitted on the rows its fold kept."""
     import cupy as cp
-    from sklearn.model_selection import KFold
 
     X, y, w = make_dataset()
     # `w` is drawn independently of `y`, so it doubles as a second, unrelated target.
@@ -602,13 +559,12 @@ def test_cross_val_predict(n_targets: int) -> None:
     assert oof.dtype == cp.float32
     assert oof.shape == ((n_samples,) if n_targets == 1 else (n_samples, n_targets))
 
-    # A dataset this small ends up in a single page, so the folds are the unshuffled
-    # `KFold` split of the whole dataset.
+    # The reference uses the same membership and quantile cuts.
     Xy = xgb.ExtMemQuantileDMatrix(xcv.CvDataIter(X, labels))
     features, d_labels = cp.asarray(X), cp.asarray(labels)
     expected = cp.empty_like(oof)
-    for train_rows, valid_rows in KFold(n_splits=k_folds).split(X):
-        train, valid = cp.asarray(train_rows), cp.asarray(valid_rows)
+    for k in range(k_folds):
+        train, valid = fold_rows(k_folds, k)
         # `ref` shares the CV cuts, so the reference sees the same bins.
         Xyk = xgb.QuantileDMatrix(features[train], label=d_labels[train], ref=Xy)
         booster = train_reference(Xyk, n_rounds)
@@ -637,7 +593,17 @@ def test_cv_evaluate_vs_reference(xyw_extqdm: XywExtQdm, n_targets: int) -> None
     X, y, w, Xy = xyw_extqdm if n_targets == 1 else make_extqdm(n_targets)
     weights = None if w is None else cp.concatenate(w)
 
-    _, _, result = run_cv_eval(Xy, k_folds, n_rounds)
+    ids = cp.arange(Xy.num_row()) % k_folds
+    ids[:N_SAMPLES_PER_BATCH] = 0  # Fold zero holds out the entire first page.
+    source = ids.copy()
+    state = make_cv_state(
+        Xy, k_folds, assignment=xcv.FoldAssignment(source, k_folds=k_folds)
+    )
+    source[:] = 0  # Neither the source nor the temporary Python owner must be retained.
+    evaluator = xcv.FoldEvaluator(state.cv_folds)
+    for it in range(n_rounds):
+        state.boost(it)
+        result = evaluator.evaluate(state.cv_folds, Xy, state.predts, it)
     assert result.train is not None
     assert result.train.dtype == result.valid.dtype == np.float64
 
@@ -651,7 +617,8 @@ def test_cv_evaluate_vs_reference(xyw_extqdm: XywExtQdm, n_targets: int) -> None
         )
 
     for k in range(k_folds):
-        train_rows, valid_rows = fold_rows(k_folds, k)
+        train_rows = cp.flatnonzero(ids != k)
+        valid_rows = cp.flatnonzero(ids == k)
         Xyk = subset(train_rows)
         booster = train_reference(Xyk, n_rounds)
         assert result.train[0, k] == pytest.approx(
@@ -711,19 +678,19 @@ def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
     stale = "not from the round being evaluated"
     # Before the update, which is the ordering mistake a driver would make.
     with pytest.raises(xgb.core.XGBoostError, match=stale):
-        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, 0)
+        evaluator.evaluate(state.cv_folds, Xy, state.predts, 0)
 
     state.boost(0)
     with pytest.raises(xgb.core.XGBoostError, match=stale):
-        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, 1)
+        evaluator.evaluate(state.cv_folds, Xy, state.predts, 1)
     with pytest.raises(xgb.core.XGBoostError, match="needs a committed round"):
-        evaluator.evaluate(state.cv_folds, Xy, state.folds, state.predts, -1)
+        evaluator.evaluate(state.cv_folds, Xy, state.predts, -1)
 
     # Caches of a run with a refit unit describe one unit more than these models do. Read
     # before anything else, so an unboosted run is enough to reach it.
     refit = make_cv_state(Xy, 3, refit=True)
     with pytest.raises(xgb.core.XGBoostError, match="describe 4 training units"):
-        evaluator.evaluate(state.cv_folds, Xy, state.folds, refit.predts, 0)
+        evaluator.evaluate(state.cv_folds, Xy, refit.predts, 0)
 
     # A local matrix, since a group would leak into the other tests through the fixture.
     _, _, _, grouped = make_extqdm()
@@ -731,7 +698,7 @@ def test_cv_evaluate_rejects(xyw_extqdm: XywExtQdm) -> None:
     gstate = make_cv_state(grouped, 3)
     with pytest.raises(xgb.core.XGBoostError, match="does not support ranking data"):
         xcv.FoldEvaluator(gstate.cv_folds).evaluate(
-            gstate.cv_folds, grouped, gstate.folds, gstate.predts, 0
+            gstate.cv_folds, grouped, gstate.predts, 0
         )
 
 
@@ -753,3 +720,22 @@ def test_cv_evaluate_is_inert(xyw_extqdm: XywExtQdm) -> None:
         cp.testing.assert_array_equal(quiet_predts.get(k), loud_predts.get(k))
     cp.testing.assert_array_equal(quiet_predts.get_valid(), loud_predts.get_valid())
     cp.testing.assert_array_equal(quiet_predts.get_refit(), loud_predts.get_refit())
+
+
+def test_assignment_identity(xyw_extqdm: XywExtQdm) -> None:
+    """Prediction caches, gradients, and the tree method must share one assignment."""
+    _, _, _, data = xyw_extqdm
+    assignment = xcv.FoldAssignment(xcv.make_kfold(data.num_row(), 3), k_folds=3)
+    state = make_cv_state(data, 3, assignment=assignment)
+    state.boost(0)
+    other = make_cv_state(data, 3)
+    other.cv_folds.get_gradient(data, 0, other.predts, other.gpairs)
+    with pytest.raises(xgb.core.XGBoostError, match="same fold assignment"):
+        state.tree_method.update(state.cv_folds, data, other.gpairs, state.predts)
+    with pytest.raises(
+        xgb.core.XGBoostError, match="fold assignment from its first update"
+    ):
+        state.tree_method.update(state.cv_folds, data, other.gpairs, other.predts)
+    with pytest.raises(xgb.core.XGBoostError, match="already initialized"):
+        state.cv_folds.init_prediction(data, state.predts, assignment=assignment)
+    state.boost(1)
