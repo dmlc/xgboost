@@ -259,13 +259,18 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         nonlocal n_features
 
         if name == alias.data or name in part.columns:
-            if name == alias.data:
-                array = _read_csr_matrix_from_unwrapped_spark_vec(part)
+            array: Optional[Any] = None
+            if name == alias.data and part.shape[0] > 0:
+                csr = _read_csr_matrix_from_unwrapped_spark_vec(part)
                 if n_features == 0:
-                    n_features = array.shape[1]
-                assert n_features == array.shape[1]
-            else:
+                    n_features = csr.shape[1]
+                assert n_features == csr.shape[1]
+                array = csr
+            elif name != alias.data:
                 array = part[name]
+
+            if array is None:
+                return
 
             if is_valid:
                 valid_data[name].append(array)
