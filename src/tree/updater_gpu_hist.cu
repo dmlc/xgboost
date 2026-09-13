@@ -3,9 +3,9 @@
  */
 #include <thrust/transform.h>  // for transform
 
-#include <algorithm>        // for max
-#include <cmath>            // for isnan
-#include <cstdint>          // for int32_t, uint32_t
+#include <algorithm>            // for max
+#include <cmath>                // for isnan
+#include <cstdint>              // for int32_t, uint32_t
 #include <cuda/std/functional>  // for plus
 #include <memory>               // for unique_ptr, make_unique
 #include <string>               // for string

@@ -6,9 +6,9 @@
 #include <thrust/unique.h>
 
 #include <algorithm>
-#include <cstdint>          // for uintptr_t
-#include <cuda/functional>  // for proclaim_return_type
-#include <cuda/iterator>    // for make_counting_iterator
+#include <cstdint>              // for uintptr_t
+#include <cuda/functional>      // for proclaim_return_type
+#include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for equal_to, greater
 #include <cuda/std/iterator>    // for make_reverse_iterator
 #include <cuda/std/tuple>       // for make_tuple, tie, tuple

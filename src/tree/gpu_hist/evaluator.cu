@@ -7,7 +7,7 @@
 #include <thrust/logical.h>  // for any_of
 #include <thrust/sort.h>     // for stable_sort_by_key
 
-#include <cuda/iterator>  // for make_counting_iterator
+#include <cuda/iterator>   // for make_counting_iterator
 #include <cuda/std/tuple>  // for make_tuple, get
 
 #include "../../common/cuda_context.cuh"  // for CUDAContext

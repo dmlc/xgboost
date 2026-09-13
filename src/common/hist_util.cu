@@ -11,7 +11,7 @@
 #include <xgboost/logging.h>
 
 #include <algorithm>
-#include <cstddef>  // for size_t
+#include <cstddef>         // for size_t
 #include <cuda/iterator>   // for make_counting_iterator
 #include <cuda/std/tuple>  // for get, tuple
 #include <utility>

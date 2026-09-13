@@ -5,9 +5,9 @@
 #include <thrust/reduce.h>   // for reduce
 #include <thrust/scan.h>     // for inclusive_scan
 
-#include <cstddef>          // for size_t
-#include <cuda/functional>  // for maximum
-#include <cuda/iterator>    // for make_counting_iterator
+#include <cstddef>           // for size_t
+#include <cuda/functional>   // for maximum
+#include <cuda/iterator>     // for make_counting_iterator
 #include <cuda/std/utility>  // for pair
 
 #include "algorithm.cuh"       // for SegmentedArgSort

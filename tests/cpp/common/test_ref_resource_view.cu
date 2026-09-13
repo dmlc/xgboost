@@ -4,9 +4,9 @@
 #if defined(__linux__)
 
 #include <gtest/gtest.h>
-#include <thrust/equal.h>                       // for equal
-#include <thrust/fill.h>                        // for fill_n
-#include <thrust/sequence.h>                    // for sequence
+#include <thrust/equal.h>     // for equal
+#include <thrust/fill.h>      // for fill_n
+#include <thrust/sequence.h>  // for sequence
 
 #include "../../../src/common/ref_resource_view.cuh"
 #include "../../../src/common/threadpool.h"  // for ThreadPool

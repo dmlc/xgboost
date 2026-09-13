@@ -5,8 +5,8 @@
 #include <thrust/sequence.h>  // for sequence
 
 #include <cuda/iterator>  // for make_counting_iterator
-#include <numeric>  // for iota
-#include <thread>   // for thread
+#include <numeric>        // for iota
+#include <thread>         // for thread
 
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion

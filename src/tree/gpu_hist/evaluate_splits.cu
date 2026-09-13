@@ -1,7 +1,7 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <algorithm>  // for :max
+#include <algorithm>            // for :max
 #include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for plus
 #include <limits>               // for numeric_limits

@@ -5,7 +5,7 @@
  */
 #include <thrust/execution_policy.h>  // cuda::par
 
-#include <cstddef>  // std::size_t
+#include <cstddef>        // std::size_t
 #include <cuda/iterator>  // for make_counting_iterator
 
 #include "../collective/aggregator.cuh"  // for GlobalSum

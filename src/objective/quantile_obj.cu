@@ -5,8 +5,8 @@
  */
 #include <dmlc/registry.h>
 
-#include <cmath>    // for fabsf, fmaxf, sqrtf, tanhf
-#include <cstddef>  // for size_t
+#include <cmath>          // for fabsf, fmaxf, sqrtf, tanhf
+#include <cstddef>        // for size_t
 #include <cuda/iterator>  // for make_counting_iterator
 
 #include "../collective/aggregator.cuh"  // for GlobalSum

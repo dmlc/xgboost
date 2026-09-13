@@ -1,8 +1,8 @@
 /**
  * Copyright 2017-2026, XGBoost Contributors
  */
-#include <cuda/functional>  // for proclaim_return_type
-#include <cuda/iterator>    // for make_counting_iterator
+#include <cuda/functional>   // for proclaim_return_type
+#include <cuda/iterator>     // for make_counting_iterator
 #include <cuda/std/utility>  // for swap
 #include <memory>
 #include <unordered_map>

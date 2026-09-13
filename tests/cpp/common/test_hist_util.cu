@@ -8,8 +8,8 @@
 
 #include <algorithm>  // for transform
 #include <array>
-#include <cmath>    // for floor
-#include <cstddef>  // for size_t
+#include <cmath>          // for floor
+#include <cstddef>        // for size_t
 #include <cuda/iterator>  // for make_counting_iterator
 #include <limits>         // for numeric_limits
 #include <vector>         // for vector

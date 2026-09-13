@@ -5,8 +5,8 @@
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
 #include <algorithm>
-#include <cstdint>          // uint32_t, int32_t
-#include <cuda/functional>  // for proclaim_copyable_arguments
+#include <cstdint>              // uint32_t, int32_t
+#include <cuda/functional>      // for proclaim_copyable_arguments
 #include <cuda/std/functional>  // for plus
 #include <vector>               // for vector
 

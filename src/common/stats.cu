@@ -4,7 +4,7 @@
 
 #include <thrust/reduce.h>  // for reduce_by_key
 
-#include <cstddef>  // size_t
+#include <cstddef>              // size_t
 #include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for plus
 

@@ -4,7 +4,7 @@
 #include <thrust/shuffle.h>  // for shuffle
 
 #include <cuda/iterator>  // for make_counting_iterator
-#include <memory>  // for shared_ptr
+#include <memory>         // for shared_ptr
 
 #include "algorithm.cuh"     // for ArgSort
 #include "cuda_context.cuh"  // for CUDAContext
