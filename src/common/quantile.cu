@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstdint>              // for uintptr_t
 #include <cuda/functional>      // for proclaim_return_type
-#include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for equal_to, greater
 #include <cuda/std/iterator>    // for make_reverse_iterator
 #include <cuda/std/tuple>       // for make_tuple, tie, tuple
@@ -25,6 +24,7 @@
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
@@ -95,7 +95,7 @@ void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     float w = back.rmin - front.rmax;
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        cuda::make_counting_iterator(in_begin),
+        dh::make_counting_iterator(in_begin),
         [=] __device__(size_t abs_idx) { return entry_from_index(abs_idx); });
     selected_idx[cuts_ptr[column_id] + idx] =
         in_begin + BinarySearchQueryIndex(it, it + in_size, q);
@@ -173,7 +173,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     assert(!d_out.empty());
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        cuda::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+        dh::make_counting_iterator(0ul), [=] __device__(size_t idx) {
           auto e = to_sketch_entry(idx, in_column, column_id);
           return e;
         });
@@ -228,7 +228,7 @@ XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEn
   // j = k - i always stays within [0, n].
   auto low = k > n ? k - n : 0ul;
   auto high = std::min(k, m);
-  auto candidate_it = cuda::make_counting_iterator<uint64_t>(low);
+  auto candidate_it = dh::make_counting_iterator<uint64_t>(low);
   auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] XGBOOST_DEVICE(uint64_t i) {
     // j is the number of elements taken from y when the partition takes i from x.
     auto j = k - i;
@@ -415,7 +415,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
 
   auto key_it = dh::MakeTransformIterator<size_t>(
-      cuda::std::make_reverse_iterator(cuda::make_counting_iterator(entries.size())),
+      cuda::std::make_reverse_iterator(dh::make_counting_iterator(entries.size())),
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
   auto val_it = cuda::std::make_reverse_iterator(dh::tend(entries));

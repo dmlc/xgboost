@@ -19,9 +19,9 @@
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/transform_reduce.h>
 
-#include <cuda/iterator>        // for counting_iterator
 #include <cuda/std/functional>  // for plus
 
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
@@ -87,8 +87,8 @@ class MultiClassMetricsReduction {
                                          const size_t n_class) {
     size_t n_data = labels.Size();
 
-    cuda::counting_iterator<size_t> begin(0);
-    cuda::counting_iterator<size_t> end = begin + n_data;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + n_data;
 
     auto s_labels = labels.DeviceSpan();
     auto s_preds = preds.DeviceSpan();

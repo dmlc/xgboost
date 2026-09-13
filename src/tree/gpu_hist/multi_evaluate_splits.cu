@@ -9,7 +9,6 @@
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
-#include <cuda/iterator>             // for make_counting_iterator
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
 #include <cuda/std/tuple>            // for get, make_tuple, tuple
@@ -17,6 +16,7 @@
 #include <memory>                    // for make_unique
 #include <type_traits>               // for is_trivially_copyable_v
 
+#include "../../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../common/cuda_context.cuh"
 #include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -457,7 +457,7 @@ void MultiHistEvaluator::Reset(Context const *ctx,
     return;
   }
 
-  auto feature_it = cuda::make_counting_iterator<bst_feature_t>(0);
+  auto feature_it = dh::make_counting_iterator<bst_feature_t>(0);
   auto max_cat_to_onehot = param.max_cat_to_onehot;
   this->need_sort_histogram_ =
       thrust::any_of(ctx->CUDACtx()->CTP(), feature_it, feature_it + n_features,
@@ -500,7 +500,7 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
   using SortKey = cuda::std::tuple<std::size_t, bst_feature_t, double>;
   dh::device_vector<SortKey> keys(total_bins);
 
-  auto cnt_it = cuda::make_counting_iterator(0ul);
+  auto cnt_it = dh::make_counting_iterator(0ul);
   thrust::transform(
       ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, keys.begin(),
       [=] XGBOOST_DEVICE(std::size_t i) {
@@ -584,7 +584,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto in_scans = dh::ToSpan(this->scan_buffer_);
   auto d_scans = common::IterSpan{
       thrust::make_transform_iterator(
-          cuda::make_counting_iterator(0ul),
+          dh::make_counting_iterator(0ul),
           [=] XGBOOST_DEVICE(std::size_t nidx_in_set) -> common::Span<GradientPairInt64> {
             return in_scans.subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
           }),

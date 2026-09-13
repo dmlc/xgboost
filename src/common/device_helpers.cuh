@@ -16,7 +16,6 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
-#include <cuda/iterator>      // for make_counting_iterator
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
@@ -25,6 +24,7 @@
 #include <vector>             // for vector
 
 #include "common.h"
+#include "cuda_compat.cuh"  // for CUDA compatibility
 #include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
 #include "cuda_stream.h"    // for Stream
 #include "device_vector.cuh"
@@ -549,7 +549,7 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
 
 template <typename Fn>
 XGBOOST_DEVICE auto MakeIndexTransformIter(Fn &&fn) {
-  return thrust::make_transform_iterator(cuda::make_counting_iterator(0ul), std::forward<Fn>(fn));
+  return thrust::make_transform_iterator(dh::make_counting_iterator(0ul), std::forward<Fn>(fn));
 }
 
 template <typename It>
@@ -597,7 +597,7 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
                        CompValue comp, CompKey comp_key = std::equal_to<size_t>{}) {
   using Key = cuda::std::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      cuda::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
+      dh::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
         return cuda::std::make_pair(seg, *(val_first + i));
       });
@@ -649,7 +649,7 @@ size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedP
       cuda::std::pair<std::size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      cuda::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
+      dh::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
         return cuda::std::make_pair(seg, *(key_first + i));
       });

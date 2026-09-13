@@ -9,9 +9,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/scan.h>
 
-#include <cuda/iterator>  // for make_counting_iterator
-
-#include "../common/algorithm.cuh"  // for CopyIf
+#include "../common/algorithm.cuh"    // for CopyIf
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"  // for InfInData
 #include "device_adapter.cuh"     // for NoInfInData
@@ -32,7 +31,7 @@ struct COOToEntryOp {
 template <typename AdapterBatchT>
 void CopyDataToDMatrix(Context const* ctx, AdapterBatchT batch, common::Span<Entry> data,
                        float missing) {
-  auto counting = cuda::make_counting_iterator(0llu);
+  auto counting = dh::make_counting_iterator(0llu);
   COOToEntryOp<decltype(batch)> transform_op{batch};
   thrust::transform_iterator<decltype(transform_op), decltype(counting)> transform_iter(
       counting, transform_op);

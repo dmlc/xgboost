@@ -8,9 +8,8 @@
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
 
-#include <cuda/iterator>  // for make_counting_iterator
-
 #include "../common/common.h"
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
@@ -166,7 +165,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   // This needs to be public because of the __device__ lambda.
   GradientPair GetBiasGradient(int group_idx, int num_group) {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    auto counting = cuda::make_counting_iterator(0ull);
+    auto counting = dh::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       return idx * num_group + group_idx;
     };  // NOLINT
@@ -192,7 +191,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     common::Span<xgboost::Entry> d_col = dh::ToSpan(data_).subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
     common::Span<GradientPair> d_gpair = dh::ToSpan(gpair_);
-    auto counting = cuda::make_counting_iterator(0ull);
+    auto counting = dh::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       auto entry = d_col[idx];
       auto g = d_gpair[entry.index * num_group + group_idx];

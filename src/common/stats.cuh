@@ -8,14 +8,14 @@
 #include <thrust/iterator/permutation_iterator.h>  // for make_permutation_iterator
 #include <thrust/scan.h>                           // for inclusive_scan_by_key
 
-#include <algorithm>      // for min
-#include <cstddef>        // for size_t
-#include <cuda/iterator>  // for make_constant_iterator, make_counting_iterator
+#include <algorithm>    // for min
+#include <cstddef>      // for size_t
 #include <iterator>     // for distance
 #include <limits>       // for numeric_limits
 #include <type_traits>  // for is_floating_point_v,iterator_traits
 
 #include "algorithm.cuh"       // for SegmentedArgMergeSort
+#include "cuda_compat.cuh"     // for CUDA compatibility
 #include "cuda_context.cuh"    // for CUDAContext
 #include "device_helpers.cuh"  // for SegmentId
 #include "device_vector.cuh"   // for device_vector
@@ -165,7 +165,7 @@ void SegmentedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_begin, Se
   quantiles->Resize(n_segments);
   auto d_results = linalg::MakeVec(ctx->Device(), quantiles->DeviceSpan());
 
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), n_segments,
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), n_segments,
                      detail::MakeQSegOp(seg_begin, val, alpha_it, d_results));
 }
 
@@ -210,9 +210,8 @@ void SegmentedQuantile(Context const* ctx, std::vector<float> const& h_alphas, S
 
     auto row = d_quantiles.Slice(linalg::All(), alpha_idx);
     auto alpha = h_alphas[alpha_idx];
-    thrust::for_each_n(
-        ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), n_segments,
-        detail::MakeQSegOp(seg_begin, val, cuda::make_constant_iterator(alpha), row));
+    thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), n_segments,
+                       detail::MakeQSegOp(seg_begin, val, dh::make_constant_iterator(alpha), row));
   }
 }
 
@@ -230,7 +229,7 @@ template <typename SegIt, typename ValIt>
 void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt seg_end,
                        ValIt val_begin, ValIt val_end, HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
-  auto alpha_it = cuda::make_constant_iterator(alpha);
+  auto alpha_it = dh::make_constant_iterator(alpha);
   return SegmentedQuantile(ctx, alpha_it, seg_begin, seg_end, val_begin, val_end, quantiles);
 }
 
@@ -271,7 +270,7 @@ void SegmentedWeightedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_b
   auto d_weight_cdf = dh::ToSpan(weights_cdf);
 
   thrust::for_each_n(
-      cuctx->CTP(), cuda::make_counting_iterator(0ul), n_segments,
+      cuctx->CTP(), dh::make_counting_iterator(0ul), n_segments,
       detail::MakeWQSegOp(seg_beg, val_begin, alpha_it, d_weight_cdf, d_sorted_idx, d_results));
 }
 
@@ -318,8 +317,8 @@ void SegmentedWeightedQuantile(Context const* ctx, std::vector<float> const& h_a
     auto alpha = h_alphas[alpha_idx];
     auto row = d_quantiles.Slice(linalg::All(), alpha_idx);
 
-    thrust::for_each_n(cuctx->CTP(), cuda::make_counting_iterator(0ul), n_segments,
-                       detail::MakeWQSegOp(seg_beg, val_begin, cuda::make_constant_iterator(alpha),
+    thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), n_segments,
+                       detail::MakeWQSegOp(seg_beg, val_begin, dh::make_constant_iterator(alpha),
                                            d_weight_cdf, d_sorted_idx, row));
   }
 }
@@ -329,7 +328,7 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
                                ValIt val_begin, ValIt val_end, WIter w_begin, WIter w_end,
                                HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
-  return SegmentedWeightedQuantile(ctx, cuda::make_constant_iterator(alpha), seg_beg, seg_end,
+  return SegmentedWeightedQuantile(ctx, dh::make_constant_iterator(alpha), seg_beg, seg_end,
                                    val_begin, val_end, w_begin, w_end, quantiles);
 }
 }  // namespace xgboost::common

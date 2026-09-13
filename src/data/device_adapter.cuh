@@ -5,14 +5,14 @@
 #ifndef XGBOOST_DATA_DEVICE_ADAPTER_H_
 #define XGBOOST_DATA_DEVICE_ADAPTER_H_
 
-#include <cstddef>          // for size_t
-#include <cuda/functional>  // for maximum
+#include <cstddef>           // for size_t
 #include <cuda/std/variant>  // for variant
 #include <limits>            // for numeric_limits
 #include <memory>            // for make_unique
 #include <string>            // for string
 
-#include "../common/algorithm.cuh"  // for AllOf
+#include "../common/algorithm.cuh"    // for AllOf
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "adapter.h"
@@ -222,7 +222,7 @@ bst_idx_t GetRowCounts(Context const* ctx, const AdapterBatchT batch,
   bst_idx_t row_stride =
       dh::Reduce(ctx->CUDACtx()->CTP(), thrust::device_pointer_cast(offset.data()),
                  thrust::device_pointer_cast(offset.data()) + offset.size(),
-                 static_cast<bst_idx_t>(0), cuda::maximum<bst_idx_t>());
+                 static_cast<bst_idx_t>(0), dh::maximum<bst_idx_t>());
   return row_stride;
 }
 

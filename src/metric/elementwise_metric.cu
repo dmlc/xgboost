@@ -27,9 +27,9 @@
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/transform_reduce.h>
 
-#include <cuda/iterator>        // for counting_iterator
 #include <cuda/std/functional>  // for plus
 
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #else
 #include "../common/common.h"  // for AssertGPUSupport
@@ -56,8 +56,8 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
   auto labels = info.labels.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
-    cuda::counting_iterator<size_t> begin(0);
-    cuda::counting_iterator<size_t> end = begin + labels.Size() * num_preds;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + labels.Size() * num_preds;
     result = thrust::transform_reduce(
         ctx->CUDACtx()->CTP(), begin, end,
         [=] XGBOOST_DEVICE(size_t i) {

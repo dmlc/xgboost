@@ -8,10 +8,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cuda/functional>  // for maximum
-#include <cuda/iterator>    // for make_counting_iterator
 #include <functional>       // for equal_to
 #include <vector>
 
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/quantile.h"
@@ -127,9 +127,9 @@ void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_dup
 
 TEST(DeviceHelpers, Reduce) {
   size_t kSize = std::numeric_limits<uint32_t>::max();
-  auto it = cuda::make_counting_iterator(0ul);
+  auto it = dh::make_counting_iterator(0ul);
   dh::XGBCachingDeviceAllocator<char> alloc;
-  auto batched = dh::Reduce(thrust::cuda::par(alloc), it, it + kSize, 0ul, cuda::maximum<size_t>{});
+  auto batched = dh::Reduce(thrust::cuda::par(alloc), it, it + kSize, 0ul, dh::maximum<size_t>{});
   CHECK_EQ(batched, kSize - 1);
 }
 

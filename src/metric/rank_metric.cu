@@ -6,11 +6,11 @@
 
 #include <algorithm>            // for transform
 #include <cstddef>              // for size_t
-#include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for plus
 #include <memory>               // for shared_ptr
 #include <vector>               // for vector
 
+#include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "../common/optional_weight.h"   // for MakeOptionalWeights
@@ -42,7 +42,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   auto d_weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
 
   auto it = dh::MakeTransformIterator<double>(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
         auto g = dh::SegmentId(d_gptr, i);
         auto g_begin = d_gptr[g];
         auto g_end = d_gptr[g + 1];
@@ -71,7 +71,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
                                                 cuctx->Stream()));
 
   auto w_it = dh::MakeTransformIterator<double>(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t g) { return d_weight[g]; });
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t g) { return d_weight[g]; });
   auto n_weights = p_cache->Groups();
   auto sw = dh::Reduce(cuctx->CTP(), w_it, w_it + n_weights, 0.0, cuda::std::plus<double>{});
   auto sum =
@@ -104,7 +104,7 @@ PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
                                  d_out_dcg);
 
   auto it = dh::MakeTransformIterator<PackedReduceResult>(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
         if (d_inv_idcg(i) <= 0.0) {
           return PackedReduceResult{minus ? 0.0 : 1.0, static_cast<double>(d_weight[i])};
         }
@@ -125,7 +125,7 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
   predt.SetDevice(ctx->Device());
   auto d_rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto key_it = dh::MakeTransformIterator<std::size_t>(
-      cuda::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) { return dh::SegmentId(d_group_ptr, i); });
 
   auto get_label = [=] XGBOOST_DEVICE(std::size_t i) {
@@ -137,7 +137,7 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
     auto g_rank = d_rank_idx.subspan(g_begin, g_end - g_begin);
     return g_label(g_rank[i]);
   };
-  auto it = dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul), get_label);
+  auto it = dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul), get_label);
 
   auto cuctx = ctx->CUDACtx();
   auto n_rel = p_cache->NumRelevant(ctx);
@@ -148,7 +148,7 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
   thrust::fill_n(cuctx->CTP(), map.data(), map.size(), 0.0);
   {
     auto val_it = dh::MakeTransformIterator<double>(
-        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
           auto g = key_it[i];
           auto g_begin = d_group_ptr[g];
           auto g_end = d_group_ptr[g + 1];
@@ -183,7 +183,7 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
       CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
     }
     auto val_it = dh::MakeTransformIterator<PackedReduceResult>(
-        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t g) {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t g) {
           auto g_begin = d_group_ptr[g];
           auto g_end = d_group_ptr[g + 1];
           auto g_n_rel = n_rel.subspan(g_begin, g_end - g_begin);

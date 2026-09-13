@@ -11,14 +11,14 @@
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 #include <thrust/sort.h>                         // for sort
 
-#include <cstddef>          // for size_t
-#include <cstdint>          // for int32_t, int8_t
-#include <cuda/functional>  // for proclaim_return_type
-#include <cuda/iterator>    // for make_counting_iterator
+#include <cstddef>           // for size_t
+#include <cstdint>           // for int32_t, int8_t
+#include <cuda/functional>   // for proclaim_return_type
 #include <cuda/std/utility>  // for make_pair, pair
 #include <cuda/std/variant>  // for get
 #include <sstream>           // for stringstream
 
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/device_helpers.cuh"
 #include "ordinal.h"
 #include "types.h"  // for Overloaded
@@ -42,7 +42,7 @@ struct SegmentedSearchSortedStrOp {
     auto needle = needles.values.subspan(begin, end - begin);
 
     // Search the key from the training set
-    auto it = cuda::make_counting_iterator(0);
+    auto it = dh::make_counting_iterator(0);
     auto f_sorted_idx = ref_sorted_idx.subspan(
         haystack_v.feature_segments[f_idx],
         haystack_v.feature_segments[f_idx + 1] - haystack_v.feature_segments[f_idx]);
@@ -98,7 +98,7 @@ struct SegmentedSearchSortedNumOp {
     auto idx = i - needles_v.feature_segments[f_idx];  // index local to the feature
     auto needle = needles[idx];
     // Search the key from the training set
-    auto it = cuda::make_counting_iterator(0);
+    auto it = dh::make_counting_iterator(0);
     auto f_sorted_idx = ref_sorted_idx.subspan(
         haystack_v.feature_segments[f_idx],
         haystack_v.feature_segments[f_idx + 1] - haystack_v.feature_segments[f_idx]);
@@ -119,7 +119,7 @@ struct SegmentedSearchSortedNumOp {
 
 template <typename ThrustExec, typename U, typename V>
 void SegmentedIota(ThrustExec const& policy, Span<U> d_offset_ptr, Span<V> out_sequence) {
-  thrust::for_each_n(policy, cuda::make_counting_iterator(0ul), out_sequence.size(),
+  thrust::for_each_n(policy, dh::make_counting_iterator(0ul), out_sequence.size(),
                      [out_sequence, d_offset_ptr] __device__(std::size_t idx) {
                        auto group = dh::SegmentId(d_offset_ptr, idx);
                        out_sequence[idx] = idx - d_offset_ptr[group];
@@ -168,7 +168,7 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
   using Alloc = typename ExecPolicy::template ThrustAllocator<Pair>;
   thrust::device_vector<Pair, Alloc> keys(n_total_cats);
   auto key_it = thrust::make_transform_iterator(
-      cuda::make_counting_iterator(0),
+      dh::make_counting_iterator(0),
       cuda::proclaim_return_type<Pair>([=] __device__(std::int32_t i) {
         auto seg = dh::SegmentId(orig_enc.feature_segments, i);
         auto idx = d_sorted_idx[i];
@@ -176,33 +176,32 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       }));
   thrust::copy(exec, key_it, key_it + n_total_cats, keys.begin());
 
-  thrust::sort(exec, keys.begin(), keys.end(),
-               cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
-                 if (l.first == r.first) {  // same feature
-                   auto const& col = orig_enc.columns[l.first];
-                   return cuda::std::visit(
-                       Overloaded{[&l, &r](CatStrArrayView const& str) -> bool {
-                                    auto l_beg = str.offsets[l.second];
-                                    auto l_end = str.offsets[l.second + 1];
-                                    auto l_str = str.values.subspan(l_beg, l_end - l_beg);
+  thrust::sort(
+      exec, keys.begin(), keys.end(),
+      cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
+        if (l.first == r.first) {  // same feature
+          auto const& col = orig_enc.columns[l.first];
+          return cuda::std::visit(
+              Overloaded{[&l, &r](CatStrArrayView const& str) -> bool {
+                           auto l_beg = str.offsets[l.second];
+                           auto l_end = str.offsets[l.second + 1];
+                           auto l_str = str.values.subspan(l_beg, l_end - l_beg);
 
-                                    auto r_beg = str.offsets[r.second];
-                                    auto r_end = str.offsets[r.second + 1];
-                                    auto r_str = str.values.subspan(r_beg, r_end - r_beg);
-                                    return l_str < r_str;
-                                  },
-                                  [&](auto&& values) {
-                                    return values[l.second] < values[r.second];
-                                  }},
-                       col);
-                 }
-                 return l.first < r.first;
-               }));
+                           auto r_beg = str.offsets[r.second];
+                           auto r_end = str.offsets[r.second + 1];
+                           auto r_str = str.values.subspan(r_beg, r_end - r_beg);
+                           return l_str < r_str;
+                         },
+                         [&](auto&& values) { return values[l.second] < values[r.second]; }},
+              col);
+        }
+        return l.first < r.first;
+      }));
 
   // Extract the sorted index out from sorted keys.
   auto s_keys = dh::ToSpan(keys);
   auto it = thrust::make_transform_iterator(
-      cuda::make_counting_iterator(0),
+      dh::make_counting_iterator(0),
       cuda::proclaim_return_type<decltype(Pair{}.second)>(
           [=] __device__(std::int32_t i) { return s_keys[i].second; }));
   thrust::copy(exec, it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
@@ -231,7 +230,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
    * Check consistency.
    */
   auto check_it = thrust::make_transform_iterator(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
         auto const& l_f = orig_enc.columns[i];
         auto const& r_f = new_enc.columns[i];
         if (l_f.index() != r_f.index()) {
@@ -255,7 +254,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
    * search the index for the new encoding
    */
   thrust::for_each_n(
-      exec, cuda::make_counting_iterator(0), new_enc.n_total_cats, [=] __device__(std::int32_t i) {
+      exec, dh::make_counting_iterator(0), new_enc.n_total_cats, [=] __device__(std::int32_t i) {
         auto f_idx = dh::SegmentId(new_enc.feature_segments, i);
         std::int32_t searched_idx{detail::NotFound()};
         auto const& col = orig_enc.columns[f_idx];

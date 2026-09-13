@@ -4,10 +4,10 @@
 #include <gtest/gtest.h>
 #include <thrust/sequence.h>  // for sequence
 
-#include <cuda/iterator>  // for make_counting_iterator
-#include <numeric>        // for iota
-#include <thread>         // for thread
+#include <numeric>  // for iota
+#include <thread>   // for thread
 
+#include "../../../src/common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
 #include "../../../src/common/device_helpers.cuh"  // for PinnedMemory
@@ -59,7 +59,7 @@ TEST(DeviceUVector, Basic) {
   ASSERT_EQ(uvec1.size(), 32);
   ASSERT_EQ(uvec1.Capacity(), 32);
   auto eq = thrust::equal(ctx.CUDACtx()->CTP(), uvec1.cbegin(), uvec1.cbegin() + orig,
-                          cuda::make_counting_iterator(0));
+                          dh::make_counting_iterator(0));
   ASSERT_TRUE(eq);
 
   uvec1.clear();

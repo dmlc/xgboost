@@ -5,8 +5,7 @@
 #include <thrust/equal.h>
 #include <xgboost/host_device_vector.h>
 
-#include <cuda/iterator>  // for make_counting_iterator
-
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
 
@@ -51,7 +50,7 @@ void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int>* v) 
   ASSERT_FALSE(v->DeviceCanRead());
   ASSERT_FALSE(v->DeviceCanWrite());
   ASSERT_EQ(data_h.size(), n);
-  std::copy_n(cuda::make_counting_iterator(0), n, data_h.begin());
+  std::copy_n(dh::make_counting_iterator(0), n, data_h.begin());
 }
 
 void PlusOne(HostDeviceVector<int>* v) {
@@ -66,14 +65,14 @@ void CheckDevice(HostDeviceVector<int>* v, size_t size, unsigned int first, GPUA
   ASSERT_EQ(v->Size(), size);
   SetDeviceForTest(v->Device());
 
-  ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v), cuda::make_counting_iterator(first)));
+  ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v), dh::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   // ensure that the device has at most the access specified by access
   ASSERT_EQ(v->DeviceCanWrite(), access == GPUAccess::kWrite);
   ASSERT_EQ(v->HostCanRead(), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanWrite());
 
-  ASSERT_TRUE(thrust::equal(dh::tbegin(*v), dh::tend(*v), cuda::make_counting_iterator(first)));
+  ASSERT_TRUE(thrust::equal(dh::tbegin(*v), dh::tend(*v), dh::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   ASSERT_TRUE(v->DeviceCanWrite());
   ASSERT_FALSE(v->HostCanRead());

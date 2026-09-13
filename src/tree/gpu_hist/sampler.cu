@@ -10,10 +10,10 @@
 #include <thrust/transform.h>
 #include <thrust/version.h>
 
-#include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for plus
 #include <cuda/std/tuple>       // for tuple
 
+#include "../../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../common/nvtx_utils.h"
 
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 2)
@@ -124,7 +124,7 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
   seed_ = ctx->Rng()();
   auto sampling = this->GetSamplingInfo();
   thrust::replace_if(
-      cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair), cuda::make_counting_iterator(0ul),
+      cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair), dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) {
         auto ridx = i / n_targets;
         return !sampling.IsSampled(ridx);
@@ -139,7 +139,7 @@ void UniformSampling::ApplySampling(Context const* ctx, linalg::Matrix<GradientP
   auto sampling = this->GetSamplingInfo();
   thrust::replace_if(
       ctx->CUDACtx()->CTP(), linalg::tbegin(d_value), linalg::tend(d_value),
-      cuda::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) {
         auto ridx = i / n_targets;
         return !sampling.IsSampled(ridx);
@@ -173,7 +173,7 @@ void ReduceGradImpl(Context const* ctx, linalg::MatrixView<GPair const> gpairs, 
   auto grad_op = MvsGradOp{kDefaultMvsLambda};
 
   auto in_it = thrust::make_transform_iterator(
-      thrust::make_zip_iterator(cuda::make_counting_iterator(0ul), linalg::tcbegin(gpairs)),
+      thrust::make_zip_iterator(dh::make_counting_iterator(0ul), linalg::tcbegin(gpairs)),
       [=] XGBOOST_DEVICE(cuda::std::tuple<std::size_t, GPair> tup) -> float {
         auto [i, gpair] = tup;
         return grad_op(to_float(i, gpair));
@@ -241,7 +241,7 @@ std::size_t CalculateThresholdIndex(Context const* ctx, common::Span<float> sort
 
   // Find the threshold u for each row.
   thrust::transform(cuctx->CTP(), dh::tbegin(grad_csum), dh::tend(grad_csum),
-                    cuda::make_counting_iterator(0ul), dh::tbegin(grad_csum),
+                    dh::make_counting_iterator(0ul), dh::tbegin(grad_csum),
                     SampleRateDelta{sorted_rag, n_samples, sample_rows});
   // Find the first 0 element in grad_sum, which is within the threshold bound
   thrust::device_ptr<float> min =
@@ -279,7 +279,7 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
   // Only the threshold_[threshold_index_] is used. (that is the \mu in the paper)
   auto sampling = this->GetSamplingInfo();
   thrust::transform(cuctx->CTP(), linalg::tcbegin(gpair), linalg::tcend(gpair),
-                    cuda::make_counting_iterator(0ul), linalg::tbegin(gpair),
+                    dh::make_counting_iterator(0ul), linalg::tbegin(gpair),
                     PoissonSampling{roundings, sampling});
 }
 
@@ -294,7 +294,7 @@ void GradientBasedSampling::ApplySampling(Context const* ctx,
 
   auto sampling = this->GetSamplingInfo();
   thrust::transform(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_value), linalg::tcend(d_value),
-                    cuda::make_counting_iterator(0ul), linalg::tbegin(d_value),
+                    dh::make_counting_iterator(0ul), linalg::tbegin(d_value),
                     [=] XGBOOST_DEVICE(GradientPair gpair, std::size_t i) {
                       auto ridx = i / n_targets;
                       auto p = sampling.Probability(ridx);

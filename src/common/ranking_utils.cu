@@ -6,11 +6,10 @@
 #include <thrust/scan.h>     // for inclusive_scan
 
 #include <cstddef>           // for size_t
-#include <cuda/functional>   // for maximum
-#include <cuda/iterator>     // for make_counting_iterator
 #include <cuda/std/utility>  // for pair
 
 #include "algorithm.cuh"       // for SegmentedArgSort
+#include "cuda_compat.cuh"     // for CUDA compatibility
 #include "cuda_context.cuh"    // for CUDAContext
 #include "device_helpers.cuh"  // for MakeTransformIterator, LaunchN
 #include "optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
@@ -32,7 +31,7 @@ void CalcQueriesDCG(Context const* ctx, linalg::VectorView<float const> d_labels
   CHECK_EQ(d_group_ptr.size() - 1, out_dcg.Size());
   using IdxGroup = cuda::std::pair<std::size_t, std::size_t>;
   auto group_it = dh::MakeTransformIterator<IdxGroup>(
-      cuda::make_counting_iterator(0ull), [=] XGBOOST_DEVICE(std::size_t idx) {
+      dh::make_counting_iterator(0ull), [=] XGBOOST_DEVICE(std::size_t idx) {
         return cuda::std::make_pair(idx, dh::SegmentId(d_group_ptr, idx));
       });
   auto value_it = dh::MakeTransformIterator<double>(
@@ -148,10 +147,10 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   auto d_group_ptr = DataGroupPtr(ctx);
   std::size_t n_groups = Groups();
 
-  auto it = dh::MakeTransformIterator<std::size_t>(cuda::make_counting_iterator(0ul),
+  auto it = dh::MakeTransformIterator<std::size_t>(dh::make_counting_iterator(0ul),
                                                    GroupSizeOp{d_group_ptr});
   max_group_size_ =
-      thrust::reduce(cuctx->CTP(), it, it + n_groups, 0ul, cuda::maximum<std::size_t>{});
+      thrust::reduce(cuctx->CTP(), it, it + n_groups, 0ul, dh::maximum<std::size_t>{});
 
   threads_group_ptr_.SetDevice(ctx->Device());
   threads_group_ptr_.Resize(n_groups + 1, 0);
@@ -172,8 +171,7 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   sorted_idx_cache_.Resize(info.labels.Size(), 0);
 
   auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
-  auto w_it =
-      dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul), WeightOp{weight});
+  auto w_it = dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul), WeightOp{weight});
   weight_norm_ = static_cast<double>(n_groups) / thrust::reduce(w_it, w_it + n_groups);
 }
 

@@ -5,9 +5,9 @@
 #include <thrust/equal.h>     // for equal
 #include <thrust/sequence.h>  // for sequence
 
-#include <cuda/iterator>        // for make_constant_iterator
 #include <cuda/std/functional>  // for equal_to
 
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/linalg_op.h"
 #include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights
@@ -96,7 +96,7 @@ void TestWriteAccess(CUDAContext const* cuctx, linalg::TensorView<double, 3> t) 
   thrust::for_each(cuctx->CTP(), linalg::tbegin(t), linalg::tend(t),
                    [=] XGBOOST_DEVICE(double& v) { v = 0; });
   auto eq = thrust::equal(cuctx->CTP(), linalg::tcbegin(t), linalg::tcend(t),
-                          cuda::make_constant_iterator<double>(0.0), cuda::std::equal_to<>{});
+                          dh::make_constant_iterator<double>(0.0), cuda::std::equal_to<>{});
   ASSERT_TRUE(eq);
 }
 }  // anonymous namespace

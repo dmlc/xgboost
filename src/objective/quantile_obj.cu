@@ -5,12 +5,12 @@
  */
 #include <dmlc/registry.h>
 
-#include <cmath>          // for fabsf, fmaxf, sqrtf, tanhf
-#include <cstddef>        // for size_t
-#include <cuda/iterator>  // for make_counting_iterator
+#include <cmath>    // for fabsf, fmaxf, sqrtf, tanhf
+#include <cstddef>  // for size_t
 
 #include "../collective/aggregator.cuh"  // for GlobalSum
 #include "../common/algorithm.cuh"       // for SegmentedSum
+#include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/device_helpers.cuh"  // for LaunchN, MakeTransformIterator
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/linalg_op.cuh"       // for ElementWiseKernel
@@ -42,7 +42,7 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
   auto stats = scale_stats.View(device);
   if (n_rows != 0) {
     auto value_it = dh::MakeTransformIterator<double>(
-        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
           auto target = i / n_rows;
           auto row = i % n_rows;
           if (target == n_targets) {
@@ -52,7 +52,7 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
                                      sqrtf(fabsf(predt(row, target) - labels(row, 0))));
         });
     auto segment_it = dh::MakeTransformIterator<std::size_t>(
-        cuda::make_counting_iterator(0ul),
+        dh::make_counting_iterator(0ul),
         [=] XGBOOST_DEVICE(std::size_t segment) { return segment * n_rows; });
     common::SegmentedSum(ctx->CUDACtx()->Stream(), value_it, stats.Values().data(), n_stats,
                          segment_it, segment_it + 1);

@@ -5,10 +5,10 @@
 #include <thrust/reduce.h>  // for reduce_by_key
 
 #include <cstddef>              // size_t
-#include <cuda/iterator>        // for make_counting_iterator
 #include <cuda/std/functional>  // for plus
 
 #include "../collective/aggregator.h"  // for GlobalSum
+#include "cuda_compat.cuh"             // for CUDA compatibility
 #include "cuda_context.cuh"            // CUDAContext
 #include "device_helpers.cuh"          // dh::MakeTransformIterator, tcbegin, tcend
 #include "optional_weight.h"           // common::OptionalWeights
@@ -29,7 +29,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
   auto d_segments = segments.DeviceSpan();
   dh::LaunchN(d_segments.size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) { d_segments[i] = n_rows * i; });
-  auto val_it = dh::MakeTransformIterator<float>(cuda::make_counting_iterator(0ul),
+  auto val_it = dh::MakeTransformIterator<float>(dh::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
                                                    auto cidx = i / n_rows;
                                                    auto ridx = i % n_rows;
@@ -42,7 +42,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
     common::SegmentedQuantile(ctx, 0.5, dh::tcbegin(d_segments), dh::tcend(d_segments), val_it,
                               val_it + t.Size(), out->Data());
   } else {
-    auto w_it = dh::MakeTransformIterator<float>(cuda::make_counting_iterator(0ul),
+    auto w_it = dh::MakeTransformIterator<float>(dh::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
                                                    auto ridx = i % n_rows;
                                                    return weights[ridx];
@@ -56,7 +56,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
 void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out) {
   float n = v.Size();
   auto it = dh::MakeTransformIterator<float>(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v(i) / n; });
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v(i) / n; });
   std::size_t bytes;
   CHECK_EQ(out.Size(), 1);
   auto s = ctx->CUDACtx()->Stream();
@@ -72,13 +72,13 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
   auto n_total_samples = n_samples;
   auto cpu = ctx->MakeCPU();
   SafeColl(collective::GlobalSum(&cpu, linalg::MakeVec(&n_total_samples, 1)));
-  auto column_it = dh::MakeTransformIterator<std::size_t>(cuda::make_counting_iterator(0ul),
+  auto column_it = dh::MakeTransformIterator<std::size_t>(dh::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto cidx = i / n_samples;
                                                             return cidx;
                                                           });
   auto n_rows_f64 = static_cast<double>(n_total_samples);
-  auto val_it = dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul),
+  auto val_it = dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(std::size_t i) -> double {
                                                     auto cidx = i / n_samples;
                                                     auto ridx = i % n_samples;
@@ -100,7 +100,7 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
   // dimension (rows). `thrust::reduce_by_key` requires all keys within the same reduction
   // segment to be next to each other. `array(ridx, cidx)` can be used with any memory
   // layout.
-  auto column_it = dh::MakeTransformIterator<std::size_t>(cuda::make_counting_iterator(0ul),
+  auto column_it = dh::MakeTransformIterator<std::size_t>(dh::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto cidx = i / n_rows;
                                                             return cidx;
@@ -111,7 +111,7 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
   auto cpu = ctx->MakeCPU();
   SafeColl(collective::GlobalSum(&cpu, linalg::MakeVec(&sum_w, 1)));
   CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
-  auto val_it = dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul),
+  auto val_it = dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(std::size_t i) -> double {
                                                     auto cidx = i / n_rows;
                                                     auto ridx = i % n_rows;

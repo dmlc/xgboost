@@ -13,11 +13,11 @@
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
-#include <cuda/iterator>  // for make_counting_iterator
-#include <limits>         // for numeric_limits
+#include <limits>     // for numeric_limits
 
 #include "../data/entry.h"   // for IsValidFunctor
 #include "algorithm.cuh"     // for CopyIf
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "hist_util.h"
@@ -160,11 +160,10 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(CUDAContext const* cuctx, AdapterBatch const& batch,
                             BatchIter batch_iter, Range1d range, float missing, size_t columns,
-                            DeviceOrd device,
-                            dh::caching_device_vector<size_t>* column_sizes_scan,
+                            DeviceOrd device, dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::device_vector<Entry>* sorted_entries) {
   auto entry_iter = dh::MakeTransformIterator<Entry>(
-      cuda::make_counting_iterator(0llu), [=] __device__(size_t idx) {
+      dh::make_counting_iterator(0llu), [=] __device__(size_t idx) {
         return Entry(batch.GetElement(idx).column_idx, batch.GetElement(idx).value);
       });
   auto n = range.end() - range.begin();
@@ -223,7 +222,7 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
   dh::device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
-      cuda::make_counting_iterator(0llu),
+      dh::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
   CUDAContext const* cuctx = ctx->CUDACtx();
   detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, n_features,
@@ -252,7 +251,7 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
   auto weights = info.weights_.ConstDeviceSpan();
 
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
-      cuda::make_counting_iterator(0llu),
+      dh::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
   auto cuctx = ctx->CUDACtx();
   dh::device_vector<Entry> sorted_entries;
@@ -271,27 +270,25 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
     dh::caching_device_vector<bst_group_t> group_ptr(info.group_ptr_);
     auto d_group_ptr = dh::ToSpan(group_ptr);
     auto const weight_iter = dh::MakeTransformIterator<float>(
-        cuda::make_counting_iterator(0lu), [=] __device__(size_t idx) -> float {
+        dh::make_counting_iterator(0lu), [=] __device__(size_t idx) -> float {
           auto ridx = batch.GetElement(idx).row_idx;
           bst_group_t group_idx = dh::SegmentId(d_group_ptr, ridx);
           return weights[group_idx];
         });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   } else {
     CHECK_EQ(batch.NumRows(), weights.size());
     auto const weight_iter = dh::MakeTransformIterator<float>(
-        cuda::make_counting_iterator(0lu),
+        dh::make_counting_iterator(0lu),
         [=] __device__(size_t idx) -> float { return weights[batch.GetElement(idx).row_idx]; });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   }
 

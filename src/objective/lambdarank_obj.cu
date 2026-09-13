@@ -13,13 +13,13 @@
 #include <cmath>             // for abs, log2, isinf
 #include <cstddef>           // for size_t
 #include <cstdint>           // for int32_t
-#include <cuda/iterator>     // for make_counting_iterator
 #include <cuda/std/tuple>    // for make_tuple, tuple, get
 #include <cuda/std/utility>  // for swap
 #include <memory>            // for shared_ptr
 #include <utility>
 
 #include "../common/algorithm.cuh"       // for SegmentedArgSort
+#include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/deterministic.cuh"   // for CreateRoundingFactor, TruncateWithRounding
 #include "../common/device_helpers.cuh"  // for SegmentId, TemporaryArray, AtomicAddGpair
@@ -54,8 +54,8 @@ void MinBias(Context const* ctx, std::shared_ptr<ltr::RankingCache> p_cache,
   CHECK_EQ(k, p_cache->MaxPositionSize());
 
   auto key_it = dh::MakeTransformIterator<std::size_t>(
-      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return i * k; });
-  auto val_it = dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return i * k; });
+  auto val_it = dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(std::size_t i) {
                                                     if (i >= k) {
                                                       return std::abs(tj_minus(i - k));
@@ -207,7 +207,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   /**
    * First pass, gather info for normalization and rounding factor.
    */
-  auto val_it = dh::MakeTransformIterator<GradCostNorm>(cuda::make_counting_iterator(0ul),
+  auto val_it = dh::MakeTransformIterator<GradCostNorm>(dh::make_counting_iterator(0ul),
                                                         make_get_grad(false));
   auto reduction_op = [] XGBOOST_DEVICE(GradCostNorm const& l,
                                         GradCostNorm const& r) -> GradCostNorm {
@@ -262,8 +262,8 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   /**
    * Second pass, actual update to gradient and bias.
    */
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul),
-                     p_cache->CUDAThreads(), make_get_grad(true));
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), p_cache->CUDAThreads(),
+                     make_get_grad(true));
 
   /**
    * Lastly, normalization and weight.
@@ -274,7 +274,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   auto n_pairs = p_cache->Param().NumPair();
   bool is_mean = p_cache->Param().IsMean();
   CHECK_EQ(is_mean, !has_truncation);
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), d_gpair.Size(),
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), d_gpair.Size(),
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        auto g = dh::SegmentId(d_gptr, i);
                        if (need_norm) {
@@ -367,7 +367,7 @@ common::Span<std::size_t const> SortY(Context const* ctx, MetaInfo const& info,
   auto label = info.labels.View(ctx->Device());
   // The buffer for ranked y is necessary as cub segmented sort accepts only pointer.
   auto d_y_ranked = p_cache->RankedY(ctx, info.num_row_);
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), d_y_ranked.size(),
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), d_y_ranked.size(),
                      [=] XGBOOST_DEVICE(std::size_t i) {
                        auto g = dh::SegmentId(d_group_ptr, i);
                        auto g_label =
@@ -422,7 +422,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
 
   auto group_ptr = p_cache->DataGroupPtr(ctx);
   auto key_it = dh::MakeTransformIterator<std::size_t>(
-      cuda::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) -> std::size_t { return dh::SegmentId(group_ptr, i); });
   auto label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
   auto const* cuctx = ctx->CUDACtx();
@@ -430,7 +430,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
   {
     // calculate number of relevant documents
     auto val_it = dh::MakeTransformIterator<double>(
-        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
           auto g = dh::SegmentId(group_ptr, i);
           auto g_label = label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
           auto idx_in_group = i - group_ptr[g];
@@ -443,7 +443,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
   {
     // \sum l_k/k
     auto val_it = dh::MakeTransformIterator<double>(
-        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> double {
           auto g = dh::SegmentId(group_ptr, i);
           auto g_label = label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
           auto g_sorted_idx = d_rank_idx.subspan(group_ptr[g], group_ptr[g + 1] - group_ptr[g]);
@@ -576,13 +576,12 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
     return l_it;
   };
   auto li_it =
-      dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul), make_iter(li_full));
+      dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul), make_iter(li_full));
   auto lj_it =
-      dh::MakeTransformIterator<double>(cuda::make_counting_iterator(0ul), make_iter(lj_full));
+      dh::MakeTransformIterator<double>(dh::make_counting_iterator(0ul), make_iter(lj_full));
   // k segments, each segment has size n_groups.
   auto key_it = dh::MakeTransformIterator<std::size_t>(
-      cuda::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(std::size_t i) { return i * n_groups; });
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return i * n_groups; });
   auto val_it = thrust::make_zip_iterator(cuda::std::make_tuple(li_it, lj_it));
   auto out_it =
       thrust::make_zip_iterator(cuda::std::make_tuple(li.Values().data(), lj.Values().data()));
@@ -597,7 +596,7 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
                                                    key_it, key_it + 1, ReduceOp{}, init,
                                                    ctx->CUDACtx()->Stream()));
 
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), li.Size(),
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), li.Size(),
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        if (li(0) >= Eps64()) {
                          ti_plus(i) = std::pow(li(i) / li(0), regularizer);
