@@ -1845,8 +1845,8 @@ class DaskXGBClassifier(XGBClassifierMixIn, DaskScikitLearnBase):
             assert len(pred_probs.shape) == 2
             assert isinstance(pred_probs, da.Array)
             if self.n_classes_ != 2:
-                # when using da.argmax directly, dask will construct a numpy based return
-                # array, which runs into error when computing GPU based prediction.
+                # When using da.argmax directly, dask will construct a numpy based
+                # return array, which runs into error when computing GPU predictions.
 
                 def _argmax(x: Any) -> Any:
                     return x.argmax(axis=1)

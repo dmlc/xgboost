@@ -615,7 +615,9 @@ class ClickFold:
 
 
 class RelDataCV(NamedTuple):
-    """Simple data struct for holding a train-test split of a learning to rank dataset."""
+    """Simple data struct for holding a train-test split of a learning to rank
+    dataset.
+    """
 
     train: RelData
     test: RelData

@@ -103,7 +103,8 @@ class PartIter(DataIter):
             cudf = import_cudf()
             import cupy as cp
 
-            # We must set the device after import cudf, which will change the device id to 0
+            # We must set the device after importing cudf, which changes the device
+            # id to 0.
             # See https://github.com/rapidsai/cudf/issues/11386
             cp.cuda.runtime.setDevice(self._device_id)  # pylint: disable=I1101
             return cudf.DataFrame(data[self._iter])
