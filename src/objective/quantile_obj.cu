@@ -4,10 +4,10 @@
  * \brief CUDA implementations of quantile objective kernels.
  */
 #include <dmlc/registry.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include <cmath>    // for fabsf, fmaxf, sqrtf, tanhf
 #include <cstddef>  // for size_t
+#include <cuda/iterator>  // for make_counting_iterator
 
 #include "../collective/aggregator.cuh"  // for GlobalSum
 #include "../common/algorithm.cuh"       // for SegmentedSum
@@ -42,7 +42,7 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
   auto stats = scale_stats.View(device);
   if (n_rows != 0) {
     auto value_it = dh::MakeTransformIterator<double>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+        cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
           auto target = i / n_rows;
           auto row = i % n_rows;
           if (target == n_targets) {
@@ -52,7 +52,7 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
                                      sqrtf(fabsf(predt(row, target) - labels(row, 0))));
         });
     auto segment_it = dh::MakeTransformIterator<std::size_t>(
-        thrust::make_counting_iterator(0ul),
+        cuda::make_counting_iterator(0ul),
         [=] XGBOOST_DEVICE(std::size_t segment) { return segment * n_rows; });
     common::SegmentedSum(ctx->CUDACtx()->Stream(), value_it, stats.Values().data(), n_stats,
                          segment_it, segment_it + 1);

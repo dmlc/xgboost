@@ -6,12 +6,12 @@
 #include <algorithm>        // for max
 #include <cmath>            // for isnan
 #include <cstdint>          // for int32_t, uint32_t
-#include <cuda/functional>  // for plus
-#include <memory>           // for unique_ptr, make_unique
-#include <string>           // for string
-#include <type_traits>      // for is_trivially_copyable_v
-#include <utility>          // for move
-#include <vector>           // for vector
+#include <cuda/std/functional>  // for plus
+#include <memory>               // for unique_ptr, make_unique
+#include <string>               // for string
+#include <type_traits>          // for is_trivially_copyable_v
+#include <utility>              // for move
+#include <vector>               // for vector
 
 #include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"  // for IsDistributed

@@ -4,12 +4,12 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
 
-#include <thrust/iterator/counting_iterator.h>  // for counting_iterator
-#include <thrust/iterator/zip_iterator.h>       // for make_zip_iterator
-#include <thrust/transform.h>                   // for transform
+#include <thrust/iterator/zip_iterator.h>  // for make_zip_iterator
+#include <thrust/transform.h>              // for transform
 
 #include <cstdint>            // for int32_t
 #include <cstdlib>            // for size_t
+#include <cuda/iterator>      // for make_counting_iterator
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/tuple>     // for get
 #include <cuda/std/version>   // for CCCL_MINOR_VERSION
@@ -63,7 +63,7 @@ void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
     auto it =
-        thrust::make_zip_iterator(thrust::make_counting_iterator(static_cast<std::size_t>(0)), ptr);
+        thrust::make_zip_iterator(cuda::make_counting_iterator(static_cast<std::size_t>(0)), ptr);
     using Tuple = typename cuda::std::iterator_traits<common::GetValueT<decltype(it)>>::value_type;
     thrust::transform(ctx->CUDACtx()->CTP(), it, it + t.Size(), ptr,
                       [=] XGBOOST_DEVICE(Tuple const& tup) {
@@ -113,7 +113,7 @@ struct IterOp {
 template <typename T, std::int32_t D>
 auto tcbegin(TensorView<T, D> v) {  // NOLINT
   return thrust::make_transform_iterator(
-      thrust::make_counting_iterator(0ul),
+      cuda::make_counting_iterator(0ul),
       detail::IterOp<std::add_const_t<std::remove_const_t<T>>, D>{v});
 }
 
@@ -124,7 +124,7 @@ auto tcend(TensorView<T, D> v) {  // NOLINT
 
 template <typename T, std::int32_t D>
 auto tbegin(TensorView<T, D> v) {  // NOLINT
-  return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
+  return thrust::make_transform_iterator(cuda::make_counting_iterator(0ul),
                                          detail::IterOp<std::remove_const_t<T>, D>{v});
 }
 

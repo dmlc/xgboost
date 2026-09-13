@@ -4,8 +4,8 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 
+#include <cuda/iterator>  // for counting_iterator
 #include <set>
 #include <string>
 
@@ -166,8 +166,8 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(Contex
 
   ClearBuffers();
 
-  thrust::counting_iterator<int32_t> begin(0);
-  thrust::counting_iterator<int32_t> end(result_buffer_.size());
+  cuda::counting_iterator<int32_t> begin(0);
+  cuda::counting_iterator<int32_t> end(result_buffer_.size());
   auto p_result_buffer = result_buffer_.data();
   LBitField64 node_constraints = s_node_constraints_[node_id];
 
@@ -214,8 +214,8 @@ common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
   launch(SetInputBufferKernel, feature_list, input_buffer_bits_);
   launch(QueryFeatureListKernel, node_constraints, input_buffer_bits_, output_buffer_bits_);
 
-  thrust::counting_iterator<int32_t> begin(0);
-  thrust::counting_iterator<int32_t> end(result_buffer_.size());
+  cuda::counting_iterator<int32_t> begin(0);
+  cuda::counting_iterator<int32_t> end(result_buffer_.size());
 
   LBitField64 local_result_buffer = output_buffer_bits_;
 

@@ -2,9 +2,9 @@
  * Copyright 2024-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
-#include <thrust/sequence.h>                    // for sequence
+#include <thrust/sequence.h>  // for sequence
 
+#include <cuda/iterator>  // for make_counting_iterator
 #include <numeric>  // for iota
 #include <thread>   // for thread
 
@@ -59,7 +59,7 @@ TEST(DeviceUVector, Basic) {
   ASSERT_EQ(uvec1.size(), 32);
   ASSERT_EQ(uvec1.Capacity(), 32);
   auto eq = thrust::equal(ctx.CUDACtx()->CTP(), uvec1.cbegin(), uvec1.cbegin() + orig,
-                          thrust::make_counting_iterator(0));
+                          cuda::make_counting_iterator(0));
   ASSERT_TRUE(eq);
 
   uvec1.clear();

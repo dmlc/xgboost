@@ -3,6 +3,8 @@
  */
 #include <thrust/transform.h>  // for transform
 
+#include <cuda/iterator>  // for make_counting_iterator
+
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../data/array_interface.h"   // for DispatchDType, ArrayInterface
@@ -99,7 +101,7 @@ void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> con
   DispatchDType(grad, DeviceOrd::CUDA(grad_dev), [&](auto &&t_grad) {
     DispatchDType(hess, DeviceOrd::CUDA(hess_dev), [&](auto &&t_hess) {
       CHECK_EQ(t_grad.Size(), t_hess.Size());
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), t_grad.Size(),
+      thrust::for_each_n(cuctx->CTP(), cuda::make_counting_iterator(0ul), t_grad.Size(),
                          detail::CustomGradHessOp{t_grad, t_hess, d_gpair});
     });
   });

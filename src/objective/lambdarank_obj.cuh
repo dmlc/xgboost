@@ -4,14 +4,14 @@
 #pragma once
 
 #include <thrust/binary_search.h>                    // for lower_bound, upper_bound
-#include <thrust/functional.h>                       // for greater
-#include <thrust/iterator/counting_iterator.h>       // for make_counting_iterator
 #include <thrust/random/uniform_int_distribution.h>  // for uniform_int_distribution
 
 #include <cassert>  // for cassert
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint32_t
-#include <tuple>    // for make_tuple, tuple
+#include <cuda/iterator>        // for make_counting_iterator
+#include <cuda/std/functional>  // for greater
+#include <tuple>                // for make_tuple, tuple
 
 #include "../common/device_helpers.cuh"   // for MakeTransformIterator
 #include "../common/random.cuh"           // for DefaultRng
@@ -119,7 +119,7 @@ struct MakePairsOp {
     assert(i <= sample_idx);
 
     auto g_sorted_label = dh::MakeTransformIterator<float>(
-        thrust::make_counting_iterator(0ul),
+        cuda::make_counting_iterator(0ul),
         [&](std::size_t i) { return g_label(g_rank_idx[g_y_sorted_idx[i]]); });
 
     // Are the labels diverse enough? If they are all the same, then there is nothing to pick

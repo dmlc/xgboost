@@ -7,7 +7,8 @@
 #include <algorithm>
 #include <cstdint>          // uint32_t, int32_t
 #include <cuda/functional>  // for proclaim_copyable_arguments
-#include <vector>           // for vector
+#include <cuda/std/functional>  // for plus
+#include <vector>               // for vector
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext

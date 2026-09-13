@@ -3,10 +3,10 @@
  *
  * @brief Utilities for estimating initial score.
  */
-#include <thrust/execution_policy.h>            // cuda::par
-#include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
+#include <thrust/execution_policy.h>  // cuda::par
 
 #include <cstddef>  // std::size_t
+#include <cuda/iterator>  // for make_counting_iterator
 
 #include "../collective/aggregator.cuh"  // for GlobalSum
 #include "../common/cuda_context.cuh"
@@ -28,11 +28,10 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
 
   // Reduce by column
   auto key_it = dh::MakeTransformIterator<bst_target_t>(
-      thrust::make_counting_iterator(0ul),
+      cuda::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) -> bst_target_t { return i / gpair.Shape(0); });
   auto grad_it = dh::MakeTransformIterator<GradientPairPrecise>(
-      thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(std::size_t i) -> GradientPairPrecise {
+      cuda::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> GradientPairPrecise {
         auto target = i / gpair.Shape(0);
         auto sample = i % gpair.Shape(0);
         return GradientPairPrecise{gpair(sample, target)};
@@ -48,7 +47,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
                                                  d_sum.Size() * 2, ctx->Device()));
   SafeColl(rc);
 
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_targets,
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul), n_targets,
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        out(i) = static_cast<float>(
                            CalcUnregularizedWeight(d_sum(i).GetGrad(), d_sum(i).GetHess()));

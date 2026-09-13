@@ -6,8 +6,9 @@
 #include <thrust/sequence.h>  // sequence
 #include <thrust/sort.h>      // is_sorted
 
-#include <algorithm>          // is_sorted
-#include <cstddef>            // size_t
+#include <algorithm>            // is_sorted
+#include <cstddef>              // size_t
+#include <cuda/std/functional>  // for greater
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
@@ -60,7 +61,7 @@ TEST(Algorithm, GpuArgSort) {
   dh::device_vector<size_t> sorted_idx(20);
   ArgSort<false>(&ctx, dh::ToSpan(values), dh::ToSpan(sorted_idx));  // sort to descending
   ASSERT_TRUE(thrust::is_sorted(ctx.CUDACtx()->CTP(), sorted_idx.begin(), sorted_idx.end(),
-                                thrust::greater<size_t>{}));
+                                cuda::std::greater<size_t>{}));
 
   dh::Iota(dh::ToSpan(values), ctx.CUDACtx()->Stream());
   dh::device_vector<size_t> groups(3);
@@ -70,11 +71,11 @@ TEST(Algorithm, GpuArgSort) {
   SegmentedArgSort<false, false>(&ctx, dh::ToSpan(values), dh::ToSpan(groups),
                                  dh::ToSpan(sorted_idx));
   ASSERT_FALSE(thrust::is_sorted(thrust::device, sorted_idx.begin(), sorted_idx.end(),
-                                 thrust::greater<size_t>{}));
+                                 cuda::std::greater<size_t>{}));
   ASSERT_TRUE(
-      thrust::is_sorted(sorted_idx.begin(), sorted_idx.begin() + 10, thrust::greater<size_t>{}));
+      thrust::is_sorted(sorted_idx.begin(), sorted_idx.begin() + 10, cuda::std::greater<size_t>{}));
   ASSERT_TRUE(
-      thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(), thrust::greater<size_t>{}));
+      thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(), cuda::std::greater<size_t>{}));
 }
 
 TEST(Algorithm, SegmentedSequence) {

@@ -1,7 +1,8 @@
 /**
  * Copyright 2017-2026, XGBoost Contributors
  */
-#include <cuda/functional>   // for proclaim_return_type
+#include <cuda/functional>  // for proclaim_return_type
+#include <cuda/iterator>    // for make_counting_iterator
 #include <cuda/std/utility>  // for swap
 #include <memory>
 #include <unordered_map>
@@ -629,7 +630,7 @@ class GPUPredictor : public xgboost::Predictor {
         auto mt_tree = tree::MultiTargetTreeView{ctx_->Device(), false, p_tree};
         auto n_targets = mt_tree.NumTargets();
         CHECK_EQ(out_preds.Shape(1), n_targets);
-        thrust::for_each_n(ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
+        thrust::for_each_n(ctx_->CUDACtx()->CTP(), cuda::make_counting_iterator(0ul),
                            out_preds.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
                              auto [row_idx, target_idx] =
                                  linalg::UnravelIndex(i, out_preds.Shape());
