@@ -75,7 +75,7 @@ from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 from .._c_api import _py_version
 from .._typing import ArrayLike
 from ..collective import Config
-from ..compat import import_cupy, is_cudf_available, is_cupy_available
+from ..compat import import_cudf, import_cupy, is_cudf_available, is_cupy_available
 from ..config import config_context, get_config
 from ..core import Booster, _check_distributed_params
 from ..sklearn import DEFAULT_N_ESTIMATORS, XGBClassifier, XGBModel, _can_use_qdm
@@ -1426,7 +1426,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             def to_gpu_if_possible(data: ArrayLike) -> ArrayLike:
                 """Move the data to gpu if possible"""
                 if dev_ordinal >= 0:
-                    import cudf
+                    cudf = import_cudf()
                     import cupy as cp
 
                     # We must set the device after import cudf, which will change the device id to 0

@@ -22,7 +22,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from .._typing import ArrayLike
-from ..compat import concat
+from ..compat import concat, import_cudf
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..sklearn import XGBModel
 from .utils import get_logger
@@ -100,7 +100,7 @@ class PartIter(DataIter):
             return None
 
         if self._device_id is not None:
-            import cudf
+            cudf = import_cudf()
             import cupy as cp
 
             # We must set the device after import cudf, which will change the device id to 0

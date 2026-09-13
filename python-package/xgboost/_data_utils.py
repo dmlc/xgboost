@@ -35,7 +35,7 @@ from ._typing import (
     NumpyDType,
     NumpyOrCupy,
 )
-from .compat import import_cupy, import_pyarrow, lazy_isinstance
+from .compat import import_cudf, import_cupy, import_pyarrow, lazy_isinstance
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -593,18 +593,20 @@ def cudf_cat_inf(
     cats: CudfCatIndex, codes: _CudaArrayLikeArg
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
-    cp = import_cupy()
-    is_num_idx = cp.issubdtype(cats.dtype, cp.floating) or cp.issubdtype(
-        cats.dtype, cp.integer
-    )
-    if is_num_idx:
+    cudf = import_cudf()
+
+    if cudf.api.types.is_integer_dtype(cats.dtype) or cudf.api.types.is_float_dtype(
+        cats.dtype
+    ):
         cats_ainf = cuda_array_interface_dict(cats)
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
     jnames, buf = _cudf_str_cat_inf(cats)
     jcodes = cuda_array_interface_dict(codes)
-    return jnames, jcodes, buf
+    # The categorical accessor can allocate new codes, which must outlive the
+    # array interface along with their validity mask.
+    return jnames, jcodes, buf + (codes,)
 
 
 class Categories:

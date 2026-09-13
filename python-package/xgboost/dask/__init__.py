@@ -83,7 +83,7 @@ from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
-from ..compat import _is_cudf_df, _is_cudf_ser, _is_cupy_alike
+from ..compat import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, import_cudf
 from ..core import (
     Booster,
     CustomObj,
@@ -878,7 +878,7 @@ def _maybe_dataframe(
         # is dataframe.
         index = getattr(data, "index", None)
         if _is_cudf_df(data):
-            import cudf
+            cudf = import_cudf()
 
             if prediction.size == 0:
                 return cudf.DataFrame({}, columns=columns, dtype=numpy.float32)

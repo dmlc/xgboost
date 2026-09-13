@@ -12,7 +12,7 @@ from sklearn.datasets import make_regression
 import xgboost.testing as tm
 
 from ..callback import TrainingCallback
-from ..compat import import_cupy
+from ..compat import import_cudf, import_cupy
 from ..core import (
     Booster,
     DataIter,
@@ -362,7 +362,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         n_samples, n_features, n_categories, onehot=False, sparsity=0.8
     )
     if use_cupy:
-        import cudf
+        cudf = import_cudf()
 
         cp = import_cupy()
 

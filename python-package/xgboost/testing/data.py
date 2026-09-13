@@ -31,7 +31,7 @@ from numpy import typing as npt
 from numpy.random import Generator as RNG
 from scipy import sparse
 
-from ..compat import concat
+from ..compat import concat, import_cudf
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..data import is_pd_cat_dtype, pandas_pyarrow_mapper
 from ..sklearn import ArrayLike, XGBRanker
@@ -1128,7 +1128,7 @@ def make_categorical(
 
     if device != "cpu":
         assert device in ["cuda", "gpu"]
-        import cudf
+        cudf = import_cudf()
         import cupy
 
         df = cudf.from_pandas(df)
