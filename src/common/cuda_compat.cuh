@@ -5,12 +5,14 @@
 
 #include <thrust/version.h>  // for THRUST_VERSION
 
-#if THRUST_VERSION >= 300100
+#if __has_include(<cuda/iterator>)
+
 #include <cuda/iterator>  // for constant_iterator, counting_iterator
 #else
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
-#endif
+
+#endif  // __has_include(<cuda/iterator>)
 
 #if THRUST_VERSION >= 300000
 #include <cuda/functional>  // for maximum
@@ -19,9 +21,8 @@
 #endif
 
 namespace dh {
-// CUDA 12 and CUDA 13.0 bundle CCCL versions without <cuda/iterator>.
-#if THRUST_VERSION >= 300100
-using cuda::constant_iterator;
+#if __has_include(<cuda/iterator>)
+// using cuda::constant_iterator;
 using cuda::counting_iterator;
 using cuda::make_constant_iterator;
 using cuda::make_counting_iterator;
@@ -30,7 +31,7 @@ using thrust::constant_iterator;
 using thrust::counting_iterator;
 using thrust::make_constant_iterator;
 using thrust::make_counting_iterator;
-#endif
+#endif  // __has_include(<cuda/iterator>)
 
 #if THRUST_VERSION >= 300000
 using cuda::maximum;
