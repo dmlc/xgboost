@@ -22,7 +22,7 @@
 
 namespace dh {
 #if __has_include(<cuda/iterator>)
-// using cuda::constant_iterator;
+using cuda::constant_iterator;
 using cuda::counting_iterator;
 using cuda::make_constant_iterator;
 using cuda::make_counting_iterator;
