@@ -6,12 +6,10 @@
 #include <thrust/version.h>  // for THRUST_VERSION
 
 #if __has_include(<cuda/iterator>)
-
 #include <cuda/iterator>  // for constant_iterator, counting_iterator
 #else
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
-
 #endif  // __has_include(<cuda/iterator>)
 
 #if THRUST_VERSION >= 300000
@@ -22,12 +20,10 @@
 
 namespace dh {
 #if __has_include(<cuda/iterator>)
-using cuda::constant_iterator;
 using cuda::counting_iterator;
 using cuda::make_constant_iterator;
 using cuda::make_counting_iterator;
 #else
-using thrust::constant_iterator;
 using thrust::counting_iterator;
 using thrust::make_constant_iterator;
 using thrust::make_counting_iterator;
