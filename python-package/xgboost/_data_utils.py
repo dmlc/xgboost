@@ -35,7 +35,7 @@ from ._typing import (
     NumpyDType,
     NumpyOrCupy,
 )
-from .compat import import_cupy, import_pyarrow, lazy_isinstance
+from .compat import import_cudf, import_cupy, import_pyarrow, lazy_isinstance
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -385,7 +385,9 @@ def _arrow_array_inf(
             "mask": None,
         }
         if not mask.is_cpu:
-            jmask["stream"] = STREAM_PER_THREAD  # type: ignore[index, typeddict-unknown-key]
+            jmask["stream"] = (  # type: ignore[index, typeddict-unknown-key]
+                STREAM_PER_THREAD
+            )
     else:
         jmask = None
 
@@ -433,16 +435,21 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf:
     return cast(ArrayInf, ainf)
 
 
+def _check_arrow_string_offsets(last_offset: int) -> None:
+    """Check that the final string offset fits in a 32-bit Arrow array."""
+    if last_offset > np.iinfo(np.int32).max:
+        raise ValueError(
+            "The encoded categories exceed the maximum size of the 32-bit "
+            "offsets used by Arrow string arrays."
+        )
+
+
 def _arrow_string_offsets(lengths: np.ndarray) -> np.ndarray:
     """Build 32-bit Arrow string offsets from encoded byte lengths."""
     offsets = np.empty(lengths.size + 1, dtype=np.int64)
     offsets[0] = 0
     np.cumsum(lengths, dtype=np.int64, out=offsets[1:])
-    if offsets[-1] > np.iinfo(np.int32).max:
-        raise ValueError(
-            "The encoded categories exceed the maximum size of the 32-bit "
-            "offsets used by Arrow string arrays."
-        )
+    _check_arrow_string_offsets(int(offsets[-1]))
     return offsets.astype(np.int32)
 
 
@@ -568,6 +575,12 @@ def _cudf_str_cat_inf(cats: CudfCatIndex) -> Tuple[CudaStringArray, Tuple]:
     assert plc_col.offset() == 0
 
     off_child = plc_col.children()[0]  # offsets
+    if off_child.type().id() == plc.TypeId.INT64:
+        last_offset = cast(
+            int, plc.copying.get_element(off_child, off_child.size() - 1).to_py()
+        )
+        _check_arrow_string_offsets(last_offset)
+        off_child = plc.unary.cast(off_child, plc.DataType(plc.TypeId.INT32))
     assert off_child.type().id() == plc.TypeId.INT32, "Expected INT32 string offsets."
 
     # String category index in arrow format
@@ -584,27 +597,28 @@ def _cudf_str_cat_inf(cats: CudfCatIndex) -> Tuple[CudaStringArray, Tuple]:
         STREAM_PER_THREAD,
     )
     jnames: CudaStringArray = {"offsets": joffset, "values": jdata}
-    # Keep `plc_col` alive: it owns the GPU buffers pointed to by `jdata` and
-    # `joffset`.
-    return jnames, (plc_col,)
+    # Keep both the string data and any converted offsets alive.
+    return jnames, (plc_col, off_child)
 
 
 def cudf_cat_inf(
     cats: CudfCatIndex, codes: _CudaArrayLikeArg
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
-    cp = import_cupy()
-    is_num_idx = cp.issubdtype(cats.dtype, cp.floating) or cp.issubdtype(
-        cats.dtype, cp.integer
-    )
-    if is_num_idx:
+    cudf = import_cudf()
+
+    if cudf.api.types.is_integer_dtype(cats.dtype) or cudf.api.types.is_float_dtype(
+        cats.dtype
+    ):
         cats_ainf = cuda_array_interface_dict(cats)
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
     jnames, buf = _cudf_str_cat_inf(cats)
     jcodes = cuda_array_interface_dict(codes)
-    return jnames, jcodes, buf
+    # The categorical accessor can allocate new codes, which must outlive the
+    # array interface along with their validity mask.
+    return jnames, jcodes, buf + (codes,)
 
 
 class Categories:

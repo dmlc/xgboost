@@ -1,12 +1,14 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <algorithm>  // for :max
-#include <limits>     // for numeric_limits
+#include <algorithm>            // for :max
+#include <cuda/std/functional>  // for plus
+#include <limits>               // for numeric_limits
 
 #include "../../collective/allgather.h"
 #include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
+#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_stream.h"     // for Event
 #include "evaluate_splits.cuh"
@@ -367,7 +369,7 @@ void GPUHistEvaluator::LaunchEvaluateSplits(Context const *ctx, bst_feature_t ma
 
   // Reduce to get best candidate for left and right child over all features
   auto reduce_offset = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(0llu),
+      dh::make_counting_iterator(0llu),
       [=] __device__(size_t idx) -> size_t { return idx * max_active_features; });
   size_t temp_storage_bytes = 0;
   auto num_segments = out_splits.size();

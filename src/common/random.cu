@@ -6,6 +6,7 @@
 #include <memory>  // for shared_ptr
 
 #include "algorithm.cuh"     // for ArgSort
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "random.cuh"  // for DefaultRng, UniformRealDistribution
@@ -29,7 +30,7 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
   auto d_keys = dh::ToSpan(keys);
 
   constexpr auto kEps = kRtEps;  // avoid CUDA compilation error
-  thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), array.size(),
+  thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), array.size(),
                      [=] XGBOOST_DEVICE(std::size_t i) {
                        DefaultRng rng{seed};
                        rng.discard(i);

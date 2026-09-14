@@ -2,7 +2,6 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
 #include <algorithm>        // for max
@@ -11,6 +10,7 @@
 #include <cuda/functional>  // for proclaim_return_type
 #include <vector>           // for vector
 
+#include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
@@ -154,7 +154,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
 
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
-  auto counting = thrust::make_counting_iterator(0llu);
+  auto counting = dh::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
