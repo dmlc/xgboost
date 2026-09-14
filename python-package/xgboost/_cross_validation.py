@@ -223,7 +223,9 @@ def make_kfold(
     cp = import_cupy()
 
     n_rows = _fold_integer(n_rows, "n_rows", 2, np.iinfo(np.uint32).max)
-    k_folds = _fold_integer(k_folds, "k_folds", 2, min(n_rows, np.iinfo(np.intc).max - 1))
+    k_folds = _fold_integer(
+        k_folds, "k_folds", 2, min(n_rows, np.iinfo(np.intc).max - 1)
+    )
     ids = cp.arange(n_rows, dtype=cp.uint32) % k_folds
     if shuffle:
         cp.random.RandomState(seed).shuffle(ids)
