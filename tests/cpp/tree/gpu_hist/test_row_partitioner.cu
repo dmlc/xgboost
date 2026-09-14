@@ -2,6 +2,7 @@
  * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/copy.h>  // for copy
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
@@ -68,16 +69,20 @@ namespace {
   return rows;
 }
 
-// Seeding each batch from an explicit subset, as cross-validation does for a fold.
+// Fill each batch's root buffer with a subset, as cross-validation does for a fold.
 void TestResetSubsetBatches() {
   auto ctx = MakeCUDACtx(0);
   // Non-contiguous subsets, the second of which does not start at zero.
   std::vector<bst_idx_t> const h_batch_0{0, 2, 5};
   std::vector<bst_idx_t> const h_batch_1{8, 9, 12, 13, 15};
   dh::device_vector<bst_idx_t> d_batch_0{h_batch_0}, d_batch_1{h_batch_1};
+  auto fill = [&](bst_idx_t begin, bst_idx_t, auto out) {
+    auto const& rows = begin == 0 ? d_batch_0 : d_batch_1;
+    thrust::copy(ctx.CUDACtx()->CTP(), rows.cbegin(), rows.cend(), out.data());
+  };
 
   RowPartitionerBatches rps;
-  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  rps.Reset({0, 8, 16}, {h_batch_0.size(), h_batch_1.size()}, fill);
   ASSERT_EQ(rps.Size(), 2);
   // `Size` reads the length of the row buffer, the root rows read the segment.
   ASSERT_EQ(rps.At(0)->Size(), h_batch_0.size());
@@ -88,7 +93,7 @@ void TestResetSubsetBatches() {
 
   // The partitioners must survive a re-seed, which is what a boosting round does.
   std::vector<RowPartitioner*> const reused{rps.At(0).get(), rps.At(1).get()};
-  rps.Reset(&ctx, {dh::ToSpan(d_batch_0), dh::ToSpan(d_batch_1)});
+  rps.Reset({0, 8, 16}, {h_batch_0.size(), h_batch_1.size()}, fill);
   ASSERT_EQ(rps.At(0).get(), reused[0]);
   ASSERT_EQ(rps.At(1).get(), reused[1]);
 

@@ -281,6 +281,8 @@ class RowPartitioner {
   dh::PinnedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.
 
+  void InitRoot(bst_idx_t n_samples);
+
  public:
   /**
    * @param ctx Context for device ordinal and stream.
@@ -289,14 +291,20 @@ class RowPartitioner {
    */
   RowPartitioner() = default;
   void Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
-  /**
-   * @brief Seed the partitioner with an explicit subset of rows.
-   *
-   * Used by cross-validation, where a fold owns only some of the rows of a batch.
-   *
-   * @param ridx Global row indices. Not shifted by any base row index.
-   */
-  void Reset(Context const* ctx, common::Span<bst_idx_t const> ridx);
+
+  // Allocate the root once, then let the caller fill it (possibly in bounded tiles).
+  // `fill` must enqueue all writes before returning, using the caller's stream.
+  template <typename Fill>
+  void Reset(bst_idx_t begin, bst_idx_t end, bst_idx_t n_selected, Fill fill) {
+    CHECK_LE(begin, end);
+    CHECK_LE(n_selected, end - begin);
+    if (begin != end) {
+      CHECK_LE(end - 1, std::numeric_limits<RowIndexT>::max())
+          << "Global row indices exceed the GPU partitioner's uint32 range.";
+    }
+    this->InitRoot(n_selected);
+    fill(dh::ToSpan(ridx_));
+  }
 
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
@@ -474,6 +482,20 @@ class RowPartitionerBatches {
   }
 
  public:
+  template <typename Fill>
+  void Reset(std::vector<bst_idx_t> const& batch_ptr, std::vector<bst_idx_t> const& training_counts,
+             Fill fill) {
+    CHECK_EQ(batch_ptr.size(), training_counts.size() + 1);
+    this->Alloc(training_counts.size());
+    bst_idx_t n_max_samples = 0;
+    for (std::size_t b = 0; b < training_counts.size(); ++b) {
+      partitioners_[b]->Reset(batch_ptr[b], batch_ptr[b + 1], training_counts[b],
+                              [&](auto out) { fill(batch_ptr[b], batch_ptr[b + 1], out); });
+      n_max_samples = std::max(n_max_samples, training_counts[b]);
+    }
+    ridx_tmp_.resize(n_max_samples);
+  }
+
   void Reset(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
     CHECK_GE(batch_ptr.size(), 2);
     std::size_t n_batches = batch_ptr.size() - 1;
@@ -484,25 +506,7 @@ class RowPartitionerBatches {
       auto base_ridx = batch_ptr[k];
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx, n_samples, base_ridx);
-      CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
       n_max_samples = std::max(n_samples, n_max_samples);
-    }
-    this->ridx_tmp_.resize(n_max_samples);
-  }
-
-  /**
-   * @brief Seed each batch with an explicit subset of its rows. See @ref RowPartitioner::Reset .
-   *
-   * @param ridxs Global row indices, one span per batch.
-   */
-  void Reset(Context const* ctx, std::vector<common::Span<bst_idx_t const>> const& ridxs) {
-    CHECK(!ridxs.empty());
-    this->Alloc(ridxs.size());
-
-    std::size_t n_max_samples = 0;
-    for (std::size_t k = 0; k < ridxs.size(); ++k) {
-      partitioners_[k]->Reset(ctx, ridxs[k]);
-      n_max_samples = std::max(ridxs[k].size(), n_max_samples);
     }
     this->ridx_tmp_.resize(n_max_samples);
   }

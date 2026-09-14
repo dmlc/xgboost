@@ -4,16 +4,19 @@
  */
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/transform.h>
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <memory>   // for make_unique, shared_ptr, unique_ptr
-#include <numeric>  // for accumulate
 #include <string>   // for string
 #include <vector>   // for vector
 
+#include "../../../src/common/device_helpers.cuh"
 #include "../../../src/cross_validate/cross_validate.h"  // for FoldEvaluator
-#include "../../../src/cross_validate/kfolds.h"          // for KFold
 #include "../helpers.h"  // for GMockThrow, MakeCUDACtx, RandomDataGenerator
 #include "xgboost/json.h"
 
@@ -29,13 +32,9 @@ struct EvalRun {
   Context ctx{MakeCUDACtx(0)};
   std::shared_ptr<DMatrix> p_fmat;
   std::unique_ptr<FoldModels> models;
-  FoldInfoBatches finfo;
   FoldPredictions predts;
 
-  // `batch_sizes` sets the per-batch fold windows, which external memory does not let Python
-  // line up this way.
-  EvalRun(std::vector<bst_idx_t> const& batch_sizes, std::size_t k_folds) {
-    auto n_rows = std::accumulate(batch_sizes.cbegin(), batch_sizes.cend(), bst_idx_t{0});
+  EvalRun(bst_idx_t n_rows, std::size_t k_folds) {
     // On device: `FoldModels` copies the matrix's context and the evaluator reads it back.
     this->p_fmat = RandomDataGenerator{n_rows, 4, 0.0f}
                        .Device(this->ctx.Device())
@@ -45,16 +44,12 @@ struct EvalRun {
     this->p_fmat->Info().labels.Data()->Fill(kLabel);
     this->models = std::make_unique<FoldModels>(k_folds, this->p_fmat, false);
 
-    bst_idx_t begin = 0;
-    for (auto size : batch_sizes) {
-      this->finfo.batches.emplace_back();
-      for (std::size_t k = 0; k < k_folds; ++k) {
-        KFold(&this->ctx, k_folds, begin, begin + size, static_cast<std::int32_t>(k),
-              &this->finfo.batches.back());
-      }
-      begin += size;
-    }
-
+    dh::DeviceUVector<std::int64_t> ids(n_rows);
+    auto first = thrust::make_counting_iterator(std::int64_t{0});
+    thrust::transform(ctx.CUDACtx()->CTP(), first, first + n_rows,
+                      thrust::make_constant_iterator(k_folds), ids.data(),
+                      thrust::modulus<std::int64_t>{});
+    this->predts.assignment = std::make_shared<FoldAssignment>(&ctx, k_folds, dh::ToSpan(ids));
     this->predts.layout = this->models->Layout();
     this->predts.output_length = this->models->OutputLength(0);
     this->predts.train.resize(this->models->NumUnits());
@@ -65,7 +60,7 @@ struct EvalRun {
   }
 
   FoldEvalResult const& Eval(FoldEvaluator* p_eval) const {
-    return p_eval->Eval(*this->models, this->p_fmat->Info(), this->finfo, this->predts, 0);
+    return p_eval->Eval(*this->models, this->p_fmat->Info(), this->predts, 0);
   }
 
  private:
@@ -86,30 +81,30 @@ struct EvalRun {
 }
 }  // namespace
 
-// Two batches of three rows with five folds starves folds 3 and 4 globally: `cv::KFold` gives
-// every fold at or above the batch row count an empty window.
-TEST(FoldEvaluator, StarvedFold) {
-  EvalRun run{{3, 3}, 5};
-  ASSERT_EQ(run.finfo.ValidFoldSize(4), 0);
-  FoldEvaluator evaluator{*run.models, MakeConfig("rmse")};
-  ASSERT_THAT([&] { run.Eval(&evaluator); }, GMockThrow("holds out no row"));
-}
-
-// A batch shorter than `k_folds` leaves a fold an empty window there, which the gather must
-// skip rather than read as "every row". Python cannot see a per-batch window to pin this.
-TEST(FoldEvaluator, EmptyWindow) {
-  EvalRun run{{9, 2}, 3};
-  ASSERT_TRUE(run.finfo.batches.back().ValidationFold(2).empty());
+// All five folds have validation rows, including four single-row folds.
+TEST(FoldEvaluator, TinyFolds) {
+  EvalRun run{6, 5};
   FoldEvaluator evaluator{*run.models, MakeConfig("rmse")};
   auto const& result = run.Eval(&evaluator);
-  ASSERT_EQ(result.values.size(), 2 * run.finfo.KFolds());
+  for (auto value : result.values) {
+    EXPECT_NEAR(value, kResidual, 1e-6);
+  }
+}
+
+// Reusing scratch for different fold sizes must not retain rows from a previous fold.
+TEST(FoldEvaluator, UnevenFolds) {
+  EvalRun run{11, 3};
+  ASSERT_EQ(run.predts.Assignment().ValidFoldSize(2), 3);
+  FoldEvaluator evaluator{*run.models, MakeConfig("rmse")};
+  auto const& result = run.Eval(&evaluator);
+  ASSERT_EQ(result.values.size(), 2 * run.predts.Assignment().KFolds());
   for (auto value : result.values) {
     EXPECT_NEAR(value, kResidual, 1e-6);
   }
 }
 
 TEST(FoldEvaluator, StrayParameter) {
-  EvalRun run{{16}, 3};
+  EvalRun run{16, 3};
   auto config = MakeConfig("rmse");
   config["huber_slope"] = Number{2.0};
   auto build = [&] {

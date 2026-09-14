@@ -12,11 +12,20 @@
 #include "../common/json_utils.h"             // for RequiredArg
 #include "../common/version.h"                // for Version
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
-#include "kfolds.h"                           // for FoldInfo
+#include "kfolds.h"                           // for FoldAssignmentPtr
 #include "xgboost/json.h"                     // for Json, Array, Object, String, get
 #include "xgboost/predictor.h"                // for Predictor
 
 namespace xgboost::cv {
+void CheckPredictionData(DMatrix const* data, FoldPredictions const& predts) {
+  auto ext = dynamic_cast<data::ExtMemQuantileDMatrix const*>(data);
+  CHECK(ext) << "Fused cross-validation requires an ExtMemQuantileDMatrix.";
+  CHECK_EQ(predts.Assignment().Size(), data->Info().num_row_)
+      << "Fold assignment and matrix must have the same number of rows.";
+  CHECK(predts.Validation().predictions.Device() == data->Ctx()->Device())
+      << "CV predictions and matrix must use the same device.";
+}
+
 namespace {
 [[nodiscard]] bst_feature_t GetNumFeatures(MetaInfo const& info) {
   error::MaxFeatureSize(info.num_col_);
@@ -64,6 +73,11 @@ void FoldModels::InitUnit(std::size_t unit_idx, std::unique_ptr<ObjFunction> obj
   CHECK_LT(unit_idx, this->objs_.size());
   CHECK_LT(unit_idx, this->models_.size());
   CHECK(obj);
+  // Full-buffer gradient calculation followed by masking requires a row-wise objective.
+  Json config{Object{}};
+  obj->SaveConfig(&config);
+  CHECK_EQ(get<String const>(config["name"]), "reg:squarederror")
+      << "Fused CV gradient masking supports only reg:squarederror.";
 
   auto& param = this->model_params_.at(unit_idx);
   param.HandleOldFormat();
@@ -142,10 +156,21 @@ FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain, boo
   return this->objs_[unit_idx].get();
 }
 
-void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
-                                FoldInfoBatches const& finfo, FoldPredictions* out) const {
+void FoldModels::InitPrediction(DMatrix const* data, FoldAssignmentPtr assignment,
+                                FoldPredictions* out) const {
   CHECK(out);
-  CHECK_EQ(this->KFolds(), finfo.KFolds());
+  CHECK(assignment);
+  CHECK(!out->assignment) << "CV prediction buffers are already initialized.";
+  auto ext = dynamic_cast<data::ExtMemQuantileDMatrix const*>(data);
+  CHECK(ext) << "Fused cross-validation requires an ExtMemQuantileDMatrix.";
+  auto ctx = data->Ctx();
+  auto const& info = data->Info();
+  CHECK_EQ(assignment->Size(), info.num_row_)
+      << "Fold assignment and matrix must have the same number of rows.";
+  CHECK_EQ(this->KFolds(), assignment->KFolds())
+      << "Fold assignment and models must have the same number of folds.";
+  CHECK(this->Ctx()->Device() == ctx->Device()) << "CV models and matrix must use the same device.";
+  CHECK(assignment->Device() == ctx->Device()) << "CV assignment and matrix must use the same GPU.";
   auto n_units = this->NumUnits();
   out->layout = this->layout_;
   out->train.resize(n_units);
@@ -160,9 +185,8 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
   CHECK_EQ(out->valid.predictions.Size(), info.num_row_ * output_length);
 
   // Init training prediction vector. Like the validation cache, it's indexed by the
-  // global row index. The rows held out by a fold are padding, `GetGradient` reads back
-  // only the rows listed in the fold info. The refit unit holds nothing out, so every row
-  // of its cache is used.
+  // global row index. The rows held out by a fold are padding; their gradients are
+  // masked after calculation. The refit unit holds nothing out.
   for (std::size_t u = 0; u < n_units; ++u) {
     CHECK_EQ(this->OutputLength(u), output_length)
         << "All CV models must share the same number of outputs.";
@@ -175,6 +199,7 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
     CHECK_EQ(predt.predictions.Size(), info.num_row_ * output_length);
   }
   out->output_length = output_length;
+  out->assignment = std::move(assignment);
 }
 
 void FoldModels::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
@@ -335,17 +360,17 @@ XGB_DLL int XGBCvFoldModelsFree(FoldModelsHandle hdl) {
 }
 
 XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
-                                          FoldInfoBatchesHandle c_fold_info,
+                                          FoldAssignmentHandle c_assignment,
                                           FoldPredictionsHandle c_predt) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
-  xgboost_CHECK_C_ARG_PTR(c_fold_info);
+  xgboost_CHECK_C_ARG_PTR(c_assignment);
   xgboost_CHECK_C_ARG_PTR(c_predt);
   auto p_fmat = CastDMatrixHandle(dtrain);
   auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
-  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
+  auto assignment = static_cast<cv::FoldAssignmentPtr const*>(c_assignment);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
-  cv_folds->InitPrediction(p_fmat->Ctx(), p_fmat->Info(), *fold_info, predt);
+  cv_folds->InitPrediction(p_fmat.get(), *assignment, predt);
   API_END();
 }
 
@@ -451,41 +476,5 @@ XGB_DLL int XGBCvFoldGpairsFree(FoldGpairsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<cv::FoldGpairs*>(hdl);
-  API_END();
-}
-
-XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
-                                       FoldInfoBatchesHandle* out) {
-  API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out);
-  CHECK_GT(k_folds, 0);
-
-  auto p_fmat = CastDMatrixHandle(dtrain);
-  auto p_ext_fmat = std::dynamic_pointer_cast<data::ExtMemQuantileDMatrix>(p_fmat);
-  CHECK(p_ext_fmat) << "Fold info batches require an ExtMemQuantileDMatrix.";
-
-  auto p_out = std::make_unique<cv::FoldInfoBatches>();
-  auto const& batch_ptr = p_ext_fmat->BatchPtr();
-  auto const& info = p_ext_fmat->Info();
-
-  for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
-    auto begin = batch_ptr[i - 1];
-    auto end = batch_ptr[i];
-    CHECK_LE(end, info.num_row_);
-    p_out->batches.emplace_back();
-    cv::FoldInfo& batch = p_out->batches.back();
-    for (std::size_t k = 0; k < k_folds; ++k) {
-      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch);
-    }
-  }
-
-  *out = p_out.release();
-  API_END();
-}
-
-XGB_DLL int XGBCvFoldInfoBatchesFree(FoldInfoBatchesHandle hdl) {
-  API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(hdl);
-  delete static_cast<cv::FoldInfoBatches*>(hdl);
   API_END();
 }

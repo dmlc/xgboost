@@ -19,6 +19,7 @@
 #include "../common/json_utils.h"  // for OptionalArg
 #include "./gather.cuh"            // for GatherRows
 #include "cross_validate.h"
+#include "kfolds.cuh"
 #include "xgboost/metric.h"       // for Metric
 #include "xgboost/string_view.h"  // for StringView
 
@@ -128,13 +129,13 @@ void FoldEvaluator::ResizeScratch(MetaInfo const& info, bst_idx_t n_rows) {
   }
 }
 
-void FoldEvaluator::Reset(MetaInfo const& info, FoldInfoBatches const& finfo,
+void FoldEvaluator::Reset(MetaInfo const& info, FoldAssignment const& assignment,
                           FoldPredictions const& predts) {
-  CHECK(!finfo.Empty());
+  CHECK_EQ(assignment.Size(), info.num_row_);
   // What keeps the refit unit out of the fold path.
-  CHECK_EQ(finfo.KFolds(), predts.layout.k_folds);
+  CHECK_EQ(assignment.KFolds(), predts.layout.k_folds);
 
-  // Fold indices are drawn per batch, so a group spanning batches would be split.
+  // Row-wise assignment does not preserve query groups.
   CHECK(info.group_ptr_.empty())
       << "Cross-validation evaluation does not support ranking data with query groups.";
 
@@ -143,39 +144,29 @@ void FoldEvaluator::Reset(MetaInfo const& info, FoldInfoBatches const& finfo,
   CHECK_EQ(info.labels.Shape(1), output_length);
   CHECK_EQ(predts.Validation().predictions.Size(), info.num_row_ * output_length);
 
-  // Global, not per batch, and unchecked it would report `sqrt(0) == 0`.
-  for (std::size_t k = 0; k < predts.layout.k_folds; ++k) {
-    CHECK_GT(finfo.ValidFoldSize(k), 0)
-        << "Fold " << k << " holds out no row, so it cannot be evaluated. `k_folds` must not "
-        << "exceed the number of rows in the data batch.";
-  }
-
   this->result_.Reset(predts.layout.k_folds, this->eval_train_);
 }
 
 void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
-                             FoldInfoBatches const& finfo, FoldPredictions const& predts,
+                             FoldAssignment const& assignment, FoldPredictions const& predts,
                              std::size_t k, Split split) {
   auto valid = split == Split::kValid;
-  auto n_rows = valid ? finfo.ValidFoldSize(k) : finfo.TrainFoldSize(k);
+  auto n_rows = valid ? assignment.ValidFoldSize(k) : assignment.TrainFoldSize(k);
   // One shared held-out cache; the training caches are per fold, padded at the held-out rows.
   auto const& src = valid ? predts.Validation().predictions : predts.Prediction(k);
   src.SetDevice(this->Ctx()->Device());
 
   this->ResizeScratch(info, n_rows);
 
-  // Ascending within a batch, batches in order, so rows arrive in dataset row order.
+  // Both metadata and predictions use global row order, independently of feature pages.
   auto n_columns = info.labels.Shape(1);
-  bst_idx_t offset = 0;
-  for (auto const& batch : finfo.batches) {
-    auto ridx = valid ? batch.ValidationFold(k) : batch.TrainingFold(k);
-    GatherRows(this->Ctx(), src.ConstDeviceSpan(), ridx, offset, n_columns,
-               this->predt_.DeviceSpan());
-    GatherSampleInfo(this->Ctx(), info, ridx, offset, &this->info_);
-    offset += ridx.size();
-  }
-  // No row of a larger fold survives into a metric.
-  CHECK_EQ(offset, n_rows);
+  row_scratch_.SetDevice(this->Ctx()->Device());
+  row_scratch_.Resize(n_rows);
+  auto view = assignment.ReadRows({0, assignment.Size()});
+  view.Select(this->Ctx(), k, valid, row_scratch_.DeviceSpan());
+  auto ridx = row_scratch_.ConstDeviceSpan();
+  GatherRows(this->Ctx(), src.ConstDeviceSpan(), ridx, 0, n_columns, this->predt_.DeviceSpan());
+  GatherSampleInfo(this->Ctx(), info, ridx, 0, &this->info_);
 
   // A copy, so no transform reaches a cache, and each split resizes because one may resize.
   models.EvalTransform(&this->predt_);
@@ -187,11 +178,11 @@ void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
 
 [[nodiscard]] FoldEvalResult const& FoldEvaluator::Eval(FoldModels const& models,
                                                         MetaInfo const& info,
-                                                        FoldInfoBatches const& finfo,
                                                         FoldPredictions const& predts,
                                                         std::int32_t iter) {
+  auto const& assignment = predts.Assignment();
   CheckLayout(models.Layout(), predts.layout, "prediction caches");
-  this->Reset(info, finfo, predts);
+  this->Reset(info, assignment, predts);
 
   // The caches agree with each other before and after a round, so only the round number
   // tells "after the update" from "before it".
@@ -204,11 +195,11 @@ void FoldEvaluator::EvalFold(FoldModels const& models, MetaInfo const& info,
 
   if (this->eval_train_) {
     for (std::size_t k = 0; k < models.Layout().k_folds; ++k) {
-      this->EvalFold(models, info, finfo, predts, k, Split::kTrain);
+      this->EvalFold(models, info, assignment, predts, k, Split::kTrain);
     }
   }
   for (std::size_t k = 0; k < models.Layout().k_folds; ++k) {
-    this->EvalFold(models, info, finfo, predts, k, Split::kValid);
+    this->EvalFold(models, info, assignment, predts, k, Split::kValid);
   }
   return this->result_;
 }
@@ -240,23 +231,21 @@ XGB_DLL int XGBCvFoldEvaluatorFree(FoldEvaluatorHandle hdl) {
 }
 
 XGB_DLL int XGBCvFoldEvaluatorEval(FoldEvaluatorHandle hdl, FoldModelsHandle c_cv_folds,
-                                   DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
-                                   FoldPredictionsHandle c_predt, int iter, char const** out_meta,
-                                   double const** out_values) {
+                                   DMatrixHandle dtrain, FoldPredictionsHandle c_predt, int iter,
+                                   char const** out_meta, double const** out_values) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(dtrain);
-  xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(c_predt);
   xgboost_CHECK_C_ARG_PTR(out_meta);
   xgboost_CHECK_C_ARG_PTR(out_values);
   auto const* cv_folds = static_cast<cv::FoldModels const*>(c_cv_folds);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  auto const* fold_info = static_cast<cv::FoldInfoBatches const*>(c_fold_info);
   auto const* predt = static_cast<cv::FoldPredictions const*>(c_predt);
-  auto const& result = static_cast<cv::FoldEvaluator*>(hdl)->Eval(*cv_folds, p_fmat->Info(),
-                                                                  *fold_info, *predt, iter);
+  cv::CheckPredictionData(p_fmat.get(), *predt);
+  auto const& result =
+      static_cast<cv::FoldEvaluator*>(hdl)->Eval(*cv_folds, p_fmat->Info(), *predt, iter);
 
   // Values raw, because `JsonNumber` is a `float` and would round to seven digits. The shape
   // rides with the names because the buffer goes over as a bare pointer with no length.
