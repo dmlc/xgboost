@@ -240,7 +240,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual void Reset() = 0;
   /*!
    * \brief Create a new instance of learner.
-   * \param cache_data The matrix to cache the prediction.
+   * \param cache_data Matrices accepted for compatibility with the public booster creation APIs.
    * \return Created learner.
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix>>& cache_data);
@@ -311,10 +311,8 @@ struct LearnerModelState {
         num_output_group{std::max(n_groups, n_targets)},
         multi_strategy{multi_strategy} {}
 
-  linalg::VectorView<float const> BaseScore(Context const* ctx) const;
   [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;
   [[nodiscard]] std::vector<float> const& BaseScoreValue() const { return base_score_value_; }
-  void SetBaseScore(Context const* ctx, std::vector<float> value, linalg::Vector<float> margin);
   void ConfigureDevice(Context const* ctx);
 
   void Copy(LearnerModelState const& that);
@@ -326,10 +324,7 @@ struct LearnerModelState {
     return this->IsVectorLeaf() ? this->OutputLength() : 1;
   }
 
-  [[nodiscard]] bool NeedsInitialization() const {
-    return num_feature == 0 || num_output_group == 0 || base_score_.Size() == 0;
-  }
-  [[nodiscard]] bool Initialized() const { return !this->NeedsInitialization(); }
+  [[nodiscard]] bool Initialized() const { return base_score_.Size() != 0; }
 };
 
 }  // namespace xgboost

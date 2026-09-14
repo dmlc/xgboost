@@ -43,13 +43,12 @@
 namespace xgboost {
 TEST(LearnerModelState, Initialization) {
   LearnerModelState state;
-  EXPECT_TRUE(state.NeedsInitialization());
+  EXPECT_FALSE(state.Initialized());
   state.num_feature = 1;
   state.num_output_group = 1;
-  EXPECT_TRUE(state.NeedsInitialization());
+  EXPECT_FALSE(state.Initialized());
 
   auto initialized = MakeMP(1, 0.5f, 1);
-  EXPECT_FALSE(initialized.NeedsInitialization());
   EXPECT_TRUE(initialized.Initialized());
 }
 
@@ -58,6 +57,8 @@ TEST(Learner, Basic) {
   auto args = {Arg("tree_method", "exact")};
   auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix();
   auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
+  Json initial_config{Object{}};
+  EXPECT_NO_THROW(learner->SaveConfig(&initial_config));
   learner->Configure(args);
 
   auto major = XGBOOST_VER_MAJOR;
@@ -265,23 +266,16 @@ TEST(Learner, ModelInitializedByTrainingData) {
 
   learner->UpdateOneIter(0, train);
   EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
-
-  learner.reset(Learner::Create({train}));
-  learner->Configure();
-  EXPECT_NO_THROW(learner->Predict(train, false, &predt, 0, 0, true));
-  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
 }
 
-TEST(Learner, ResetInitializesCachedModel) {
+TEST(Learner, ConstructorMatricesDoNotAffectModelInitialization) {
+  auto cached = RandomDataGenerator{8, 4, 0.0f}.Targets(2).GenerateDMatrix(true);
   auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
-  auto learner = std::unique_ptr<Learner>{Learner::Create({train})};
-  learner->Configure({{"objective", "reg:absoluteerror"}});
-  EXPECT_EQ(learner->GetNumFeature(), 0);
+  auto learner = std::unique_ptr<Learner>{Learner::Create({cached})};
 
-  EXPECT_NO_THROW(learner->Reset());
+  EXPECT_NO_THROW(learner->UpdateOneIter(0, train));
   EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
-  Json model{Object{}};
-  EXPECT_NO_THROW(learner->SaveModel(&model));
+  EXPECT_EQ(learner->Groups(), 1);
 }
 
 TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {
@@ -406,6 +400,19 @@ TEST(Learner, ConfigIO) {
     learner->SaveConfig(&loaded);
     ASSERT_EQ(get<Array const>(loaded["learner"]["metrics"]).size(), 2);
   }
+}
+
+TEST(Learner, LoadConfigReplacesComponents) {
+  auto source = std::unique_ptr<Learner>{Learner::Create({})};
+  source->Configure({{"objective", "reg:absoluteerror"}, {"booster", "gblinear"}});
+  Json config{Object{}};
+  source->SaveConfig(&config);
+
+  auto loaded = std::unique_ptr<Learner>{Learner::Create({})};
+  loaded->LoadConfig(config);
+  Json loaded_config{Object{}};
+  loaded->SaveConfig(&loaded_config);
+  EXPECT_EQ(config, loaded_config);
 }
 
 // Crashes the test runner if there are race condiditions.
@@ -759,13 +766,19 @@ class InitBaseScore : public ::testing::Test {
 
     learner.reset(Learner::Create({Xy_}));
     learner->Configure({{"objective", "reg:absoluteerror"}});
-    learner->Predict(Xy_, false, &predt, 0, 0, true);
+    EXPECT_NO_THROW(learner->Predict(Xy_, false, &predt, 0, 0, true));
     learner->SaveConfig(&config);
     auto training_base_score = GetBaseScore(config);
     ASSERT_EQ(training_base_score.size(), 1);
     ASSERT_EQ(training_base_score[0], ObjFunction::DefaultBaseScore());
 
-    // The first training operation commits the intercept choice.
+    Context ctx;
+    auto gpair = GenerateRandomGradients(&ctx, Xy_->Info().num_row_, 1);
+    EXPECT_NO_THROW(learner->BoostOneIter(0, Xy_, &gpair));
+    learner->SaveConfig(&config);
+    ASSERT_EQ(training_base_score, GetBaseScore(config));
+
+    // The first training prediction commits the intercept choice.
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     ASSERT_EQ(training_base_score, GetBaseScore(config));
