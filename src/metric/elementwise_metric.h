@@ -6,20 +6,48 @@
 #ifndef XGBOOST_METRIC_ELEMENTWISE_METRIC_H_
 #define XGBOOST_METRIC_ELEMENTWISE_METRIC_H_
 
+#include <array>    // for array
 #include <cstddef>  // for size_t
 #include <numeric>  // for accumulate
 #include <vector>   // for vector
 
+#include "../collective/aggregator.h"    // for GlobalSum
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/optional_weight.h"   // for OptionalWeights
 #include "../common/threading_utils.h"   // for ParallelFor1d
 #include "metric_common.h"               // for PackedReduceResult
+#include "xgboost/collective/result.h"   // for SafeColl
 #include "xgboost/context.h"             // for Context, DeviceOrd
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for UnravelIndex
 
 namespace xgboost::metric::elementwise {
+template <typename EvalFn, typename Kernel>
+class EvalEWiseMetric : public MetricNoCache {
+ public:
+  double Eval(HostDeviceVector<bst_float> const& preds, MetaInfo const& info) override {
+    CHECK_EQ(preds.Size(), info.labels.Size())
+        << "label and prediction size not match, "
+        << "hint: use merror or mlogloss for multi-class classification";
+    if (info.labels.Size() != 0) {
+      CHECK_NE(info.labels.Shape(1), 0);
+    }
+    CheckRowWeights(info);
+
+    auto result = common::DispatchKernel<Kernel>(ctx_, preds, info, eval_);
+    std::array<double, 2> values{result.Residue(), result.Weights()};
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(values.data(), values.size()));
+    collective::SafeColl(rc);
+    return EvalFn::GetFinal(values[0], values[1]);
+  }
+
+  [[nodiscard]] char const* Name() const override { return eval_.Name(); }
+
+ private:
+  EvalFn eval_;
+};
+
 template <typename EvalFn>
 struct EvalKernel {
   using Signature = PackedReduceResult(Context const*, HostDeviceVector<float> const&,
