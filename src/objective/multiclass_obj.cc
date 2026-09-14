@@ -58,8 +58,13 @@ void MulticlassGradientCpu(Context const* ctx, HostDeviceVector<float> const& pr
     auto weight = weights[row];
     for (std::int64_t k{0}; k < n_classes; ++k) {
       auto probability = expf(point(k) - wmax) / static_cast<float>(wsum);
-      auto hess = fmaxf(2.0f * probability * (1.0f - probability) * weight, 1e-16f);
       auto grad = label == k ? probability - 1.0f : probability;
+      // Absolute-residual pseudo-Hessian |p - y|.  Because sum|g| >= |sum g| in every
+      // leaf, the leaf value -G/H is bounded by 1, and the curvature never vanishes on a
+      // mis-predicted class.  The diagonal-dominance bound 2p(1-p) used previously
+      // collapses to ~0 for rare classes while the gradient stays O(1), producing
+      // unbounded leaf values at small reg_lambda.
+      auto hess = fmaxf(fabsf(grad) * weight, 1e-16f);
       gpair(row, k) = {grad * weight, hess};
     }
   });
