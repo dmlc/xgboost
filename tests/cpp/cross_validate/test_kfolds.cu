@@ -62,8 +62,14 @@ TEST(FoldAssignmentGPU, RangesAndPartitioner) {
   }
 }
 
-TEST(FoldAssignmentGPU, RowIndexLimit) {
+TEST(FoldAssignmentGPU, Limits) {
   auto ctx = MakeCUDACtx(0);
+  dh::DeviceUVector<std::int64_t> ids(2, 0, ctx.CUDACtx()->Stream());
+  auto max_folds = static_cast<std::size_t>(std::numeric_limits<int>::max());
+  for (auto k_folds : {max_folds, max_folds + 1}) {
+    EXPECT_THAT([&] { FoldAssignment(&ctx, k_folds, dh::ToSpan(ids)); },
+                GMockThrow("CUB histogram requires k_folds + 1 to fit in an int."));
+  }
   tree::RowPartitioner partition;
   auto limit = std::numeric_limits<tree::RowPartitioner::RowIndexT>::max();
   EXPECT_THROW(partition.Reset(&ctx, 1, static_cast<bst_idx_t>(limit) + 1), dmlc::Error);

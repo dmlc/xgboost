@@ -22,6 +22,8 @@ FoldAssignment::FoldAssignment(Context const* ctx, std::size_t k_folds,
                                common::Span<std::int64_t const> ids) {
   CHECK(ctx->IsCUDA()) << "Fused CV requires CUDA.";
   CHECK_GE(k_folds, 2);
+  CHECK_LT(k_folds, std::numeric_limits<int>::max())
+      << "CUB histogram requires k_folds + 1 to fit in an int.";
   CHECK_LE(k_folds, ids.size());
   CHECK_LE(ids.size(), std::numeric_limits<FoldId>::max());
   using thrust::placeholders::_1;

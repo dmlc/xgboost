@@ -189,7 +189,7 @@ class FoldAssignment:
                 "Fold IDs must be a one-dimensional integer array with at least two rows."
             )
         k_folds = _fold_integer(
-            k_folds, "k_folds", 2, min(ids.size, np.iinfo(np.uint32).max)
+            k_folds, "k_folds", 2, min(ids.size, np.iinfo(np.intc).max - 1)
         )
         ids = cp.ascontiguousarray(ids, dtype=cp.int64)
         hdl = ctypes.c_void_p()
@@ -223,7 +223,7 @@ def make_kfold(
     cp = import_cupy()
 
     n_rows = _fold_integer(n_rows, "n_rows", 2, np.iinfo(np.uint32).max)
-    k_folds = _fold_integer(k_folds, "k_folds", 2, n_rows)
+    k_folds = _fold_integer(k_folds, "k_folds", 2, min(n_rows, np.iinfo(np.intc).max - 1))
     ids = cp.arange(n_rows, dtype=cp.uint32) % k_folds
     if shuffle:
         cp.random.RandomState(seed).shuffle(ids)
