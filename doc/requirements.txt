@@ -13,6 +13,7 @@ ray[train]
 sphinx-gallery
 sphinx-issues
 sphinx-tabs
+sphinxext-rediraffe
 dask
 pyspark
 cloudpickle

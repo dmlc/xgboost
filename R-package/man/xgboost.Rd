@@ -534,16 +534,16 @@ reweighted, and inference uses the ordinary additive-tree path.
 
 range: \eqn{[0.000001, 1.0]}}
 
+\item{sample_type, normalize_type, one_drop, skip_drop}{Deprecated DART parameters that have no
+exact conversion and are ignored with removal warnings. See
+https://github.com/dmlc/xgboost/issues/12339.}
+
 \item{rate_drop}{(for Tree Boosters) (default=0.0)
 Deprecated. When \code{tree_subsample} is not supplied, \code{rate_drop=r} is converted to
 \code{tree_subsample=1-r} with a warning. This preserves the uniform tree-retention probability,
 but not the legacy DART normalization behavior.
 
 range: \eqn{[0.0, 0.999999]}}
-
-\item{sample_type, normalize_type, one_drop, skip_drop}{Deprecated DART parameters that have no
-exact conversion and are ignored with removal warnings. See
-https://github.com/dmlc/xgboost/issues/12339.}
 
 \item{feature_selector}{(for Linear Booster) (default= \code{"cyclic"})
 Feature selection and ordering method

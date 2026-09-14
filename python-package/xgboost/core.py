@@ -3311,7 +3311,8 @@ class Booster:
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
-                "data did not contain feature names, but the following fields are expected: "
+                "data did not contain feature names, "
+                "but the following fields are expected: "
                 + ", ".join(self.feature_names)
             )
 
