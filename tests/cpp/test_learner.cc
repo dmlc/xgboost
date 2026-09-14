@@ -654,6 +654,25 @@ TEST(Learner, DistributedMultiTargetWithEmptyWorker) {
   });
 }
 
+TEST(Learner, DistributedInconsistentTargets) {
+  collective::TestDistributedGlobal(2, [] {
+    auto n_targets = static_cast<bst_target_t>(collective::GetRank() + 1);
+    auto data = RandomDataGenerator{8, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(true);
+    std::unique_ptr<Learner> learner{Learner::Create({data})};
+    learner->Configure({{"objective", "reg:squarederror"}, {"tree_method", "hist"}});
+
+    // Both workers have labels. Even the worker with the maximum target count must reject
+    // the mismatch, rather than proceeding to intercept estimation while its peer throws.
+    try {
+      learner->UpdateOneIter(0, data);
+      FAIL() << "Worker " << collective::GetRank() << " accepted inconsistent targets.";
+    } catch (dmlc::Error const& e) {
+      EXPECT_NE(std::string{e.what()}.find("Inconsistent number of targets across workers."),
+                std::string::npos);
+    }
+  });
+}
+
 /**
  * Test the model initialization sequence is correctly performed.
  */
