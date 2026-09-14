@@ -1006,6 +1006,9 @@ def test_RFECV():
     from sklearn.datasets import load_breast_cancer, load_diabetes, load_iris
     from sklearn.feature_selection import RFECV
 
+    # These small datasets do not benefit from using every core for each fit.
+    n_jobs = 2
+
     # Regression
     X, y = load_diabetes(return_X_y=True)
     bst = xgb.XGBRegressor(
@@ -1015,6 +1018,7 @@ def test_RFECV():
         objective="reg:squarederror",
         random_state=0,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
@@ -1028,6 +1032,7 @@ def test_RFECV():
         objective="binary:logistic",
         random_state=0,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="roc_auc")
     rfecv.fit(X, y)
@@ -1045,16 +1050,17 @@ def test_RFECV():
         reg_lambda=0.01,
         scale_pos_weight=0.5,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="neg_log_loss")
     rfecv.fit(X, y)
 
     X[0:4, :] = np.nan  # verify scikit_learn doesn't throw with nan
-    reg = xgb.XGBRegressor()
+    reg = xgb.XGBRegressor(n_jobs=n_jobs)
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
-    cls = xgb.XGBClassifier()
+    cls = xgb.XGBClassifier(n_jobs=n_jobs)
     rfecv = RFECV(estimator=cls, step=0.5, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
 
