@@ -14,6 +14,7 @@
 #include <vector>   // for vector
 
 #include "../../../include/xgboost/logging.h"
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
@@ -204,7 +205,7 @@ TEST(HistUtil, GetColumnSize) {
   auto batch = adapter.Value();
   using Batch = decltype(batch);
 
-  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu),
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(dh::make_counting_iterator(0llu),
                                                               GetBatchElementOp<Batch>{batch});
 
   dh::caching_device_vector<std::size_t> column_sizes_scan;

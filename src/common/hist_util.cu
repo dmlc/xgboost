@@ -4,21 +4,20 @@
 #include <thrust/binary_search.h>
 #include <thrust/copy.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
-#include <thrust/tuple.h>  // for tuple
 #include <xgboost/logging.h>
 
 #include <algorithm>
-#include <cstddef>  // for size_t
+#include <cstddef>         // for size_t
+#include <cuda/std/tuple>  // for get, tuple
 #include <utility>
 #include <vector>
 
 #include "categorical.h"
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "hist_util.cuh"
@@ -144,7 +143,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
     auto d_temp_weight = dh::ToSpan(entry_weight);
     page.offset.SetDevice(ctx->Device());
     auto row_ptrs = page.offset.ConstDeviceSpan();
-    thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), entry_weight.size(),
+    thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), entry_weight.size(),
                        [=] __device__(std::size_t idx) {
                          std::size_t element_idx = idx + begin;
                          std::size_t ridx = dh::SegmentId(row_ptrs, element_idx);
@@ -195,7 +194,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       p_out_weight->Resize(info.num_row_);
       auto d_weight_out = p_out_weight->DeviceSpan();
 
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), d_weight_out.size(),
+      thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), d_weight_out.size(),
                          [=] XGBOOST_DEVICE(std::size_t i) {
                            auto gidx = dh::SegmentId(d_group_ptr, i);
                            d_weight_out[i] = d_weight[gidx];
@@ -219,7 +218,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       CHECK_GE(d_group_ptr.size(), 2) << "Must have at least 1 group for ranking.";
       CHECK_EQ(d_weight.size(), d_group_ptr.size() - 1)
           << "Weight size should equal to number of groups.";
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), hessian.size(),
+      thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), hessian.size(),
                          [=] XGBOOST_DEVICE(std::size_t i) {
                            d_weight_out[i] = d_weight[dh::SegmentId(d_group_ptr, i)] * hessian(i);
                          });
@@ -228,7 +227,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       CHECK_EQ(hessian.size(), d_weight.size());
       CHECK_EQ(hessian.size(), d_weight_out.size());
       thrust::for_each_n(
-          cuctx->CTP(), thrust::make_counting_iterator(0ul), hessian.size(),
+          cuctx->CTP(), dh::make_counting_iterator(0ul), hessian.size(),
           [=] XGBOOST_DEVICE(std::size_t i) { d_weight_out[i] = d_weight[i] * hessian(i); });
     }
   } else {

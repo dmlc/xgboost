@@ -4,6 +4,7 @@
 #include <thrust/transform.h>  // for transform
 
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../data/array_interface.h"   // for DispatchDType, ArrayInterface
 #include "../data/device_adapter.cuh"
@@ -99,17 +100,16 @@ void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> con
   DispatchDType(grad, DeviceOrd::CUDA(grad_dev), [&](auto &&t_grad) {
     DispatchDType(hess, DeviceOrd::CUDA(hess_dev), [&](auto &&t_hess) {
       CHECK_EQ(t_grad.Size(), t_hess.Size());
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), t_grad.Size(),
+      thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), t_grad.Size(),
                          detail::CustomGradHessOp{t_grad, t_hess, d_gpair});
     });
   });
 }
-}                        // namespace xgboost
+}  // namespace xgboost
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *c_json_config,
                                             DMatrixHandle *out) {
   API_BEGIN();
 
@@ -122,13 +122,11 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CudfAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *c_json_config,
                                                   DMatrixHandle *out) {
   API_BEGIN();
   std::string json_str{data};
@@ -136,8 +134,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CupyAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 

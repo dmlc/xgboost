@@ -12,6 +12,7 @@ In addition, The demo showcases using GPU with other GPU-related libraries inclu
 cupy and cuml. These libraries are not strictly required.
 
 """
+
 import time
 
 import cupy as cp

@@ -13,17 +13,31 @@
 #include <cstdint>    // for int32_t
 
 #include "../common/kernel.h"   // for DispatchKernel
-#include "init_estimation.h"    // for CheckInitInputs, FitIntercept, FitInterceptGlmLike
-#include "regression_param.h"   // for RegLossParam
+#include "../tree/fit_stump.h"  // for FitStump
+#include "init_estimation.h"    // for CheckInitInputs, FitInterceptGlmLike
 #include "xgboost/json.h"       // for FromJson, Json, Object, String, ToJson
 #include "xgboost/logging.h"    // for CHECK, LOG
 #include "xgboost/objective.h"  // for ObjFunction
+#include "xgboost/parameter.h"  // for XGBoostParameter
 
 namespace xgboost::obj {
+struct LogisticParam : public XGBoostParameter<LogisticParam> {
+  float scale_pos_weight;
+
+  DMLC_DECLARE_PARAMETER(LogisticParam) {
+    DMLC_DECLARE_FIELD(scale_pos_weight)
+        .set_default(1.0f)
+        .set_lower_bound(0.0f)
+        .describe("Scale the weight of positive examples by this factor");
+  }
+};
+
 DMLC_REGISTRY_FILE_TAG(logistic_obj);
+DMLC_REGISTER_PARAMETER(LogisticParam);
 
 namespace {
 auto const kRegisterLogisticGradientCpu = elementwise::RegisterGradientCpu<LogisticGradient>();
+auto const kRegisterLogisticInterceptCpu = elementwise::RegisterGradientCpu<LogisticIntercept>();
 auto const kRegisterLogisticPredTransformCpu =
     elementwise::RegisterTransformCpu<LogisticPredTransform>();
 auto const kRegisterLogisticProbToMarginCpu =
@@ -76,10 +90,21 @@ class LogisticObjective : public FitInterceptGlmLike {
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    if (std::abs(param_.scale_pos_weight - 1.0f) > kRtEps) {
-      FitIntercept::InitEstimation(info, base_score);
-    } else {
+    if (std::abs(param_.scale_pos_weight - 1.0f) <= kRtEps) {
       FitInterceptGlmLike::InitEstimation(info, base_score);
+    } else {
+      CheckInitInputs(info);
+      auto const n_targets = this->Targets(info);
+      HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f, this->ctx_->Device());
+      linalg::Matrix<GradientPair> gpair;
+      // FitStump reduces this to -sum(grad) / sum(hess), the exact reweighted mean.
+      common::DispatchKernel<LogisticInterceptKernel>(
+          ctx_, dummy_predt, info, n_targets, LogisticIntercept{param_.scale_pos_weight}, &gpair);
+      tree::FitStump(ctx_, gpair, n_targets, base_score);
+    }
+    if constexpr (kKind == LogisticKind::kRaw) {
+      common::DispatchKernel<LogisticProbToMarginKernel>(ctx_, base_score->Data(),
+                                                         LogisticProbToMargin{});
     }
   }
 
@@ -125,7 +150,7 @@ class LogisticObjective : public FitInterceptGlmLike {
   }
 
  private:
-  RegLossParam param_;
+  LogisticParam param_;
 };
 }  // namespace
 

@@ -32,12 +32,16 @@ def dmatrix_from_cudf(
     kCols = 3
 
     na = np.random.randn(kRows, kCols)
-    na[:, 0:2] = na[:, 0:2].astype(input_type)
+    pa = pd.DataFrame(
+        {
+            "0": na[:, 0].astype(input_type),
+            "1": na[:, 1].astype(input_type),
+            "2": na[:, 2].astype(np.int32),
+        }
+    )
 
-    na[5, 0] = missing
-    na[3, 1] = missing
-
-    pa = pd.DataFrame({"0": na[:, 0], "1": na[:, 1], "2": na[:, 2].astype(np.int32)})
+    pa.iloc[5, 0] = missing
+    pa.iloc[3, 1] = missing
 
     np_label = np.random.randn(kRows).astype(input_type)
     pa_label = pd.DataFrame(np_label)

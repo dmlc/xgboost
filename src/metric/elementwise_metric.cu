@@ -25,10 +25,11 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/functional.h>  // thrust::plus<>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 
+#include <cuda/std/functional>  // for plus
+
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #else
 #include "../common/common.h"  // for AssertGPUSupport
@@ -55,8 +56,8 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
   auto labels = info.labels.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
-    thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + labels.Size() * num_preds;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + labels.Size() * num_preds;
     result = thrust::transform_reduce(
         ctx->CUDACtx()->CTP(), begin, end,
         [=] XGBOOST_DEVICE(size_t i) {
@@ -67,7 +68,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
           float v{std::get<0>(res)}, wt{std::get<1>(res)};
           return PackedReduceResult{v, wt};
         },
-        PackedReduceResult{}, thrust::plus<PackedReduceResult>());
+        PackedReduceResult{}, cuda::std::plus<PackedReduceResult>());
 #else
     common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)
@@ -105,30 +106,6 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
   return result;
 }
 }  // anonymous namespace
-
-struct EvalRowRMSE {
-  char const* Name() const { return "rmse"; }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float diff = label - pred;
-    return diff * diff;
-  }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
-  }
-};
-
-struct EvalRowRMSLE {
-  char const* Name() const { return "rmsle"; }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float diff = std::log1p(label) - std::log1p(pred);
-    return diff * diff;
-  }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
-  }
-};
 
 struct EvalRowMAE {
   const char* Name() const { return "mae"; }
@@ -366,14 +343,6 @@ struct EvalEWiseBase : public MetricNoCache {
  private:
   Policy policy_;
 };
-
-XGBOOST_REGISTER_METRIC(RMSE, "rmse")
-    .describe("Rooted mean square error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSE>(); });
-
-XGBOOST_REGISTER_METRIC(RMSLE, "rmsle")
-    .describe("Rooted mean square log error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSLE>(); });
 
 XGBOOST_REGISTER_METRIC(MAE, "mae").describe("Mean absolute error.").set_body([](const char*) {
   return new EvalEWiseBase<EvalRowMAE>();
