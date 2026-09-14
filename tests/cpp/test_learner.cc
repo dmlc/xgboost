@@ -625,6 +625,35 @@ TEST(Learner, MultiTarget) {
   }
 }
 
+TEST(Learner, DistributedMultiTargetWithEmptyWorker) {
+  constexpr bst_target_t n_targets{3};
+  constexpr std::int32_t n_workers{2};
+  collective::TestDistributedGlobal(n_workers, [=] {
+    auto empty = collective::GetRank() == n_workers - 1;
+    auto data =
+        RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+
+    std::unique_ptr<Learner> learner{Learner::Create({data})};
+    learner->Configure({{"objective", "reg:squarederror"},
+                        {"tree_method", "hist"},
+                        {"max_depth", "1"},
+                        {"min_child_weight", "0"}});
+    learner->UpdateOneIter(0, data);
+
+    ASSERT_EQ(learner->Groups(), n_targets);
+    ASSERT_EQ(data->Info().labels.Shape(1), n_targets);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    ASSERT_EQ(GetBaseScore(config).size(), n_targets);
+
+    // Training continuation can receive a new label-less DMatrix on the empty worker.
+    auto next =
+        RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+    learner->UpdateOneIter(1, next);
+    ASSERT_EQ(next->Info().labels.Shape(1), n_targets);
+  });
+}
+
 /**
  * Test the model initialization sequence is correctly performed.
  */
