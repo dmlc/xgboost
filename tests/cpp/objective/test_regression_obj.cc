@@ -400,6 +400,21 @@ void TestNormalRegression(const Context* ctx) {
   EXPECT_NEAR(intercept(0), 2.5f, kRtEps);
   EXPECT_NEAR(intercept(1), std::log(0.75f), kRtEps);
 
+  // Variance can exceed float range while log variance is still representable.
+  constexpr float kLargeLabel = 1.0e20f;
+  info.labels.Data()->HostVector() = {-kLargeLabel, kLargeLabel};
+  for (auto weighted : {false, true}) {
+    info.weights_.HostVector() = weighted ? std::vector<float>{1.0f, 3.0f} : std::vector<float>{};
+    obj->InitEstimation(info, &base_score);
+    auto large_intercept = base_score.HostView();
+    auto expected_mean = weighted ? 0.5 * kLargeLabel : 0.0;
+    auto expected_variance =
+        (weighted ? 0.75 : 1.0) * static_cast<double>(kLargeLabel) * kLargeLabel;
+    EXPECT_NEAR(large_intercept(0), expected_mean, kLargeLabel * 1.0e-6);
+    EXPECT_FLOAT_EQ(large_intercept(1), static_cast<float>(std::log(expected_variance)));
+  }
+  info.weights_.HostVector() = {1.0f, 3.0f};
+
   HostDeviceVector<float> wrong_size{{0.0f, 0.0f}};
   EXPECT_ANY_THROW(obj->GetGradient(wrong_size, info, 0, &gpair));
 

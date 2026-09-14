@@ -7,12 +7,14 @@
 
 #include <dmlc/registry.h>
 
+#include <array>    // for array
 #include <cmath>    // for log
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <set>      // for set
 #include <string>   // for string
 
+#include "../collective/aggregator.h"   // for GlobalSum
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
 #include "../common/linalg_op.h"        // for ElementWiseKernel
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
@@ -52,31 +54,28 @@ void NormalInitEstimationCpu(Context const* ctx, MetaInfo const& info,
   }
   CHECK_EQ(mean.Size(), 1);
 
-  linalg::Matrix<float> squared_residual;
-  squared_residual.SetDevice(DeviceOrd::CPU());
-  squared_residual.Reshape(info.num_row_, 1);
-  auto residual = squared_residual.HostView();
   auto labels = info.labels.HostView();
   auto mean_value = mean.HostView()(0);
-  linalg::cpu_impl::ElementWiseKernel(residual, ctx->Threads(),
-                                      [=](std::size_t i, std::size_t) mutable {
-                                        auto diff = labels(i, 0) - mean_value;
-                                        residual(i, 0) = diff * diff;
-                                      });
-
-  linalg::Vector<float> variance;
-  if (info.weights_.Empty()) {
-    common::SampleMean(ctx, squared_residual, &variance);
-  } else {
-    common::WeightedSampleMean(ctx, squared_residual, info.weights_, &variance);
+  auto weights = common::MakeOptionalWeights(DeviceOrd::CPU(), info.weights_);
+  // A finite float label can have a squared residual larger than float can represent.
+  // Keep the weighted sum and variance in double until taking the logarithm.
+  double sum_squared_residual{0.0}, sum_weight{0.0};
+#pragma omp parallel for num_threads(ctx->Threads()) reduction(+ : sum_squared_residual, sum_weight)
+  for (bst_omp_uint i = 0; i < info.num_row_; ++i) {
+    auto diff = static_cast<double>(labels(i, 0)) - mean_value;
+    auto weight = static_cast<double>(weights[i]);
+    sum_squared_residual += weight * diff * diff;
+    sum_weight += weight;
   }
-  CHECK_EQ(variance.Size(), 1);
+  std::array<double, 2> stats{sum_squared_residual, sum_weight};
+  collective::SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(stats.data(), stats.size())));
+  CHECK_GT(stats[1], 0.0);
 
   base_score->SetDevice(DeviceOrd::CPU());
   base_score->Reshape(2);
   auto out = base_score->HostView();
   out(0) = mean_value;
-  out(1) = std::log(variance.HostView()(0) + kNormalMinVariance);
+  out(1) = std::log(stats[0] / stats[1] + kNormalMinVariance);
 }
 
 auto const kRegisterNormalGradientCpu =
