@@ -139,9 +139,11 @@ def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cuda", grow_policy)
 
 
-@pytest.mark.parametrize("use_dart", [False, True], ids=["gbtree", "dart"])
-def test_mixed_strategy(use_dart: bool) -> None:
-    run_mixed_strategy("cuda", use_dart)
+@pytest.mark.parametrize(
+    "use_tree_subsample", [False, True], ids=["gbtree", "tree_subsample"]
+)
+def test_mixed_strategy(use_tree_subsample: bool) -> None:
+    run_mixed_strategy("cuda", use_tree_subsample)
 
 
 def test_feature_importance_strategy_compare() -> None:

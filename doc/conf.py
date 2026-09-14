@@ -1,6 +1,7 @@
 """Sphinx configuration.
 
-See `doc/contrib/docs.rst <https://xgboost.readthedocs.io/en/stable/contrib/docs.html>`__
+See the `documentation guide
+<https://xgboost.readthedocs.io/en/stable/contrib/docs.html>`__
 for more info.
 """
 
@@ -218,7 +219,8 @@ def is_readthedocs_build():
     warnings.warn(
         "Skipping Doxygen build... You won't have documentation for C/C++ functions. "
         "Set environment variable READTHEDOCS=True if you want to build Doxygen. "
-        "(If you do opt in, make sure to install Doxygen, Graphviz, CMake, and C++ compiler "
+        "(If you do opt in, make sure to install Doxygen, Graphviz, CMake, "
+        "and C++ compiler "
         "on your system.)"
     )
     return False
@@ -258,12 +260,17 @@ extensions = [
     "sphinx_gallery.gen_gallery",
     "sphinx_issues",
     "sphinx_tabs.tabs",
+    "sphinxext.rediraffe",
     "breathe",
     "myst_parser",
     "xgboost_doc_doctest",
 ]
 
 sphinx_tabs_valid_builders = ["html", "doctest"]
+
+rediraffe_redirects = {
+    "tutorials/dart.rst": "tutorials/tree_subsampling.rst",
+}
 
 # We need the real XGBoost library for running tests.
 doctest_global_setup = """
@@ -296,7 +303,8 @@ sphinx_gallery_conf = {
 }
 
 # Sphinx-issues configuration
-# Path to GitHub repo {group}/{project}  (note that `group` is the GitHub user or organization)
+# Path to GitHub repo {group}/{project}.
+# The group is the GitHub user or organization.
 issues_github_path = "dmlc/xgboost"
 
 autodoc_typehints = "description"

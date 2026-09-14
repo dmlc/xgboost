@@ -695,30 +695,21 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' splits for preventing over-fitting.
 #'
 #' Version added: 1.7.0
-#' @param sample_type (for Dart Booster) (default= `"uniform"`)
-#' Type of sampling algorithm.
-#' - `"uniform"`: dropped trees are selected uniformly.
-#' - `"weighted"`: dropped trees are selected in proportion to weight.
-#' @param normalize_type (for Dart Booster) (default= `"tree"`)
-#' Type of normalization algorithm.
-#' - `"tree"`: new trees have the same weight of each of dropped trees.
-#'   - Weight of new trees are `1 / (k + learning_rate)`.
-#'   - Dropped trees are scaled by a factor of `k / (k + learning_rate)`.
-#' - `"forest"`: new trees have the same weight of sum of dropped trees (forest).
-#'   - Weight of new trees are `1 / (1 + learning_rate)`.
-#'   - Dropped trees are scaled by a factor of `1 / (1 + learning_rate)`.
-#' @param rate_drop (for Dart Booster) (default=0.0)
-#' Dropout rate (a fraction of previous trees to drop during the dropout).
+#' @param tree_subsample (for Tree Boosters) (default=1.0)
+#' Probability of independently retaining each existing tree before gradient computation.
+#' Retained tree predictions are scaled by `1 / tree_subsample`. Existing and new trees are not
+#' reweighted, and inference uses the ordinary additive-tree path.
 #'
-#' range: \eqn{[0.0, 1.0]}
-#' @param one_drop (for Dart Booster) (default=0)
-#' When this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).
-#' @param skip_drop (for Dart Booster) (default=0.0)
-#' Probability of skipping the dropout procedure during a boosting iteration.
-#' - If a dropout is skipped, new trees are added in the same manner as `"gbtree"`.
-#' - Note that non-zero `skip_drop` has higher priority than `rate_drop` or `one_drop`.
+#' range: \eqn{[0.000001, 1.0]}
+#' @param rate_drop (for Tree Boosters) (default=0.0)
+#' Deprecated. When `tree_subsample` is not supplied, `rate_drop=r` is converted to
+#' `tree_subsample=1-r` with a warning. This preserves the uniform tree-retention probability,
+#' but not the legacy DART normalization behavior.
 #'
-#' range: \eqn{[0.0, 1.0]}
+#' range: \eqn{[0.0, 0.999999]}
+#' @param sample_type,normalize_type,one_drop,skip_drop Deprecated DART parameters that have no
+#' exact conversion and are ignored with removal warnings. See
+#' https://github.com/dmlc/xgboost/issues/12339.
 #' @param feature_selector (for Linear Booster) (default= `"cyclic"`)
 #' Feature selection and ordering method
 #' - `"cyclic"`: Deterministic selection by cycling through features one at a time.
@@ -820,11 +811,12 @@ xgb.params <- function(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
+  tree_subsample = NULL,
+  skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,
   rate_drop = NULL,
   one_drop = NULL,
-  skip_drop = NULL,
   feature_selector = NULL,
   top_k = NULL,
   num_class = NULL,

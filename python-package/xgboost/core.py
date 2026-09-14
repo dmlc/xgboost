@@ -2503,11 +2503,11 @@ class Booster:
             feature_names are the same.
 
         training :
-            Whether the prediction value is used for training.  This can effect `dart`
-            booster, which performs dropouts during training iterations but use all
-            trees for inference. If you want to obtain result with dropouts, set this
-            parameter to `True`.  Also, the parameter is set to true when obtaining
-            prediction for custom objective function.
+            Whether the prediction value is used for training. When tree subsampling is
+            enabled, training predictions use a sampled subset of existing trees while
+            inference uses all trees. Set this parameter to `True` to obtain the sampled
+            training prediction. The parameter is also set to true when obtaining
+            predictions for a custom objective function.
 
             .. versionadded:: 1.0.0
 
@@ -3311,7 +3311,8 @@ class Booster:
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
-                "data did not contain feature names, but the following fields are expected: "
+                "data did not contain feature names, "
+                "but the following fields are expected: "
                 + ", ".join(self.feature_names)
             )
 
