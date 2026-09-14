@@ -169,6 +169,37 @@ def test_normal_distribution_constant_label(multi_strategy: str) -> None:
     assert np.isfinite(evals_result["train"]["normal-nloglik"]).all()
 
 
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+@pytest.mark.parametrize("use_base_margin", [False, True])
+@pytest.mark.parametrize("log_variance", [-100.0, -1000.0])
+def test_normal_extreme_initial_variance(
+    multi_strategy: str, use_base_margin: bool, log_variance: float
+) -> None:
+    # User-supplied initial predictions can bypass the estimated noise-floor intercept.
+    # Even an exact mean fit must produce finite gradients and move variance upward.
+    X = np.arange(8, dtype=np.float32).reshape(4, 2)
+    y = np.zeros(4, dtype=np.float32)
+    data = xgb.DMatrix(X, label=y)
+    params = {
+        "objective": "reg:normal",
+        "tree_method": "hist",
+        "multi_strategy": multi_strategy,
+        "max_depth": 1,
+        "eta": 1.0,
+        "lambda": 0.0,
+        "min_child_weight": 0.0,
+        "base_score": [0.0, log_variance],
+    }
+    if use_base_margin:
+        data.set_base_margin(np.tile([0.0, log_variance], (4, 1)))
+        params.pop("base_score")
+    booster = xgb.train(params, data, num_boost_round=2)
+    pred = booster.predict(data, output_margin=True)
+    assert np.isfinite(pred).all()
+    np.testing.assert_array_equal(pred[:, 0], y)
+    assert (pred[:, 1] > log_variance).all()
+
+
 class TestTreeMethodMulti:
     """Integration tests for tree methods."""
 
