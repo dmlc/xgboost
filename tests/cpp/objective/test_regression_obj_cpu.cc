@@ -44,6 +44,11 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   TestLogisticRegressionGPair(&ctx);
 }
 
+TEST(Objective, DeclareUnifiedTest(LogisticRegressionInitEstimation)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestLogisticRegressionInitEstimation(&ctx);
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestLogisticRegressionBasic(&ctx);
@@ -139,6 +144,11 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
 TEST(Objective, CoxRegressionGPair) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestCoxRegressionGPair(&ctx);
+}
+
+TEST(Objective, CoxRegressionInitEstimation) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestCoxRegressionInitEstimation(&ctx);
 }
 #endif
 

@@ -2,7 +2,7 @@
  * Copyright 2025-2026, XGBoost contributors
  */
 #include <thrust/scan.h>     // for inclusive_scan
-#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
+#include <thrust/version.h>  // for THRUST_VERSION
 
 #include <cstddef>                                 // for size_t
 #include <cstdint>                                 // for int32_t
@@ -18,22 +18,13 @@
 #include "xgboost/linalg.h"     // for MatrixView
 #include "xgboost/span.h"       // for Span
 
-#if THRUST_MAJOR_VERSION >= 3
-
-#if THRUST_MINOR_VERSION >= 3
-// thrust 3.3
+#if THRUST_VERSION >= 300100
 #include <cuda/iterator>  // for make_tabulate_output_iterator
-#else
-// thrust 3.2/3.1
+#elif THRUST_VERSION >= 300000
 #include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
-
-#endif  // THRUST_MINOR_VERSION >= 3
-
 #else
-
 #include "../../common/linalg_op.cuh"  // for tbegin
-
-#endif  // THRUST_MAJOR_VERSION >= 3
+#endif
 
 namespace xgboost::tree::cuda_impl {
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
@@ -73,16 +64,12 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
     });
     // Use an output iterator to implement running sum. Old thrust versions either don't
     // have this iterator, or unusable with segmented sum.
-#if THRUST_MAJOR_VERSION >= 3
-
-#if THRUST_MINOR_VERSION >= 2
+#if THRUST_VERSION >= 300100
     auto out_it = cuda::make_tabulate_output_iterator(
         [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
-#else
+#elif THRUST_VERSION >= 300000
     auto out_it = thrust::make_tabulate_output_iterator(
         [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
-#endif
-
 #else
     // Doesn't work with external memory.
     auto out_it = linalg::tbegin(out_t);

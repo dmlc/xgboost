@@ -11,6 +11,8 @@
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(squared_log_kernel_cuda);
 namespace {
+auto const kRegisterSquaredLogLabelTransformCuda =
+    elementwise::RegisterTransformCuda<SquaredLogLabelTransform>();
 auto const kRegisterSquaredLogGradientCuda =
     elementwise::RegisterGradientCuda<SquaredLogGradient>();
 auto const kRegisterSquaredLogValidationCuda =

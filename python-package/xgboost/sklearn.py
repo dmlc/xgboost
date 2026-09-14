@@ -1131,7 +1131,8 @@ class XGBModel(XGBModelBase):
         if callable(getattr(cp.__class__.__bases__[0], "get_params", None)):
             cp.__class__ = cp.__class__.__bases__[0]
         # Otherwise, skip it and assume the next class will have it.
-        # This is here primarily for cases where the first class in MRO is a scikit-learn mixin.
+        # This is primarily for cases where the first class in MRO is a
+        # scikit-learn mixin.
         else:
             cp.__class__ = cp.__class__.__bases__[1]
         params.update(cp.__class__.get_params(cp, deep))
@@ -1761,18 +1762,24 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 cp = import_cupy()
 
                 classes = cp.unique(y.values)
-                self.n_classes_ = len(classes)
-                expected_classes = cp.array(self.classes_)
+                expected_classes = cp.arange(len(classes))
             elif _is_cupy_alike(y):
                 cp = import_cupy()
 
                 classes = cp.unique(y)
-                self.n_classes_ = len(classes)
-                expected_classes = cp.array(self.classes_)
+                expected_classes = cp.arange(len(classes))
             else:
                 classes = np.unique(np.asarray(y))
-                self.n_classes_ = len(classes)
-                expected_classes = self.classes_
+                expected_classes = np.arange(len(classes))
+
+            n_classes = len(classes)
+            if self.__sklearn_is_fitted__() and self.n_classes_ != n_classes:
+                raise ValueError(
+                    "The number of classes in the new labels does not match the "
+                    f"number of classes in the fitted model: {self.n_classes_} "
+                    f"!= {n_classes}"
+                )
+            self.n_classes_ = n_classes
             if (
                 classes.shape != expected_classes.shape
                 or not (classes == expected_classes).all()

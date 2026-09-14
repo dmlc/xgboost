@@ -5,7 +5,6 @@
 #define XGBOOST_COMMON_ALGORITHM_CUH_
 
 #include <thrust/copy.h>                        // for copy
-#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/sort.h>                        // for stable_sort_by_key
 
 #include <cstddef>                                      // size_t

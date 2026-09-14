@@ -234,16 +234,18 @@ def run_exp_family(device: Device) -> None:
         {"objective": "binary:logitraw", "device": device}, Xy, num_boost_round=1
     )
     # The base score stored in the booster model is un-transformed
-    np.testing.assert_allclose([get_basescore(m) for m in (reg, clf, clf1)], y.mean())
+    np.testing.assert_allclose([get_basescore(m) for m in (reg, clf)], y.mean())
+    np.testing.assert_allclose(get_basescore(clf1), np.log(y.mean() / (1.0 - y.mean())))
 
     X, y = make_classification(weights=[0.8, 0.2], random_state=2025)
     clf = train(
-        {"objective": "binary:logistic", "scale_pos_weight": 4.0, "device": device},
+        {"objective": "binary:logistic", "scale_pos_weight": 2.0, "device": device},
         QuantileDMatrix(X, y),
         num_boost_round=1,
     )
     score = get_basescore(clf)
-    np.testing.assert_allclose(score, 0.5, rtol=1e-3)
+    expected = 2.0 * y.mean() / (1.0 - y.mean() + 2.0 * y.mean())
+    np.testing.assert_allclose(score, expected, rtol=1e-6)
 
 
 def run_logistic_degenerate(device: Device) -> None:

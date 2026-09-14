@@ -18,7 +18,6 @@
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "../common/utils.h"  // for NoOp
-#include "init_estimation.h"  // FitIntercept
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/data.h"     // MetaInfo
@@ -72,10 +71,14 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
 // cox regression for survival data (negative values mean they are censored)
-class CoxRegression : public FitIntercept {
+class CoxRegression : public ObjFunction {
  public:
   std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    *base_score = linalg::Zeros<float>(this->ctx_, this->Targets(info));
+    this->PredTransform(base_score->Data());
+  }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
                    linalg::Matrix<GradientPair>* out_gpair) override {

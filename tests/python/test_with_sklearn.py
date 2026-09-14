@@ -122,6 +122,37 @@ def test_multiclass_classification(objective):
     assert proba.shape[1] == cls.n_classes_
 
 
+def test_classifier_same_class_scratch_refit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+    clf = xgb.XGBClassifier(n_estimators=2, n_jobs=1).fit(X, y, verbose=False)
+
+    clf.fit(X, y, verbose=False)
+
+    assert clf.n_classes_ == 3
+
+
+def test_classifier_rejects_different_class_count_refit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+    clf = xgb.XGBClassifier(n_estimators=2, n_jobs=1).fit(X, y, verbose=False)
+    before_booster = clf.get_booster()
+    before_n_classes = clf.n_classes_
+    before_objective = clf.objective
+    before_predictions = clf.predict(X)
+
+    binary = y < 2
+    with pytest.raises(ValueError, match="number of classes.*does not match"):
+        clf.fit(X[binary], y[binary], verbose=False)
+
+    assert clf.get_booster() is before_booster
+    assert clf.n_classes_ == before_n_classes
+    assert clf.objective == before_objective
+    np.testing.assert_array_equal(clf.predict(X), before_predictions)
+
+
 def test_best_iteration():
     from sklearn.datasets import load_iris
 

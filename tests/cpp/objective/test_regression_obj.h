@@ -14,6 +14,7 @@ void TestSquaredLog(const Context* ctx);
 void TestLogisticRegressionGPair(const Context* ctx);
 
 void TestLogisticRegressionBasic(const Context* ctx);
+void TestLogisticRegressionInitEstimation(const Context* ctx);
 
 void TestsLogisticRawGPair(const Context* ctx);
 
@@ -30,6 +31,8 @@ void TestTweedieRegressionGPair(const Context* ctx);
 void TestTweedieRegressionBasic(const Context* ctx);
 
 void TestCoxRegressionGPair(const Context* ctx);
+
+void TestCoxRegressionInitEstimation(const Context* ctx);
 
 void TestAbsoluteError(const Context* ctx);
 
