@@ -90,26 +90,26 @@ jobs:
         - cuda_version: 12
           arch: aarch64
           runner: linux-arm64-cpu
-          image_repo: xgb-ci.gpu_build_rockylinux8_aarch64
+          image_repo: xgb-ci.gpu_build_cuda12_rockylinux8_aarch64
           use_rmm: 0
-          use_federated: 1
+          use_federated: 0
         - cuda_version: 12
           arch: x86_64
           runner: linux-amd64-cpu
-          image_repo: xgb-ci.gpu_build_rockylinux8
+          image_repo: xgb-ci.gpu_build_cuda12_rockylinux8
           use_rmm: 0
-          use_federated: 1
+          use_federated: 0
         # CUDA 13
         - cuda_version: 13
           arch: aarch64
           runner: linux-arm64-cpu
-          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+          image_repo: xgb-ci.gpu_build_rockylinux8_aarch64
           use_rmm: 0
           use_federated: 0
         - cuda_version: 13
           arch: x86_64
           runner: linux-amd64-cpu
-          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+          image_repo: xgb-ci.gpu_build_rockylinux8
           use_rmm: 0
           use_federated: 0
     container:
