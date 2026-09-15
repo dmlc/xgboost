@@ -107,23 +107,6 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
 }
 }  // anonymous namespace
 
-struct EvalRowMAE {
-  const char* Name() const { return "mae"; }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    return std::abs(label - pred);
-  }
-  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
-};
-
-struct EvalRowMAPE {
-  const char* Name() const { return "mape"; }
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    return std::abs((label - pred) / label);
-  }
-  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
-};
-
 namespace {
 XGBOOST_DEVICE inline float LogLoss(float y, float py) {
   auto xlogy = [](float x, float y) {
@@ -180,7 +163,7 @@ class PseudoErrorLoss : public MetricNoCache {
     std::array<double, 2> dat{result.Residue(), result.Weights()};
     auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
-    return EvalRowMAPE::GetFinal(dat[0], dat[1]);
+    return dat[1] == 0 ? dat[0] : dat[0] / dat[1];
   }
 };
 
@@ -382,14 +365,6 @@ class NormalNLogLik : public MetricNoCache {
 
   [[nodiscard]] const char* Name() const override { return "normal-nloglik"; }
 };
-
-XGBOOST_REGISTER_METRIC(MAE, "mae").describe("Mean absolute error.").set_body([](const char*) {
-  return new EvalEWiseBase<EvalRowMAE>();
-});
-
-XGBOOST_REGISTER_METRIC(MAPE, "mape")
-    .describe("Mean absolute percentage error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowMAPE>(); });
 
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
     .describe("Negative loglikelihood for logistic regression.")
