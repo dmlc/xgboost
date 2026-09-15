@@ -2,13 +2,11 @@
  * Copyright 2019-2026, XGBoost contributors
  */
 #include <thrust/binary_search.h>                       // for lower_bound,  upper_bound
-#include <thrust/extrema.h>                             // for max_element
-#include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
-#include <thrust/tuple.h>                               // for tuple
 
 #include <algorithm>          // for copy
 #include <cuda/std/iterator>  // for distance
+#include <cuda/std/tuple>     // for get, make_tuple, tuple
 #include <limits>             // for numeric_limits
 #include <utility>            // for move
 #include <vector>             // for vector
@@ -16,6 +14,7 @@
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
 #include "../common/compressed_iterator.h"  // for CompressedIterator
+#include "../common/cuda_compat.cuh"        // for CUDA compatibility
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
 #include "../common/cuda_stream.h"          // for StreamRef
@@ -78,7 +77,7 @@ __global__ void CompressBinEllpackKernel(
   if (kDenseCompressed && !HasNoMissing) {
     auto row_beg = entries + row_ptrs[irow] - row_ptrs[0];
     auto row_end = entries + row_ptrs[irow + 1] - row_ptrs[0];
-    auto it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
+    auto it = thrust::make_transform_iterator(dh::make_counting_iterator(0ul),
                                               [=](std::size_t i) { return row_beg[i].index; });
     auto it_end = it + cuda::std::distance(row_beg, row_end);
     auto res_it = thrust::lower_bound(thrust::seq, it, it_end, cpr_fidx);
@@ -153,19 +152,13 @@ __global__ void CompressBinEllpackKernel(
   using PtrT = typename decltype(dptrs)::value_type;
 
   // Calculate the number of required symbols if we treat the data as dense.
-  PtrT n_symbols_dense{0};
   CUDAContext const* cuctx = ctx->CUDACtx();
   auto it = dh::MakeTransformIterator<PtrT>(
-      thrust::make_counting_iterator(1ul),
+      dh::make_counting_iterator(1ul),
       [=] XGBOOST_DEVICE(std::size_t i) { return dptrs[i] - dptrs[i - 1]; });
   CHECK_GE(dptrs.size(), 2);
-  auto max_it = thrust::max_element(cuctx->CTP(), it, it + dptrs.size() - 1);
-  dh::CachingDeviceUVector<PtrT> max_element(1);
-  auto d_me = max_element.data();
-  dh::LaunchN(1, cuctx->Stream(), [=] XGBOOST_DEVICE(std::size_t i) { d_me[i] = *max_it; });
-  dh::safe_cuda(cudaMemcpyAsync(&n_symbols_dense, d_me, sizeof(PtrT), cudaMemcpyDeviceToHost,
-                                cuctx->Stream()));
-  cuctx->Stream().Sync();
+  auto n_symbols_dense =
+      dh::Reduce(cuctx->CTP(), it, it + dptrs.size() - 1, PtrT{0}, dh::maximum<PtrT>{});
   // Decide the type of the data.
   CHECK_LE(row_stride, n_features);
   if (is_dense) {
@@ -320,7 +313,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
   bool valid = data::NoInfInData(ctx, batch, is_valid);
   CHECK(valid) << error::InfInData();
 
-  auto cnt = thrust::make_counting_iterator(0llu);
+  auto cnt = dh::make_counting_iterator(0llu);
   auto n_symbols = dst->NumSymbols();
   common::CompressedBufferWriter writer{n_symbols};
   auto d_compressed_buffer = dst->gidx_buffer.data();
@@ -425,7 +418,7 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
 
   bool dense_compress = row_stride == page.Features() && !page.IsDense();
   auto n_samples = page.Size();
-  auto cnt = thrust::make_counting_iterator(0ul);
+  auto cnt = dh::make_counting_iterator(0ul);
   auto ptr = reinterpret_cast<T const*>(d_data.data());
   auto fn = [=] __device__(std::size_t i) mutable {
     auto [ridx, fidx] = linalg::UnravelIndex(i, n_samples, row_stride);
@@ -532,7 +525,7 @@ bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page,
   CHECK_EQ(this->NumSymbols(), page->NumSymbols());
   CHECK_GE(this->n_rows * this->info.row_stride, offset + n_elements);
   page->Visit(ctx, {}, [&](auto&& src) {
-    thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_elements,
+    thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), n_elements,
                        CopyPage{this, src, offset});
   });
   monitor_.Stop(__func__);
@@ -720,7 +713,7 @@ struct NotNullOp {
     return this->n_rows * this->info.row_stride;
   }
   return this->Visit(ctx, feature_types, [&](auto&& d_acc) -> bst_idx_t {
-    auto it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ull), CntOp{d_acc});
+    auto it = thrust::make_transform_iterator(dh::make_counting_iterator(0ull), CntOp{d_acc});
     return thrust::count_if(ctx->CUDACtx()->CTP(), it, it + d_acc.row_stride * d_acc.n_rows,
                             NotNullOp{d_acc});
   });

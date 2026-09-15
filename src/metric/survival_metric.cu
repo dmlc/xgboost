@@ -21,6 +21,9 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
+#include <cuda/std/functional>  // for plus
+
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #endif                                 // XGBOOST_USE_CUDA
 
@@ -82,8 +85,8 @@ class ElementWiseSurvivalMetricsReduction {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
-    thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + ndata;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + ndata;
 
     auto s_label_lower_bound = labels_lower_bound.DeviceSpan();
     auto s_label_upper_bound = labels_upper_bound.DeviceSpan();
@@ -104,7 +107,7 @@ class ElementWiseSurvivalMetricsReduction {
           residue *= weight;
           return PackedReduceResult{residue, weight};
         },
-        PackedReduceResult(), thrust::plus<PackedReduceResult>());
+        PackedReduceResult(), cuda::std::plus<PackedReduceResult>());
 
     return result;
   }

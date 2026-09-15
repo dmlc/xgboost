@@ -35,9 +35,10 @@ struct RadixSelectKernel {
  * fastest. The input is never sorted or modified. Other devices use the registered CPU kernel
  * fallback. A globally zero total weight produces zero.
  *
- * n_targets is supplied independently of the local label shape because a distributed worker can
- * have no data and a 0-by-0 label matrix. It must still allocate the same histograms and
- * participate in the same collectives as workers that have data.
+ * n_targets is the agreed output count, supplied by the caller without further synchronization.
+ * It is independent of the local label shape: for quantile regression, the configured alphas
+ * determine the output count even on a worker with a 0-by-0 label matrix. That worker must still
+ * allocate the same histograms and participate in all four passes.
  */
 void RadixSelect(Context const* ctx, linalg::Matrix<float> const& values,
                  HostDeviceVector<float> const& weights, HostDeviceVector<float> const& alphas,

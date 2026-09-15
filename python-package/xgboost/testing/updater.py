@@ -12,7 +12,7 @@ from sklearn.datasets import make_regression
 import xgboost.testing as tm
 
 from ..callback import TrainingCallback
-from ..compat import import_cupy
+from ..compat import import_cudf, import_cupy
 from ..core import (
     Booster,
     DataIter,
@@ -362,7 +362,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         n_samples, n_features, n_categories, onehot=False, sparsity=0.8
     )
     if use_cupy:
-        import cudf
+        cudf = import_cudf()
 
         cp = import_cupy()
 
@@ -689,7 +689,9 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
         train({"tree_method": tree_method, "device": device}, Xy)
 
     # mixed positive and negative values
-    X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)  # type: ignore[assignment]
+    X = rng.normal(loc=0, scale=1, size=1000).reshape(  # type: ignore[assignment]
+        100, 10
+    )
     y = rng.normal(loc=0, scale=1, size=100)
 
     Xy = DMatrix(X, y, feature_types=["c"] * 10)

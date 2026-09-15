@@ -533,7 +533,7 @@ def require_keyword_args(
 
         Parameters
         ----------
-        f :
+        func :
             function to check arguments on.
 
         """
@@ -3311,8 +3311,8 @@ class Booster:
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
-                "data did not contain feature names, but the following fields are expected: "
-                + ", ".join(self.feature_names)
+                "data did not contain feature names, but the following fields "
+                "are expected: " + ", ".join(self.feature_names)
             )
 
         if self.feature_names != feature_names:
@@ -3355,7 +3355,7 @@ class Booster:
             The name of the feature.
         fmap:
             The name of feature map file.
-        bin :
+        bins :
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.

@@ -110,7 +110,8 @@ TEST(ObjectiveRadixSelect, DistributedAbsoluteError) {
         [&](HostDeviceVector<float>* labels, common::Span<std::size_t> shape) {
           labels->Resize(info.num_row_ * n_targets);
           shape[0] = info.num_row_;
-          shape[1] = empty ? 0 : n_targets;
+          // The learner supplies the target dimension even on an empty worker.
+          shape[1] = n_targets;
           if (!empty) {
             auto first = static_cast<float>(2 * rank);
             labels->HostVector() = {first,        first + 100.0f, first + 200.0f,
@@ -158,6 +159,12 @@ TEST(ObjectiveRadixSelect, DistributedAbsoluteErrorLearner) {
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
     ASSERT_EQ(base_score.size(), n_targets);
+
+    // A new label-less matrix during continuation is normalized by the learner as well.
+    auto next =
+        RandomDataGenerator{empty ? 0ul : 2ul, 1, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+    learner->UpdateOneIter(1, next);
+    ASSERT_EQ(next->Info().labels.Shape(1), n_targets);
   });
 }
 

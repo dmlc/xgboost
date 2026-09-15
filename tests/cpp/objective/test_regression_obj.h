@@ -30,6 +30,8 @@ void TestTweedieRegressionGPair(const Context* ctx);
 
 void TestTweedieRegressionBasic(const Context* ctx);
 
+void TestNormalRegression(const Context* ctx);
+
 void TestCoxRegressionGPair(const Context* ctx);
 
 void TestCoxRegressionInitEstimation(const Context* ctx);

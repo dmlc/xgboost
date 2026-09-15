@@ -4,7 +4,6 @@
  * \brief CUDA implementation of the absolute-error gradient kernel.
  */
 #include <dmlc/registry.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/reduce.h>
 
@@ -12,6 +11,7 @@
 #include <cstddef>
 
 #include "../collective/aggregator.cuh"
+#include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/device_helpers.cuh"  // for LaunchN, MakeTransformIterator
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/linalg_op.cuh"       // for ElementWiseKernel
@@ -35,10 +35,10 @@ void AbsoluteErrorGradientCuda(Context const* ctx, HostDeviceVector<float> const
   auto n_stats = static_cast<std::size_t>(n_targets) + 1;
   linalg::Vector<double> scale_stats = linalg::Zeros<double>(ctx, n_stats);
   auto key_it = dh::MakeTransformIterator<bst_target_t>(
-      thrust::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) { return static_cast<bst_target_t>(i / n_rows); });
   auto value_it = dh::MakeTransformIterator<double>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
         auto target = i / n_rows;
         auto row = i % n_rows;
         if (target == n_targets) {

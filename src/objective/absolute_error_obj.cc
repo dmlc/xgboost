@@ -13,7 +13,7 @@
 #include <cstdint>    // for int32_t
 #include <vector>     // for vector
 
-#include "../collective/aggregator.h"   // for GlobalMax, GlobalSum
+#include "../collective/aggregator.h"   // for GlobalSum
 #include "../common/common.h"           // for CloseTo
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
 #include "../common/linalg_op.h"        // for ElementWiseKernel
@@ -32,12 +32,6 @@ namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(absolute_error_obj);
 
 namespace {
-bst_target_t GlobalTargets(Context const* ctx, MetaInfo const& info) {
-  auto n_targets = static_cast<bst_target_t>(info.labels.Shape(1));
-  n_targets = collective::GlobalMax(ctx, n_targets);
-  return std::max(n_targets, bst_target_t{1});
-}
-
 void AbsoluteErrorGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds,
                               MetaInfo const& info, bst_target_t n_targets,
                               linalg::Matrix<GradientPair>* out_gpair) {
@@ -115,15 +109,13 @@ class MeanAbsoluteError : public ObjFunction {
                    linalg::Matrix<GradientPair>* out_gpair) override {
     CheckInitInputs(info);
     CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
-    auto n_targets = GlobalTargets(ctx_, info);
+    auto n_targets = this->Targets(info);
     common::DispatchKernel<AbsoluteErrorGradientKernel>(ctx_, preds, info, n_targets, out_gpair);
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     CheckInitInputs(info);
-    // An empty distributed worker has a 0-by-0 label matrix. Agree on the target count before
-    // allocating the radix histograms so every worker enters equally sized collectives.
-    auto n_targets = GlobalTargets(ctx_, info);
+    auto n_targets = this->Targets(info);
     HostDeviceVector<float> alpha{{0.5f}};
     RadixSelect(ctx_, info.labels, info.weights_, alpha, n_targets, base_score);
     CHECK_EQ(base_score->Size(), n_targets);

@@ -25,7 +25,7 @@ Metric* CreateMetricImpl(const std::string& name) {
       prefix = buf;
       param = nullptr;
     }
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
@@ -33,7 +33,7 @@ Metric* CreateMetricImpl(const std::string& name) {
     return p_metric;
   } else {
     std::string prefix = buf.substr(0, pos);
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
@@ -42,8 +42,7 @@ Metric* CreateMetricImpl(const std::string& name) {
   }
 }
 
-Metric *
-Metric::Create(const std::string& name, Context const* ctx) {
+Metric* Metric::Create(const std::string& name, Context const* ctx) {
   auto metric = CreateMetricImpl<MetricReg>(name);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
@@ -62,11 +61,15 @@ namespace xgboost::metric {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(auc);
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
+DMLC_REGISTRY_LINK_TAG(rmse_metric);
+DMLC_REGISTRY_LINK_TAG(mae_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(auc_gpu);
+DMLC_REGISTRY_LINK_TAG(rmse_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(mae_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
 #endif
 }  // namespace xgboost::metric
