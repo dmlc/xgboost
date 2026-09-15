@@ -40,12 +40,23 @@ WHEEL_TAG=manylinux_2_28_${arch}
 set -x
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
+raw_wheels=(python-package/dist/*.whl)
+raw_wheel="${raw_wheels[0]}"
+
+auditwheel repair --only-plat --plat ${WHEEL_TAG} "${raw_wheel}" --wheel-dir wheelhouse/
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
   wheelhouse/*.whl
+rm -v "${raw_wheel}"
 mv -v wheelhouse/*.whl python-package/dist/
 
-if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
+final_wheels=(python-package/dist/*.whl)
+if [[ ${#final_wheels[@]} -ne 1 || ! -f "${final_wheels[0]}" ]]; then
+  echo "error: expected exactly one final wheel in python-package/dist"
+  exit 1
+fi
+final_wheel="${final_wheels[0]}"
+
+if ! unzip -l "${final_wheel}" | grep libgomp > /dev/null; then
   echo "error: libgomp.so was not vendored in the wheel"
   exit -1
 fi
