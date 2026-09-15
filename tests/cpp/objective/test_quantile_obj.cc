@@ -133,43 +133,23 @@ void TestQuantileIntercept(Context const* ctx) {
     }
   });
 
-  auto check_init = [&] {
+  auto check_init = [&](std::vector<float> const& expected) {
     auto n_targets = obj->Targets(info);
-    HostDeviceVector<float> zero_predt(info.num_row_ * n_targets, 0.0f, ctx->Device());
-    linalg::Matrix<GradientPair> gpair;
-    obj->GetGradient(zero_predt, info, 0, &gpair);
-
-    std::vector<float> expected(n_targets);
-    auto h_gpair = gpair.HostView();
-    for (bst_target_t target{0}; target < n_targets; ++target) {
-      double sum_grad{0.0};
-      double sum_hess{0.0};
-      for (std::size_t row{0}; row < info.num_row_; ++row) {
-        sum_grad += h_gpair(row, target).GetGrad();
-        sum_hess += h_gpair(row, target).GetHess();
-      }
-      expected[target] = -sum_grad / std::max(sum_hess, static_cast<double>(kRtEps));
-    }
-    HostDeviceVector<float> expected_predt{expected};
-    expected_predt.SetDevice(ctx->Device());
-    obj->PredTransform(&expected_predt);
-
     linalg::Vector<float> base_scores;
     obj->InitEstimation(info, &base_scores);
     ASSERT_EQ(base_scores.Size(), n_targets);
-    auto const& h_expected = expected_predt.HostVector();
     auto h_base_scores = base_scores.HostView();
     for (bst_target_t target{0}; target < n_targets; ++target) {
-      ASSERT_NEAR(h_base_scores(target), h_expected[target], 1.0e-5);
+      ASSERT_EQ(h_base_scores(target), expected[target]);
     }
   };
 
-  check_init();
+  check_init({6.0f, 8.0f});
 
   for (std::size_t i = 0; i < info.num_row_; ++i) {
     info.weights_.HostVector().emplace_back(info.num_row_ - i - 1.0);
   }
 
-  check_init();
+  check_init({3.0f, 5.0f});
 }
 }  // namespace xgboost

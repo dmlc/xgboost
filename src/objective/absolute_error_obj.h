@@ -18,9 +18,6 @@ struct AbsoluteErrorGradientKernel {
                          bst_target_t, linalg::Matrix<GradientPair>*);
 };
 
-struct AbsoluteErrorInitEstimationKernel {
-  using Signature = void(Context const*, MetaInfo const&, bst_target_t, linalg::Vector<float>*);
-};
 }  // namespace xgboost::obj
 
 #endif  // XGBOOST_OBJECTIVE_ABSOLUTE_ERROR_OBJ_H_

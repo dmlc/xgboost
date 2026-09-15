@@ -7,7 +7,7 @@
 
 #include <dmlc/registry.h>
 
-#include <algorithm>  // for max
+#include <algorithm>  // for sort
 #include <cmath>      // for fabsf, fmaxf, sqrtf, tanhf
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
@@ -22,7 +22,8 @@
 #include "../common/quantile_loss_utils.h"  // for QuantileLossParam
 #include "../common/threading_utils.h"      // for ParallelFor
 #include "../common/transform.h"            // for Transform
-#include "init_estimation.h"                // for CheckInitInputs, FitIntercept
+#include "init_estimation.h"                // for CheckInitInputs
+#include "radix_select.h"                   // for RadixSelect
 #include "xgboost/json.h"                   // for FromJson, Json, Object, String, ToJson
 #include "xgboost/logging.h"                // for CHECK
 #include "xgboost/objective.h"              // for ObjFunction
@@ -148,22 +149,25 @@ const auto kRegisterQuantileGradientCpu =
     common::KernelRegistration<QuantileGradientKernel>{DeviceOrd::kCPU, &QuantileGradientCpu};
 const auto kRegisterQuantileTransformCpu =
     common::KernelRegistration<QuantileTransformKernel>{DeviceOrd::kCPU, &QuantileTransformCpu};
+
+void CheckQuantileLabelShape(MetaInfo const& info) {
+  auto n_rows = info.labels.Shape(0);
+  auto n_columns = info.labels.Shape(1);
+  CHECK(n_columns == 1 || (n_rows == 0 && n_columns == 0))
+      << "Multi-target is not yet supported by the quantile loss.";
+}
 }  // namespace
 
-class QuantileRegression : public FitIntercept {
+class QuantileRegression : public ObjFunction {
   common::QuantileLossParam param_;
   HostDeviceVector<float> alpha_;
 
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the quantile loss.";
+    CheckQuantileLabelShape(info);
     CHECK(!alpha.empty());
-    // We have some placeholders for multi-target in the quantile loss. But it's not
-    // supported as the gbtree doesn't know how to slice the gradient and there's no 3-dim
-    // model shape in general.
-    auto n_y = std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
-    return alpha_.Size() * n_y;
+    return alpha_.Size();
   }
 
  public:
@@ -179,10 +183,14 @@ class QuantileRegression : public FitIntercept {
     CHECK_NE(n_alphas, 0);
     CHECK_GE(n_targets, n_alphas);
     CHECK_EQ(preds.Size(), info.num_row_ * n_targets);
-    CHECK_EQ(info.labels.Shape(1), 1)
-        << "Multi-target for quantile regression is not yet supported.";
-
     common::DispatchKernel<QuantileGradientKernel>(ctx_, preds, info, n_targets, alpha_, out_gpair);
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    CheckInitInputs(info);
+    auto n_targets = this->Targets(info);
+    RadixSelect(ctx_, info.labels, info.weights_, alpha_, n_targets, base_score);
+    CHECK_EQ(base_score->Size(), n_targets);
   }
 
   void PredTransform(HostDeviceVector<float>* predictions) const override {
