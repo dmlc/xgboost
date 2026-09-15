@@ -365,6 +365,87 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   }
 }
 
+void TestNormalRegression(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:normal", ctx)};
+  obj->Configure({});
+  CheckConfigReload(obj, "reg:normal");
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"normal-nloglik"});
+
+  MetaInfo info;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {1.0f, 3.0f};
+  info.weights_.HostVector() = {1.0f, 3.0f};
+  ASSERT_EQ(obj->Targets(info), 2);
+
+  HostDeviceVector<float> preds{{0.0f, 0.0f, 2.0f, std::log(4.0f)}};
+  linalg::Matrix<GradientPair> gpair;
+  obj->GetGradient(preds, info, 0, &gpair);
+  auto result = gpair.HostView();
+  ASSERT_EQ(result.Shape(0), 2);
+  ASSERT_EQ(result.Shape(1), 2);
+  EXPECT_NEAR(result(0, 0).GetGrad(), -1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 0).GetHess(), 1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetGrad(), 0.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetHess(), 0.5f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetGrad(), -0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetHess(), 0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetGrad(), 1.125f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetHess(), 0.75f, kRtEps);
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  auto intercept = base_score.HostView();
+  ASSERT_EQ(intercept.Size(), 2);
+  EXPECT_NEAR(intercept(0), 2.5f, kRtEps);
+  EXPECT_NEAR(intercept(1), std::log(0.75f), kRtEps);
+
+  // Variance can exceed float range while log variance is still representable.
+  constexpr float kLargeLabel = 1.0e20f;
+  info.labels.Data()->HostVector() = {-kLargeLabel, kLargeLabel};
+  for (auto weighted : {false, true}) {
+    info.weights_.HostVector() = weighted ? std::vector<float>{1.0f, 3.0f} : std::vector<float>{};
+    obj->InitEstimation(info, &base_score);
+    auto large_intercept = base_score.HostView();
+    auto expected_mean = weighted ? 0.5 * kLargeLabel : 0.0;
+    auto expected_variance =
+        (weighted ? 0.75 : 1.0) * static_cast<double>(kLargeLabel) * kLargeLabel;
+    EXPECT_NEAR(large_intercept(0), expected_mean, kLargeLabel * 1.0e-6);
+    EXPECT_FLOAT_EQ(large_intercept(1), static_cast<float>(std::log(expected_variance)));
+  }
+  info.weights_.HostVector() = {1.0f, 3.0f};
+
+  HostDeviceVector<float> wrong_size{{0.0f, 0.0f}};
+  EXPECT_ANY_THROW(obj->GetGradient(wrong_size, info, 0, &gpair));
+
+  // Extreme finite margins can overflow both exp(-log_variance) and residual squared in
+  // float arithmetic. Zero-weight rows must remain zero even in these regimes.
+  info.num_row_ = 1;
+  info.labels.Reshape(1, 1);
+  info.labels.Data()->HostVector() = {0.0f};
+  for (auto mean : {0.0f, 1.0e-20f, std::numeric_limits<float>::max()}) {
+    for (auto log_variance : {-1000.0f, -100.0f, 1000.0f}) {
+      for (auto weight : {0.0f, 1.0f}) {
+        info.weights_.HostVector() = {weight};
+        preds.HostVector() = {mean, log_variance};
+        obj->GetGradient(preds, info, 0, &gpair);
+        auto pairs = gpair.HostView();
+        for (std::size_t j = 0; j < 2; ++j) {
+          EXPECT_TRUE(std::isfinite(pairs(0, j).GetGrad()));
+          EXPECT_TRUE(std::isfinite(pairs(0, j).GetHess()));
+          if (weight == 0.0f) {
+            EXPECT_EQ(pairs(0, j).GetGrad(), 0.0f);
+            EXPECT_EQ(pairs(0, j).GetHess(), 0.0f);
+          }
+        }
+      }
+    }
+  }
+
+  info.labels.Reshape(1, 2);
+  EXPECT_ANY_THROW(obj->Targets(info));
+}
+
 void TestCoxRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};

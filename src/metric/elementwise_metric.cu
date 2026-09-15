@@ -327,6 +327,45 @@ struct EvalEWiseBase : public MetricNoCache {
   Policy policy_;
 };
 
+class NormalNLogLik : public MetricNoCache {
+ public:
+  std::set<std::string> Configure(Args const&) override { return {}; }
+
+  double Eval(HostDeviceVector<bst_float> const& preds, MetaInfo const& info) override {
+    CHECK_EQ(info.labels.Shape(1), 1) << "Normal NLL requires a single response column.";
+    CHECK_EQ(preds.Size(), info.num_row_ * 2)
+        << "Normal NLL requires two predictions per row: mean and log variance.";
+
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto labels = info.labels.View(device);
+    info.weights_.SetDevice(device);
+    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+                                                   : info.weights_.ConstHostSpan());
+    preds.SetDevice(device);
+    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
+
+    constexpr float kLogTwoPi = 1.8378770664093453f;
+    auto result =
+        Reduce(ctx_, info, [=] XGBOOST_DEVICE(size_t, size_t sample_id, size_t target_id) {
+          auto mean = predts[sample_id * 2];
+          auto log_variance = predts[sample_id * 2 + 1];
+          auto residual = labels(sample_id, target_id) - mean;
+          auto standardized_residual =
+              residual == 0.0f ? 0.0f : expf(2.0f * logf(fabsf(residual)) - log_variance);
+          auto loss = 0.5f * (kLogTwoPi + log_variance + standardized_residual);
+          auto weight = weights[sample_id];
+          return std::make_tuple(weight * loss, weight);
+        });
+
+    std::array<double, 2> dat{result.Residue(), result.Weights()};
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
+    return dat[1] == 0.0 ? dat[0] : dat[0] / dat[1];
+  }
+
+  [[nodiscard]] const char* Name() const override { return "normal-nloglik"; }
+};
+
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
     .describe("Negative loglikelihood for logistic regression.")
     .set_body([](const char*) { return new EvalEWiseBase<EvalRowLogLoss>(); });
@@ -346,6 +385,10 @@ XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
     .describe("Negative log-likelihood for gamma regression.")
     .set_body([](const char*) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
+
+XGBOOST_REGISTER_METRIC(NormalNLogLik, "normal-nloglik")
+    .describe("Negative log-likelihood for normal distribution regression.")
+    .set_body([](const char*) { return new NormalNLogLik(); });
 
 XGBOOST_REGISTER_METRIC(Error, "error")
     .describe("Binary classification error.")
