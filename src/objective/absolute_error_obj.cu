@@ -15,11 +15,7 @@
 #include "../common/device_helpers.cuh"  // for LaunchN, MakeTransformIterator
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/linalg_op.cuh"       // for ElementWiseKernel
-#include "../common/math.h"              // for CloseTo
-#include "../common/numeric.h"           // for Reduce
 #include "../common/optional_weight.h"   // for MakeOptionalWeights
-#include "../common/stats.h"
-#include "../tree/fit_stump.h"
 #include "absolute_error_obj.h"
 
 namespace xgboost::obj {
@@ -82,51 +78,8 @@ void AbsoluteErrorGradientCuda(Context const* ctx, HostDeviceVector<float> const
       ctx->CUDACtx()->Stream());
 }
 
-void AbsoluteErrorInitEstimationCuda(Context const* ctx, MetaInfo const& info,
-                                     bst_target_t n_targets, linalg::Vector<float>* base_score) {
-  auto device = ctx->Device();
-  double sum_weight = info.weights_.Empty() ? static_cast<double>(info.num_row_)
-                                            : common::Reduce(ctx, info.weights_);
-  auto cpu_ctx = ctx->MakeCPU();
-  collective::SafeColl(
-      collective::GlobalSum(&cpu_ctx, linalg::MakeVec(&sum_weight, std::size_t{1})));
-  if (common::CloseTo(sum_weight, 0.0)) {
-    LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
-    *base_score = linalg::Zeros<float>(ctx, n_targets);
-    return;
-  }
-
-  linalg::Vector<float> mean;
-  if (info.weights_.Empty()) {
-    common::SampleMean(ctx, info.labels, &mean);
-  } else {
-    common::WeightedSampleMean(ctx, info.labels, info.weights_, &mean);
-  }
-  CHECK_EQ(mean.Size(), n_targets);
-  auto mean_d = mean.View(device);
-
-  HostDeviceVector<float> predt(info.labels.Size(), 0.0f, device);
-  auto predt_d = linalg::MakeTensorView(ctx, &predt, info.num_row_, n_targets);
-  linalg::cuda_impl::ElementWiseKernel(
-      predt_d,
-      [=] XGBOOST_DEVICE(std::size_t i, std::size_t target) mutable {
-        predt_d(i, target) = mean_d(target);
-      },
-      ctx->CUDACtx()->Stream());
-
-  linalg::Matrix<GradientPair> gpair;
-  AbsoluteErrorGradientCuda(ctx, predt, info, n_targets, &gpair);
-  tree::FitStump(ctx, gpair, n_targets, base_score);
-
-  auto out = base_score->View(device);
-  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(),
-              [=] XGBOOST_DEVICE(std::size_t target) mutable { out(target) += mean_d(target); });
-}
 auto const kRegisterAbsoluteErrorGradientCuda =
     common::KernelRegistration<AbsoluteErrorGradientKernel>{DeviceOrd::kCUDA,
                                                             &AbsoluteErrorGradientCuda};
-auto const kRegisterAbsoluteErrorInitEstimationCuda =
-    common::KernelRegistration<AbsoluteErrorInitEstimationKernel>{DeviceOrd::kCUDA,
-                                                                  &AbsoluteErrorInitEstimationCuda};
 }  // namespace
 }  // namespace xgboost::obj

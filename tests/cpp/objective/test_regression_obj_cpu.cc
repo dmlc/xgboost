@@ -139,6 +139,11 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
   TestTweedieRegressionBasic(&ctx);
 }
 
+TEST(Objective, DeclareUnifiedTest(NormalRegression)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestNormalRegression(&ctx);
+}
+
 // CoxRegression not implemented in GPU code, no need for testing.
 #if !defined(__CUDACC__)
 TEST(Objective, CoxRegressionGPair) {

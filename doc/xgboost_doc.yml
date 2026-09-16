@@ -20,6 +20,7 @@ dependencies:
     - sphinx_rtd_theme
     - sphinx-issues
     - sphinx-tabs
+    - sphinxext-rediraffe
     - sphinxcontrib-jquery
     - pydot-ng
     - graphviz

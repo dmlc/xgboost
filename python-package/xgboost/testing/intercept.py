@@ -146,12 +146,17 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         Xy = DMatrix(X, y)
         w = np.ones_like(y)
 
-    mean = np.average(y, weights=w)
-    residual = mean - y
-    delta = np.average(np.sqrt(np.abs(residual)), weights=w) ** 2
-    norm = np.hypot(delta, residual)
-    curvature = np.divide(delta, norm, out=np.ones_like(norm), where=norm > 0.0)
-    base_score = mean - np.sum(w * residual * curvature) / np.sum(w * curvature)
+    # DMatrix stores labels and weights as float32. Match the objective's
+    # step-function quantile: take the first label that reaches half the weight.
+    labels = y.astype(np.float32)
+    weights = w.astype(np.float32)
+    order = np.argsort(labels)
+    labels = labels[order]
+    cumulative_weight = np.cumsum(weights[order], dtype=np.float64)
+    median_idx = np.searchsorted(
+        cumulative_weight, cumulative_weight[-1] / 2.0, side="left"
+    )
+    base_score = labels[median_idx]
 
     # Check the base score is expected.
     booster_0 = train(
