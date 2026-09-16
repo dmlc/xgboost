@@ -15,9 +15,8 @@
 #include "../collective/aggregator.h"
 #include "../common/expectile_loss_utils.h"  // ExpectileLossParam
 #include "../common/math.h"
-#include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
-#include "../common/optional_weight.h"  // OptionalWeights
-#include "../common/pseudo_huber.h"
+#include "../common/nvtx_utils.h"           // for xgboost_NVTX_FN_RANGE
+#include "../common/optional_weight.h"      // OptionalWeights
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/threading_utils.h"
 #include "metric_common.h"              // MetricNoCache
@@ -106,66 +105,6 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
   return result;
 }
 }  // anonymous namespace
-
-namespace {
-XGBOOST_DEVICE inline float LogLoss(float y, float py) {
-  auto xlogy = [](float x, float y) {
-    float eps = 1e-16;
-    return (x - 0.0f == 0.0f) ? 0.0f : (x * std::log(std::max(y, eps)));
-  };
-  const bst_float pneg = 1.0f - py;
-  return xlogy(-y, py) + xlogy(-(1.0f - y), pneg);
-}
-}  // anonymous namespace
-
-struct EvalRowLogLoss {
-  const char* Name() const { return "logloss"; }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const { return LogLoss(y, py); }
-  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
-};
-
-class PseudoErrorLoss : public MetricNoCache {
-  PseudoHuberParam param_;
-
- public:
-  const char* Name() const override { return "mphe"; }
-  std::set<std::string> Configure(Args const& args) override {
-    return UpdateAndGetUsedParameters(&param_, args);
-  }
-  void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String(this->Name());
-    out["pseudo_huber_param"] = ToJson(param_);
-  }
-
-  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    xgboost_NVTX_FN_RANGE();
-
-    CHECK_EQ(info.labels.Shape(0), info.num_row_);
-    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-    auto labels = info.labels.View(device);
-    preds.SetDevice(device);
-    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
-    info.weights_.SetDevice(device);
-    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
-                                                   : info.weights_.ConstHostSpan());
-    float slope = this->param_.huber_slope;
-    CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
-    PackedReduceResult result =
-        Reduce(ctx_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
-          float wt = weights[sample_id];
-          auto a = labels(sample_id, target_id) - predts[i];
-          auto v = common::Sqr(slope) * (std::sqrt((1 + common::Sqr(a / slope))) - 1) * wt;
-          return std::make_tuple(v, wt);
-        });
-    std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
-    collective::SafeColl(rc);
-    return dat[1] == 0 ? dat[0] : dat[0] / dat[1];
-  }
-};
 
 struct EvalError {
   explicit EvalError(const char* param) {
@@ -365,14 +304,6 @@ class NormalNLogLik : public MetricNoCache {
 
   [[nodiscard]] const char* Name() const override { return "normal-nloglik"; }
 };
-
-XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
-    .describe("Negative loglikelihood for logistic regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowLogLoss>(); });
-
-XGBOOST_REGISTER_METRIC(PseudoErrorLoss, "mphe")
-    .describe("Mean Pseudo-huber error.")
-    .set_body([](const char*) { return new PseudoErrorLoss{}; });
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
     .describe("Negative loglikelihood for poisson regression.")
