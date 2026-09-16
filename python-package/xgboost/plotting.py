@@ -5,7 +5,7 @@
 import json
 import warnings
 from io import BytesIO
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 
@@ -13,8 +13,12 @@ from ._typing import PathLike
 from .core import Booster, _deprecate_positional_args
 from .sklearn import XGBModel
 
-Axes = Any  # real type is matplotlib.axes.Axes
-GraphvizSource = Any  # real type is graphviz.Source
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from graphviz import Source as GraphvizSource
+else:
+    Axes = Any
+    GraphvizSource = Any
 
 
 @_deprecate_positional_args
