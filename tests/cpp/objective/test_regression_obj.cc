@@ -527,37 +527,6 @@ void TestAbsoluteError(const Context* ctx) {
     ASSERT_NEAR(h_gpair(row, 1).GetHess(), curvature, kRtEps);
   }
 
-  auto expected_intercept = [](std::vector<float> const& labels,
-                               std::vector<float> const& weights) {
-    double sum_weight{0.0};
-    double mean{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      sum_weight += w;
-      mean += w * labels[i];
-    }
-    mean /= sum_weight;
-
-    double root_residual{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      root_residual += w * std::sqrt(std::abs(mean - labels[i]));
-    }
-    auto const delta = std::pow(root_residual / sum_weight, 2.0);
-
-    double sum_grad{0.0};
-    double sum_hess{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      auto const residual = mean - labels[i];
-      auto const norm = std::hypot(delta, residual);
-      auto const curvature = norm > 0.0 ? delta / norm : 1.0;
-      sum_grad += w * residual * curvature;
-      sum_hess += w * curvature;
-    }
-    return static_cast<float>(mean - sum_grad / sum_hess);
-  };
-
   auto init = [&](std::vector<float> labels, std::vector<float> const& weights) {
     MetaInfo init_info;
     init_info.num_row_ = labels.size();
@@ -571,11 +540,10 @@ void TestAbsoluteError(const Context* ctx) {
 
   for (auto const& weights : std::vector<std::vector<float>>{{}, {1.0f, 2.0f, 3.0f, 4.0f}}) {
     std::vector<float> labels{0.0f, 0.0f, 0.0f, 1000.0f};
-    auto const expected = expected_intercept(labels, weights);
-    ASSERT_NEAR(init(labels, weights), expected, 1.0e-4f);
+    ASSERT_EQ(init(labels, weights), 0.0f);
     std::transform(labels.cbegin(), labels.cend(), labels.begin(),
                    [](float label) { return label + 1000.0f; });
-    ASSERT_NEAR(init(labels, weights), expected + 1000.0f, 1.0e-4f);
+    ASSERT_EQ(init(labels, weights), 1000.0f);
   }
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mae"});
 }

@@ -59,6 +59,7 @@ DMLC_REGISTRY_LINK_TAG(multiclass_obj);
 DMLC_REGISTRY_LINK_TAG(aft_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(expectile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
+DMLC_REGISTRY_LINK_TAG(radix_select_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(quantile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(gamma_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(hinge_kernel_cuda);
