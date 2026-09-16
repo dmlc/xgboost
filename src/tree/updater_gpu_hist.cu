@@ -82,7 +82,7 @@ struct GPUHistMakerDevice {
   GPUHistEvaluator evaluator_;
   Context const* ctx_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  std::shared_ptr<HostDeviceVector<bst_feature_t>> histogram_features_;
+  std::shared_ptr<HostDeviceVector<bst_feature_t> const> histogram_features_;
   HostDeviceVector<bst_feature_t> histogram_group_ptr_;
   // Set of row partitioners, one for each batch (external memory). When the training is
   // in-core, there's only one partitioner.
@@ -200,12 +200,11 @@ struct GPUHistMakerDevice {
      */
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
                                 param.colsample_bylevel, param.colsample_bytree);
-    // Do not ask the sampler for an extra feature set when level/node sampling is active:
-    // doing so could advance its RNG and invalidate parent-minus-child histograms.
+    // Keep the tree-wide superset at every node for histogram subtraction.
+    // Reading it directly does not advance level/node sampling or its RNG.
     histogram_features_.reset();
-    if (param.colsample_bytree < 1.0f && param.colsample_bylevel == 1.0f &&
-        param.colsample_bynode == 1.0f) {
-      histogram_features_ = column_sampler_->GetFeatureSet(ctx_, 0);
+    if (param.colsample_bytree < 1.0f) {
+      histogram_features_ = column_sampler_->GetTreeFeatureSet();
       histogram_features_->SetDevice(ctx_->Device());
       auto features = histogram_features_->ConstDeviceSpan();
       auto groups = feature_groups_->DeviceAccessor(ctx_->Device()).feature_segments;
