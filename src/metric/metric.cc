@@ -63,6 +63,8 @@ DMLC_REGISTRY_LINK_TAG(auc);
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(rmse_metric);
 DMLC_REGISTRY_LINK_TAG(mae_metric);
+DMLC_REGISTRY_LINK_TAG(logloss_metric);
+DMLC_REGISTRY_LINK_TAG(pseudohuber_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
@@ -70,6 +72,8 @@ DMLC_REGISTRY_LINK_TAG(rank_metric);
 DMLC_REGISTRY_LINK_TAG(auc_gpu);
 DMLC_REGISTRY_LINK_TAG(rmse_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(mae_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(logloss_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(pseudohuber_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
 #endif
 }  // namespace xgboost::metric

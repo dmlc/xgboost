@@ -155,6 +155,18 @@ inline void VerifyMPHE(DeviceOrd device) {
   metric->Configure({{"huber_slope", "0.1"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {}),
               0.0461686f, 1e-4);
+  Json config{Object{}};
+  metric->SaveConfig(&config);
+  std::unique_ptr<Metric> loaded{Metric::Create("mphe", &ctx)};
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {}),
+              0.0461686f, 1e-4);
+
+  loaded->Configure({{"huber_slope", "2.0"}});
+  EXPECT_NEAR(GetMetricEval(loaded.get(), {0}, {1}, {}, {}), 0.472136f, 1e-6);
+
+  loaded->Configure({{"huber_slope", "0"}});
+  EXPECT_THROW(GetMetricEval(loaded.get(), {0}, {1}, {}, {}), dmlc::Error);
 }
 
 inline void VerifyLogLoss(DeviceOrd device) {
