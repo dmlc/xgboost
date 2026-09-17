@@ -106,54 +106,6 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
 }
 }  // anonymous namespace
 
-struct EvalError {
-  explicit EvalError(const char* param) {
-    if (param != nullptr) {
-      CHECK_EQ(sscanf(param, "%f", &threshold_), 1)
-          << "unable to parse the threshold value for the error metric";
-      has_param_ = true;
-    } else {
-      threshold_ = 0.5f;
-      has_param_ = false;
-    }
-  }
-  [[nodiscard]] const char* Name() const {
-    static thread_local std::string name;
-    if (has_param_) {
-      std::ostringstream os;
-      os << "error";
-      if (threshold_ != 0.5f) os << '@' << threshold_;
-      name = os.str();
-      return name.c_str();
-    } else {
-      return "error";
-    }
-  }
-
-  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    // assume label is in [0,1]
-    return pred > threshold_ ? 1.0f - label : label;
-  }
-
-  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
-
- private:
-  bst_float threshold_;
-  bool has_param_;
-};
-
-struct EvalPoissonNegLogLik {
-  [[nodiscard]] const char* Name() const { return "poisson-nloglik"; }
-
-  [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
-    const bst_float eps = 1e-16f;
-    if (py < eps) py = eps;
-    return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
-  }
-
-  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
-};
-
 /**
  * Gamma deviance
  *
@@ -305,10 +257,6 @@ class NormalNLogLik : public MetricNoCache {
   [[nodiscard]] const char* Name() const override { return "normal-nloglik"; }
 };
 
-XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
-    .describe("Negative loglikelihood for poisson regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
-
 XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
     .describe("Residual deviance for gamma regression.")
     .set_body([](const char*) { return new EvalEWiseBase<EvalGammaDeviance>(); });
@@ -320,10 +268,6 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 XGBOOST_REGISTER_METRIC(NormalNLogLik, "normal-nloglik")
     .describe("Negative log-likelihood for normal distribution regression.")
     .set_body([](const char*) { return new NormalNLogLik(); });
-
-XGBOOST_REGISTER_METRIC(Error, "error")
-    .describe("Binary classification error.")
-    .set_body([](const char* param) { return new EvalEWiseBase<EvalError>(param); });
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
     .describe("tweedie-nloglik@rho for tweedie regression.")
