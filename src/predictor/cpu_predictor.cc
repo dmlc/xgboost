@@ -13,6 +13,7 @@
 #include "../common/bitfield.h"              // for RBitField8
 #include "../common/column_matrix.h"         // for ColumnMatrix
 #include "../common/error_msg.h"             // for InplacePredictProxy
+#include "../common/kernel.h"                // for DispatchKernel, KernelRegistration
 #include "../common/math.h"                  // for CheckNAN
 #include "../common/optional_weight.h"       // for OptionalWeights
 #include "../common/threading_utils.h"       // for ParallelFor
@@ -28,6 +29,7 @@
 #include "gbtree_view.h"                     // for GBTreeModelView
 #include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
 #include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
+#include "prediction_kernel.h"     // for PredictLeafKernel
 #include "utils.h"                  // for CheckProxyDMatrix
 #include "xgboost/base.h"           // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"        // for Context
@@ -425,6 +427,43 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   });
 }
 
+void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
+                    gbm::GBTreeModel const &model, bst_tree_t ntree_limit) {
+  auto const n_threads = ctx->Threads();
+  // number of valid trees
+  ntree_limit = GetTreeLimit(model.trees, ntree_limit);
+  const MetaInfo &info = p_fmat->Info();
+  std::vector<float> &preds = out_preds->HostVector();
+  preds.resize(info.num_row_ * ntree_limit);
+
+  auto n_features = model.learner_model_state->num_feature;
+  ThreadTmp<1> feat_vecs{n_threads};
+
+  auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
+  LaunchPredict(ctx, p_fmat, model, [&](auto &&policy) {
+    policy.ForEachBatch([&](auto &&batch) {
+      common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
+        auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
+        auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
+        batch.FVecFill(block, n_features, fvec_tloc);
+
+        for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+          bst_node_t nidx = std::visit(
+              [&](auto &&tree) {
+                return GetLeafIndex<true, true>(tree, fvec_tloc.front(), tree.GetCategoriesMatrix(),
+                                                RegTree::kRoot);
+              },
+              h_model.Trees()[j]);
+          preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
+        }
+        batch.FVecDrop(fvec_tloc);
+      });
+    });
+  });
+}
+
+common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU, &PredictLeafCPU};
+
 }  // anonymous namespace
 
 class CPUPredictor : public Predictor {
@@ -534,37 +573,9 @@ class CPUPredictor : public Predictor {
 
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
                    gbm::GBTreeModel const &model, bst_tree_t ntree_limit) const override {
-    auto const n_threads = this->ctx_->Threads();
-    // number of valid trees
-    ntree_limit = GetTreeLimit(model.trees, ntree_limit);
-    const MetaInfo &info = p_fmat->Info();
-    std::vector<float> &preds = out_preds->HostVector();
-    preds.resize(info.num_row_ * ntree_limit);
-
-    auto n_features = model.learner_model_state->num_feature;
-    ThreadTmp<1> feat_vecs{n_threads};
-
-    auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
-    LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
-      policy.ForEachBatch([&](auto &&batch) {
-        common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
-          auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
-          auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
-          batch.FVecFill(block, n_features, fvec_tloc);
-
-          for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-            bst_node_t nidx = std::visit(
-                [&](auto &&tree) {
-                  return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
-                                                  tree.GetCategoriesMatrix(), RegTree::kRoot);
-                },
-                h_model.Trees()[j]);
-            preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
-          }
-          batch.FVecDrop(fvec_tloc);
-        });
-      });
-    });
+    // CPU predictors can also be used with a device context (for example by SYCL fallback).
+    auto cpu_ctx = ctx_->MakeCPU();
+    common::DispatchKernel<PredictLeafKernel>(&cpu_ctx, p_fmat, out_preds, model, ntree_limit);
   }
 
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
