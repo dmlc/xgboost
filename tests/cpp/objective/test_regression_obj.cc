@@ -14,9 +14,10 @@
 #include <memory>   // for unique_ptr
 #include <utility>  // for pair
 
-#include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../../../src/common/math.h"       // for SoftPlus
-#include "../../../src/tree/tree_view.h"    // for MultiTargetTreeView
+#include "../../../src/common/linalg_op.h"           // for begin, end
+#include "../../../src/common/math.h"                // for SoftPlus
+#include "../../../src/objective/pseudohuber_obj.h"  // for PseudoHuberGradient
+#include "../../../src/tree/tree_view.h"             // for MultiTargetTreeView
 #include "../helpers.h"
 #include "../tree/test_multi_target_tree_model.h"  // for MakeMtTreeForTest
 #include "test_objective_helpers.h"  // for MakePositionsForTest, MakeIotaLabelsForTest
@@ -632,12 +633,12 @@ void TestPseudoHuber(const Context* ctx) {
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
                    {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+                   {0.743294f, 0.780869f, 0.857493f, 0.980581f, 0.857493f});     // out_hess
   CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {},                                                           // empty weights
                    {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+                   {0.743294f, 0.780869f, 0.857493f, 0.980581f, 0.857493f});     // out_hess
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
 
   obj->Configure({{"huber_slope", "0.1"}});
@@ -646,7 +647,37 @@ void TestPseudoHuber(const Context* ctx) {
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
                    {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
-                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
+                   {0.110432f, 0.124035f, 0.164399f, 0.447214f, 0.164399f});     // out_hess
+
+  // Curvature must not vanish cubically in the tails: -g/h should move to the label.
+  CheckObjFunction(obj, {0.0f, 0.0f, 0.0f}, {-1000.0f, 0.0f, 1000.0f}, {2.0f, 1.0f, 0.0f},
+                   {0.2f, 0.0f, 0.0f}, {0.0002f, 1.0f, 0.0f});
+
+  // The quadratic touches the loss and upper-bounds it, including steps crossing the label.
+  for (float slope : {0.1f, 1.0f, 10.0f}) {
+    obj::PseudoHuberGradient gradient{slope};
+    auto loss = [=](double residual) {
+      return slope * slope * (std::hypot(1.0, residual / slope) - 1.0);
+    };
+    for (float residual : {-100.0f, -1.0f, 0.0f, 1.0f, 100.0f}) {
+      auto pair = gradient(residual, 0.0f, 1.0f);
+      EXPECT_NEAR(-pair.GetGrad() / pair.GetHess(), -residual, 1e-4);
+      for (double step : {-200.0, -2.0, 0.0, 2.0, 200.0}) {
+        auto bound = loss(residual) + pair.GetGrad() * step + 0.5 * pair.GetHess() * step * step;
+        EXPECT_LE(loss(residual + step), bound + 1e-5 * (1.0 + std::abs(bound)));
+      }
+    }
+  }
+
+  // The same curvature is used by the one-step intercept initializer. A constant response
+  // far from zero must initialize at that response, not at a cubically amplified Newton step.
+  MetaInfo info;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {1000.0f, 1000.0f};
+  linalg::Vector<float> intercept;
+  obj->InitEstimation(info, &intercept);
+  ASSERT_NEAR(intercept(0), 1000.0f, 1e-2);
 }
 
 }  // namespace xgboost
