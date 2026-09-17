@@ -415,17 +415,18 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
   auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
-  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it,
-                                val_it, thrust::equal_to<size_t>{},
-                                [] __device__(SketchEntry const &r, SketchEntry const &l) {
-                                  // Only accumulate for the first type of duplication.
-                                  if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
-                                    auto w = l.wmin + r.wmin;
-                                    SketchEntry v{l.rmin, l.rmin + w, w, l.value};
-                                    return v;
-                                  }
-                                  return l;
-                                });
+  thrust::inclusive_scan_by_key(
+      ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it, val_it,
+      thrust::equal_to<size_t>{},
+      [] __device__(SketchEntry const &r, SketchEntry const &l) -> SketchEntry {
+        // Only accumulate for the first type of duplication.
+        if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
+          auto w = l.wmin + r.wmin;
+          SketchEntry v{l.rmin, l.rmin + w, w, l.value};
+          return v;
+        }
+        return l;
+      });
 
   auto d_columns_ptr_out = this->columns_ptr_tmp_.DeviceSpan();
   // thrust unique_by_key preserves the first element.
