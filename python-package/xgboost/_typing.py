@@ -31,6 +31,7 @@ BoosterParam = Union[List, Dict[str, Any]]  # better be sequence
 ArrayLike = Any
 if TYPE_CHECKING:
     import pyarrow as pa
+    from .core import DMatrix
 
     PathLike = Union[str, os.PathLike[str]]
 else:
@@ -52,7 +53,10 @@ Integer = Union[int, np.integer]
 IterationRange = Tuple[Integer, Integer]
 
 # callables
-FPreProcCallable = Callable
+FPreProcCallable = Callable[
+    ["DMatrix", "DMatrix", BoosterParam],
+    Tuple["DMatrix", "DMatrix", BoosterParam],
+]
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h

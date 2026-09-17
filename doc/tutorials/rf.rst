@@ -116,5 +116,9 @@ Caveats
 * XGBoost uses 2nd order approximation to the objective function. This can lead to results
   that differ from a random forest implementation that uses the exact value of the
   objective function.
+* XGBoost trains the trees by optimizing a chosen objective function (such as ``logloss`` 
+  for classification), whereas traditional random forest implementations (like scikit-learn) 
+  typically use splitting criteria like ``gini`` impurity or entropy. This difference in the 
+  optimized objective can affect the probability calibration of the resulting model.
 * XGBoost does not perform replacement when subsampling training cases. Each training case
   can occur in a subsampled set either 0 or 1 time.
