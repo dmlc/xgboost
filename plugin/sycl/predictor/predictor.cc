@@ -13,7 +13,9 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
+#include "../../../src/common/kernel.h"
 #include "../../../src/common/timer.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../data.h"
 #include "dmlc/registry.h"
 #include "xgboost/tree_model.h"
@@ -50,6 +52,23 @@ namespace sycl {
 namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(predictor_sycl);
+
+namespace {
+void PredictLeafFallback(Context const* ctx, DMatrix* dmat, HostDeviceVector<float>* out_preds,
+                         gbm::GBTreeModel const& model, bst_tree_t tree_end) {
+  LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
+  auto cpu_ctx = ctx->MakeCPU();
+  common::DispatchKernel<::xgboost::predictor::PredictLeafKernel>(&cpu_ctx, dmat, out_preds, model,
+                                                                  tree_end);
+}
+
+common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCL{
+    DeviceOrd::kSyclDefault, &PredictLeafFallback};
+common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCLCPU{
+    DeviceOrd::kSyclCPU, &PredictLeafFallback};
+common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCLGPU{
+    DeviceOrd::kSyclGPU, &PredictLeafFallback};
+}  // namespace
 
 class DeviceModel {
  public:
@@ -209,12 +228,6 @@ class Predictor : public xgboost::Predictor {
                       bst_tree_t tree_end) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
-  }
-
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model, bst_tree_t ntree_limit) const override {
-    LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
   }
 
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,

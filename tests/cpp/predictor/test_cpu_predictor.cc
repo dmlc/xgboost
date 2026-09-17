@@ -42,12 +42,6 @@ TEST(CpuPredictor, PredictLeafKernel) {
   // Reusing the output with a tree limit must resize it and preserve row-major order.
   common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 1);
   ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 2, 1}));
-
-  // A CPU predictor must still select the CPU implementation with a non-CPU context.
-  auto device_ctx = ctx.MakeCUDA();
-  std::unique_ptr<Predictor> cpu{Predictor::Create("cpu_predictor", &device_ctx)};
-  cpu->PredictLeaf(dmat.get(), &leaves, *model);
-  ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 0, 2, 0, 1, 0}));
 }
 
 TEST(CpuPredictor, BatchPredictionWithWeights) {

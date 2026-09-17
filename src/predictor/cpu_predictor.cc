@@ -571,13 +571,6 @@ class CPUPredictor : public Predictor {
     return !type_error;
   }
 
-  void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
-                   gbm::GBTreeModel const &model, bst_tree_t ntree_limit) const override {
-    // CPU predictors can also be used with a device context (for example by SYCL fallback).
-    auto cpu_ctx = ctx_->MakeCPU();
-    common::DispatchKernel<PredictLeafKernel>(&cpu_ctx, p_fmat, out_preds, model, ntree_limit);
-  }
-
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
                           common::Span<RegTree const *> trees,
                           linalg::MatrixView<float> out_preds) const override {
