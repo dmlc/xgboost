@@ -82,6 +82,8 @@ struct GPUHistMakerDevice {
   GPUHistEvaluator evaluator_;
   Context const* ctx_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
+  std::shared_ptr<HostDeviceVector<bst_feature_t> const> histogram_features_;
+  HostDeviceVector<bst_feature_t> histogram_group_ptr_;
   // Set of row partitioners, one for each batch (external memory). When the training is
   // in-core, there's only one partitioner.
   RowPartitionerBatches partitioners_;
@@ -198,6 +200,32 @@ struct GPUHistMakerDevice {
      */
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
                                 param.colsample_bylevel, param.colsample_bytree);
+    // Keep the tree-wide superset at every node for histogram subtraction.
+    // Reading it directly does not advance level/node sampling or its RNG.
+    histogram_features_.reset();
+    if (param.colsample_bytree < 1.0f) {
+      histogram_features_ = column_sampler_->GetTreeFeatureSet();
+      histogram_features_->SetDevice(ctx_->Device());
+      auto features = histogram_features_->ConstDeviceSpan();
+      auto groups = feature_groups_->DeviceAccessor(ctx_->Device()).feature_segments;
+      histogram_group_ptr_.SetDevice(ctx_->Device());
+      histogram_group_ptr_.Resize(groups.size());
+      auto ptr = histogram_group_ptr_.DeviceSpan();
+      dh::LaunchN(groups.size(), ctx_->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+        // ColumnSampler returns sorted feature IDs. Find each original group's
+        // subrange once per tree without copying the list back to the host.
+        bst_feature_t begin = 0, end = features.size();
+        while (begin < end) {
+          auto mid = begin + (end - begin) / 2;
+          if (features[mid] < groups[i]) {
+            begin = mid + 1;
+          } else {
+            end = mid;
+          }
+        }
+        ptr[i] = begin;
+      });
+    }
     this->interaction_constraints.Reset(ctx_);
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
                            this->param);
@@ -289,8 +317,12 @@ struct GPUHistMakerDevice {
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     auto gpair = this->d_gpair.View(this->ctx_->Device());
+    HistogramFeatureSelection selection;
+    if (histogram_features_) {
+      selection = {histogram_features_->ConstDeviceSpan(), histogram_group_ptr_.ConstDeviceSpan()};
+    }
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
-                                    gpair.Values(), d_ridx, d_node_hist);
+                                    gpair.Values(), d_ridx, d_node_hist, selection);
     monitor.Stop(__func__);
   }
 
