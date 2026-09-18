@@ -17,20 +17,20 @@
 #include <utility>        // for move
 #include <vector>         // for vector
 
-#include "../../../src/common/bitfield.h"         // for LBitField32
-#include "../../../src/common/kernel.h"            // for DispatchKernel
-#include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
-#include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
-#include "../../../src/gbm/gbtree.h"              // for PredictionContainer
+#include "../../../src/common/bitfield.h"              // for LBitField32
+#include "../../../src/common/kernel.h"                // for DispatchKernel
+#include "../../../src/data/iterative_dmatrix.h"       // for IterativeDMatrix
+#include "../../../src/data/proxy_dmatrix.h"           // for DMatrixProxy
+#include "../../../src/gbm/gbtree.h"                   // for PredictionContainer
 #include "../../../src/predictor/prediction_kernel.h"  // for PredictLeafKernel
-#include "../../../src/tree/tree_view.h"          // for MultiTargetTreeView
-#include "../collective/test_worker.h"            // for TestDistributedGlobal
-#include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
-#include "xgboost/json.h"                         // for Json, Object, get, String
-#include "xgboost/linalg.h"                       // for MakeVec, Tensor, TensorView, Vector
-#include "xgboost/logging.h"                      // for CHECK
-#include "xgboost/span.h"                         // for operator!=, SpanIterator, Span
-#include "xgboost/tree_model.h"                   // for RegTree
+#include "../../../src/tree/tree_view.h"               // for MultiTargetTreeView
+#include "../collective/test_worker.h"                 // for TestDistributedGlobal
+#include "../helpers.h"          // for GetDMatrixFromData, RandomDataGenerator
+#include "xgboost/json.h"        // for Json, Object, get, String
+#include "xgboost/linalg.h"      // for MakeVec, Tensor, TensorView, Vector
+#include "xgboost/logging.h"     // for CHECK
+#include "xgboost/span.h"        // for operator!=, SpanIterator, Span
+#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
 void TestBasic(DMatrix *dmat, Context const *ctx) {

@@ -202,7 +202,7 @@ TEST(GPUPredictor, PredictLeafBasic) {
 
   HostDeviceVector<float> leaf_out_predictions;
   common::DispatchKernel<predictor::PredictLeafKernel>(&lparam, dmat.get(), &leaf_out_predictions,
-                                                      model, 0);
+                                                       model, 0);
   ASSERT_TRUE(leaf_out_predictions.DeviceCanRead());
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {

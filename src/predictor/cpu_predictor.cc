@@ -29,7 +29,7 @@
 #include "gbtree_view.h"                     // for GBTreeModelView
 #include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
 #include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
-#include "prediction_kernel.h"     // for PredictLeafKernel
+#include "prediction_kernel.h"      // for PredictLeafKernel
 #include "utils.h"                  // for CheckProxyDMatrix
 #include "xgboost/base.h"           // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"        // for Context
@@ -462,7 +462,8 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
   });
 }
 
-common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU, &PredictLeafCPU};
+common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
+                                                                    &PredictLeafCPU};
 
 }  // anonymous namespace
 

@@ -12,7 +12,7 @@
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"   // for InplacePredictProxy
-#include "../common/kernel.h"  // for KernelRegistration
+#include "../common/kernel.h"      // for KernelRegistration
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../common/optional_weight.h"
 #include "../data/batch_utils.h"      // for StaticBatch
@@ -176,9 +176,10 @@ using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTr
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
 __global__ void PredictLeafDeviceKernel(Data data, common::Span<TreeViewVar const> d_trees,
-                                  common::Span<float> d_out_predictions, bst_tree_t tree_begin,
-                                  bst_tree_t tree_end, bst_feature_t num_features, bool use_shared,
-                                  float missing, EncAccessor acc) {
+                                        common::Span<float> d_out_predictions,
+                                        bst_tree_t tree_begin, bst_tree_t tree_end,
+                                        bst_feature_t num_features, bool use_shared, float missing,
+                                        EncAccessor acc) {
   auto n_rows = data.NumRows();
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= n_rows) {
