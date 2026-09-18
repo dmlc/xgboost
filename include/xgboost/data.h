@@ -517,10 +517,6 @@ struct ExtMemConfig {
   float missing;
   // The number of CPU threads.
   std::int32_t n_threads{0};
-  // The ratio of the cache that can be compressed. Used for testing.
-  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
-  // Fallback to using nvcomp. Used for testing.
-  bool allow_decomp_fallback{false};
 
   ExtMemConfig() = delete;
   ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,
@@ -531,12 +527,6 @@ struct ExtMemConfig {
         min_cache_page_bytes{min_cache},
         missing{missing},
         n_threads{n_threads} {}
-
-  ExtMemConfig& SetParamsForTest(float _hw_decomp_ratio, bool _allow_decomp_fallback) {
-    this->hw_decomp_ratio = _hw_decomp_ratio;
-    this->allow_decomp_fallback = _allow_decomp_fallback;
-    return *this;
-  }
 };
 
 /**
