@@ -152,8 +152,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     auto const& ptr = page->Cuts().Ptrs();
     for (std::size_t f = 0; f < kCols; ++f) {
       for (auto b = ptr[f]; b < ptr[f + 1]; ++b) {
-        auto expected = !page->IsDenseCompressed() || mask_h[f] ? histogram_h[b]
-                                                               : GradientPairInt64{};
+        auto expected =
+            !page->IsDenseCompressed() || mask_h[f] ? histogram_h[b] : GradientPairInt64{};
         ASSERT_EQ(masked_h[b], expected);
       }
     }

@@ -322,8 +322,7 @@ struct GPUHistMakerDevice {
       selection = {histogram_features_->ConstDeviceSpan(), histogram_group_ptr_.ConstDeviceSpan()};
     }
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
-                                    gpair.Values(), d_ridx, d_node_hist,
-                                    selection);
+                                    gpair.Values(), d_ridx, d_node_hist, selection);
     monitor.Stop(__func__);
   }
 

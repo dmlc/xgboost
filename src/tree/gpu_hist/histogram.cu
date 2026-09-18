@@ -138,8 +138,9 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
                                         GradientPairInt64* smem_hist, GradientPairInt64* gmem_hist,
                                         bst_idx_t offset, std::uint32_t stride,
                                         common::Span<bst_feature_t const> selected_features = {}) {
-  bst_feature_t const feature_stride = kMasked ? selected_features.size()
-      : (Policy::kCompressed ? group.num_features : matrix.row_stride);
+  bst_feature_t const feature_stride =
+      kMasked ? selected_features.size()
+              : (Policy::kCompressed ? group.num_features : matrix.row_stride);
   // All threads in this block see the same selection. No histogram work is needed
   // for a group containing no selected features.
   if constexpr (kMasked) {
@@ -263,7 +264,7 @@ __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks
   }
 
   HistKernelOneNodeTarget<Policy, kMasked>(matrix, group, d_ridx_iter, d_gpair.data(), smem_hist,
-                                  node_hist.data(), offset, kStride, selected_features);
+                                           node_hist.data(), offset, kStride, selected_features);
 }
 
 /**
@@ -540,8 +541,7 @@ class DeviceHistogramDispatchAccessor {
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<cuda_impl::RowIndexT const> ridx,
-                      common::Span<GradientPairInt64> hist,
-                      HistogramFeatureSelection selection) {
+                      common::Span<GradientPairInt64> hist, HistogramFeatureSelection selection) {
     this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx, hist, selection);
   }
 
@@ -616,7 +616,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor 
   std::visit(
       [&](auto&& matrix) {
         this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
-                                     selection);
+                                      selection);
       },
       matrix);
   this->monitor_.Stop(__func__);
