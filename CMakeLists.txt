@@ -79,7 +79,6 @@ option(__XGBOOST_FOR_PYTHON_WHEEL
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
-option(USE_NVCOMP "Build with nvcomp to enable sparse data compression. (experimental)" OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
@@ -130,9 +129,6 @@ if(USE_NVTX)
 endif()
 if(USE_NCCL AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
-endif()
-if(USE_NVCOMP AND (NOT USE_CUDA))
-  message(SEND_ERROR "`USE_NVCOMP` must be enabled with `USE_CUDA` flag.")
 endif()
 if(USE_DEVICE_DEBUG AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
@@ -249,11 +245,6 @@ if(USE_CUDA)
 
   find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
-
-if(USE_NVCOMP)
-  find_package(nvcomp REQUIRED)
-endif()
-
 
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR

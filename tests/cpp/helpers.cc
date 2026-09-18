@@ -413,15 +413,6 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
     out->Info().feature_types.ConstDevicePointer();
   }
 }
-
-[[nodiscard]] bool DecompAllowFallback() {
-#if defined(XGBOOST_USE_NVCOMP)
-  bool allow_decomp_fallback = true;
-#else
-  bool allow_decomp_fallback = false;
-#endif
-  return allow_decomp_fallback;
-}
 }  // namespace
 
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(bool with_label) const {
@@ -477,16 +468,14 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  auto config =
-      ExtMemConfig{
-          prefix,
-          this->on_host_,
-          this->cache_host_ratio_,
-          this->min_cache_page_bytes_,
-          std::numeric_limits<float>::quiet_NaN(),
-          Context{}.Threads(),
-      }
-          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->cache_host_ratio_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
@@ -530,16 +519,14 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  auto config =
-      ExtMemConfig{
-          prefix,
-          this->on_host_,
-          this->cache_host_ratio_,
-          this->min_cache_page_bytes_,
-          std::numeric_limits<float>::quiet_NaN(),
-          Context{}.Threads(),
-      }
-          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->cache_host_ratio_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
 
   std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(static_cast<DataIterHandle>(iter.get()),
                                                   iter->Proxy(), this->ref_, Reset, Next,
