@@ -77,6 +77,12 @@ private[spark] trait TreeBoosterParams extends Params {
 
   final def getSubsample: Double = $(subsample)
 
+  final val treeSubsample = new DoubleParam(this, "tree_subsample",
+    "Probability of independently retaining each existing tree before gradient computation",
+    ParamValidators.inRange(0.000001, 1, lowerInclusive = true, upperInclusive = true))
+
+  final def getTreeSubsample: Double = $(treeSubsample)
+
   final val samplingMethod = new Param[String](this, "sampling_method", "The method to use to " +
     "sample the training instances. The supported sampling methods" +
     "uniform: each training instance has an equal probability of being selected. Typically set " +
@@ -222,7 +228,8 @@ private[spark] trait TreeBoosterParams extends Params {
   final def getMaxCachedHistNode: Int = $(maxCachedHistNode)
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6, minChildWeight -> 1, maxDeltaStep -> 0,
-    subsample -> 1, samplingMethod -> "uniform", colsampleBytree -> 1, colsampleBylevel -> 1,
+    subsample -> 1, treeSubsample -> 1, samplingMethod -> "uniform", colsampleBytree -> 1,
+    colsampleBylevel -> 1,
     colsampleBynode -> 1, lambda -> 1, alpha -> 0, treeMethod -> "auto", scalePosWeight -> 1,
     processType -> "default", growPolicy -> "depthwise", maxLeaves -> 0, maxBins -> 256,
     numParallelTree -> 1, maxCachedHistNode -> 65536)

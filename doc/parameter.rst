@@ -53,8 +53,11 @@ General Parameters
 ******************
 * ``booster`` [default= ``gbtree``]
 
-  - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
-  - Dropout parameters like ``rate_drop`` can be used directly with tree models. ``booster=dart`` remains supported for compatibility.
+  - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and
+    ``dart`` use tree-based models while ``gblinear`` uses linear functions.
+  - Tree subsampling can be enabled on tree boosters with ``tree_subsample``.
+    ``booster=dart`` remains supported as a deprecated alias for ``gbtree``. Legacy DART
+    normalization has been removed; see :issue:`12339`.
 
   .. deprecated:: 3.3.0
 
@@ -304,47 +307,35 @@ These parameters are only used for training with categorical data. See
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
 
-Additional dropout parameters for tree boosters
-================================================
+Additional tree-subsampling parameters for tree boosters
+========================================================
 
-* ``sample_type`` [default= ``uniform``]
+* ``tree_subsample`` [default=1.0]
 
-  - Type of sampling algorithm.
+  - Probability of independently retaining each existing tree before gradient computation.
+  - range: [0.000001, 1.0]
 
-    - ``uniform``: dropped trees are selected uniformly.
-    - ``weighted``: dropped trees are selected in proportion to weight.
+  For retention probability :math:`q`, the temporary margin is
 
-* ``normalize_type`` [default= ``tree``]
+  .. math::
 
-  - Type of normalization algorithm.
+    \widetilde{F}(x) = F_0(x) + \sum_i \frac{I_i}{q} F_i(x),
 
-    - ``tree``: new trees have the same weight of each of dropped trees.
-
-      - Weight of new trees are ``1 / (k + learning_rate)``.
-      - Dropped trees are scaled by a factor of ``k / (k + learning_rate)``.
-
-    - ``forest``: new trees have the same weight of sum of dropped trees (forest).
-
-      - Weight of new trees are ``1 / (1 + learning_rate)``.
-      - Dropped trees are scaled by a factor of ``1 / (1 + learning_rate)``.
+  where :math:`I_i \sim \operatorname{Bernoulli}(q)` and the base score or base margin
+  :math:`F_0` is not sampled. Therefore :math:`\mathbb{E}[\widetilde{F}(x)] = F(x)`.
+  Trees are committed with ordinary additive weights, so inference requires no
+  tree-subsampling-specific work. See :doc:`/tutorials/tree_subsampling` for details and
+  guidance on its relation to row sampling.
 
 * ``rate_drop`` [default=0.0]
 
-  - Dropout rate (a fraction of previous trees to drop during the dropout).
-  - range: [0.0, 1.0]
+  - Deprecated. When ``tree_subsample`` is not supplied, ``rate_drop=r`` is converted to
+    ``tree_subsample=1-r`` with a warning. This preserves the uniform tree-retention
+    probability, but not the legacy DART normalization behavior.
+  - range: [0.0, 0.999999]
 
-* ``one_drop`` [default=0]
-
-  - When this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).
-
-* ``skip_drop`` [default=0.0]
-
-  - Probability of skipping the dropout procedure during a boosting iteration.
-
-    - If a dropout is skipped, new trees are added in the same manner as ``gbtree``.
-    - Note that non-zero ``skip_drop`` has higher priority than ``rate_drop`` or ``one_drop``.
-
-  - range: [0.0, 1.0]
+``sample_type``, ``normalize_type``, ``one_drop``, and ``skip_drop`` are deprecated and ignored
+because they have no exact conversion. All legacy-parameter warnings refer to :issue:`12339`.
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================

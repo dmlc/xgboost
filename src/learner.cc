@@ -227,8 +227,9 @@ std::string CanonicalizeBoosterName(std::string booster) {
   if (booster == "dart") {
     static std::once_flag flag;
     std::call_once(flag, [] {
-      LOG(WARNING) << "`booster=dart` is deprecated. Use the tree booster directly with "
-                      "dropout parameters like `rate_drop`, `skip_drop`, or `one_drop`.";
+      LOG(WARNING) << "`booster=dart` is deprecated and now uses `gbtree` with tree subsampling. "
+                      "Legacy DART normalization has been removed; see "
+                      "https://github.com/dmlc/xgboost/issues/12339.";
     });
     return "gbtree";
   }
@@ -1229,7 +1230,7 @@ class LearnerImpl : public LearnerIO {
    * \param out_preds output vector that stores the prediction
    * \param layer_begin Beginning of the boosting iteration range.
    * \param layer_end End of the boosting iteration range. Zero uses all iterations.
-   * \param training allow dropout when the DART booster is being used
+   * \param training allow tree subsampling when configured
    */
   void PredictRaw(std::shared_ptr<DMatrix> data, HostDeviceVector<float>* out_preds, bool training,
                   unsigned layer_begin, unsigned layer_end) const {

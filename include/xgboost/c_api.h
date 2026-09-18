@@ -1161,9 +1161,9 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle d
  *
  *      Prediction can be run in 2 scenarios:
  *        1. Given data matrix X, obtain prediction y_pred from the model.
- *        2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
- *           during training, and the prediction result will be different from the one obtained by normal
- *           inference step due to dropped trees.
+ *        2. Obtain the prediction for computing gradients. For example, tree subsampling can
+ *           produce a training prediction that differs from normal inference because only a sampled
+ *           subset of existing trees is used.
  *      Set training=false for the first scenario. Set training=true for the second
  *      scenario.  The second scenario applies when you are defining a custom objective
  *      function.

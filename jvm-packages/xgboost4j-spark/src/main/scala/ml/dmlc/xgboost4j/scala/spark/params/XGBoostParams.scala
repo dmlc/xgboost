@@ -324,6 +324,8 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setSubsample(value: Double): T = set(subsample, value).asInstanceOf[T]
 
+  def setTreeSubsample(value: Double): T = set(treeSubsample, value).asInstanceOf[T]
+
   def setSamplingMethod(value: String): T = set(samplingMethod, value).asInstanceOf[T]
 
   def setColsampleBytree(value: Double): T = set(colsampleBytree, value).asInstanceOf[T]
@@ -390,7 +392,7 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setNdcgExpGain(value: Boolean): T = set(ndcgExpGain, value).asInstanceOf[T]
 
-  // Setters for Dart
+  // Setters for legacy DART parameters
   def setSampleType(value: String): T = set(sampleType, value).asInstanceOf[T]
 
   def setNormalizeType(value: String): T = set(normalizeType, value).asInstanceOf[T]
