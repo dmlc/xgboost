@@ -86,19 +86,6 @@ class Predictor {
                               bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
 
   /**
-   * \brief predict the leaf index of each tree, the output will be nsample *
-   * ntree vector this is only valid in gbtree predictor.
-   *
-   * \param [in,out]  dmat        The input feature matrix.
-   * \param [in,out]  out_preds   The output preds.
-   * \param           model       Model to make predictions from.
-   * \param           tree_end    (Optional) The tree end index.
-   */
-
-  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<float>* out_preds,
-                           gbm::GBTreeModel const& model, bst_tree_t tree_end = 0) const = 0;
-
-  /**
    * \brief Add prediction contributions from known leaf ids. The leaf ids are encoded with
    *        tree::SamplePosition, where invalid rows are still decoded for prediction.
    *

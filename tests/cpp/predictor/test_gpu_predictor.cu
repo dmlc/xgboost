@@ -12,9 +12,11 @@
 #include <string>
 #include <vector>
 
+#include "../../../src/common/kernel.h"
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
@@ -192,8 +194,6 @@ TEST(GPUPredictor, PredictLeafBasic) {
   size_t constexpr kRows = 5, kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Device(DeviceOrd::CUDA(0)).GenerateDMatrix();
   auto lparam = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
 
   LearnerModelState mparam{MakeMP(kCols, .0, 1)};
   Context ctx;
@@ -201,7 +201,9 @@ TEST(GPUPredictor, PredictLeafBasic) {
   auto const& model = *p_model;
 
   HostDeviceVector<float> leaf_out_predictions;
-  gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  common::DispatchKernel<predictor::PredictLeafKernel>(&lparam, dmat.get(), &leaf_out_predictions,
+                                                       model, 0);
+  ASSERT_TRUE(leaf_out_predictions.DeviceCanRead());
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
