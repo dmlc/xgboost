@@ -13,9 +13,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-#include "../../../src/common/kernel.h"
 #include "../../../src/common/timer.h"
-#include "../../../src/predictor/prediction_kernel.h"
 #include "../data.h"
 #include "dmlc/registry.h"
 #include "xgboost/tree_model.h"
@@ -52,23 +50,6 @@ namespace sycl {
 namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(predictor_sycl);
-
-namespace {
-void PredictLeafFallback(Context const* ctx, DMatrix* dmat, HostDeviceVector<float>* out_preds,
-                         gbm::GBTreeModel const& model, bst_tree_t tree_end) {
-  LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
-  auto cpu_ctx = ctx->MakeCPU();
-  common::DispatchKernel<::xgboost::predictor::PredictLeafKernel>(&cpu_ctx, dmat, out_preds, model,
-                                                                  tree_end);
-}
-
-common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCL{
-    DeviceOrd::kSyclDefault, &PredictLeafFallback};
-common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCLCPU{
-    DeviceOrd::kSyclCPU, &PredictLeafFallback};
-common::KernelRegistration<::xgboost::predictor::PredictLeafKernel> const kPredictLeafSYCLGPU{
-    DeviceOrd::kSyclGPU, &PredictLeafFallback};
-}  // namespace
 
 class DeviceModel {
  public:
