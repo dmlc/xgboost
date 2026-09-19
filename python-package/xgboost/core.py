@@ -96,13 +96,28 @@ if TYPE_CHECKING:
 XGBoostError = _XGBoostError
 
 
+def _metric_str_to_float(value: str) -> float:
+    """Convert a metric value from the native library's eval string into a float.
+
+    MSVC builds print an indeterminate NaN as ``-nan(ind)``, which ``float()``
+    rejects.
+
+    """
+    try:
+        return float(value)
+    except ValueError:
+        if "nan" in value.lower():
+            return float("nan")
+        raise
+
+
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
     """Parse an eval result string from the booster."""
     splited = result.split()[1:]
     # split up `test-error:0.1234`
     metric_score_str = [tuple(s.split(":")) for s in splited]
     # convert to float
-    metric_score = [(n, float(s)) for n, s in metric_score_str]
+    metric_score = [(n, _metric_str_to_float(s)) for n, s in metric_score_str]
     return metric_score
 
 
