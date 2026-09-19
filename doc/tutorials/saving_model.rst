@@ -57,21 +57,21 @@ To enable JSON format support for model IO (saving only the trees and objective)
 a filename with ``.json`` or ``.ubj`` as file extension, the latter is the extension for
 `Universal Binary JSON <https://ubjson.org/>`__
 
-.. code-block:: python
-  :caption: Python
+.. tabs::
+    .. code-tab:: python
+       :class: no-doctest
 
-  bst.save_model('model_file_name.json')
+       bst.save_model('model_file_name.json')
 
-.. code-block:: r
-  :caption: R
+    .. code-tab:: r R
+       :class: no-doctest
 
-  xgb.save(bst, 'model_file_name.json')
+       xgb.save(bst, 'model_file_name.json')
 
-.. code-block:: Scala
-  :caption: Scala
+    .. code-tab:: scala Scala
 
-  val format = "json"  // or val format = "ubj"
-  model.write.option("format", format).save("model_directory_path")
+       val format = "json"  // or val format = "ubj"
+       model.write.option("format", format).save("model_directory_path")
 
 .. note::
 
