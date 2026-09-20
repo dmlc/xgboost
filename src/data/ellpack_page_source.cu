@@ -453,6 +453,7 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
 
   LOG(INFO) << "`cache_host_ratio`=" << cinfo->cache_host_ratio
             << " `min_cache_page_bytes`=" << min_cache_page_bytes;
+  CHECK_EQ(cinfo->NumBatchesCc(), n_batches_cc);
 }
 
 /**
