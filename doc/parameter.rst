@@ -289,7 +289,7 @@ These parameters are only used for training with categorical data. See
 .. note:: The ``exact`` tree method is not supported for categorical features.
 
 
-* ``max_cat_to_onehot`` [default = 4294967295]
+* ``max_cat_to_onehot`` [default = ``UINT32_MAX``]
 
   .. versionadded:: 1.6.0
 
