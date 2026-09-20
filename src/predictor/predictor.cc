@@ -112,3 +112,12 @@ DMLC_REGISTRY_LINK_TAG(gpu_predictor);
 #endif  // XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(cpu_predictor);
 }  // namespace xgboost::predictor
+
+namespace xgboost::interpretability {
+DMLC_REGISTRY_LINK_TAG(shap_cpu);
+#ifdef XGBOOST_USE_CUDA
+namespace cuda_impl {
+DMLC_REGISTRY_LINK_TAG(shap_cuda);
+}  // namespace cuda_impl
+#endif  // XGBOOST_USE_CUDA
+}  // namespace xgboost::interpretability

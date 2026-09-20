@@ -465,18 +465,6 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
                                                                     &PredictLeafCPU};
 
-void PredictInteractionContributionsCPU(Context const *ctx, DMatrix *p_fmat,
-                                        HostDeviceVector<float> *out_contribs,
-                                        gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                        bool approximate) {
-  auto const *tree_weights = model.TreeWeights();
-  interpretability::cpu_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end,
-                                                    tree_weights, approximate);
-}
-
-common::KernelRegistration<PredictInteractionContributionsKernel> const kPredictInteractionCPU{
-    DeviceOrd::kCPU, &PredictInteractionContributionsCPU};
-
 }  // anonymous namespace
 
 class CPUPredictor : public Predictor {

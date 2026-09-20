@@ -20,6 +20,7 @@
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for SetDevice
 #include "../../common/device_helpers.cuh"
+#include "../../common/kernel.h"  // for KernelRegistration
 #include "../../common/math.h"
 #include "../../common/nvtx_utils.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
@@ -30,7 +31,9 @@
 #include "../../tree/tree_view.h"
 #include "../gbtree_view.h"
 #include "../gpu_data_accessor.cuh"
-#include "../predict_fn.h"  // for GetTreeLimit
+#include "../predict_fn.h"         // for GetTreeLimit
+#include "../prediction_kernel.h"  // for PredictInteractionContributionsKernel
+#include "dmlc/registry.h"         // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "shap.h"
 #include "xgboost/data.h"
@@ -39,7 +42,27 @@
 #include "xgboost/logging.h"
 
 namespace xgboost::interpretability::cuda_impl {
+DMLC_REGISTRY_FILE_TAG(shap_cuda);
+
 namespace {
+void PredictInteractionContributionsCUDA(Context const* ctx, DMatrix* p_fmat,
+                                         HostDeviceVector<float>* out_contribs,
+                                         gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                                         bool approximate) {
+  xgboost_NVTX_FN_RANGE();
+  auto const* tree_weights = model.TreeWeights();
+
+  if (approximate) {
+    LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
+                  "instead.";
+  }
+  interpretability::cuda_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end,
+                                                     tree_weights, approximate);
+}
+
+common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
+    kPredictInteractionCUDA{DeviceOrd::kCUDA, &PredictInteractionContributionsCUDA};
+
 using predictor::EllpackLoader;
 using predictor::GBTreeModelView;
 using predictor::SparsePageLoaderNoShared;
