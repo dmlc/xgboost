@@ -420,19 +420,20 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
     auto target =
         common::DivRoundUp(byte_ptr.back() - byte_ptr[input_batch_begin], remaining_pages);
     // Difference between the proposed page size and its target size.
-    auto distance = [&](std::size_t input_batch_end) {
-      auto n_bytes = byte_ptr[input_batch_end] - byte_ptr[input_batch_begin];
+    auto distance = [&](std::size_t input_batch_count) {
+      auto n_bytes = byte_ptr[input_batch_begin + input_batch_count] - byte_ptr[input_batch_begin];
       return n_bytes > target ? n_bytes - target : target - n_bytes;
     };
     // Leave at least one input batch for every subsequent page.
     auto min_input_batches_to_reserve = (remaining_pages - 1);
-    auto input_batch_end_limit = ext_info.n_batches - min_input_batches_to_reserve;
-    auto input_batch_end = input_batch_begin + 1;
+    auto available_count = (ext_info.n_batches - input_batch_begin) - min_input_batches_to_reserve;
+    std::size_t input_batch_count = 1;
     // Grow toward the target, preferring the larger page on a tie.
-    while (input_batch_end < input_batch_end_limit &&
-           distance(input_batch_end + 1) <= distance(input_batch_end)) {
-      ++input_batch_end;
+    while (input_batch_count < available_count &&
+           distance(input_batch_count + 1) <= distance(input_batch_count)) {
+      ++input_batch_count;
     }
+    auto input_batch_end = input_batch_begin + input_batch_count;
     // Concatenate the batches between begin and end
     cache_bytes[p] = byte_ptr[input_batch_end] - byte_ptr[input_batch_begin];
     cache_rows[p] = ext_info.base_rowids[input_batch_end] - ext_info.base_rowids[input_batch_begin];
