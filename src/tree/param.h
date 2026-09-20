@@ -10,6 +10,7 @@
 #include <algorithm>  // for copy, any_of
 #include <cmath>
 #include <cstring>
+#include <limits>  // for numeric_limits
 #include <string>
 #include <vector>
 
@@ -37,7 +38,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
 
-  std::uint32_t max_cat_to_onehot{4};
+  std::uint32_t max_cat_to_onehot{std::numeric_limits<std::uint32_t>::max()};
 
   bst_bin_t max_cat_threshold{64};
 
@@ -105,7 +106,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
     DMLC_DECLARE_FIELD(max_cat_to_onehot)
-        .set_default(4)
+        .set_default(std::numeric_limits<std::uint32_t>::max())
         .set_lower_bound(1)
         .describe("Maximum number of categories to use one-hot encoding based split.");
     DMLC_DECLARE_FIELD(max_cat_threshold)

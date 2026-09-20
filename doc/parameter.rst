@@ -289,13 +289,14 @@ These parameters are only used for training with categorical data. See
 .. note:: The ``exact`` tree method is not supported for categorical features.
 
 
-* ``max_cat_to_onehot``
+* ``max_cat_to_onehot`` [default = 4294967295]
 
   .. versionadded:: 1.6.0
 
-  - A threshold for deciding whether XGBoost should use one-hot encoding based split for
-    categorical data.  When number of categories is lesser than the threshold then one-hot
-    encoding is chosen, otherwise the categories will be partitioned into children nodes.
+  - Features with fewer categories than this threshold use one-hot encoding based splits;
+    otherwise, partition-based splits are used.
+  - By default, all categorical features use one-hot encoding based splits. Set this
+    parameter to ``1`` to use partitioning, or ``4`` to restore the previous default behavior.
 
 * ``max_cat_threshold``
 
