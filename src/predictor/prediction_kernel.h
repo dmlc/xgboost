@@ -26,6 +26,16 @@ struct PredictLeafKernel {
   using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
                          gbm::GBTreeModel const&, bst_tree_t tree_end);
 };
+/**
+ * \brief Write SHAP interaction contributions using the model's tree weights.
+ *
+ * Zero tree_end selects all trees. CPU supports exact and approximate interactions;
+ * CUDA supports exact interactions only.
+ */
+struct PredictInteractionContributionsKernel {
+  using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
+                         gbm::GBTreeModel const&, bst_tree_t tree_end, bool approximate);
+};
 }  // namespace predictor
 }  // namespace xgboost
 

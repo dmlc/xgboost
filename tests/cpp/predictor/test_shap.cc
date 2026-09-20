@@ -20,9 +20,11 @@
 #include <utility>  // for as_const
 #include <vector>
 
+#include "../../../src/common/kernel.h"
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/predictor/interpretability/shap.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/tree_view.h"
 #include "../helpers.h"
 
@@ -471,6 +473,19 @@ TEST(Predictor, ApproxContribsBasic) {
     }
     EXPECT_NEAR(sum, h_margin[row], 1e-2f);
   }
+
+  HostDeviceVector<float> interactions;
+  learner->Predict(dmat, false, &interactions, 0, 0, false, false, false, true, true);
+  ASSERT_EQ(interactions.Size(), kRows * (kCols + 1) * (kCols + 1));
+  CheckShapAdditivity(kRows, kCols, interactions, margin_predt);
+
+  // SYCL has no interaction kernel; dispatch must select CPU with a CPU context.
+  Context fallback_ctx;
+  fallback_ctx.UpdateAllowUnknown(Args{{"device", DeviceSym::SyclDefault()}});
+  HostDeviceVector<float> fallback;
+  common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
+      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, true);
+  EXPECT_EQ(fallback.ConstHostVector(), interactions.ConstHostVector());
 }
 
 TEST(Predictor, ShapIterationRange) {
