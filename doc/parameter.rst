@@ -293,6 +293,10 @@ These parameters are only used for training with categorical data. See
 
   .. versionadded:: 1.6.0
 
+  .. versionchanged:: 3.5.0
+
+    XGBoost uses one hot encoding as the default.
+
   - Features with fewer categories than this threshold use one-hot encoding based splits;
     otherwise, partition-based splits are used.
   - By default, all categorical features use one-hot encoding based splits. Set this
