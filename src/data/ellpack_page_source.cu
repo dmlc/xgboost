@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2026, XGBoost contributors
  */
-#include <algorithm>  // for max
+#include <algorithm>  // for fill, max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t, uint64_t, uint32_t
 #include <memory>     // for shared_ptr, make_unique
@@ -384,44 +384,61 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   /**
    * Configure the cache
    */
-  // The total size of the cache.
-  std::size_t n_cache_bytes = 0;
+  // Byte offsets for input batch boundaries, alongside ext_info.base_rowids.
+  std::vector<std::size_t> byte_ptr(ext_info.n_batches + 1, 0);
   for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
     auto n_samples = ext_info.base_rowids.at(i + 1) - ext_info.base_rowids[i];
     auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
         ext_info.row_stride * n_samples, ell_info.n_symbols);
-    n_cache_bytes += n_bytes;
+    byte_ptr[i + 1] = byte_ptr[i] + n_bytes;
   }
   std::tie(cinfo->cache_host_ratio, min_cache_page_bytes) = detail::DftPageSizeHostRatio(
-      n_cache_bytes, is_validation, cinfo->cache_host_ratio, min_cache_page_bytes);
+      byte_ptr.back(), is_validation, cinfo->cache_host_ratio, min_cache_page_bytes);
 
   /**
    * Calculate the cache buffer size
    */
-  std::vector<std::size_t> cache_bytes;
-  std::vector<std::size_t> cache_mapping(ext_info.n_batches, 0);
-  std::vector<std::size_t> cache_rows;
-
+  // Keep the page count selected by the minimum size, but avoid a small final page that
+  // cannot hide the transfer of the next page during histogram construction. (balancing)
+  //
+  // n_batches_cc is the same as the `EllpackCacheInfo::NumBatchesCc`.
+  std::size_t n_batches_cc = 0, page_bytes = 0;
   for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
-    auto n_samples = ext_info.base_rowids[i + 1] - ext_info.base_rowids[i];
-    auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-        ext_info.row_stride * n_samples, ell_info.n_symbols);
-
-    if (cache_bytes.empty()) {
-      // Push the first page
-      cache_bytes.push_back(n_bytes);
-      cache_rows.push_back(n_samples);
-    } else if (static_cast<decltype(min_cache_page_bytes)>(cache_bytes.back()) <
-               min_cache_page_bytes) {
-      // Concatenate to the previous page
-      cache_bytes.back() += n_bytes;
-      cache_rows.back() += n_samples;
-    } else {
-      // Push a new page
-      cache_bytes.push_back(n_bytes);
-      cache_rows.push_back(n_samples);
+    if (n_batches_cc == 0 || static_cast<std::int64_t>(page_bytes) >= min_cache_page_bytes) {
+      ++n_batches_cc;
+      page_bytes = 0;
     }
-    cache_mapping[i] = cache_bytes.size() - 1;
+    page_bytes += byte_ptr[i + 1] - byte_ptr[i];
+  }
+  std::vector<std::size_t> cache_bytes(n_batches_cc, 0);
+  // Mapping from the user inputs to the internal batches.
+  std::vector<std::size_t> cache_mapping(ext_info.n_batches, 0);
+  std::vector<std::size_t> cache_rows(n_batches_cc, 0);
+  for (std::size_t p = 0, input_batch_begin = 0; p < n_batches_cc; ++p) {
+    auto remaining_pages = n_batches_cc - p;
+    // Average size of the remaining pages
+    auto target =
+        common::DivRoundUp(byte_ptr.back() - byte_ptr[input_batch_begin], remaining_pages);
+    // Difference between the proposed page size and its target size.
+    auto distance = [&](std::size_t input_batch_end) {
+      auto n_bytes = byte_ptr[input_batch_end] - byte_ptr[input_batch_begin];
+      return n_bytes > target ? n_bytes - target : target - n_bytes;
+    };
+    // Leave at least one input batch for every subsequent page.
+    auto min_input_batches_to_reserve = (remaining_pages - 1);
+    auto input_batch_end_limit = ext_info.n_batches - min_input_batches_to_reserve;
+    auto input_batch_end = input_batch_begin + 1;
+    // Grow toward the target, preferring the larger page on a tie.
+    while (input_batch_end < input_batch_end_limit &&
+           distance(input_batch_end + 1) <= distance(input_batch_end)) {
+      ++input_batch_end;
+    }
+    // Concatenate the batches between begin and end
+    cache_bytes[p] = byte_ptr[input_batch_end] - byte_ptr[input_batch_begin];
+    cache_rows[p] = ext_info.base_rowids[input_batch_end] - ext_info.base_rowids[input_batch_begin];
+    std::fill(cache_mapping.begin() + input_batch_begin, cache_mapping.begin() + input_batch_end,
+              p);
+    input_batch_begin = input_batch_end;
   }
 
   cinfo->cache_mapping = std::move(cache_mapping);
