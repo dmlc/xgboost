@@ -60,7 +60,8 @@ INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, ExtMemQuantileDMatrixGpu,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
                                             ::testing::Bool()));
 
-class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, bool, float, int>> {
+class EllpackHostCacheTest
+    : public ::testing::TestWithParam<std::tuple<double, bool, float, bst_idx_t>> {
  public:
   static constexpr bst_idx_t NumSamples() { return 8192; }
   static constexpr bst_idx_t NumFeatures() { return 4; }
