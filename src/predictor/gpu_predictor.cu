@@ -12,6 +12,7 @@
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"   // for InplacePredictProxy
+#include "../common/kernel.h"      // for KernelRegistration
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../common/optional_weight.h"
 #include "../data/batch_utils.h"      // for StaticBatch
@@ -27,6 +28,7 @@
 #include "gpu_data_accessor.cuh"
 #include "interpretability/shap.h"
 #include "predict_fn.h"
+#include "prediction_kernel.h"
 #include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
@@ -173,10 +175,11 @@ __device__ auto GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* load
 using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictLeafKernel(Data data, common::Span<TreeViewVar const> d_trees,
-                                  common::Span<float> d_out_predictions, bst_tree_t tree_begin,
-                                  bst_tree_t tree_end, bst_feature_t num_features, bool use_shared,
-                                  float missing, EncAccessor acc) {
+__global__ void PredictLeafDeviceKernel(Data data, common::Span<TreeViewVar const> d_trees,
+                                        common::Span<float> d_out_predictions,
+                                        bst_tree_t tree_begin, bst_tree_t tree_end,
+                                        bst_feature_t num_features, bool use_shared, float missing,
+                                        EncAccessor acc) {
   auto n_rows = data.NumRows();
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= n_rows) {
@@ -401,6 +404,47 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
   }
 }
 
+void PredictLeafCUDA(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* predictions,
+                     gbm::GBTreeModel const& model, bst_tree_t tree_end) {
+  xgboost_NVTX_FN_RANGE();
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+
+  const MetaInfo& info = p_fmat->Info();
+  bst_idx_t n_samples = info.num_row_;
+  tree_end = GetTreeLimit(model.trees, tree_end);
+  predictions->SetDevice(ctx->Device());
+  predictions->Resize(n_samples * tree_end);
+
+  DeviceModel d_model{ctx->Device(), model, false, 0, tree_end, CopyViews{ctx}};
+
+  bst_feature_t n_features = model.learner_model_state->num_feature;
+  auto new_enc =
+      p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
+
+  LaunchPredict(ctx, p_fmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
+    bst_idx_t batch_offset = 0;
+    auto const n_trees = d_model.Trees().size();
+    cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
+      using Loader = typename common::GetValueT<decltype(loader_t)>;
+      using Config = common::GetValueT<decltype(cfg)>;
+      auto n_rows = batch.NumRows();
+      auto kernel =
+          PredictLeafDeviceKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
+                                  Config::HasMissing(), typename Config::EncAccessorT>;
+      cfg.template Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
+                                  predictions->DeviceSpan().subspan(batch_offset),
+                                  d_model.tree_begin, d_model.tree_end, n_features, cfg.UseShared(),
+                                  std::numeric_limits<float>::quiet_NaN(),
+                                  std::forward<typename Config::EncAccessorT>(acc));
+
+      batch_offset += n_rows * n_trees;
+    });
+  });
+}
+
+common::KernelRegistration<PredictLeafKernel> const kPredictLeafCUDA{DeviceOrd::kCUDA,
+                                                                     &PredictLeafCUDA};
+
 }  // namespace
 
 class GPUPredictor : public xgboost::Predictor {
@@ -563,43 +607,6 @@ class GPUPredictor : public xgboost::Predictor {
     }
     interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
                                             tree_weights, approximate);
-  }
-
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,
-                   gbm::GBTreeModel const& model, bst_tree_t tree_end) const override {
-    xgboost_NVTX_FN_RANGE();
-    dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-
-    const MetaInfo& info = p_fmat->Info();
-    bst_idx_t n_samples = info.num_row_;
-    tree_end = GetTreeLimit(model.trees, tree_end);
-    predictions->SetDevice(ctx_->Device());
-    predictions->Resize(n_samples * tree_end);
-
-    DeviceModel d_model{ctx_->Device(), model, false, 0, tree_end, CopyViews{this->ctx_}};
-
-    bst_feature_t n_features = model.learner_model_state->num_feature;
-    auto new_enc =
-        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
-
-    LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
-      bst_idx_t batch_offset = 0;
-      auto const n_trees = d_model.Trees().size();
-      cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
-        using Loader = typename common::GetValueT<decltype(loader_t)>;
-        using Config = common::GetValueT<decltype(cfg)>;
-        auto n_rows = batch.NumRows();
-        auto kernel = PredictLeafKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
-                                        Config::HasMissing(), typename Config::EncAccessorT>;
-        cfg.template Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
-                                    predictions->DeviceSpan().subspan(batch_offset),
-                                    d_model.tree_begin, d_model.tree_end, n_features,
-                                    cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),
-                                    std::forward<typename Config::EncAccessorT>(acc));
-
-        batch_offset += n_rows * n_trees;
-      });
-    });
   }
 
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,

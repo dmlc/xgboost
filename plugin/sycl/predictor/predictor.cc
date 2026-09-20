@@ -211,12 +211,6 @@ class Predictor : public xgboost::Predictor {
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
   }
 
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model, bst_tree_t ntree_limit) const override {
-    LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
-  }
-
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
                           common::Span<RegTree const*> trees,
                           linalg::MatrixView<float> out_preds) const override {
