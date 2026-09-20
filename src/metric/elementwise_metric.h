@@ -26,6 +26,9 @@ namespace xgboost::metric::elementwise {
 template <typename EvalFn, typename Kernel>
 class EvalEWiseMetric : public MetricNoCache {
  public:
+  EvalEWiseMetric() = default;
+  explicit EvalEWiseMetric(char const* policy_param) : eval_{policy_param} {}
+
   double Eval(HostDeviceVector<bst_float> const& preds, MetaInfo const& info) override {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
