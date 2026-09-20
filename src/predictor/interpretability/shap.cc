@@ -30,17 +30,8 @@ namespace xgboost::interpretability {
 DMLC_REGISTRY_FILE_TAG(shap_cpu);
 
 namespace {
-void PredictInteractionContributionsCPU(Context const *ctx, DMatrix *p_fmat,
-                                        HostDeviceVector<float> *out_contribs,
-                                        gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                        bool approximate) {
-  auto const *tree_weights = model.TreeWeights();
-  interpretability::cpu_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end,
-                                                    tree_weights, approximate);
-}
-
 common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
-    kPredictInteractionCPU{DeviceOrd::kCPU, &PredictInteractionContributionsCPU};
+    kPredictInteractionCPU{DeviceOrd::kCPU, &cpu_impl::ShapInteractionValues};
 
 using TreeView = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 

@@ -4,6 +4,8 @@
 #ifndef XGBOOST_PREDICTOR_PREDICTION_KERNEL_H_
 #define XGBOOST_PREDICTOR_PREDICTION_KERNEL_H_
 
+#include <vector>  // for vector
+
 #include "xgboost/base.h"  // for bst_tree_t
 
 namespace xgboost {
@@ -27,14 +29,15 @@ struct PredictLeafKernel {
                          gbm::GBTreeModel const&, bst_tree_t tree_end);
 };
 /**
- * \brief Write SHAP interaction contributions using the model's tree weights.
+ * \brief Write SHAP interaction contributions using explicit tree weights.
  *
  * Zero tree_end selects all trees. CPU supports exact and approximate interactions;
- * CUDA supports exact interactions only.
+ * CUDA supports exact interactions only. Null tree_weights gives all trees unit weight.
  */
 struct PredictInteractionContributionsKernel {
   using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
-                         gbm::GBTreeModel const&, bst_tree_t tree_end, bool approximate);
+                         gbm::GBTreeModel const&, bst_tree_t tree_end,
+                         std::vector<float> const* tree_weights, bool approximate);
 };
 }  // namespace predictor
 }  // namespace xgboost

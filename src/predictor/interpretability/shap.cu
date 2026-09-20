@@ -45,23 +45,8 @@ namespace xgboost::interpretability::cuda_impl {
 DMLC_REGISTRY_FILE_TAG(shap_cuda);
 
 namespace {
-void PredictInteractionContributionsCUDA(Context const* ctx, DMatrix* p_fmat,
-                                         HostDeviceVector<float>* out_contribs,
-                                         gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                         bool approximate) {
-  xgboost_NVTX_FN_RANGE();
-  auto const* tree_weights = model.TreeWeights();
-
-  if (approximate) {
-    LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
-                  "instead.";
-  }
-  interpretability::cuda_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end,
-                                                     tree_weights, approximate);
-}
-
 common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
-    kPredictInteractionCUDA{DeviceOrd::kCUDA, &PredictInteractionContributionsCUDA};
+    kPredictInteractionCUDA{DeviceOrd::kCUDA, &ShapInteractionValues};
 
 using predictor::EllpackLoader;
 using predictor::GBTreeModelView;
@@ -1281,11 +1266,11 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                            bst_tree_t tree_end, std::vector<float> const* tree_weights,
                            bool approximate) {
   xgboost_NVTX_FN_RANGE();
-  SetShapDevice(ctx);
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
 
+  SetShapDevice(ctx);
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);

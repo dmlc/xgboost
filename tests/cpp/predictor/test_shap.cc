@@ -484,7 +484,7 @@ TEST(Predictor, ApproxContribsBasic) {
   fallback_ctx.UpdateAllowUnknown(Args{{"device", DeviceSym::SyclDefault()}});
   HostDeviceVector<float> fallback;
   common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
-      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, true);
+      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, gbtree->TreeWeights(), true);
   EXPECT_EQ(fallback.ConstHostVector(), interactions.ConstHostVector());
 }
 
