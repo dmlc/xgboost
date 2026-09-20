@@ -22,8 +22,9 @@ from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 import numpy as np
-import xgboost as xgb
 from matplotlib import pyplot as plt
+
+import xgboost as xgb
 
 
 def plot_predt(
@@ -54,7 +55,7 @@ def rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None:
     reg = xgb.XGBRegressor(
         tree_method="hist",
         n_estimators=128,
-        n_jobs=16,
+        n_jobs=2,  # This small dataset does not benefit from using many threads.
         max_depth=8,
         multi_strategy=strategy,
         subsample=0.6,
@@ -93,7 +94,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
         return "PyRMSE", v
 
     X, y = gen_circle()
-    Xy = xgb.DMatrix(X, y)
+    Xy = xgb.DMatrix(X, y, nthread=2)
     results: Dict[str, Dict[str, List[float]]] = {}
     # Make sure the `num_target` is passed to XGBoost when custom objective is used.
     # When builtin objective is used, XGBoost can figure out the number of targets
@@ -102,6 +103,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
         {
             "tree_method": "hist",
             "num_target": y.shape[1],
+            "nthread": 2,
             "multi_strategy": strategy,
         },
         dtrain=Xy,

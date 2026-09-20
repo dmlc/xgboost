@@ -1,14 +1,9 @@
 # The testxgboost executable is created in the top level CMakeLists. Most of the
 # properties and compilation flags are already set. We just need to add source files and
 # link gtest here.
-if(USE_DMLC_GTEST)
-  if(NOT TARGET gtest)
-    message(FATAL_ERROR "USE_DMLC_GTEST=ON but dmlc-core didn't bundle gtest")
-  endif()
-  set(GTEST_LIBRARIES gtest gmock)
-else()
-  find_package(GTest REQUIRED)
-endif()
+
+# find/build GTest
+include(${xgboost_SOURCE_DIR}/cmake/CPMFindGTest.cmake)
 
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
@@ -33,7 +28,7 @@ if(PLUGIN_SYCL)
 
   target_compile_definitions(plugin_sycl_test PUBLIC -DXGBOOST_USE_SYCL=1)
   target_link_libraries(plugin_sycl_test PUBLIC -fsycl)
-  target_link_libraries(plugin_sycl_test PRIVATE ${GTEST_LIBRARIES})
+  target_link_libraries(plugin_sycl_test PRIVATE GTest::gtest GTest::gmock)
 
   set_target_properties(plugin_sycl_test PROPERTIES
     COMPILE_FLAGS -fsycl

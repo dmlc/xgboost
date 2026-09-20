@@ -6,9 +6,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 import scipy.sparse
-import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import IteratorForTest, np_dtypes, run_base_margin_info
 from xgboost.testing.utils import predictor_equal

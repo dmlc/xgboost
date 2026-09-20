@@ -1,11 +1,14 @@
+import math
 from collections import namedtuple
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.callback import _aggcv
 from xgboost.testing.callbacks import (
     run_eta_decay,
     run_eta_decay_leaf_output,
@@ -401,3 +404,15 @@ class TestCallbacks:
 
         callbacks = [Cb2(), Cb1()]
         xgb.train({}, dtrain=xgb.QuantileDMatrix(X, y, weight=w), callbacks=callbacks)
+
+
+def test_aggcv_nonfinite() -> None:
+    # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
+    rlist = [
+        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:0.5",
+        "[0]\ttrain-cox-nloglik:nan(ind)\teval-cox-nloglik:0.7",
+    ]
+    results = _aggcv(rlist)
+    by_name = {name: (mean, std) for name, mean, std in results}
+    assert math.isnan(by_name["train-cox-nloglik"][0])
+    assert by_name["eval-cox-nloglik"][0] == pytest.approx(0.6)

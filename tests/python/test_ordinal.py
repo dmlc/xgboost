@@ -2,6 +2,7 @@ from typing import Literal, cast
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost._data_utils import ArrayInf, from_array_interface, pd_cat_inf

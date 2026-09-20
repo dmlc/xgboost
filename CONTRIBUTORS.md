@@ -2,9 +2,9 @@ Contributors of DMLC/XGBoost
 ============================
 XGBoost has been developed and used by a group of active community. Everyone is more than welcomed to is a great way to make the project better and more accessible to more users.
 
-Project Management Committee(PMC) 
+Project Management Committee(PMC)
 ----------
-The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members. 
+The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members.
 
 * [Tianqi Chen](https://github.com/tqchen), University of Washington
   - Tianqi is a Ph.D. student working on large-scale machine learning. He is the creator of the project.
@@ -19,7 +19,7 @@ The Project Management Committee(PMC) consists group of active committers that m
 * [Hyunsu Cho](http://hyunsu-cho.io/), NVIDIA
   - Hyunsu is the maintainer of the XGBoost Python package. He also manages the Jenkins continuous integration system (https://xgboost-ci.net/). He is the initial author of the CPU 'hist' updater.
 * [Rory Mitchell](https://github.com/RAMitchell), University of Waikato
-  - Rory is a Ph.D. student at University of Waikato. He is the original creator of the GPU training algorithms. He improved the CMake build system and continuous integration. 
+  - Rory is a Ph.D. student at University of Waikato. He is the original creator of the GPU training algorithms. He improved the CMake build system and continuous integration.
 * [Hongliang Liu](https://github.com/phunterlau)
 
 

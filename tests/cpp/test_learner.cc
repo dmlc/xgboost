@@ -625,6 +625,54 @@ TEST(Learner, MultiTarget) {
   }
 }
 
+TEST(Learner, DistributedMultiTargetWithEmptyWorker) {
+  constexpr bst_target_t n_targets{3};
+  constexpr std::int32_t n_workers{2};
+  collective::TestDistributedGlobal(n_workers, [=] {
+    auto empty = collective::GetRank() == n_workers - 1;
+    auto data =
+        RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+
+    std::unique_ptr<Learner> learner{Learner::Create({data})};
+    learner->Configure({{"objective", "reg:squarederror"},
+                        {"tree_method", "hist"},
+                        {"max_depth", "1"},
+                        {"min_child_weight", "0"}});
+    learner->UpdateOneIter(0, data);
+
+    ASSERT_EQ(learner->Groups(), n_targets);
+    ASSERT_EQ(data->Info().labels.Shape(1), n_targets);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    ASSERT_EQ(GetBaseScore(config).size(), n_targets);
+
+    // Training continuation can receive a new label-less DMatrix on the empty worker.
+    auto next =
+        RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+    learner->UpdateOneIter(1, next);
+    ASSERT_EQ(next->Info().labels.Shape(1), n_targets);
+  });
+}
+
+TEST(Learner, DistributedInconsistentTargets) {
+  collective::TestDistributedGlobal(2, [] {
+    auto n_targets = static_cast<bst_target_t>(collective::GetRank() + 1);
+    auto data = RandomDataGenerator{8, 2, 0.0f}.Targets(n_targets).GenerateDMatrix(true);
+    std::unique_ptr<Learner> learner{Learner::Create({data})};
+    learner->Configure({{"objective", "reg:squarederror"}, {"tree_method", "hist"}});
+
+    // Both workers have labels. Even the worker with the maximum target count must reject
+    // the mismatch, rather than proceeding to intercept estimation while its peer throws.
+    try {
+      learner->UpdateOneIter(0, data);
+      FAIL() << "Worker " << collective::GetRank() << " accepted inconsistent targets.";
+    } catch (dmlc::Error const& e) {
+      EXPECT_NE(std::string{e.what()}.find("Inconsistent number of targets across workers."),
+                std::string::npos);
+    }
+  });
+}
+
 /**
  * Test the model initialization sequence is correctly performed.
  */

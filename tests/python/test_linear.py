@@ -8,18 +8,23 @@ from xgboost import testing as tm
 pytestmark = tm.timeout(20)
 
 
-parameter_strategy = strategies.fixed_dictionaries({
-    'booster': strategies.just('gblinear'),
-    'eta': strategies.floats(0.01, 0.25),
-    'tolerance': strategies.floats(1e-5, 1e-2),
-    'nthread': strategies.integers(1, 4),
-})
+parameter_strategy = strategies.fixed_dictionaries(
+    {
+        "booster": strategies.just("gblinear"),
+        "eta": strategies.floats(0.01, 0.25),
+        "tolerance": strategies.floats(1e-5, 1e-2),
+        "nthread": strategies.integers(1, 4),
+    }
+)
 
-coord_strategy = strategies.fixed_dictionaries({
-    'feature_selector': strategies.sampled_from(['cyclic', 'shuffle',
-                                                 'greedy', 'thrifty']),
-    'top_k': strategies.integers(1, 10),
-})
+coord_strategy = strategies.fixed_dictionaries(
+    {
+        "feature_selector": strategies.sampled_from(
+            ["cyclic", "shuffle", "greedy", "thrifty"]
+        ),
+        "top_k": strategies.integers(1, 10),
+    }
+)
 
 
 def train_result(param: dict, dmat: xgb.DMatrix, num_rounds: int) -> Dict[str, Dict]:
@@ -40,14 +45,16 @@ class TestLinear:
         parameter_strategy,
         strategies.integers(10, 50),
         tm.make_dataset_strategy(),
-        coord_strategy
+        coord_strategy,
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
-        param['updater'] = 'coord_descent'
+        param["updater"] = "coord_descent"
         param.update(coord_param)
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        result = train_result(param, dataset.get_dmat(), num_rounds)["train"][
+            dataset.metric
+        ]
         note(result)
         assert tm.non_increasing(result, 5e-4)
 
@@ -60,27 +67,31 @@ class TestLinear:
         tm.make_dataset_strategy(),
         coord_strategy,
         strategies.floats(1e-5, 0.8),
-        strategies.floats(1e-5, 0.8)
+        strategies.floats(1e-5, 0.8),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
-        param['updater'] = 'coord_descent'
-        param['alpha'] = alpha
-        param['lambda'] = lambd
+    def test_coordinate_regularised(
+        self, param, num_rounds, dataset, coord_param, alpha, lambd
+    ):
+        param["updater"] = "coord_descent"
+        param["alpha"] = alpha
+        param["lambda"] = lambd
         param.update(coord_param)
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        result = train_result(param, dataset.get_dmat(), num_rounds)["train"][
+            dataset.metric
+        ]
         note(result)
         assert tm.non_increasing([result[0], result[-1]])
 
-    @given(
-        parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy()
-    )
+    @given(parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun(self, param, num_rounds, dataset):
-        param['updater'] = 'shotgun'
+        param["updater"] = "shotgun"
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        result = train_result(param, dataset.get_dmat(), num_rounds)["train"][
+            dataset.metric
+        ]
         note(result)
         # shotgun is non-deterministic, so we relax the test by only using first and last
         # iteration.
@@ -95,14 +106,16 @@ class TestLinear:
         strategies.integers(10, 50),
         tm.make_dataset_strategy(),
         strategies.floats(1e-5, 1.0),
-        strategies.floats(1e-5, 1.0)
+        strategies.floats(1e-5, 1.0),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
-        param['updater'] = 'shotgun'
-        param['alpha'] = alpha
-        param['lambda'] = lambd
+        param["updater"] = "shotgun"
+        param["alpha"] = alpha
+        param["lambda"] = lambd
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        result = train_result(param, dataset.get_dmat(), num_rounds)["train"][
+            dataset.metric
+        ]
         note(result)
         assert tm.non_increasing([result[0], result[-1]])

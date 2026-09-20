@@ -19,13 +19,14 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-import xgboost as xgb
 from distributed import Client, LocalCluster, Nanny, Worker
 from distributed.scheduler import KilledWorker, Scheduler
 from distributed.utils_test import async_poll_for, gen_cluster
 from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 from sklearn.model_selection import train_test_split
+
+import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
@@ -734,17 +735,27 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
     assert dxgb.predict(client, out, dtrain).compute().shape[0] == 1
 
 
-def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
+def run_empty_dmatrix_reg(
+    client: "Client", parameters: Dict[str, Any], n_targets: int = 1
+) -> None:
+    def _make_labels(n_rows: int) -> Any:
+        labels = np.random.rand(n_rows, n_targets)
+        if n_targets == 1:
+            labels = labels[:, 0]
+        return dd.from_array(labels)
+
     def _check_outputs(out: dxgb.TrainReturnT, predictions: np.ndarray) -> None:
         assert isinstance(out["booster"], dxgb.Booster)
         for _, v in out["history"]["validation"].items():
             assert len(v) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
+        if n_targets > 1:
+            assert predictions.shape[1] == n_targets
 
     kRows, kCols = 1, 97
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -760,7 +771,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     # valid has more rows than train
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     valid = dxgb.DaskDMatrix(client, X, y)
     out = dxgb.train(
         client,
@@ -776,7 +787,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     valid = dtrain
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -949,6 +960,15 @@ def test_empty_dmatrix(tree_method: str, client: "Client") -> None:
     run_empty_dmatrix_cls(client, parameters)
     parameters = {"tree_method": tree_method, "objective": "reg:absoluteerror"}
     run_empty_dmatrix_reg(client, parameters)
+    run_empty_dmatrix_reg(client, parameters, n_targets=3)
+    run_empty_dmatrix_reg(
+        client,
+        {
+            "tree_method": tree_method,
+            "objective": "reg:quantileerror",
+            "quantile_alpha": 0.5,
+        },
+    )
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
@@ -1572,14 +1592,8 @@ class TestWithDask:
                 )
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
-                mean = 250.0
-                residuals = np.array([mean, mean, mean, mean - 1000.0])
-                delta = np.mean(np.sqrt(np.abs(residuals))) ** 2
-                curvature = delta / np.hypot(delta, residuals)
-                expected_base_score = mean - np.sum(residuals * curvature) / np.sum(
-                    curvature
-                )
-                np.testing.assert_allclose(base_score, [expected_base_score], rtol=1e-5)
+                # Exact absolute-error initialization uses the lower weighted median.
+                np.testing.assert_allclose(base_score, [0.0], rtol=1e-5)
 
                 # The smooth approximation scale must be global. Worker 0 has only zero
                 # residuals while worker 1 has one residual of -1000. A local scale would

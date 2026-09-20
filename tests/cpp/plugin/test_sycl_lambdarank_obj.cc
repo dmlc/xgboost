@@ -42,4 +42,3 @@ TEST(SyclObjective, LambdaRankMAPGPair) {
 }
 
 }  // namespace xgboost::obj
-

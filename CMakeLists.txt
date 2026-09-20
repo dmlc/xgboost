@@ -65,7 +65,6 @@ option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ni
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
@@ -80,7 +79,6 @@ option(__XGBOOST_FOR_PYTHON_WHEEL
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
-option(USE_NVCOMP "Build with nvcomp to enable sparse data compression. (experimental)" OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
@@ -131,9 +129,6 @@ if(USE_NVTX)
 endif()
 if(USE_NCCL AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
-endif()
-if(USE_NVCOMP AND (NOT USE_CUDA))
-  message(SEND_ERROR "`USE_NVCOMP` must be enabled with `USE_CUDA` flag.")
 endif()
 if(USE_DEVICE_DEBUG AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
@@ -199,6 +194,9 @@ endif()
 if(USE_AZURE)
   message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
 endif()
+if(USE_DMLC_GTEST)
+  message(SEND_ERROR "The option `USE_DMLC_GTEST` has been removed from XGBoost")
+endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
 endif()
@@ -248,11 +246,6 @@ if(USE_CUDA)
   find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
 
-if(USE_NVCOMP)
-  find_package(nvcomp REQUIRED)
-endif()
-
-
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
       (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
@@ -299,7 +292,17 @@ if(BUILD_WITH_SYSTEM_DMLC)
   find_package(dmlc REQUIRED)
 else()
   set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  # dmlc-core also has a 'GOOGLE_TEST' option.
+  #
+  # Setting it to OFF prevents dmlc-core's tests from being built alongside
+  # XGBoost's (relies on CMake CMP0077). Doing that in a function avoids
+  # changing the value of 'GOOGLE_TEST' for the rest of XGBoost's CMake.
+  #
+  function(xgboost_add_dmlc_core_without_tests)
+    set(GOOGLE_TEST OFF)
+    add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  endfunction()
+  xgboost_add_dmlc_core_without_tests()
 endif()
 
 if(MSVC)

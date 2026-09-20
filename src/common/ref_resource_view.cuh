@@ -7,7 +7,6 @@
 #include <memory>   // for make_shared
 
 #include "cuda_context.cuh"     // for CUDAContext
-#include "cuda_stream.h"        // for StreamRef
 #include "ref_resource_view.h"  // for RefResourceView
 #include "resource.cuh"         // for CudaAllocResource
 #include "xgboost/context.h"    // for Context
@@ -44,19 +43,6 @@ template <typename T>
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMalloc(std::size_t n_elements) {
   auto resource = std::make_shared<common::CudaPinnedResource>(n_elements * sizeof(T));
-  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
-  return ref;
-}
-
-/**
- * @brief Create a fixed size resource view from a shared pinned memory pool.
- */
-template <typename T>
-[[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMemPool(
-    std::shared_ptr<cuda_impl::HostPinnedMemPool> pool, std::size_t n_elements,
-    curt::StreamRef stream) {
-  auto resource = std::make_shared<common::HostPinnedMemPoolResource>(
-      std::move(pool), n_elements * sizeof(T), stream);
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
   return ref;
 }

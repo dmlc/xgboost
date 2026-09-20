@@ -29,6 +29,7 @@
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
+#include "collective/aggregator.h"        // for GlobalMax
 #include "collective/allreduce.h"         // for Allreduce, SafeColl
 #include "collective/broadcast.h"         // for Broadcast
 #include "collective/communicator-inl.h"  // for GetRank, IsDistributed
@@ -343,9 +344,30 @@ class LearnerModelStateContainer : public Learner {
     return static_cast<bst_feature_t>(n_features);
   }
 
-  [[nodiscard]] bst_target_t InitNumTargets(DMatrix const& train, CacheT const& cache) const {
+  [[nodiscard]] bst_target_t InitNumTargets(DMatrix* train, CacheT const& cache) const {
     CHECK(this->obj_);
-    auto n_targets = this->obj_->Targets(train.Info());
+    auto local_n_targets = this->obj_->Targets(train->Info());
+    auto n_targets = local_n_targets;
+    if (model_state_.Initialized()) {
+      CHECK(n_targets == 1 || n_targets == model_state_.num_target)
+          << "Inconsistent number of targets between data and model.";
+      n_targets = model_state_.num_target;
+    } else {
+      // An empty distributed worker can have no label columns and report the single-target
+      // fallback. Agree on the target count before sizing the model and its intercept.
+      n_targets = collective::GlobalMax(Ctx(), n_targets);
+      auto inconsistent =
+          static_cast<std::int32_t>(local_n_targets != n_targets && train->Info().num_row_ != 0);
+      inconsistent = collective::GlobalMax(Ctx(), inconsistent);
+      CHECK_EQ(inconsistent, 0) << "Inconsistent number of targets across workers.";
+      if (tparam_.num_target > 1) {
+        CHECK(n_targets == 1 || n_targets == tparam_.num_target)
+            << "Inconsistent configuration of the `num_target`.  Configuration result from input "
+            << "data:" << n_targets << ", configuration from parameters:" << tparam_.num_target;
+        n_targets = tparam_.num_target;
+      }
+    }
+
     for (auto const& weak : cache) {
       auto d = weak.lock();
       if (!d) {
@@ -355,16 +377,12 @@ class LearnerModelStateContainer : public Learner {
       CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
     }
 
-    if (model_state_.Initialized()) {
-      CHECK(n_targets == 1 || n_targets == model_state_.num_target)
-          << "Inconsistent number of targets between data and model.";
-      return model_state_.num_target;
-    }
-    if (tparam_.num_target > 1) {
-      CHECK(n_targets == 1 || n_targets == tparam_.num_target)
-          << "Inconsistent configuration of the `num_target`.  Configuration result from input "
-          << "data:" << n_targets << ", configuration from parameters:" << tparam_.num_target;
-      return tparam_.num_target;
+    if (train->Info().num_row_ == 0 && local_n_targets != n_targets) {
+      // Preserve the target dimension on a label-less worker. Objectives can then continue to
+      // infer the authoritative count from labels without adding collectives to every call.
+      CHECK_EQ(train->Info().labels.Size(), 0);
+      train->Info().labels.Reshape(0, n_targets);
+      CHECK_EQ(this->obj_->Targets(train->Info()), n_targets);
     }
     return n_targets;
   }
@@ -411,8 +429,8 @@ class LearnerModelStateContainer : public Learner {
                          std::move(base_score));
   }
 
-  void InitializeModel(DMatrix const& train, CacheT const& cache, InterceptInitialization mode) {
-    auto n_features = this->InitNumFeatures(train);
+  void InitializeModel(DMatrix* train, CacheT const& cache, InterceptInitialization mode) {
+    auto n_features = this->InitNumFeatures(*train);
     auto n_targets = this->InitNumTargets(train, cache);
     if (model_state_.Initialized()) {
       return;
@@ -424,7 +442,7 @@ class LearnerModelStateContainer : public Learner {
     if (!tparam_.boost_from_average) {
       base_score.assign(tparam_.base_score.cbegin(), tparam_.base_score.cend());
     } else if (mode == InterceptInitialization::kEstimateIntercept) {
-      auto const& info = train.Info();
+      auto const& info = train->Info();
       info.Validate(Ctx()->Device());
       linalg::Vector<float> estimated;
       this->InitEstimation(info, output_length, &estimated);
@@ -1012,7 +1030,7 @@ class LearnerImpl : public LearnerIO {
     if (model_state_.NeedsInitialization()) {
       for (auto const& weak : cache_data_) {
         if (auto data = weak.lock()) {
-          this->InitializeModel(*data, this->cache_data_,
+          this->InitializeModel(data.get(), this->cache_data_,
                                 InterceptInitialization::kEstimateIntercept);
           break;
         }
@@ -1042,7 +1060,8 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
     this->Configure();
-    this->InitializeModel(*train, this->cache_data_, InterceptInitialization::kEstimateIntercept);
+    this->InitializeModel(train.get(), this->cache_data_,
+                          InterceptInitialization::kEstimateIntercept);
 
     if (ctx_.seed_per_iteration) {
       ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
@@ -1070,7 +1089,8 @@ class LearnerImpl : public LearnerIO {
                     GradientContainer* in_gpair) override {
     this->monitor_.Start(__func__);
     this->Configure();
-    this->InitializeModel(*train, this->cache_data_, InterceptInitialization::kUseDefaultIntercept);
+    this->InitializeModel(train.get(), this->cache_data_,
+                          InterceptInitialization::kUseDefaultIntercept);
 
     if (ctx_.seed_per_iteration) {
       ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
@@ -1131,7 +1151,7 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_contribs);
     this->Configure();
     if (training) {
-      this->InitializeModel(*data, this->cache_data_,
+      this->InitializeModel(data.get(), this->cache_data_,
                             InterceptInitialization::kUseDefaultIntercept);
     }
     this->CheckModelInitialized();

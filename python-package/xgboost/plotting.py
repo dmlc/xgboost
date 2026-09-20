@@ -117,11 +117,11 @@ def plot_importance(
         _, ax = plt.subplots(1, 1)
 
     ylocs = np.arange(len(values))
-    ax.barh(ylocs, values, align="center", height=height, **kwargs)
+    barh = ax.barh(ylocs, values, align="center", height=height, **kwargs)
 
     if show_values is True:
-        for x, y in zip(values, ylocs):
-            ax.text(x + 1, float(y), values_format.format(v=x), va="center")
+        bar_labels = [values_format.format(v=value) for value in values]
+        ax.bar_label(barh, labels=bar_labels, padding=3)
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)

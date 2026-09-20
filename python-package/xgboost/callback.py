@@ -30,6 +30,7 @@ from .core import (
     DMatrix,
     XGBoostError,
     _deprecate_positional_args,
+    _metric_str_to_float,
     _parse_eval_str,
 )
 
@@ -111,7 +112,7 @@ def _aggcv(rlist: List[str]) -> List[Tuple[str, float, float]]:
             k, v = it.split(":")
             if (metric_idx, k) not in cvmap:
                 cvmap[(metric_idx, k)] = []
-            cvmap[(metric_idx, k)].append(float(v))
+            cvmap[(metric_idx, k)].append(_metric_str_to_float(v))
     msg = idx
     results = []
     for (_, name), s in sorted(cvmap.items(), key=lambda x: x[0][0]):

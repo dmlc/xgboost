@@ -2,6 +2,7 @@
 Demo for boosting from prediction
 =================================
 """
+
 import os
 
 import xgboost as xgb

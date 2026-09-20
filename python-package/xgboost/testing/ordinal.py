@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from .._typing import EvalsLog
+from ..compat import import_cudf
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
 from ..training import train
@@ -34,7 +35,7 @@ def get_df_impl(device: Device) -> Tuple[Type, Type]:
         Df = pd.DataFrame
         Ser = pd.Series
     else:
-        import cudf
+        cudf = import_cudf()
 
         Df = cudf.DataFrame
         Ser = cudf.Series

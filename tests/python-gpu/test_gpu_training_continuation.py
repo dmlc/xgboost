@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 from hypothesis import given, settings
+
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
     make_determinism_strategy,
