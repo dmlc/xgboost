@@ -4,9 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
 
-#include <tuple>   // for tuple
-#include <vector>  // for vector
+#include <algorithm>  // for minmax_element
+#include <tuple>      // for tuple
+#include <vector>     // for vector
 
+#include "../../../src/common/common.h"        // for DivRoundUp
 #include "../../../src/data/batch_utils.h"     // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../helpers.h"                        // for RandomDataGenerator, GMockThrow
@@ -58,7 +60,8 @@ INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, ExtMemQuantileDMatrixGpu,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
                                             ::testing::Bool()));
 
-class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, bool, float>> {
+class EllpackHostCacheTest
+    : public ::testing::TestWithParam<std::tuple<double, bool, float, bst_idx_t>> {
  public:
   static constexpr bst_idx_t NumSamples() { return 8192; }
   static constexpr bst_idx_t NumFeatures() { return 4; }
@@ -66,10 +69,9 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
   // Assumes dense
   static constexpr bst_idx_t NumBytes() { return NumFeatures() * NumSamples(); }
 
-  void Run(float sparsity, bool is_concat, float cache_host_ratio) {
+  void Run(float sparsity, bool is_concat, float cache_host_ratio, bst_idx_t n_batches) const {
     auto ctx = MakeCUDACtx(0);
     auto param = BatchParam{NumBins(), tree::TrainParam::DftSparseThreshold()};
-    auto n_batches = 4;
     auto p_fmat = RandomDataGenerator{NumSamples(), NumFeatures(), sparsity}
                       .Device(ctx.Device())
                       .GenerateDMatrix();
@@ -92,13 +94,22 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
     if (!is_concat) {
       ASSERT_EQ(p_ext_fmat->NumBatches(), n_batches);
     } else {
-      ASSERT_EQ(p_ext_fmat->NumBatches(), n_batches / 2);
+      ASSERT_EQ(p_ext_fmat->NumBatches(), n_batches == 4 ? 2 : 3);
     }
     ASSERT_EQ(p_fmat->Info().num_row_, p_ext_fmat->Info().num_row_);
     auto batch_ptr = p_ext_fmat->BatchPtr();
     ASSERT_EQ(batch_ptr.front(), 0);
     ASSERT_EQ(batch_ptr.back(), p_ext_fmat->Info().num_row_);
     ASSERT_EQ(batch_ptr.size(), static_cast<std::size_t>(p_ext_fmat->NumBatches()) + 1);
+    if (is_concat) {
+      std::vector<bst_idx_t> sizes;
+      for (std::size_t i = 1; i < batch_ptr.size(); ++i) {
+        sizes.push_back(batch_ptr[i] - batch_ptr[i - 1]);
+      }
+      auto [smallest, largest] = std::minmax_element(sizes.cbegin(), sizes.cend());
+      // Balancing is limited by the size of an input batch.
+      ASSERT_LE(*largest - *smallest, common::DivRoundUp(NumSamples(), n_batches));
+    }
     for (auto const& page_s : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto impl_s = page_s.Impl();
       auto cuts_s = impl_s->CutsShared();
@@ -122,14 +133,15 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
 };
 
 TEST_P(EllpackHostCacheTest, Basic) {
-  auto [sparsity, is_concat, cache_host_ratio] = this->GetParam();
-  this->Run(sparsity, is_concat, cache_host_ratio);
+  auto [sparsity, is_concat, cache_host_ratio, n_batches] = this->GetParam();
+  this->Run(sparsity, is_concat, cache_host_ratio, n_batches);
 }
 
 INSTANTIATE_TEST_SUITE_P(
     ExtMemQuantileDMatrix, EllpackHostCacheTest,
     ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f), ::testing::Bool(),
-                       ::testing::Values(0.0f, 0.5f, 1.0f, ::xgboost::cuda_impl::AutoHostRatio())));
+                       ::testing::Values(0.0f, 0.5f, 1.0f, ::xgboost::cuda_impl::AutoHostRatio()),
+                       ::testing::Values(4ul, 7ul)));
 
 TEST(EllpackHostCacheTest, Accessor) {
   auto ctx = MakeCUDACtx(0);
