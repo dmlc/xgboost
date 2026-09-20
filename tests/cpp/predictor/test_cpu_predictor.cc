@@ -4,12 +4,16 @@
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include <limits>
+
 #include "../../../src/collective/communicator-inl.h"
+#include "../../../src/common/kernel.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/tree_view.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
@@ -23,6 +27,21 @@ TEST(CpuPredictor, Basic) {
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   TestBasic(dmat.get(), &ctx);
+}
+
+TEST(CpuPredictor, PredictLeafKernel) {
+  Context ctx;
+  LearnerModelState mparam{MakeMP(1, 0.0f, 2, ctx.Device())};
+  auto model = CreateTestModel(&mparam, &ctx, 2);
+  model->trees.front()->ExpandNode(0, 0, 0.5f, true, 0.0f, 1.0f, 2.0f, 0.0f, 2.0f, 1.0f, 1.0f);
+  auto dmat = GetDMatrixFromData({0.0f, 1.0f, std::numeric_limits<float>::quiet_NaN()}, 3, 1);
+  HostDeviceVector<float> leaves;
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
+  ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 0, 2, 0, 1, 0}));
+
+  // Reusing the output with a tree limit must resize it and preserve row-major order.
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 1);
+  ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 2, 1}));
 }
 
 TEST(CpuPredictor, BatchPredictionWithWeights) {
@@ -117,34 +136,9 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   }
 }
 
-namespace {
-void TestColumnSplit() {
-  Context ctx;
-  size_t constexpr kRows = 5;
-  size_t constexpr kCols = 5;
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  dmat = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
-
-  TestBasic(dmat.get(), &ctx);
-}
-}  // anonymous namespace
-
-TEST(CpuPredictor, BasicColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize, TestColumnSplit);
-}
-
 TEST(CpuPredictor, IterationRange) {
   Context ctx;
   TestIterationRange(&ctx);
-}
-
-TEST(CpuPredictor, IterationRangeColmnSplit) {
-  auto constexpr kWorldSize = 2;
-  TestIterationRangeColumnSplit(kWorldSize, false);
 }
 
 TEST(CpuPredictor, ExternalMemory) {
@@ -192,9 +186,9 @@ TEST(CpuPredictor, InplacePredict) {
 }
 
 namespace {
-void TestUpdatePredictionCache(bool use_subsampling) {
+void TestTrainingPredictionCache(bool use_subsampling) {
   std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
-  LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
+  LearnerModelState mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;
@@ -214,20 +208,18 @@ void TestUpdatePredictionCache(bool use_subsampling) {
     std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};
   }
 
-  PredictionCacheEntry predtion_cache;
-  predtion_cache.predictions.Resize(kRows * kClasses, 0);
-  // after one training iteration predtion_cache is filled with cached in QuantileHistMaker
-  // prediction values
-  gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
+  // After one training iteration, GBTree's prediction cache contains cached predictions.
+  gbm->DoBoost(dmat, &gpair, nullptr);
+  auto const& prediction_cache = gbm->PredictionCache(dmat.get());
 
-  PredictionCacheEntry out_predictions;
+  HostDeviceVector<float> out_predictions;
   // perform prediction from scratch on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
+  gbm->PredictBatch(dmat, &out_predictions, false, 0, 0);
 
-  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
-  std::vector<float>& predtion_cache_from_train = predtion_cache.predictions.HostVector();
+  std::vector<float>& out_predictions_h = out_predictions.HostVector();
+  auto const& prediction_cache_from_train = prediction_cache.predictions.ConstHostVector();
   for (size_t i = 0; i < out_predictions_h.size(); ++i) {
-    ASSERT_NEAR(out_predictions_h[i], predtion_cache_from_train[i], kRtEps);
+    ASSERT_NEAR(out_predictions_h[i], prediction_cache_from_train[i], kRtEps);
   }
 }
 }  // namespace
@@ -244,27 +236,16 @@ TEST(CPUPredictor, GHistIndexTraining) {
   TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
-TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false, false); }
-
-TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize, [] { TestCategoricalPrediction(false, true); });
-}
+TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false); }
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
   Context ctx;
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(&ctx);
 }
 
-TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  Context ctx;
-  collective::TestDistributedGlobal(kWorldSize, [&] { TestCategoricalPredictLeaf(&ctx, true); });
-}
-
-TEST(CpuPredictor, UpdatePredictionCache) {
-  TestUpdatePredictionCache(false);
-  TestUpdatePredictionCache(true);
+TEST(CpuPredictor, TrainingPredictionCache) {
+  TestTrainingPredictionCache(false);
+  TestTrainingPredictionCache(true);
 }
 
 TEST(CpuPredictor, LesserFeatures) {
@@ -272,22 +253,10 @@ TEST(CpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
-TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize,
-                                    [] { TestPredictionWithLesserFeaturesColumnSplit(false); });
-}
-
 TEST(CpuPredictor, Sparse) {
   Context ctx;
   TestSparsePrediction(&ctx, 0.2);
   TestSparsePrediction(&ctx, 0.8);
-}
-
-TEST(CpuPredictor, SparseColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  TestSparsePredictionColumnSplit(kWorldSize, false, 0.2);
-  TestSparsePredictionColumnSplit(kWorldSize, false, 0.8);
 }
 
 TEST(CpuPredictor, Multi) {

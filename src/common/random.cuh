@@ -15,10 +15,14 @@ namespace xgboost::common::cuda_impl {
 using DefaultRng = cuda::std::philox4x64;
 template <typename T>
 using UniformRealDistribution = cuda::std::uniform_real_distribution<T>;
+template <typename T>
+using UniformIntDistribution = cuda::std::uniform_int_distribution<T>;
 #else
 using DefaultRng = thrust::default_random_engine;
 template <typename T>
 using UniformRealDistribution = thrust::uniform_real_distribution<T>;
+template <typename T>
+using UniformIntDistribution = thrust::uniform_int_distribution<T>;
 #endif
 }  // namespace xgboost::common::cuda_impl
 

@@ -73,4 +73,3 @@ What is the consequence of force push
 *************************************
 The previous two tips requires force push, this is because we altered the path of the commits.
 It is fine to force push to your own fork, as long as the commits changed are only yours.
-

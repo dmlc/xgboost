@@ -102,7 +102,6 @@ def init(**args: _ArgVals) -> None:
         Accepted parameters:
           - dmlc_communicator: The type of the communicator.
             * rabit: Use Rabit. This is the default if the type is unspecified.
-            * federated: Use the gRPC interface for Federated Learning.
 
         Only applicable to the Rabit communicator:
           - dmlc_tracker_uri: Hostname of the tracker.
@@ -111,16 +110,6 @@ def init(**args: _ArgVals) -> None:
           - dmlc_retry: The number of retry when handling network errors.
           - dmlc_timeout: Timeout in seconds.
           - dmlc_nccl_path: Path to load (dlopen) nccl for GPU-based communication.
-
-        Only applicable to the Federated communicator:
-          - federated_server_address: Address of the federated server.
-          - federated_world_size: Number of federated workers.
-          - federated_rank: Rank of the current worker.
-          - federated_server_cert: Server certificate file path. Only needed for the SSL
-            mode.
-          - federated_client_key: Client key file path. Only needed for the SSL mode.
-          - federated_client_cert: Client certificate file path. Only needed for the SSL
-            mode.
 
         Use upper case for environment variables, use lower case for runtime
         configuration.
@@ -313,7 +302,10 @@ def allreduce(data: np.ndarray, op: Op) -> np.ndarray:
             int(op),
         )
     )
-    return buf
+    # `buf` is a flattened copy used for the underlying C call; reshape it back
+    # to the input's original shape so the result actually "has the same shape
+    # as data", as documented above, instead of always returning a 1-D array.
+    return buf.reshape(data.shape)
 
 
 def signal_error() -> None:

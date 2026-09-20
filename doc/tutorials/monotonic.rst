@@ -92,6 +92,29 @@ Some other examples:
    split candidates, in which case no split is made. To reduce the effect, you may want to
    increase the ``max_bin`` parameter to consider more split candidates.
 
+===========
+Vector Leaf
+===========
+
+.. versionadded:: 3.4.0
+
+For vector leaves, XGBoost applies the same constraint independently to every output. If
+a target's child weights violate the required order, their constrained optimum is the
+common weight
+
+.. math::
+
+    w_{l,t}=w_{r,t}=p_t
+    =\operatorname{clip}_{[L_{n,t},U_{n,t}]}\left(
+      -\frac{\operatorname{ThresholdL1}(G_{l,t}+G_{r,t},2\alpha)}
+             {H_{l,t}+H_{r,t}+2\lambda}
+    \right).
+
+Here :math:`\operatorname{clip}` applies the inherited bounds.
+
+.. note::
+
+    Reduced gradient doesn't support monotone constraint.
 
 *******************
 Using feature names

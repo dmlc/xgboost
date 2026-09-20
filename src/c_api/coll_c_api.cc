@@ -23,10 +23,6 @@
 #include "xgboost/json.h"               // for Json
 #include "xgboost/string_view.h"        // for StringView
 
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../../plugin/federated/federated_tracker.h"  // for FederatedTracker
-#endif
-
 namespace xgboost::collective {
 void Allreduce(void *send_receive_buffer, std::size_t count, std::int32_t data_type, int op) {
   Context ctx;
@@ -111,18 +107,10 @@ XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle) {
   Json jconfig = Json::Load(config);
 
   auto type = RequiredArg<String>(jconfig, "dmlc_communicator", __func__);
-  std::shared_ptr<collective::Tracker> tptr;
-  if (type == "federated") {
-#if defined(XGBOOST_USE_FEDERATED)
-    tptr = std::make_shared<collective::FederatedTracker>(jconfig);
-#else
-    LOG(FATAL) << error::NoFederated();
-#endif  // defined(XGBOOST_USE_FEDERATED)
-  } else if (type == "rabit") {
-    tptr = std::make_shared<collective::RabitTracker>(jconfig);
-  } else {
+  if (type != "rabit") {
     LOG(FATAL) << "Unknown communicator:" << type;
   }
+  auto tptr = std::make_shared<collective::RabitTracker>(jconfig);
 
   auto ptr = new TrackerHandleT{std::move(tptr), std::future<collective::Result>{}};
   static_assert(std::is_same_v<std::remove_pointer_t<decltype(ptr)>, TrackerHandleT>);

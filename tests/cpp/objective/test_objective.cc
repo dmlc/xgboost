@@ -29,6 +29,12 @@ TEST(Objective, PredTransform) {
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+    SCOPED_TRACE(entry->name);
+    // The example plugin is intentionally a CPU-only implementation and is not part of the
+    // built-in objective device-placement contract.
+    if (entry->name == "mylogistic") {
+      continue;
+    }
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
     if (entry->name.find("multi") != std::string::npos) {
       obj->Configure(Args{{"num_class", "2"}});
@@ -40,11 +46,17 @@ TEST(Objective, PredTransform) {
       obj->Configure(Args{{"expectile_alpha", "0.5"}});
     }
     HostDeviceVector<float> predts;
-    predts.Resize(n, 3.14f);  // prediction is performed on host.
-    ASSERT_FALSE(predts.DeviceCanRead());
+    predts.SetDevice(tparam.Device());
+    predts.Resize(n, 3.14f);
     obj->PredTransform(&predts);
-    ASSERT_FALSE(predts.DeviceCanRead());
-    ASSERT_TRUE(predts.HostCanWrite());
+    ASSERT_EQ(predts.Device(), tparam.Device());
+    if (tparam.IsCUDA()) {
+      ASSERT_TRUE(predts.DeviceCanRead());
+      ASSERT_FALSE(predts.HostCanWrite());
+    } else {
+      ASSERT_FALSE(predts.DeviceCanRead());
+      ASSERT_TRUE(predts.HostCanWrite());
+    }
   }
 }
 
@@ -57,20 +69,20 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_)};
 
-    learner->SetParam("objective", objective);
+    Args args{{"objective", objective}};
     if (objective.find("multi") != std::string::npos) {
-      learner->SetParam("num_class", "3");
+      args.emplace_back("num_class", "3");
       objfn->Configure(Args{{"num_class", "3"}});
     } else if (objective.find("quantile") != std::string::npos) {
-      learner->SetParam("quantile_alpha", "0.5");
+      args.emplace_back("quantile_alpha", "0.5");
       objfn->Configure(Args{{"quantile_alpha", "0.5"}});
     } else if (objective.find("expectile") != std::string::npos) {
-      learner->SetParam("expectile_alpha", "0.5");
+      args.emplace_back("expectile_alpha", "0.5");
       objfn->Configure(Args{{"expectile_alpha", "0.5"}});
     } else {
       objfn->Configure(Args{});
     }
-    learner->Configure();
+    learner->Configure(args);
     learner->UpdateOneIter(0, Xy);
     learner->EvalOneIter(0, {Xy}, {"train"});
     Json config{Object{}};
@@ -78,8 +90,8 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     auto jobj = get<Object const>(config["learner"]["objective"]);
 
     ASSERT_TRUE(jobj.find("name") != jobj.cend());
-    // FIXME(jiamingy): We should have the following check, but some legacy parameter like
-    // "pos_weight", "delta_step" in objectives are not in metrics.
+    // FIXME(jiamingy): We should have the following check, but the legacy "pos_weight" objective
+    // parameter is not in metrics.
 
     // if (jobj.size() > 1) {
     //   ASSERT_FALSE(IsA<Null>(objfn->DefaultMetricConfig()));

@@ -46,7 +46,7 @@ class Comm : public std::enable_shared_from_this<Comm> {
 
   std::string task_id_;
   std::vector<std::shared_ptr<Channel>> channels_;
-  std::shared_ptr<Loop> loop_{nullptr};  // fixme: require federated comm to have a timeout
+  std::shared_ptr<Loop> loop_{nullptr};
 
   void ResetState() {
     this->world_ = -1;
@@ -96,7 +96,6 @@ class Comm : public std::enable_shared_from_this<Comm> {
                          << ". The topology does not include this peer.";
     return channels_[rank];
   }
-  [[nodiscard]] virtual bool IsFederated() const = 0;
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }
@@ -137,7 +136,6 @@ class RabitComm : public HostComm {
             StringView nccl_path, std::int32_t worker_port);
   ~RabitComm() noexcept(false) override;
 
-  [[nodiscard]] bool IsFederated() const override { return false; }
   [[nodiscard]] Result LogTracker(std::string msg) const override;
 
   [[nodiscard]] Result SignalError(Result const&) override;

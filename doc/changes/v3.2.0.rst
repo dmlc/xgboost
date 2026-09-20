@@ -1,5 +1,5 @@
 ###################
-3.2.0 (2026 Feb 09)
+3.2.0 (Feb 9, 2026)
 ###################
 
 We are excited to announce the XGBoost 3.2 release. This release features significant

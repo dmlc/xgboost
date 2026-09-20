@@ -29,20 +29,19 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
 
-* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
-  memory. The primary memory is always allocated on the RMM pool when XGBoost is built
-  (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
-  :doc:`/python/rmm-examples/index` for details.
+* ``use_rmm``:
+
+  .. deprecated:: 3.5.0
+
+    The RMM plugin has been deprecated, use the CUDA async pool instead.
 
 * ``use_cuda_async_pool`` [default=false]
 
   Whether to use the device memory pool in the CUDA driver. This option is not available
   if XGBoost is built with RMM support, as it is the same as using the RMM
-  `CudaAsyncMemoryResource` pool.
+  ``CudaAsyncMemoryResource`` pool.
 
   .. versionadded:: 3.2.0
-
-  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
@@ -116,6 +115,7 @@ Parameters for Tree Booster
 * ``min_child_weight`` [default=1]
 
   - Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than ``min_child_weight``, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger ``min_child_weight`` is, the more conservative the algorithm will be.
+  - With vector leaf, the mean Hessian across targets is used to compare against the ``min_child_weight``.
   - range: [0,∞]
 
 * ``max_delta_step`` [default=0]
@@ -191,7 +191,7 @@ Parameters for Tree Booster
 
 * ``scale_pos_weight`` [default=1]
 
-  - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
+  - Control the balance of positive and negative weights in logistic objectives, useful for unbalanced classes. Labels equal to 1 are treated as positive examples. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
 
 * ``updater``
 
@@ -202,7 +202,6 @@ Parameters for Tree Booster
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
     - ``grow_gpu_hist``:  Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
     - ``grow_gpu_approx``: Enabled when ``tree_method`` is set to ``approx`` along with ``device=cuda``.
-    - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
 
@@ -270,13 +269,13 @@ Parameters for Non-Exact Tree Methods
 
 * ``max_cached_hist_node``, [default = 65536]
 
-  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the
-  ``approx`` tree methods.
+  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the ``approx`` tree methods.
 
   .. versionadded:: 2.0.0
 
-  - For most of the cases this parameter should not be set except for growing deep
-    trees. After 3.0, this parameter affects GPU algorithms as well.
+  - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
+  - After 3.0, this parameter affects GPU algorithms as well.
 
 
 .. _cat-param:
@@ -398,22 +397,30 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
   - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+  - ``reg:absoluteerror``: Regression with L1 error. A smooth approximation is used to optimize the L1 loss.
 
     .. versionadded:: 1.7.0
 
-  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. A smooth approximation is used to optimize the quantile loss. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
 
     .. versionadded:: 2.0.0
 
   - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter and properties.
 
+  - ``reg:normal``: Normal-distribution negative log-likelihood. The two outputs are the
+    conditional mean and log variance. See :ref:`normal-distribution-objective` for details.
+
+    .. versionadded:: 3.5.0
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
+
+    .. deprecated:: 3.5.0
+
+      Use ``binary:logistic`` and request raw margin predictions with ``output_margin=True`` instead.
+
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
-
-    + ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
   - ``survival:cox``: Cox regression for right censored survival time data (negative values are considered right censored).
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
@@ -465,6 +472,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       - When used with binary classification, the objective should be ``binary:logistic`` or similar functions that work on probability.
       - When used with multi-class classification, objective should be ``multi:softprob`` instead of ``multi:softmax``, as the latter doesn't output probability.  Also the AUC is calculated by 1-vs-rest with reference class weighted by class prevalence.
+      - When used with multi-label classification, AUC is calculated independently for each target and averaged with the macro method.
       - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
       - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
       - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.
@@ -490,6 +498,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression
+    - ``normal-nloglik``: negative log-likelihood for normal-distribution regression
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
     - ``gamma-deviance``: residual deviance for gamma regression
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
@@ -515,6 +524,25 @@ Parameters for Tweedie Regression (``objective=reg:tweedie``)
   - Set closer to 2 to shift towards a gamma distribution
   - Set closer to 1 to shift towards a Poisson distribution.
 
+.. _normal-distribution-objective:
+
+Normal Distribution Regression (``objective=reg:normal``)
+==========================================================
+
+This objective estimates a conditional normal distribution from a scalar response. It produces
+two outputs for every row: the mean :math:`\mu` and log variance
+:math:`s=\log(\sigma^2)`. Predictions have shape ``(n_rows, 2)`` with columns ``[mean,
+log_variance]``.
+
+The vector-valued intercept is estimated as the weighted response mean and log weighted residual
+variance. The default evaluation metric is ``normal-nloglik``. By default, XGBoost builds one
+tree for each output. Set ``multi_strategy`` to ``multi_output_tree`` to use shared-topology vector
+leaves.
+
+For numerical stability, the objective adds float epsilon to squared residuals when estimating
+variance. This small fixed noise floor prevents training from driving the variance toward zero when
+the mean model interpolates observations.
+
 Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================
 
@@ -523,7 +551,7 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
-* ``quantile_alpha``: A scalar or a list of targeted quantiles.
+* ``quantile_alpha``: A scalar or an ascending list of targeted quantiles.
 
     .. versionadded:: 2.0.0
 

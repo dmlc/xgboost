@@ -189,15 +189,14 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     )
 
     val sconf = dataset.sparkSession.conf
-    val rmmEnabled: Boolean = try {
-      sconf.get("spark.rapids.memory.gpu.pool").trim.toLowerCase != "none"
-    } catch {
-      case _: Throwable => false // Any exception will return false
-    }
-    val configs = if (rmmEnabled) {
-      Map("use_rmm" -> rmmEnabled).asInstanceOf[Map[String, AnyRef]]
-    } else {
-      Map.empty[String, AnyRef]
+    val rmmPool = sconf.get("spark.rapids.memory.gpu.pool", "async").trim.toLowerCase
+    val configs = rmmPool match {
+      case "async" =>
+        Map("use_cuda_async_pool" -> true).asInstanceOf[Map[String, AnyRef]]
+      case "none" =>
+        Map.empty[String, AnyRef]
+      case _ =>
+        Map("use_rmm" -> true).asInstanceOf[Map[String, AnyRef]]
     }
     (rdd, configs)
   }

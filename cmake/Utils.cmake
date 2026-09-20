@@ -305,9 +305,6 @@ macro(xgboost_target_defs target)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
 
-  if(USE_NVCOMP)
-    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
-  endif()
   if(BUILD_WITH_GIT_HASH)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_GIT_HASH="${XGBOOST_GIT_HASH}")
   endif()
@@ -337,10 +334,6 @@ macro(xgboost_target_link_libraries target)
 
   if(PLUGIN_RMM)
     target_link_libraries(${target} PRIVATE rmm::rmm)
-  endif()
-
-  if(USE_NVCOMP)
-    target_link_libraries(${target} PRIVATE nvcomp::nvcomp)
   endif()
 
   if(USE_NCCL)

@@ -3,11 +3,11 @@
  */
 #ifndef XGBOOST_COMMON_API_ENTRY_H_
 #define XGBOOST_COMMON_API_ENTRY_H_
-#include <string>               // std::string
-#include <vector>               // std::vector
+#include <string>  // std::string
+#include <vector>  // std::vector
 
-#include "xgboost/base.h"       // GradientPair,bst_ulong
-#include "xgboost/predictor.h"  // PredictionCacheEntry
+#include "xgboost/base.h"                // GradientPair,bst_ulong
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
 
 namespace xgboost {
 /**
@@ -29,7 +29,7 @@ struct XGBAPIThreadLocalEntry {
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
   /*! \brief Temp variable for returning prediction result. */
-  PredictionCacheEntry prediction_entry;
+  HostDeviceVector<float> predictions;
   /*! \brief Temp variable for returning prediction shape. */
   std::vector<bst_ulong> prediction_shape;
 };

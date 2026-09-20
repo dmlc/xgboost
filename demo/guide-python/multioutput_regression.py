@@ -30,6 +30,7 @@ import xgboost as xgb
 def plot_predt(
     y: np.ndarray, y_predt: np.ndarray, name: str, ax: matplotlib.axes.Axes
 ) -> None:
+    """Plot the prediction from the model."""
     s = 25
     ax.scatter(y[:, 0], y[:, 1], c="navy", s=s, edgecolor="black", label=name)
     ax.scatter(y_predt[:, 0], y_predt[:, 1], c="cornflowerblue", s=s, edgecolor="black")
@@ -54,7 +55,7 @@ def rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None:
     reg = xgb.XGBRegressor(
         tree_method="hist",
         n_estimators=128,
-        n_jobs=16,
+        n_jobs=2,  # This small dataset does not benefit from using many threads.
         max_depth=8,
         multi_strategy=strategy,
         subsample=0.6,
@@ -76,6 +77,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
 
     def hessian(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
         """Compute the hessian for squared error."""
+        assert dtrain.num_row() == predt.shape[0]
         return np.ones(predt.shape)
 
     def squared_log(
@@ -92,7 +94,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
         return "PyRMSE", v
 
     X, y = gen_circle()
-    Xy = xgb.DMatrix(X, y)
+    Xy = xgb.DMatrix(X, y, nthread=2)
     results: Dict[str, Dict[str, List[float]]] = {}
     # Make sure the `num_target` is passed to XGBoost when custom objective is used.
     # When builtin objective is used, XGBoost can figure out the number of targets
@@ -101,6 +103,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
         {
             "tree_method": "hist",
             "num_target": y.shape[1],
+            "nthread": 2,
             "multi_strategy": strategy,
         },
         dtrain=Xy,
@@ -133,15 +136,13 @@ if __name__ == "__main__":
     # Train with builtin RMSE objective
     # - One model per output.
     rmse_model("one_output_per_tree", axs[0, 0])
-    # - One model for all outputs, this is still working in progress, many features are
-    # missing.
+    # - One model for all outputs, this is still experimental.
     rmse_model("multi_output_tree", axs[0, 1])
 
     # Train with custom objective.
     # - One model per output.
     custom_rmse_model("one_output_per_tree", axs[1, 0])
-    # - One model for all outputs, this is still working in progress, many features are
-    # missing.
+    # - One model for all outputs, this is still experimental.
     custom_rmse_model("multi_output_tree", axs[1, 1])
     if args.plot == 1:
         plt.show()

@@ -2,7 +2,6 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
 #include <algorithm>        // for max
@@ -11,6 +10,7 @@
 #include <cuda/functional>  // for proclaim_return_type
 #include <vector>           // for vector
 
+#include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
@@ -154,13 +154,13 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
 
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
-  auto counting = thrust::make_counting_iterator(0llu);
+  auto counting = dh::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
         std::size_t item_idx;
         AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
-        auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
+        auto go_left = op(ridx[item_idx], batch_info_itr[nidx_in_batch].data);
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
       }));

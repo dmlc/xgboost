@@ -32,6 +32,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.spark.Utils.TRAIN_NAME
 
@@ -161,6 +162,85 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     classifier.setMissing(Float.NaN)
     val rdd1 = classifier.toXGBLabeledPoint(input, columnIndexes)
     rdd1.collect()
+  }
+
+  test("asXGB densifies a sparse vector to match the training representation") {
+    import Utils.MLVectorToXGBLabeledPoint
+
+    val sparse = Vectors.sparse(5, Array(1, 3), Array(2.2, 4.4))
+    val point = sparse.asXGB
+
+    assert(point.size() === 5)
+    assert(point.indices() == null)
+    assert(point.values() === Array(0.0f, 2.2f, 0.0f, 4.4f, 0.0f))
+
+    val dense = Vectors.dense(1.0, 0.0, 3.0)
+    val densePoint = dense.asXGB
+    assert(densePoint.indices() == null)
+    assert(densePoint.values() === Array(1.0f, 0.0f, 3.0f))
+
+    // Same vector in either encoding must produce the same point.
+    assert(Vectors.dense(0.0, 2.2, 0.0, 4.4, 0.0).asXGB === point)
+  }
+
+  test("asXGB agrees with the training path on sparse vectors") {
+    import Utils.MLVectorToXGBLabeledPoint
+
+    val sparse = Vectors.sparse(5, Array(1, 3), Array(2.2, 4.4))
+    val df = ss.createDataFrame(sc.parallelize(Seq((1.0, sparse)))).toDF("label", "features")
+
+    val classifier = new XGBoostClassifier().setMissing(Float.NaN)
+    val (input, columnIndexes) = classifier.preprocess(df)
+    val trainPoint = classifier.toXGBLabeledPoint(input, columnIndexes).collect()(0)
+
+    val predictPoint = sparse.asXGB
+    assert(predictPoint.indices() === trainPoint.indices())
+    assert(predictPoint.values() === trainPoint.values())
+    assert(predictPoint.size() === trainPoint.size())
+  }
+
+  Seq(Float.NaN, 0.0f).foreach { missing =>
+    test(s"transform matches training semantics for sparse vectors, missing $missing") {
+      val rng = new java.util.Random(42)
+      val size = 8
+      val rows = (0 until 40).map { i =>
+        val active = (0 until size).filter(_ => rng.nextBoolean())
+        val idx = if (active.isEmpty) Array(0) else active.toArray
+        val vals = idx.map(_ => rng.nextDouble() + 1.0)
+        (i.toDouble % 3, Vectors.sparse(size, idx, vals))
+      }
+      val sparseDf = ss.createDataFrame(sc.parallelize(rows)).toDF("label", "features")
+      val denseDf = ss.createDataFrame(sc.parallelize(
+        rows.map { case (label, v) => (label, Vectors.dense(v.toArray)) }))
+        .toDF("label", "features")
+
+      val model = new XGBoostRegressor()
+        .setNumRound(5)
+        .setNumWorkers(1)
+        .setMissing(missing)
+        .fit(denseDf)
+
+      // A sparse row and its dense equivalent must predict identically, and both must match
+      // a native per-row predict on the densified features.
+      val sparsePreds = model.transform(sparseDf).select("prediction").collect().map(_.getDouble(0))
+      val densePreds = model.transform(denseDf).select("prediction").collect().map(_.getDouble(0))
+
+      sparsePreds.zip(densePreds).zip(rows).foreach { case ((fromSparse, fromDense), (_, v)) =>
+        assert(math.abs(fromSparse - fromDense) < 1e-6,
+          s"sparse and dense encodings of $v disagree: $fromSparse vs $fromDense")
+
+        val dm = new DMatrix(
+          Iterator(new XGBLabeledPoint(0.0f, v.size, null, v.toArray.map(_.toFloat))),
+          null, missing)
+        try {
+          val native = model.nativeBooster.predict(dm)(0)(0)
+          assert(math.abs(fromSparse - native) < 1e-5,
+            s"batch transform diverged from native per-row predict for $v: $fromSparse vs $native")
+        } finally {
+          dm.delete()
+        }
+      }
+    }
   }
 
   test("missing value for dense vector no need to set missing explicitly") {

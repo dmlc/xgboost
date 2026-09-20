@@ -54,19 +54,19 @@ void LinearCheckLayer(unsigned layer_begin) {
  */
 class GBLinear : public GradientBooster {
  public:
-  explicit GBLinear(LearnerModelParam const* learner_model_param, Context const* ctx)
+  explicit GBLinear(LearnerModelState const* learner_model_state, Context const* ctx)
       : GradientBooster{ctx},
-        learner_model_param_{learner_model_param},
-        model_{learner_model_param},
-        previous_model_{learner_model_param} {
+        learner_model_state_{learner_model_state},
+        model_{learner_model_state},
+        previous_model_{learner_model_state} {
     monitor_.Init(__func__);
   }
 
-  void Configure(const Args& cfg) override {
+  std::set<std::string> Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.Configure(cfg);
     }
-    param_.UpdateAllowUnknown(cfg);
+    auto used = UpdateAndGetUsedParameters(&param_, cfg);
     if (param_.updater == "gpu_coord_descent") {
       LOG(FATAL) << error::DeprecatedFunc("gpu_coord_descent", "2.0.0",
                                           R"(device="cuda", updater="coord_descent")");
@@ -80,12 +80,11 @@ class GBLinear : public GradientBooster {
     LOG(INFO) << "Using the updater:" << name;
 
     updater_.reset(LinearUpdater::Create(name, ctx_));
-    updater_->Configure(cfg);
+    used.merge(updater_->Configure(cfg));
+    return used;
   }
 
   int32_t BoostedRounds() const override { return model_.num_boosted_rounds; }
-
-  bool ModelFitted() const override { return BoostedRounds() != 0; }
 
   void SaveModel(Json* p_out) const override {
     auto& out = *p_out;
@@ -118,7 +117,7 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry*,
+  void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                ObjFunction const*) override {
     if (in_gpair->HasValueGrad()) {
       LOG(FATAL)
@@ -129,21 +128,20 @@ class GBLinear : public GradientBooster {
 
     CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");
     model_.LazyInitModel();
-    this->LazySumWeights(p_fmat);
+    this->LazySumWeights(p_fmat.get());
 
     if (!this->CheckConvergence()) {
-      updater_->Update(in_gpair->Grad(), p_fmat, &model_, sum_instance_weight_);
+      updater_->Update(in_gpair->Grad(), p_fmat.get(), &model_, sum_instance_weight_);
     }
     model_.num_boosted_rounds++;
     monitor_.Stop("DoBoost");
   }
 
-  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* predts, bool /*training*/,
-                    bst_layer_t layer_begin, bst_layer_t) override {
+  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
+                    bool /*training*/, bst_layer_t layer_begin, bst_layer_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
-    auto* out_preds = &predts->predictions;
-    this->PredictBatchInternal(p_fmat, &out_preds->HostVector());
+    this->PredictBatchInternal(p_fmat.get(), &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
   }
 
@@ -157,14 +155,14 @@ class GBLinear : public GradientBooster {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
-    const int ngroup = model_.learner_model_param->num_output_group;
-    const size_t ncolumns = model_.learner_model_param->num_feature + 1;
+    const int ngroup = model_.learner_model_state->num_output_group;
+    const size_t ncolumns = model_.learner_model_state->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
     std::vector<bst_float>& contribs = out_contribs->HostVector();
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
-    auto base_score = learner_model_param_->BaseScore(ctx_);
+    auto base_score = learner_model_state_->BaseScore(ctx_);
     // start collecting the contributions
     for (const auto& batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
@@ -178,7 +176,7 @@ class GBLinear : public GradientBooster {
           bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           // calculate linear terms' contributions
           for (auto& ins : inst) {
-            if (ins.index >= model_.learner_model_param->num_feature) continue;
+            if (ins.index >= model_.learner_model_state->num_feature) continue;
             p_contribs[ins.index] = ins.fvalue * model_[ins.index][gid];
           }
           // add base margin to BIAS
@@ -198,9 +196,9 @@ class GBLinear : public GradientBooster {
 
     // linear models have no interaction effects
     const size_t nelements =
-        model_.learner_model_param->num_feature * model_.learner_model_param->num_feature;
+        model_.learner_model_state->num_feature * model_.learner_model_state->num_feature;
     contribs.resize(p_fmat->Info().num_row_ * nelements *
-                    model_.learner_model_param->num_output_group);
+                    model_.learner_model_state->num_output_group);
     std::fill(contribs.begin(), contribs.end(), 0);
   }
 
@@ -216,16 +214,16 @@ class GBLinear : public GradientBooster {
     CHECK(trees.empty()) << "gblinear doesn't support number of trees for feature importance.";
     CHECK_EQ(importance_type, "weight")
         << "gblinear only has `weight` defined for feature importance.";
-    out_features->resize(this->learner_model_param_->num_feature, 0);
+    out_features->resize(this->learner_model_state_->num_feature, 0);
     std::iota(out_features->begin(), out_features->end(), 0);
     // Don't include the bias term in the feature importance scores
     // The bias is the last weight
-    out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
-    auto n_groups = learner_model_param_->num_output_group;
+    out_scores->resize(model_.weight.size() - learner_model_state_->num_output_group, 0);
+    auto n_groups = learner_model_state_->num_output_group;
     auto scores = linalg::MakeTensorView(DeviceOrd::CPU(),
                                          common::Span{out_scores->data(), out_scores->size()},
-                                         learner_model_param_->num_feature, n_groups);
-    for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
+                                         learner_model_state_->num_feature, n_groups);
+    for (size_t i = 0; i < learner_model_state_->num_feature; ++i) {
       for (bst_group_t g = 0; g < n_groups; ++g) {
         scores(i, g) = model_[i][g];
       }
@@ -239,10 +237,10 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float>& preds = *out_preds;
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
     // start collecting the prediction
-    const int ngroup = model_.learner_model_param->num_output_group;
+    const int ngroup = model_.learner_model_state->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
 
-    auto base_score = learner_model_param_->BaseScore(DeviceOrd::CPU());
+    auto base_score = learner_model_state_->BaseScore(DeviceOrd::CPU());
     for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
       auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
@@ -294,14 +292,14 @@ class GBLinear : public GradientBooster {
   void Pred(const SparsePage::Inst& inst, bst_float* preds, int gid, bst_float base) {
     bst_float psum = model_.Bias()[gid] + base;
     for (const auto& ins : inst) {
-      if (ins.index >= model_.learner_model_param->num_feature) continue;
+      if (ins.index >= model_.learner_model_state->num_feature) continue;
       psum += ins.fvalue * model_[ins.index][gid];
     }
     preds[gid] = psum;
   }
 
   // biase margin score
-  LearnerModelParam const* learner_model_param_;
+  LearnerModelState const* learner_model_state_;
   // model field
   GBLinearModel model_;
   GBLinearModel previous_model_;
@@ -318,7 +316,7 @@ DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
     .describe("Linear booster, implement generalized linear model.")
-    .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
+    .set_body([](LearnerModelState const* booster_config, Context const* ctx) {
       return new GBLinear(booster_config, ctx);
     });
 }  // namespace xgboost::gbm

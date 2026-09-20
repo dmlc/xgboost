@@ -14,6 +14,7 @@
 #include <vector>   // for vector
 
 #include "../../../include/xgboost/logging.h"
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
@@ -204,7 +205,7 @@ TEST(HistUtil, GetColumnSize) {
   auto batch = adapter.Value();
   using Batch = decltype(batch);
 
-  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu),
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(dh::make_counting_iterator(0llu),
                                                               GetBatchElementOp<Batch>{batch});
 
   dh::caching_device_vector<std::size_t> column_sizes_scan;
@@ -254,7 +255,7 @@ TEST(HistUtil, AdapterSketch) {
       MetaInfo info;
       AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                           std::numeric_limits<float>::quiet_NaN(), &sketch_container);
-      common::HistogramCuts adapter_cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
+      common::HistogramCuts adapter_cuts = sketch_container.MakeCuts(&ctx);
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
     }
@@ -291,7 +292,7 @@ TEST(HistUtil, GroupWeightsEquivalentToRowWeightsOnDevice) {
                            DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch);
-    return sketch.MakeCuts(&ctx, info.IsColumnSplit());
+    return sketch.MakeCuts(&ctx);
   };
 
   auto grouped_cuts = make_adapter_cuts();

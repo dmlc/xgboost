@@ -420,7 +420,6 @@ intersphinx_mapping = {
     "dask": ("https://docs.dask.org/en/stable/", None),
     "distributed": ("https://distributed.dask.org/en/stable/", None),
     "pyspark": ("https://spark.apache.org/docs/latest/api/python/", None),
-    "rmm": ("https://docs.rapids.ai/api/rmm/nightly/", None),
 }
 
 

@@ -1,9 +1,10 @@
 import os
 
 import numpy as np
-import xgboost
 from sklearn.datasets import make_classification
-from xgboost.testing import make_categorical, make_ltr
+
+import xgboost
+from xgboost.testing.data import make_categorical, make_ltr
 
 kRounds = 4
 kRows = 1000

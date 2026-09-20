@@ -11,15 +11,17 @@
 #include <cmath>
 #include <numeric>  // for accumulate
 
+#include "../collective/aggregator.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/functional.h>  // thrust::plus<>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 
+#include <cuda/std/functional>  // for plus
+
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
@@ -85,8 +87,8 @@ class MultiClassMetricsReduction {
                                          const size_t n_class) {
     size_t n_data = labels.Size();
 
-    thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + n_data;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + n_data;
 
     auto s_labels = labels.DeviceSpan();
     auto s_preds = preds.DeviceSpan();
@@ -109,7 +111,7 @@ class MultiClassMetricsReduction {
           }
           return PackedReduceResult{residue, weight};
         },
-        PackedReduceResult(), thrust::plus<PackedReduceResult>());
+        PackedReduceResult(), cuda::std::plus<PackedReduceResult>());
     CheckLabelError(s_label_error[0], n_class);
 
     return result;
@@ -151,6 +153,8 @@ class MultiClassMetricsReduction {
  */
 template <typename Derived>
 struct EvalMClassBase : public MetricNoCache {
+  ~EvalMClassBase() noexcept override = default;
+
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
     CheckRowWeights(info);
     if (info.labels.Size() == 0) {
@@ -169,7 +173,7 @@ struct EvalMClassBase : public MetricNoCache {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Derived::GetFinal(dat[0], dat[1]);
   }

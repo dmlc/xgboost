@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 import xgboost
 from xgboost import testing as tm
 
@@ -162,6 +163,15 @@ def test_continuation_demo() -> None:
 def test_multioutput_reg() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "multioutput_regression.py")
     cmd = [PYTHON, script, "--plot=0"]
+    subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_multioutput_reduced_gradient_demo() -> None:
+    # Runs with the default `--device cpu`; `cupy` is only imported on the
+    # (unused here) `--device cuda` code paths.
+    script = os.path.join(PYTHON_DEMO_DIR, "multioutput_reduced_gradient.py")
+    cmd = [PYTHON, script]
     subprocess.check_call(cmd)
 
 

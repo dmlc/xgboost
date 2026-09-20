@@ -4,8 +4,10 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <cstdint>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
@@ -110,14 +112,14 @@ class CSRIterForTest {
       0, 1, 0, 1, 1};
   std::vector<std::remove_pointer_t<decltype(std::declval<XGBoostBatchCSR>().offset)>> row_ptr_{
       0, 2, 4, 5, 5};
-  size_t iter_ {0};
+  size_t iter_{0};
 
  public:
-  size_t static constexpr kRows { 4 };  // Test for the last row being empty
-  size_t static constexpr kCols { 13 };  // Test for having some missing columns
+  size_t static constexpr kRows{4};   // Test for the last row being empty
+  size_t static constexpr kCols{13};  // Test for having some missing columns
 
   XGBoostBatchCSR Next() {
-    for (auto& v : data_) {
+    for (auto &v : data_) {
       v += iter_;
     }
     XGBoostBatchCSR batch;
@@ -139,10 +141,9 @@ class CSRIterForTest {
 
 size_t constexpr CSRIterForTest::kCols;
 
-int CSRSetDataNextForTest(DataIterHandle data_handle,
-                          XGBCallbackSetData *set_function,
+int CSRSetDataNextForTest(DataIterHandle data_handle, XGBCallbackSetData *set_function,
                           DataHolderHandle set_function_handle) {
-  size_t constexpr kIters { 2 };
+  size_t constexpr kIters{2};
   auto iter = static_cast<CSRIterForTest *>(data_handle);
   if (iter->Iter() < kIters) {
     auto batch = iter->Next();
@@ -156,20 +157,44 @@ int CSRSetDataNextForTest(DataIterHandle data_handle,
 
 TEST(Adapter, IteratorAdapter) {
   CSRIterForTest iter;
-  data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
-                        XGBoostBatchCSR> adapter{&iter, CSRSetDataNextForTest};
-  constexpr size_t kRows { 8 };
+  data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR> adapter{
+      &iter, CSRSetDataNextForTest};
+  constexpr size_t kRows{8};
 
-  std::unique_ptr<DMatrix> data {
-    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
-  };
+  std::unique_ptr<DMatrix> data{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
   ASSERT_EQ(data->Info().num_col_, CSRIterForTest::kCols);
   ASSERT_EQ(data->Info().num_row_, kRows);
   int num_batch = 0;
-  for (auto const& batch : data->GetBatches<SparsePage>()) {
+  for (auto const &batch : data->GetBatches<SparsePage>()) {
     ASSERT_EQ(batch.offset.HostVector(), std::vector<bst_idx_t>({0, 2, 4, 5, 5, 7, 9, 10, 10}));
     ++num_batch;
   }
   ASSERT_EQ(num_batch, 1);
+}
+
+TEST(Adapter, EmptyCategories) {
+  HostDeviceVector<std::int8_t> codes{-1};
+  auto j_codes = GetArrayInterface(&codes, codes.Size(), 1);
+
+  {
+    HostDeviceVector<std::int32_t> offsets{0};
+    HostDeviceVector<std::int8_t> values;
+    Json names{Object{}};
+    names["offsets"] = GetArrayInterface(&offsets, offsets.Size(), 1);
+    names["values"] = GetArrayInterface(&values, values.Size(), 1);
+
+    Json column{Array(std::vector<Json>{names, j_codes})};
+    Json dataframe{Array(std::vector<Json>{column})};
+    EXPECT_THAT([&] { data::ColumnarAdapter{Json::Dump(dataframe)}; },
+                GMockThrow("Categorical feature must have at least one category."));
+  }
+  {
+    HostDeviceVector<std::int32_t> names;
+    Json column{Array(std::vector<Json>{GetArrayInterface(&names, names.Size(), 1), j_codes})};
+    Json dataframe{Array(std::vector<Json>{column})};
+    EXPECT_THAT([&] { data::ColumnarAdapter{Json::Dump(dataframe)}; },
+                GMockThrow("Categorical feature must have at least one category."));
+  }
 }
 }  // namespace xgboost

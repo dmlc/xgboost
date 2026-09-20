@@ -1,25 +1,40 @@
 # pylint: disable=protected-access
 """Utilities for processing spark partitions."""
 
+from __future__ import annotations
+
 from collections import defaultdict, namedtuple
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
-import pandas as pd
 from scipy.sparse import csr_matrix
 
 from .._typing import ArrayLike
-from ..compat import concat
+from ..compat import concat, import_cudf
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..sklearn import XGBModel
 from .utils import get_logger
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
     array = series.to_numpy(copy=False)
-    array = np.stack(array)  # type: ignore[arg-type]
-    return array
+    return np.stack(cast(Sequence[np.ndarray], array))
 
 
 # Global constant for defining column alias shared between estimator and data
@@ -85,10 +100,11 @@ class PartIter(DataIter):
             return None
 
         if self._device_id is not None:
-            import cudf
+            cudf = import_cudf()
             import cupy as cp
 
-            # We must set the device after import cudf, which will change the device id to 0
+            # We must set the device after importing cudf, which changes the device
+            # id to 0.
             # See https://github.com/rapidsai/cudf/issues/11386
             cp.cuda.runtime.setDevice(self._device_id)  # pylint: disable=I1101
             return cudf.DataFrame(data[self._iter])
@@ -218,7 +234,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 and feature_cols is not None
                 and part[feature_cols].shape[0] > 0  # guard against empty partition
             ):
-                array: Optional[np.ndarray] = part[feature_cols]
+                array: Any = part[feature_cols]
             elif part[name].shape[0] > 0:
                 array = part[name]
                 if name == alias.data:

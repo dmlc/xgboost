@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Python wheels targeting MacOS (no federated learning)
+# Build Python wheels targeting macOS
 
 set -euox pipefail
 
@@ -41,6 +41,5 @@ export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate
 
 brew unlink llvm@18 || true
 
-python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse

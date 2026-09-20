@@ -1,14 +1,9 @@
 # The testxgboost executable is created in the top level CMakeLists. Most of the
 # properties and compilation flags are already set. We just need to add source files and
 # link gtest here.
-if(USE_DMLC_GTEST)
-  if(NOT TARGET gtest)
-    message(FATAL_ERROR "USE_DMLC_GTEST=ON but dmlc-core didn't bundle gtest")
-  endif()
-  set(GTEST_LIBRARIES gtest gmock)
-else()
-  find_package(GTest REQUIRED)
-endif()
+
+# find/build GTest
+include(${xgboost_SOURCE_DIR}/cmake/CPMFindGTest.cmake)
 
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
@@ -16,10 +11,6 @@ if(USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif()
-
-# We will add them back later to separate the definition.
-file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/federated/*.*")
-list(REMOVE_ITEM TEST_SOURCES ${FEDERATED_TEST_SOURCES})
 
 file(GLOB_RECURSE SYCL_TEST_SOURCES "plugin/test_sycl_*.cc")
 list(REMOVE_ITEM TEST_SOURCES ${SYCL_TEST_SOURCES})
@@ -37,7 +28,7 @@ if(PLUGIN_SYCL)
 
   target_compile_definitions(plugin_sycl_test PUBLIC -DXGBOOST_USE_SYCL=1)
   target_link_libraries(plugin_sycl_test PUBLIC -fsycl)
-  target_link_libraries(plugin_sycl_test PRIVATE ${GTEST_LIBRARIES})
+  target_link_libraries(plugin_sycl_test PRIVATE GTest::gtest GTest::gmock)
 
   set_target_properties(plugin_sycl_test PROPERTIES
     COMPILE_FLAGS -fsycl
@@ -53,10 +44,6 @@ if(PLUGIN_SYCL)
   target_link_libraries(testxgboost PUBLIC plugin_sycl_test)
   # Add all objects of plugin_sycl to testxgboost
   target_sources(testxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl_test>)
-endif()
-
-if(PLUGIN_FEDERATED)
-  add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp/plugin/federated)
 endif()
 
 target_sources(

@@ -24,7 +24,7 @@ concepts should be readily applicable to other language bindings.
    * Breaking change was made in XGBoost 1.6.
 
 See also the advanced usage example for more information about limitations and
-workarounds for more complex objetives: :doc:`/tutorials/advanced_custom_obj`
+workarounds for more complex objectives: :doc:`/tutorials/advanced_custom_obj`
 
 In the following two sections, we will provide a step by step walk through of implementing
 the ``Squared Log Error (SLE)`` objective function:
@@ -313,7 +313,7 @@ access ``DMatrix``:
             p = softmax(predt[r, :])
             for c in range(predt.shape[1]):
                 g = p[c] - 1.0 if c == target else p[c]
-                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                h = max(abs(g).item(), eps)  # absolute-residual pseudo-Hessian
                 grad[r, c] = g
                 hess[r, c] = h
 

@@ -39,13 +39,13 @@ object PredictLeafIndices {
     val round = 3
     val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
-    // predict using first 2 tree
+    // predict using the first 2 boosting iterations
     val leafIndex = booster.predictLeaf(testMat, 2)
     if (leafIndex.length > 0 && leafIndex(0).length > 1) {
       println(s"${leafIndex(0)(0)}, ${leafIndex(0)(1)}")
     }
 
-    // predict all trees
+    // predict all boosting iterations
     val leafIndex2 = booster.predictLeaf(testMat, 0)
     if (leafIndex2.length > 0 && leafIndex2(0).length > 1) {
       println(s"${leafIndex2(0)(0)}, ${leafIndex2(0)(1)}")

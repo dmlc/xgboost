@@ -20,7 +20,6 @@
 
 #include <algorithm>  // for max
 #include <cstdint>    // for int32_t, uint32_t, uint8_t
-#include <map>        // for map
 #include <memory>     // for shared_ptr, unique_ptr
 #include <string>     // for string
 #include <utility>    // for move
@@ -68,9 +67,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
   ~Learner() override;
   /*!
-   * \brief Configure Learner based on set parameters.
+   * \brief Configure Learner with a parameter batch.
+   * \param args Ordered parameter batch. Repeated parameters are preserved.
    */
-  virtual void Configure() = 0;
+  virtual void Configure(Args const& args = {}) = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.
@@ -152,22 +152,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
-
-  /*!
-   * \brief Set multiple parameters at once.
-   *
-   * \param args parameters.
-   */
-  virtual void SetParams(Args const& args) = 0;
-  /*!
-   * \brief Set parameter for booster
-   *
-   *  The property will NOT be saved along with booster
-   *
-   * \param key   The key of parameter
-   * \param value The value of parameter
-   */
-  virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
   /**
    * @brief Get the number of features of the booster.
@@ -264,11 +248,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Return the context object of this Booster.
    */
   virtual Context const* Ctx() const = 0;
-  /*!
-   * \brief Get configuration arguments currently stored by the learner
-   * \return Key-value pairs representing configuration arguments
-   */
-  virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
  protected:
   /*! \brief objective function */
@@ -281,8 +260,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   Context ctx_;
 };
 
-struct LearnerModelParamLegacy;
-
 /**
  * @brief Strategy for building multi-target models.
  */
@@ -292,55 +269,55 @@ enum class MultiStrategy : std::int32_t {
 };
 
 /**
- * @brief Basic model parameters, used to describe the booster.
+ * @brief State shared by the learner and gradient booster.
  */
-struct LearnerModelParam {
+struct LearnerModelState {
  private:
   /**
-   * @brief Global bias, this is just a scalar value but can be extended to vector when we
-   *        support multi-class and multi-target.
-   *
-   * The value stored here is the value before applying the inverse link function, used
-   * for initializing the prediction matrix/vector.
+   * @brief Intercept in margin space, used to initialize predictions.
    */
   linalg::Vector<float> base_score_;
-
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
+  /** @brief Intercept in objective space, used for model serialization. */
+  std::vector<float> base_score_value_;
 
  public:
-  /**
-   * @brief The number of features.
-   */
+  /** @brief The number of features. */
   bst_feature_t num_feature{0};
-  /**
-   * @brief The number of classes or targets.
-   */
+  /** @brief Number of classes for a multi-class model. */
+  std::int32_t num_class{0};
+  /** @brief Number of targets. */
+  bst_target_t num_target{1};
+  /** @brief Whether the intercept should be estimated from training data. */
+  bool boost_from_average{true};
+  /** @brief The number of classes or targets. */
   std::uint32_t num_output_group{0};
-  /**
-   * @brief Current task, determined by objective.
-   */
+  /** @brief Current task, determined by objective. */
   ObjInfo task{ObjInfo::kRegression};
-  /**
-   * @brief Strategy for building multi-target models.
-   */
+  /** @brief Strategy for building multi-target models. */
   MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
 
-  LearnerModelParam() = default;
-  LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                    linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
+  LearnerModelState() = default;
+  LearnerModelState(Context const* ctx, bst_feature_t n_features, std::int32_t n_classes,
+                    bst_target_t n_targets, bool boost_from_average,
+                    std::vector<float> base_score_value, linalg::Vector<float> base_score,
+                    ObjInfo task, MultiStrategy multi_strategy);
   // This ctor is only used by tests.
-  LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
+  LearnerModelState(bst_feature_t n_features, linalg::Vector<float> base_score,
                     std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},
         num_feature{n_features},
+        num_class{n_groups > 1 ? static_cast<std::int32_t>(n_groups) : 0},
+        num_target{n_targets},
         num_output_group{std::max(n_groups, n_targets)},
         multi_strategy{multi_strategy} {}
 
   linalg::VectorView<float const> BaseScore(Context const* ctx) const;
   [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;
+  [[nodiscard]] std::vector<float> const& BaseScoreValue() const { return base_score_value_; }
+  void SetBaseScore(Context const* ctx, std::vector<float> value, linalg::Vector<float> margin);
+  void ConfigureDevice(Context const* ctx);
 
-  void Copy(LearnerModelParam const& that);
+  void Copy(LearnerModelState const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {
     return multi_strategy == MultiStrategy::kMultiOutputTree;
   }
@@ -349,8 +326,10 @@ struct LearnerModelParam {
     return this->IsVectorLeaf() ? this->OutputLength() : 1;
   }
 
-  /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  [[nodiscard]] bool Initialized() const { return num_feature != 0 && num_output_group != 0; }
+  [[nodiscard]] bool NeedsInitialization() const {
+    return num_feature == 0 || num_output_group == 0 || base_score_.Size() == 0;
+  }
+  [[nodiscard]] bool Initialized() const { return !this->NeedsInitialization(); }
 };
 
 }  // namespace xgboost

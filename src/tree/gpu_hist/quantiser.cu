@@ -5,9 +5,10 @@
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
 #include <algorithm>
-#include <cstdint>          // uint32_t, int32_t
-#include <cuda/functional>  // for proclaim_copyable_arguments
-#include <vector>           // for vector
+#include <cstdint>              // uint32_t, int32_t
+#include <cuda/functional>      // for proclaim_copyable_arguments
+#include <cuda/std/functional>  // for plus
+#include <vector>               // for vector
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
@@ -84,8 +85,7 @@ GradientQuantiser BuildQuantiserFromPair(Pair const& p, std::size_t total_rows) 
 }  // anonymous namespace
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
-                                               linalg::MatrixView<GradientPair const> gpair,
-                                               MetaInfo const& info) {
+                                               linalg::MatrixView<GradientPair const> gpair) {
   auto n_targets = gpair.Shape(1);
   CHECK_GE(n_targets, 1);
 
@@ -100,10 +100,10 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
   auto rc = collective::Success() << [&]() {
     static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
     auto casted = linalg::MakeVec(reinterpret_cast<ReduceT*>(h_pairs.data()), 4 * n_targets);
-    return collective::GlobalSum(ctx, info, casted);
+    return collective::GlobalSum(ctx, casted);
   } << [&] {
     // Single GlobalSum for total_rows (shared across targets).
-    return collective::GlobalSum(ctx, info, linalg::MakeVec(&n_samples, 1));
+    return collective::GlobalSum(ctx, linalg::MakeVec(&n_samples, 1));
   };
   collective::SafeColl(rc);
 
@@ -121,10 +121,9 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
 }
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
-                                               linalg::VectorView<GradientPair const> gpair,
-                                               MetaInfo const& info)
+                                               linalg::VectorView<GradientPair const> gpair)
     : GradientQuantiserGroup(
-          ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1}), info) {}
+          ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1})) {}
 
 void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
                          common::Span<GradientQuantiser const> roundings,

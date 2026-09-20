@@ -585,7 +585,6 @@ class WQuantileSketch {
 
   static size_t LimitSizeLevel(size_t maxn, double eps) {
     if (maxn == 0) {
-      // Empty columns can appear in distributed column-split settings.
       return 1;
     }
     auto const internal_eps = eps / kFactor;
@@ -933,12 +932,12 @@ class HostSketchContainer {
 
  private:
   // Merge categorical values from all workers.
-  [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,
+  [[nodiscard]] auto AllreduceCategories(Context const *ctx,
                                          common::Span<bst_feature_t const> categorical_features)
       -> std::vector<std::set<float>>;
 
   // Merge numeric sketches from all workers.
-  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
+  [[nodiscard]] auto AllReduce(Context const *ctx,
                                common::Span<bst_feature_t const> numeric_features)
       -> std::vector<WQSketch::SummaryContainer>;
 };

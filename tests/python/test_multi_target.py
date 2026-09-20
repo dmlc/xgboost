@@ -2,12 +2,14 @@
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 # pylint: disable=missing-function-docstring
+import json
 from typing import Any, Callable, Dict
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     all_reg_objectives,
@@ -85,6 +87,117 @@ def test_shap_multi_output_tree() -> None:
     np.testing.assert_allclose(
         interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4
     )
+
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_normal_distribution(multi_strategy: str) -> None:
+    rng = np.random.default_rng(20260909)
+    X = rng.normal(size=(256, 4)).astype(np.float32)
+    expected_mean = X[:, 0] - 0.5 * X[:, 1]
+    expected_log_variance = -0.5 + 0.75 * X[:, 2]
+    y = (
+        expected_mean
+        + np.exp(0.5 * expected_log_variance) * rng.normal(size=X.shape[0])
+    ).astype(np.float32)
+    Xy = xgb.DMatrix(X, y)
+
+    evals_result: dict = {}
+    booster = xgb.train(
+        {
+            "objective": "reg:normal",
+            "tree_method": "hist",
+            "multi_strategy": multi_strategy,
+            "eta": 0.1,
+            "max_depth": 2,
+            "min_child_weight": 0,
+        },
+        Xy,
+        num_boost_round=8,
+        evals=[(Xy, "train")],
+        evals_result=evals_result,
+        verbose_eval=False,
+    )
+
+    predictions = booster.predict(Xy)
+    assert predictions.shape == (X.shape[0], 2)
+    assert np.isfinite(predictions).all()
+    assert (
+        evals_result["train"]["normal-nloglik"][-1]
+        < evals_result["train"]["normal-nloglik"][0]
+    )
+
+    config = json.loads(booster.save_config())
+    base_score = np.asarray(
+        json.loads(config["learner"]["learner_model_param"]["base_score"])
+    )
+    expected_intercept = np.asarray(
+        [np.mean(y), np.log(np.mean(np.square(y - np.mean(y))))]
+    )
+    np.testing.assert_allclose(base_score, expected_intercept, rtol=2e-5, atol=2e-5)
+
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_normal_distribution_constant_label(multi_strategy: str) -> None:
+    X = np.arange(64 * 4, dtype=np.float32).reshape(64, 4)
+    y = np.full(X.shape[0], 2.5, dtype=np.float32)
+    # A perfect mean fit has zero residual variance. Verify that the fixed noise floor gives the
+    # log-variance output a finite equilibrium instead of letting it decrease toward -infinity.
+    Xy = xgb.DMatrix(X, y)
+    evals_result: dict = {}
+    booster = xgb.train(
+        {
+            "objective": "reg:normal",
+            "tree_method": "hist",
+            "multi_strategy": multi_strategy,
+            "eta": 1.0,
+            "max_depth": 8,
+            "min_child_weight": 0,
+            "lambda": 0,
+        },
+        Xy,
+        num_boost_round=32,
+        evals=[(Xy, "train")],
+        evals_result=evals_result,
+        verbose_eval=False,
+    )
+    predictions = booster.predict(Xy)
+    assert np.isfinite(predictions).all()
+    np.testing.assert_allclose(predictions[:, 0], y)
+    np.testing.assert_allclose(
+        predictions[:, 1], np.log(np.finfo(np.float32).eps), rtol=1e-6
+    )
+    assert np.isfinite(evals_result["train"]["normal-nloglik"]).all()
+
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+@pytest.mark.parametrize("use_base_margin", [False, True])
+@pytest.mark.parametrize("log_variance", [-100.0, -1000.0])
+def test_normal_extreme_initial_variance(
+    multi_strategy: str, use_base_margin: bool, log_variance: float
+) -> None:
+    # User-supplied initial predictions can bypass the estimated noise-floor intercept.
+    # Even an exact mean fit must produce finite gradients and move variance upward.
+    X = np.arange(8, dtype=np.float32).reshape(4, 2)
+    y = np.zeros(4, dtype=np.float32)
+    data = xgb.DMatrix(X, label=y)
+    params = {
+        "objective": "reg:normal",
+        "tree_method": "hist",
+        "multi_strategy": multi_strategy,
+        "max_depth": 1,
+        "eta": 1.0,
+        "lambda": 0.0,
+        "min_child_weight": 0.0,
+        "base_score": [0.0, log_variance],
+    }
+    if use_base_margin:
+        data.set_base_margin(np.tile([0.0, log_variance], (4, 1)))
+        params.pop("base_score")
+    booster = xgb.train(params, data, num_boost_round=2)
+    pred = booster.predict(data, output_margin=True)
+    assert np.isfinite(pred).all()
+    np.testing.assert_array_equal(pred[:, 0], y)
+    assert (pred[:, 1] > log_variance).all()
 
 
 class TestTreeMethodMulti:
@@ -195,8 +308,9 @@ def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cpu", grow_policy)
 
 
-def test_mixed_strategy() -> None:
-    run_mixed_strategy("cpu")
+@pytest.mark.parametrize("use_dart", [False, True], ids=["gbtree", "dart"])
+def test_mixed_strategy(use_dart: bool) -> None:
+    run_mixed_strategy("cpu", use_dart)
 
 
 def test_feature_importance_strategy_compare() -> None:
@@ -215,3 +329,30 @@ def test_subsample(sampling_method: str) -> None:
 
 def test_gradient_based_sampling_accuracy() -> None:
     run_gradient_based_sampling_accuracy("cpu")
+
+
+def test_dart_normalization_multi_output_eta() -> None:
+    X = np.array([[0.0]], dtype=np.float32)
+    y = np.array([[1.0, 1.0]], dtype=np.float32)
+    Xy = xgb.DMatrix(X, label=y)
+
+    booster = xgb.train(
+        {
+            "objective": "reg:squarederror",
+            "multi_strategy": "one_output_per_tree",
+            "tree_method": "hist",
+            "learning_rate": 1.0,
+            "base_score": 0.0,
+            "reg_lambda": 0.0,
+            "min_child_weight": 0.0,
+            "rate_drop": 0.0,
+            "one_drop": True,
+            "normalize_type": "tree",
+            "seed": 3,
+        },
+        Xy,
+        num_boost_round=2,
+    )
+
+    pred = booster.predict(Xy, output_margin=True)
+    np.testing.assert_allclose(pred, y, atol=1e-6)

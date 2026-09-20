@@ -28,9 +28,10 @@ from functools import partial, update_wrapper, wraps
 from typing import TYPE_CHECKING, Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
-import xgboost
 from loky import get_reusable_executor
 from sklearn.datasets import make_regression
+
+import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
 
@@ -143,14 +144,13 @@ def setup_numa() -> None:
 
 
 def setup_async_pool() -> None:
-    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well.
-    This is the same as using the `CudaAsyncMemoryResource` from RMM, but without the
-    RMM dependency.
+    """Set up the CUDA async pool for GPU-based external memory training.
 
     .. versionadded:: 3.2.0
 
     """
     import cuda.bindings.runtime as cudart
+    import cupy as cp
     from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 
@@ -167,7 +167,6 @@ def setup_async_pool() -> None:
     )
     _checkcu(status)
     # Set the allocator for cupy as well.
-    import cupy as cp
 
     cp.cuda.set_allocator(MemoryAsyncPool().malloc)
 

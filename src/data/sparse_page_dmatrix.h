@@ -101,10 +101,6 @@ class SparsePageDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
   }
-  DMatrix *SliceCol(int, int) override {
-    LOG(FATAL) << "Slicing DMatrix columns is not supported for external memory.";
-    return nullptr;
-  }
 
   [[nodiscard]] bool EllpackExists() const override {
     return std::visit([](auto &&ptr) { return static_cast<bool>(ptr); }, ellpack_page_source_);

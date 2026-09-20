@@ -4,7 +4,8 @@
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
 
-#include "../common/algorithm.cuh"  // for RunLengthEncode
+#include "../common/algorithm.cuh"    // for RunLengthEncode
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
@@ -79,7 +80,7 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
                  std::vector<bst_group_t>* p_group_ptr) {
   auto& group_ptr_ = *p_group_ptr;
   auto it = dh::MakeTransformIterator<uint32_t>(
-      thrust::make_counting_iterator(0ul), [array_interface] __device__(size_t i) {
+      dh::make_counting_iterator(0ul), [array_interface] __device__(size_t i) {
         return TypedIndex<uint32_t, 1>{array_interface}(i);
       });
   dh::caching_device_vector<bool> flag(1);
@@ -187,7 +188,7 @@ void Gather(Context const* ctx, linalg::MatrixView<float const> in,
   auto d_out = out.View(ctx->Device());
 
   auto cuctx = ctx->CUDACtx();
-  auto map_it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ull),
+  auto map_it = thrust::make_transform_iterator(dh::make_counting_iterator(0ull),
                                                 [=] XGBOOST_DEVICE(bst_idx_t i) {
                                                   auto [r, c] = linalg::UnravelIndex(i, in.Shape());
                                                   return (ridx[r] * in.Shape(1)) + c;
@@ -234,17 +235,15 @@ void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_id
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix, DataSplitMode data_split_mode) {
+                         const std::string& cache_prefix) {
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(data::CudfAdapter* adapter, float missing,
-                                                     int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int nthread, const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CupyAdapter>(data::CupyAdapter* adapter, float missing,
-                                                     int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int nthread, const std::string& cache_prefix);
 }  // namespace xgboost

@@ -30,9 +30,9 @@ cd R-package
 
 MAKEFLAGS=-j$(nproc) Rscript ./tests/helper_scripts/install_deps.R
 # Some examples are failing
-MAKEFLAGS=-j$(nproc) Rscript -e "pkgdown::build_site(examples=FALSE)"
+CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) Rscript -e "pkgdown::build_site(examples=FALSE)"
 # Install the package for vignettes
-MAKEFLAGS=-j$(nproc) R CMD INSTALL .
+CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) R CMD INSTALL .
 
 cd -
 

@@ -27,7 +27,7 @@ There's working-in-progress support for vector leaves, which are decision tree l
 ----------
 Inference
 ----------
-By inference, we specifically mean getting model prediction for the response variable. XGBoost supports two inference methods. The first one is the prediction on the ``DMatrix`` object (or ``QuantileDMatrix``, which is a subclass). Using a ``DMatrix`` object allows XGBoost to cache the prediction, hence getting faster performance when running prediction on the same data with new trees. The second method is ``inplace_predict``, which bypasses the construction of ``DMatrix``. It's more efficient but doesn't support cached prediction. In addtion to returning the estimated response, we also support returning the leaf index, which can be used to analyse the model and as a feature to another model.
+By inference, we specifically mean getting model prediction for the response variable. XGBoost supports two inference methods. The first one is the prediction on the ``DMatrix`` object (or ``QuantileDMatrix``, which is a subclass). Using a ``DMatrix`` object allows XGBoost to cache the prediction, hence getting faster performance when running prediction on the same data with new trees. The second method is ``inplace_predict``, which bypasses the construction of ``DMatrix``. It's more efficient but doesn't support cached prediction. In addition to returning the estimated response, we also support returning the leaf index, which can be used to analyse the model and as a feature to another model.
 
 ----------
 Model IO
@@ -56,13 +56,11 @@ XGBoost has built-in support for a wide range of metrics, from basic regression 
 --------------------
 Distributed Training
 --------------------
-XGBoost has built-in support for three distributed frameworks, including ``Dask``, ``PySpark``, and ``Spark (Scala)``. In addition, there's ``flink`` support for the Java binding and the ``ray-xgboost`` project. Please see the respective tutorial on how to use them. By default, XGBoost uses sample-based parallelism for distributed training. The column-based split is still working in progress and needs to be supported in these high-level framework integrations. On top of distributed training, we are also working on federated learning for both sample-based and column-based splits.
+XGBoost has built-in support for three distributed frameworks, including ``Dask``, ``PySpark``, and ``Spark (Scala)``. In addition, there's ``flink`` support for the Java binding and the ``ray-xgboost`` project. Please see the respective tutorial on how to use them. By default, XGBoost uses sample-based parallelism for distributed training.
 
 Distributed training works with custom objective functions and metrics as well. XGBoost aggregates the evaluation result automatically during training.
 
-The distributed training is enabled by a built-in implementation of a collective library. It's based on the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL, and has variants for handling federated learning and federated learning on GPU.
-
-Inference normally doesn't require any special treatment since we are using sample-based split. However, with column-based data split, we need to initialize the communicator context as well.
+The distributed training is enabled by a built-in implementation of a collective library. It's lineage can be tracked back to the RABIT project and has evolved significantly since its early adoption. The collective implementation supports GPU via NCCL.
 
 *****************
 Language Bindings

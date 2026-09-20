@@ -1,5 +1,5 @@
-# Custom images with CUDA toolkit installed
-# See ops/packer for instructions for building the images
+# Custom images with NVIDIA drivers and CI dependencies installed
+# See dmlc/xgboost-devops/vm_images/ for the Packer definitions
 images:
   linux-amd64:
     platform: "linux"

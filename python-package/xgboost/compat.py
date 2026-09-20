@@ -1,6 +1,8 @@
 # pylint: disable=unused-import
 """For compatibility and optional dependencies."""
 
+from __future__ import annotations
+
 import functools
 import importlib.util
 import logging
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore[union-attr]
+    return x.decode("utf-8")
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
@@ -84,6 +86,17 @@ def is_cudf_available() -> bool:
     except ImportError:
         _logger.exception("Importing cuDF failed, use DMatrix instead of QDM")
         return False
+
+
+@functools.cache
+def import_cudf() -> types.ModuleType:
+    """Import cuDF with memory cache."""
+    if not is_cudf_available():
+        raise ImportError("`cudf` is required for handling CUDA dataframes.")
+
+    import cudf
+
+    return cudf
 
 
 @functools.cache
@@ -152,10 +165,8 @@ def is_pandas_available() -> bool:
 
 try:
     import scipy.sparse as scipy_sparse
-    from scipy.sparse import csr_matrix as scipy_csr
 except ImportError:
     scipy_sparse = False
-    scipy_csr = object
 
 
 def _is_polars_lazyframe(data: DataType) -> bool:
@@ -257,15 +268,17 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
     if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
+        import pandas as pd
         from pandas import concat as pd_concat
 
-        return pd_concat(value, axis=0)
+        value_pd = cast(Sequence[pd.DataFrame | pd.Series], value)
+        return cast(_T, pd_concat(value_pd, axis=0))
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
-        from cudf import concat as CUDF_concat
+        cudf = import_cudf()
 
-        return CUDF_concat(value, axis=0)
+        return cudf.concat(value, axis=0)
     if _is_cupy_alike(value[0]):
         import cupy
 

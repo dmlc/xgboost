@@ -35,7 +35,6 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost.core import ArrayLike
-from xgboost.sklearn import SklObjective
 
 from .._typing import PathLike
 from .data import (
@@ -249,7 +248,8 @@ def make_batches_sparse(
 
 
 class TestDataset:
-    """Contains a dataset in numpy format as well as the relevant objective and metric."""
+    """Contains a dataset in numpy format as well as the relevant objective and
+    metric."""
 
     def __init__(
         self, name: str, get_dataset: Callable, objective: str, metric: str
@@ -318,29 +318,6 @@ class TestDataset:
 
     def __repr__(self) -> str:
         return self.name
-
-
-def make_ltr(
-    n_samples: int,
-    n_features: int,
-    n_query_groups: int,
-    max_rel: int,
-    sort_qid: bool = True,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Make a dataset for testing LTR."""
-    rng = np.random.default_rng(1994)
-    X = rng.normal(0, 1.0, size=n_samples * n_features).reshape(n_samples, n_features)
-    y = np.sum(X, axis=1)
-    y -= y.min()
-    y = np.round(y / y.max() * max_rel).astype(np.int32)
-
-    qid = rng.integers(0, n_query_groups, size=n_samples, dtype=np.int32)
-    w = rng.normal(0, 1.0, size=n_query_groups)
-    w -= np.min(w)
-    w /= np.max(w)
-    if sort_qid:
-        qid = np.sort(qid)
-    return X, y, qid, w
 
 
 def _cat_sampled_from() -> strategies.SearchStrategy:
@@ -562,13 +539,16 @@ def root_mean_square(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x)
+    # Subtract the maximum first, as the native objective does.  The custom
+    # softprob objective below is compared with the native one at tight
+    # tolerance, so the arithmetic has to match closely.
+    e = np.exp(x - np.max(x))
     return e / np.sum(e)
 
 
 def softprob_obj(
     classes: int, use_cupy: bool = False, order: str = "C", gdtype: str = "float32"
-) -> SklObjective:
+) -> Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
     """Custom softprob objective for testing.
 
     Parameters
@@ -591,14 +571,18 @@ def softprob_obj(
         rows = labels.shape[0]
         grad = backend.zeros((rows, classes), dtype=np.float32)
         hess = backend.zeros((rows, classes), dtype=np.float32)
-        eps = 1e-6
+        # Same Hessian floor as the native kernel.  The tests compare this
+        # reimplementation with the native objective at tight tolerance, and a
+        # larger floor can move a node across `min_child_weight`.
+        eps = 1e-16
         for r in range(predt.shape[0]):
             target = labels[r]
             p = softmax(predt[r, :])
             for c in range(predt.shape[1]):
                 assert target >= 0 or target <= classes
                 g = p[c] - 1.0 if c == target else p[c]
-                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                # absolute-residual pseudo-Hessian, matching the native objective
+                h = max(abs(g).item(), eps)
                 grad[r, c] = g
                 hess[r, c] = h
 
@@ -770,15 +754,6 @@ def run_with_rabit(
         assert exception_queue.empty(), f"Worker failed: {exception_queue.get()}"
 
     tracker.wait_for()
-
-
-def column_split_feature_names(
-    feature_names: List[Union[str, int]], world_size: int
-) -> List[str]:
-    """Get the global list of feature names from the local feature names."""
-    return [
-        f"{rank}.{feature}" for rank in range(world_size) for feature in feature_names
-    ]
 
 
 def is_windows() -> bool:

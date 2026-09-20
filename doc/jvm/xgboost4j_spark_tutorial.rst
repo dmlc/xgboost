@@ -148,7 +148,7 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-XGBoost supports missing values by default (`as desribed here <https://xgboost.readthedocs.io/en/latest/faq.html#how-to-deal-with-missing-values>`_).
+XGBoost supports missing values by default (`as described here <https://xgboost.readthedocs.io/en/latest/faq.html#how-to-deal-with-missing-values>`_).
 If given a SparseVector, XGBoost will treat any values absent from the SparseVector as missing. You are also able to
 specify to XGBoost to treat a specific value in your Dataset as if it was a missing value. By default XGBoost will treat NaN as the value representing missing.
 
@@ -443,7 +443,7 @@ After we get the PipelineModel, we can make prediction on the test dataset and e
   val evaluator = new MulticlassClassificationEvaluator()
   val accuracy = evaluator.evaluate(prediction)
 
-Pipeline with Hyper-parameter Tunning
+Pipeline with Hyper-parameter Tuning
 =====================================
 The most critical operation to maximize the power of XGBoost is to select the optimal parameters for the model.
 Tuning parameters manually is a tedious and labor-consuming process. With the latest version of XGBoost4J-Spark,

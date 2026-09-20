@@ -78,11 +78,10 @@ struct CatStrArrayView {
 // add specializations. This way we can modify the type list with ease.
 
 /**
- * @brief All the primitive types supported by the encoder.
+ * @brief All the primitive integer types supported by the encoder.
  */
-using CatPrimIndexTypes =
-    std::tuple<std::uint8_t, std::int8_t, std::uint16_t, std::int16_t, std::uint32_t, std::int32_t,
-               std::uint64_t, std::int64_t, float, double>;
+using CatPrimIndexTypes = std::tuple<std::uint8_t, std::int8_t, std::uint16_t, std::int16_t,
+                                     std::uint32_t, std::int32_t, std::uint64_t, std::int64_t>;
 
 /**
  * @brief All the column types supported by the encoder.

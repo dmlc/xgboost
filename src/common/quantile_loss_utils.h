@@ -4,7 +4,7 @@
 #ifndef XGBOOST_COMMON_QUANTILE_LOSS_UTILS_H_
 #define XGBOOST_COMMON_QUANTILE_LOSS_UTILS_H_
 
-#include <algorithm>  // for all_of
+#include <algorithm>  // for all_of, is_sorted
 
 #include "param_array.h"        // for ParamArray
 #include "xgboost/logging.h"    // CHECK
@@ -25,6 +25,8 @@ struct QuantileLossParam : public XGBoostParameter<QuantileLossParam> {
     auto valid =
         std::all_of(array.cbegin(), array.cend(), [](auto q) { return q >= 0.0 && q <= 1.0; });
     CHECK(valid) << "quantile alpha must be in the range [0.0, 1.0].";
+    CHECK(std::is_sorted(array.cbegin(), array.cend()))
+        << "quantile alpha must be sorted in ascending order.";
   }
 };
 

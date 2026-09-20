@@ -4,9 +4,10 @@ from typing import Any, Dict, Type
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import assume, given, settings, strategies
 from hypothesis.extra.pandas import column, data_frames, range_indexes
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import import_cupy
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
@@ -305,10 +306,10 @@ class TestGPUPredict:
         cols = 10
         rng = np.random.RandomState(1994)
         cp.cuda.runtime.setDevice(0)
-        X = rng.randn(rows, cols)
-        X = pd.DataFrame(X)
+        X_np = rng.randn(rows, cols)
+        X_pd = pd.DataFrame(X_np)
         y = rng.randn(rows)
-        X = cudf.from_pandas(X)
+        X = cudf.from_pandas(X_pd)
 
         dtrain = xgb.DMatrix(X, y)
 

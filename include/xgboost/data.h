@@ -35,8 +35,6 @@ enum class DataType : uint8_t { kFloat32 = 1, kDouble = 2, kUInt32 = 3, kUInt64 
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
-enum class DataSplitMode : int { kRow = 0, kCol = 1 };
-
 // Forward declaration of the container used by the meta info.
 class CatContainer;
 
@@ -77,8 +75,6 @@ class MetaInfo {
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
-  /*! \brief data split mode */
-  DataSplitMode data_split_mode{DataSplitMode::kRow};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -191,35 +187,11 @@ class MetaInfo {
    *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
-  /**
-   * @brief Synchronize the number of columns across all workers.
-   *
-   * Normally we just need to find the maximum number of columns across all workers, but
-   * in vertical federated learning, since each worker loads its own list of columns,
-   * we need to sum them.
-   */
-  void SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode);
-
-  /** @brief Whether the data is split row-wise. */
-  [[nodiscard]] bool IsRowSplit() const { return data_split_mode == DataSplitMode::kRow; }
-  /** @brief Whether the data is split column-wise. */
-  [[nodiscard]] bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
+  /** @brief Synchronize the number of columns across all workers. */
+  void SynchronizeNumberOfColumns(Context const* ctx);
   /** @brief Whether this is a learning to rank data. */
   [[nodiscard]] bool IsRanking() const { return !group_ptr_.empty(); }
 
-  /**
-   * @brief A convenient method to check if we are doing vertical federated learning, which requires
-   * some special processing.
-   */
-  [[nodiscard]] bool IsVerticalFederated() const;
-
-  /*!
-   * \brief A convenient method to check if the MetaInfo should contain labels.
-   *
-   * Normally we assume labels are available everywhere. The only exception is in vertical federated
-   * learning where labels are only available on worker 0.
-   */
-  bool ShouldHaveLabels() const;
   /**
    * @brief Flag for whether the DMatrix has categorical features.
    */
@@ -545,10 +517,6 @@ struct ExtMemConfig {
   float missing;
   // The number of CPU threads.
   std::int32_t n_threads{0};
-  // The ratio of the cache that can be compressed. Used for testing.
-  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
-  // Fallback to using nvcomp. Used for testing.
-  bool allow_decomp_fallback{false};
 
   ExtMemConfig() = delete;
   ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,
@@ -559,12 +527,6 @@ struct ExtMemConfig {
         min_cache_page_bytes{min_cache},
         missing{missing},
         n_threads{n_threads} {}
-
-  ExtMemConfig& SetParamsForTest(float _hw_decomp_ratio, bool _allow_decomp_fallback) {
-    this->hw_decomp_ratio = _hw_decomp_ratio;
-    this->allow_decomp_fallback = _allow_decomp_fallback;
-    return *this;
-  }
 };
 
 /**
@@ -633,11 +595,9 @@ class DMatrix {
    *
    * @param uri The URI of input.
    * @param silent Whether print information during loading.
-   * @param data_split_mode Indicate how the data was split beforehand.
    * @return The created DMatrix.
    */
-  static DMatrix* Load(const std::string& uri, bool silent = true,
-                       DataSplitMode data_split_mode = DataSplitMode::kRow);
+  static DMatrix* Load(const std::string& uri, bool silent = true);
 
   /**
    * @brief Creates a new DMatrix from an external data adapter.
@@ -647,14 +607,12 @@ class DMatrix {
    * @param           missing         Values to count as missing.
    * @param           nthread         Number of threads for construction.
    * @param           cache_prefix    (Optional) The cache prefix for external memory.
-   * @param           data_split_mode (Optional) Data split mode.
    *
    * @return  a Created DMatrix.
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "",
-                         DataSplitMode data_split_mode = DataSplitMode::kRow);
+                         const std::string& cache_prefix = "");
 
   /**
    * @brief Create a new Quantile based DMatrix used for histogram based algorithm.
@@ -717,14 +675,6 @@ class DMatrix {
 
   virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
 
-  /**
-   * @brief Slice a DMatrix by columns.
-   *
-   * @param num_slices Total number of slices
-   * @param slice_id Index of the current slice
-   * @return DMatrix containing the slice of columns
-   */
-  virtual DMatrix* SliceCol(int num_slices, int slice_id) = 0;
   /**
    * @brief Accessor for the string representation of the categories.
    */
@@ -797,8 +747,6 @@ inline BatchSet<ExtSparsePage> DMatrix::GetBatches(Context const* ctx, BatchPara
   return GetExtBatches(ctx, param);
 }
 }  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);

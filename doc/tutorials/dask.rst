@@ -634,7 +634,7 @@ Troubleshooting
     pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
 
   The default conda installation of XGBoost should not encounter this error. If you are
-  using a customized XGBoost, please make sure one of the followings is true:
+  using a customized XGBoost, please make sure one of the following is true:
 
   + XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
   + The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
@@ -663,13 +663,14 @@ correct address information:
 
 .. code-block:: python
 
-    import dask
     from distributed import Client
     from xgboost import dask as dxgb
-    # let xgboost know the scheduler address, use the same bracket format as dask.
-    with dask.config.set({"xgboost.scheduler_address": "[fd20:b6f:f759:9800::]"}):
-        with Client("[fd20:b6f:f759:9800::]") as client:
-            reg = dxgb.DaskXGBRegressor(tree_method="hist")
+    from xgboost.collective import Config
+
+    # Configure the tracker host without Dask's bracket notation.
+    coll_cfg = Config(tracker_host_ip="fd20:b6f:f759:9800::")
+    with Client("[fd20:b6f:f759:9800::]") as client:
+        reg = dxgb.DaskXGBRegressor(tree_method="hist", coll_cfg=coll_cfg)
 
 
 When GPU is used, XGBoost employs `NCCL <https://developer.nvidia.com/nccl>`_ as the

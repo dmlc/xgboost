@@ -17,11 +17,6 @@
 #include "xgboost/context.h"       // for DeviceOrd
 #include "xgboost/json.h"          // for Json
 
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../../plugin/federated/federated_coll.h"
-#include "../../plugin/federated/federated_comm.h"
-#endif
-
 namespace xgboost::collective {
 [[nodiscard]] std::shared_ptr<Coll> CommGroup::Backend(DeviceOrd device) const {
   if (device.IsCUDA()) {
@@ -80,34 +75,23 @@ CommGroup::CommGroup()
   CHECK_GE(timeout, 0);
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
-  if (type == "rabit") {
-    auto tracker_host = get_param("dmlc_tracker_uri", std::string{}, String{});
-    auto tracker_port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
-    auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
-    auto worker_port = get_param("dmlc_worker_port", static_cast<std::int64_t>(0), Integer{});
-    CHECK_LE(worker_port, std::numeric_limits<in_port_t>::max());
-    CHECK_GE(worker_port, 0);
-    CHECK_LE(tracker_port, std::numeric_limits<in_port_t>::max());
-    CHECK_GE(tracker_port, 0);
-    auto ptr = new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{
-                                 // NOLINT
-                                 tracker_host, static_cast<std::int32_t>(tracker_port),
-                                 std::chrono::seconds{timeout}, static_cast<std::int32_t>(retry),
-                                 task_id, nccl, static_cast<std::int32_t>(worker_port)}},
-                             std::shared_ptr<Coll>(new Coll{})};  // NOLINT
-    return ptr;
-  } else if (type == "federated") {
-#if defined(XGBOOST_USE_FEDERATED)
-    auto ptr = new CommGroup{
-        std::make_shared<FederatedComm>(retry, std::chrono::seconds{timeout}, task_id, config),
-        std::make_shared<FederatedColl>()};
-    return ptr;
-#endif  // defined(XGBOOST_USE_FEDERATED)
-  } else {
+  if (type != "rabit") {
     LOG(FATAL) << "Invalid communicator type";
   }
-
-  return nullptr;
+  auto tracker_host = get_param("dmlc_tracker_uri", std::string{}, String{});
+  auto tracker_port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
+  auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
+  auto worker_port = get_param("dmlc_worker_port", static_cast<std::int64_t>(0), Integer{});
+  CHECK_LE(worker_port, std::numeric_limits<in_port_t>::max());
+  CHECK_GE(worker_port, 0);
+  CHECK_LE(tracker_port, std::numeric_limits<in_port_t>::max());
+  CHECK_GE(tracker_port, 0);
+  return new CommGroup{
+      std::shared_ptr<RabitComm>{new RabitComm{
+          // NOLINT
+          tracker_host, static_cast<std::int32_t>(tracker_port), std::chrono::seconds{timeout},
+          static_cast<std::int32_t>(retry), task_id, nccl, static_cast<std::int32_t>(worker_port)}},
+      std::shared_ptr<Coll>(new Coll{})};  // NOLINT
 }
 
 std::unique_ptr<collective::CommGroup>& GlobalCommGroup() {
@@ -140,10 +124,6 @@ std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
 std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
 
 bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
-
-[[nodiscard]] bool IsFederated() {
-  return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
-}
 
 void Print(std::string const& message) {
   auto rc = GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).LogTracker(message);

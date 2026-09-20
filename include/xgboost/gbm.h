@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -28,8 +29,7 @@ class ObjFunction;
 class CatContainer;
 
 struct Context;
-struct LearnerModelParam;
-struct PredictionCacheEntry;
+struct LearnerModelState;
 
 /*!
  * \brief interface of gradient boosting model.
@@ -47,8 +47,9 @@ class GradientBooster : public Model, public Configurable {
    *  User must call configure once before InitModel and Training.
    *
    * @param cfg configurations on both training and model parameters.
+   * @return Names of parameters consumed by the booster and its components.
    */
-  virtual void Configure(Args const& cfg) = 0;
+  virtual std::set<std::string> Configure(Args const& cfg) = 0;
 
   /**
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
@@ -66,11 +67,6 @@ class GradientBooster : public Model, public Configurable {
    */
   [[nodiscard]] virtual std::int32_t BoostedRounds() const = 0;
   /**
-   * \brief Whether the model has already been trained. When tree booster is chosen, then
-   *        returns true when there are existing trees.
-   */
-  [[nodiscard]] virtual bool ModelFitted() const = 0;
-  /**
    * @brief perform update to the model(boosting)
    *
    * @param p_fmat feature matrix that provide access to features
@@ -79,8 +75,8 @@ class GradientBooster : public Model, public Configurable {
    *                   the booster may change content of gpair
    * @param obj The objective function used for boosting.
    */
-  virtual void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair,
-                       PredictionCacheEntry* prediction, ObjFunction const* obj) = 0;
+  virtual void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
+                       ObjFunction const* obj) = 0;
 
   /**
    * \brief Generate predictions for given feature matrix
@@ -92,8 +88,8 @@ class GradientBooster : public Model, public Configurable {
    * \param begin    Beginning of boosted tree layer used for prediction.
    * \param end      End of booster layer. 0 means do not limit trees.
    */
-  virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds, bool training,
-                            bst_layer_t begin, bst_layer_t end) = 0;
+  virtual void PredictBatch(std::shared_ptr<DMatrix> dmat, HostDeviceVector<float>* out_preds,
+                            bool training, bst_layer_t begin, bst_layer_t end) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -104,8 +100,8 @@ class GradientBooster : public Model, public Configurable {
    * \param           begin     (Optional) Beginning of boosted tree layer used for prediction.
    * \param           end       (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, PredictionCacheEntry*, bst_layer_t,
-                              bst_layer_t) const {
+  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, HostDeviceVector<float>*,
+                              bst_layer_t, bst_layer_t) const {
     LOG(FATAL) << "Inplace predict is not supported by the current booster.";
   }
   /*!
@@ -161,11 +157,11 @@ class GradientBooster : public Model, public Configurable {
    * @brief create a gradient booster from given name
    * @param name name of gradient booster
    * @param generic_param Pointer to runtime parameters
-   * @param learner_model_param pointer to global model parameters
+   * @param learner_model_state pointer to global model parameters
    * @return The created booster.
    */
   static GradientBooster* Create(const std::string& name, Context const* ctx,
-                                 LearnerModelParam const* learner_model_param);
+                                 LearnerModelState const* learner_model_state);
 };
 
 /*!
@@ -174,7 +170,7 @@ class GradientBooster : public Model, public Configurable {
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
           GradientBoosterReg,
-          std::function<GradientBooster*(LearnerModelParam const* learner_model_param,
+          std::function<GradientBooster*(LearnerModelState const* learner_model_state,
                                          Context const* ctx)> > {};
 
 /*!

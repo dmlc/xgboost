@@ -1,0 +1,12 @@
+# Paths relative to the XGBoost repository root. Each path is copied to the same location under
+# src in an assembled R source package. Keep this list limited to CPU/R CMake build inputs.
+CMakeLists.txt
+cmake
+src
+include
+dmlc-core/CMakeLists.txt
+dmlc-core/cmake
+dmlc-core/src
+dmlc-core/include
+plugin/CMakeLists.txt
+R-package/CMakeLists.txt

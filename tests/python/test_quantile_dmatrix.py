@@ -2,18 +2,18 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy import sparse
+
+import xgboost as xgb
 from xgboost.testing import (
     IteratorForTest,
     make_batches,
     make_batches_sparse,
     make_categorical,
-    make_ltr,
     make_sparse_regression,
 )
-from xgboost.testing.data import check_inf, np_dtypes
+from xgboost.testing.data import check_inf, make_ltr, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
 from xgboost.testing.quantile_dmatrix import (
     check_categorical_strings,

@@ -78,12 +78,11 @@ struct CatContainerImpl {
   void Finalize() {
     this->columns_v.clear();
     for (auto const& col : this->columns) {
-      std::visit(enc::Overloaded{[this](CatStrArray const& str) {
-                                   this->columns_v.emplace_back(enc::CatStrArrayView(str));
-                                 },
-                                 [this](auto&& values) {
-                                   this->columns_v.emplace_back(common::Span{values});
-                                 }},
+      std::visit(enc::Overloaded{
+                     [this](CatStrArray const& str) {
+                       this->columns_v.emplace_back(enc::CatStrArrayView(str));
+                     },
+                     [this](auto&& values) { this->columns_v.emplace_back(common::Span{values}); }},
                  col);
     }
   }
@@ -126,6 +125,7 @@ class CatContainer {
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
+    this->is_ref_ = that.is_ref_;
 
     if (!device.IsCPU()) {
       // Pull to device

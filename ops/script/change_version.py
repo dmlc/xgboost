@@ -2,7 +2,7 @@
 1. Modify ``CMakeLists.txt`` in source tree and ``python-package/xgboost/VERSION`` if
 needed, run CMake .
     If this is a RC release, the Python version has the form <major>.<minor>.<patch>rc1
-2. Modify ``DESCRIPTION`` and ``configure.ac`` in R-package. Run ``autoreconf``.
+2. Modify ``DESCRIPTION`` in R-package.
 3. Run ``mvn`` in ``jvm-packages``
     If this is a RC release, the version for JVM packages has the form
     <major>.<minor>.<patch>-RC1
@@ -62,7 +62,7 @@ def pypkg(
         with open(pyprj_path, "w") as fd:
             fd.write(pyprj)
 
-    make_pyproject(use_suffix="na", require_nccl_dep="cu12")
+    make_pyproject(use_suffix="na", require_nccl_dep="cu13")
 
 
 @cd(R_PACKAGE)
@@ -90,23 +90,6 @@ def rpkg(major: int, minor: int, patch: int, is_dev: bool) -> None:
         )
     with open(desc_path, "w") as fd:
         fd.write(description)
-
-    config_path = "configure.ac"
-    # AC_INIT([xgboost],[2.0.0],[],[xgboost],[])
-    version = f"{major}.{minor}.{patch}"
-    with open(config_path, "r") as fd:
-        config = fd.read()
-        pattern = (
-            r"AC_INIT\(\[xgboost\],\[([0-9]+\.[0-9]+\.[0-9]+)\],\[\],\[xgboost\],\[\]\)"
-        )
-        matched = re.search(pattern, config)
-        assert matched, "Couldn't find version string in configure.ac"
-        config = config[: matched.start(1)] + version + config[matched.end(1) :]
-
-    with open(config_path, "w") as fd:
-        fd.write(config)
-
-    subprocess.check_call(["autoreconf"])
 
 
 @cd(JVM_PACKAGES)

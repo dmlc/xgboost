@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 # scikit-build-core entry point for the XGBoost Python wheel.
 #
-# Three build modes are supported:
+# Two build modes are supported:
 #
 #   1. Reuse a prebuilt libxgboost.{so,dylib,dll} that already lives in
 #      ${XGBOOST_PREBUILT_LIB_DIR} (default: ${C++ source}/lib). This is
@@ -14,13 +14,8 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 #      is available, and by sdist-driven installs (where the C++ tree
 #      lives in cpp_src/ next to this file, staged by prepare_sdist.py).
 #
-#   3. Reuse a system-installed libxgboost by setting
-#      -DXGBOOST_USE_SYSTEM_LIBXGBOOST=ON. In that mode we don't install
-#      any shared library into the wheel; the runtime loader in
-#      xgboost/libpath.py falls back to sys.base_prefix/lib.
-#
 # Starting in LANGUAGES NONE so CMake doesn't probe for a compiler when
-# we end up in modes 1 or 3 (the common cases).
+# we reuse a prebuilt library.
 project(xgboost_python LANGUAGES NONE)
 
 # ---------------------------------------------------------------------------
@@ -45,17 +40,8 @@ else()
   set(_XGB_LIBNAME "libxgboost.so")
 endif()
 
-option(XGBOOST_USE_SYSTEM_LIBXGBOOST
-  "Don't bundle libxgboost into the wheel; the runtime loader will find it on the system" OFF)
 set(XGBOOST_PREBUILT_LIB_DIR "${_XGB_CPP_SRC}/lib" CACHE PATH
   "Directory holding a prebuilt libxgboost to bundle into the wheel")
-
-if(XGBOOST_USE_SYSTEM_LIBXGBOOST)
-  message(STATUS
-    "xgboost-python: XGBOOST_USE_SYSTEM_LIBXGBOOST=ON — not bundling libxgboost; "
-    "runtime will fall back to sys.base_prefix/lib")
-  return()
-endif()
 
 if(EXISTS "${XGBOOST_PREBUILT_LIB_DIR}/${_XGB_LIBNAME}")
   # If lib/libxgboost.so is a symlink (the usual layout when CMake has just

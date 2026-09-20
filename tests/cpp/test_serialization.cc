@@ -165,7 +165,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
-    learner->SetParams(args);
+    learner->Configure(args);
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat);
     }
@@ -197,8 +197,6 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
       std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
       std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
       learner->Load(fi.get());
-      learner->Configure();
-
       // verify the loaded model doesn't change.
       std::string serialised_model_tmp;
       common::MemoryBufferStream mem_out(&serialised_model_tmp);
@@ -220,7 +218,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     {
       // Train 2 * kIters in one go
       std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
-      learner->SetParams(args);
+      learner->Configure(args);
       for (int32_t iter = 0; iter < 2 * kIters; ++iter) {
         learner->UpdateOneIter(iter, p_dmat);
 
@@ -260,7 +258,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     // Set the model to device
     for (auto const& [key, value] : args) {
       if (key == "device") {
-        learner->SetParam(key, value);
+        learner->Configure({{key, value}});
       }
     }
 
@@ -443,7 +441,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
-    learner->SetParams(Args{{"tree_method", "hist"}, {"device", "cuda"}});
+    learner->Configure(Args{{"tree_method", "hist"}, {"device", "cuda"}});
 
     for (size_t i = 0; i < 10; ++i) {
       learner->UpdateOneIter(i, p_dmat);

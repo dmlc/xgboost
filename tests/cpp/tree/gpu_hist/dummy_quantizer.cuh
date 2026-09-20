@@ -38,7 +38,7 @@ inline auto GenerateGradientsFixedPoint(Context const* ctx, bst_idx_t n_samples,
   gpairs.SetDevice(ctx->Device());
   auto d_gpair = linalg::MakeTensorView(ctx, gpairs.ConstDeviceSpan(), n_samples, n_targets);
 
-  GradientQuantiserGroup quantizer_group{ctx, d_gpair, MetaInfo{}};
+  GradientQuantiserGroup quantizer_group{ctx, d_gpair};
 
   linalg::Matrix<GradientPairInt64> gpairs_i64;
   CalcQuantizedGpairs(ctx, d_gpair, quantizer_group.DeviceSpan(), &gpairs_i64);

@@ -6,7 +6,7 @@ import numpy as np
 
 from xgboost import testing as tm
 
-from ..compat import import_cupy
+from ..compat import import_cudf, import_cupy
 from ..core import DataIter, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from .utils import predictor_equal
 
@@ -60,7 +60,7 @@ def check_invalid_cat_batches(device: str) -> None:
                 cat_ratio=1.0 if self._it == 0 else 0.5,
             )
             if device == "cuda":
-                import cudf
+                cudf = import_cudf()
                 import cupy
 
                 X = cudf.DataFrame(X)
@@ -163,7 +163,7 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
 
         X, y = self.xs[self._it], self.ys[self._it]
         if self.device == "cuda":
-            import cudf
+            cudf = import_cudf()
             import cupy
 
             X = cudf.DataFrame(X)

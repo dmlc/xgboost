@@ -77,7 +77,8 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
-#' @param data_split_mode Not used yet. This parameter is for distributed training, which is not yet available for the R package.
+#' @param data_split_mode Deprecated. Only row-wise split is supported; column-wise split
+#'   has been removed and is rejected.
 #' @inheritParams xgb.train
 #' @return An 'xgb.DMatrix' object. If calling `xgb.QuantileDMatrix`, it will have additional
 #' subclass `xgb.QuantileDMatrix`.
@@ -124,8 +125,16 @@ xgb.DMatrix <- function(
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }
+  if (!missing(data_split_mode)) {
+    warning(
+      "'data_split_mode' is deprecated. Only row-wise split is supported.",
+      call. = FALSE
+    )
+  }
   if (data_split_mode != "row") {
-    stop("'data_split_mode' is not supported yet.")
+    stop(
+      "Column-wise data split has been removed. Please use row-wise data split instead."
+    )
   }
   nthread <- as.integer(NVL(nthread, -1L))
   if (typeof(data) == "character") {
@@ -136,14 +145,7 @@ xgb.DMatrix <- function(
       )
     }
     data <- path.expand(data)
-    if (data_split_mode == "row") {
-      data_split_mode <- 0L
-    } else if (data_split_mode == "col") {
-      data_split_mode <- 1L
-    } else {
-      stop("Passed invalid 'data_split_mode': ", data_split_mode)
-    }
-    handle <- .Call(XGDMatrixCreateFromURI_R, data, as.integer(silent), data_split_mode)
+    handle <- .Call(XGDMatrixCreateFromURI_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
     handle <- .Call(
       XGDMatrixCreateFromMat_R, data, missing, nthread

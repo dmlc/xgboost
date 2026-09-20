@@ -268,7 +268,7 @@ class CyclicFeatureSelector : public FeatureSelector {
   using FeatureSelector::FeatureSelector;
   int NextFeature(Context const *, int iteration, const gbm::GBLinearModel &model, int,
                   const std::vector<GradientPair> &, DMatrix *, float, float) override {
-    return iteration % model.learner_model_param->num_feature;
+    return iteration % model.learner_model_state->num_feature;
   }
 };
 
@@ -282,7 +282,7 @@ class ShuffleFeatureSelector : public FeatureSelector {
   void Setup(Context const *ctx, const gbm::GBLinearModel &model, const std::vector<GradientPair> &,
              DMatrix *, float, float, int) override {
     if (feat_index_.size() == 0) {
-      feat_index_.resize(model.learner_model_param->num_feature);
+      feat_index_.resize(model.learner_model_state->num_feature);
       std::iota(feat_index_.begin(), feat_index_.end(), 0);
     }
     std::shuffle(feat_index_.begin(), feat_index_.end(), ctx->Rng());
@@ -290,7 +290,7 @@ class ShuffleFeatureSelector : public FeatureSelector {
 
   int NextFeature(Context const *, int iteration, const gbm::GBLinearModel &model, int,
                   const std::vector<GradientPair> &, DMatrix *, float, float) override {
-    return feat_index_[iteration % model.learner_model_param->num_feature];
+    return feat_index_[iteration % model.learner_model_state->num_feature];
   }
 
  protected:
@@ -306,7 +306,7 @@ class RandomFeatureSelector : public FeatureSelector {
   using FeatureSelector::FeatureSelector;
   int NextFeature(Context const *ctx, int, const gbm::GBLinearModel &model, int,
                   const std::vector<GradientPair> &, DMatrix *, float, float) override {
-    return ctx->Rng()() % model.learner_model_param->num_feature;
+    return ctx->Rng()() % model.learner_model_state->num_feature;
   }
 };
 
@@ -325,11 +325,11 @@ class GreedyFeatureSelector : public FeatureSelector {
   void Setup(Context const *, const gbm::GBLinearModel &model, const std::vector<GradientPair> &,
              DMatrix *, float, float, int param) override {
     top_k_ = static_cast<bst_uint>(param);
-    const bst_uint ngroup = model.learner_model_param->num_output_group;
+    const bst_uint ngroup = model.learner_model_state->num_output_group;
     if (param <= 0) top_k_ = std::numeric_limits<bst_uint>::max();
     if (counter_.size() == 0) {
       counter_.resize(ngroup);
-      gpair_sums_.resize(model.learner_model_param->num_feature * ngroup);
+      gpair_sums_.resize(model.learner_model_state->num_feature * ngroup);
     }
     for (bst_uint gid = 0u; gid < ngroup; ++gid) {
       counter_[gid] = 0u;
@@ -342,10 +342,10 @@ class GreedyFeatureSelector : public FeatureSelector {
     // k-th selected feature for a group
     auto k = counter_[group_idx]++;
     // stop after either reaching top-K or going through all the features in a group
-    if (k >= top_k_ || counter_[group_idx] == model.learner_model_param->num_feature) return -1;
+    if (k >= top_k_ || counter_[group_idx] == model.learner_model_state->num_feature) return -1;
 
-    const int ngroup = model.learner_model_param->num_output_group;
-    const bst_omp_uint nfeat = model.learner_model_param->num_feature;
+    const int ngroup = model.learner_model_state->num_output_group;
+    const bst_omp_uint nfeat = model.learner_model_state->num_feature;
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
     for (const auto &batch : p_fmat->GetBatches<CSCPage>(ctx)) {
@@ -404,8 +404,8 @@ class ThriftyFeatureSelector : public FeatureSelector {
              int param) override {
     top_k_ = static_cast<bst_uint>(param);
     if (param <= 0) top_k_ = std::numeric_limits<bst_uint>::max();
-    const bst_uint ngroup = model.learner_model_param->num_output_group;
-    const bst_omp_uint nfeat = model.learner_model_param->num_feature;
+    const bst_uint ngroup = model.learner_model_state->num_output_group;
+    const bst_omp_uint nfeat = model.learner_model_state->num_feature;
 
     if (deltaw_.size() == 0) {
       deltaw_.resize(nfeat * ngroup);
@@ -459,9 +459,9 @@ class ThriftyFeatureSelector : public FeatureSelector {
     // k-th selected feature for a group
     auto k = counter_[group_idx]++;
     // stop after either reaching top-N or going through all the features in a group
-    if (k >= top_k_ || counter_[group_idx] == model.learner_model_param->num_feature) return -1;
+    if (k >= top_k_ || counter_[group_idx] == model.learner_model_state->num_feature) return -1;
     // note that sorted_idx stores the "long" indices
-    const size_t grp_offset = group_idx * model.learner_model_param->num_feature;
+    const size_t grp_offset = group_idx * model.learner_model_state->num_feature;
     return static_cast<int>(sorted_idx_[grp_offset + k] - grp_offset);
   }
 

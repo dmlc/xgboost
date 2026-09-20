@@ -2,6 +2,7 @@
 Demo for prediction using number of trees
 =========================================
 """
+
 import os
 
 import numpy as np

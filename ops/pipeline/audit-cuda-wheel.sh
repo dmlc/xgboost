@@ -12,7 +12,7 @@ fi
 
 if [[ "$#" -lt 1 ]]
 then
-  echo "Usage: $0 {x86_64,aarch64} [--cuda-variant {cuda,cuda13}]"
+  echo "Usage: $0 {x86_64,aarch64} [--cuda-variant {cuda,cuda12}]"
   exit 2
 fi
 arch="$1"
@@ -32,6 +32,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+case "${cuda_variant}" in
+  cuda|cuda12)
+    ;;
+  *)
+    echo "Invalid CUDA variant: ${cuda_variant}. Expected cuda or cuda12."
+    exit 2
+    ;;
+esac
 
 source ops/pipeline/classify-git-branch.sh
 
@@ -64,7 +73,7 @@ fi
 # Check size of wheel
 pydistcheck --config python-package/pyproject.toml "${final_wheel}"
 
-# Generate meta.json only for the main CUDA variant (not cuda13)
+# Generate meta.json only for the default CUDA variant (not cuda12)
 if [[ $cuda_variant == "cuda" && $arch == "x86_64" ]]
 then
   # Generate the meta info which includes xgboost version and the commit info

@@ -3,8 +3,9 @@ from typing import Any
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, settings
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
     make_determinism_strategy,
@@ -172,7 +173,4 @@ class TestTrainingContinuation:
 @settings(deadline=None, print_blob=True, max_examples=10)
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_continuation_determinism(kwargs: Any) -> None:
-    run_training_continuation_determinism(
-        device="cpu",
-        **kwargs,
-    )
+    run_training_continuation_determinism(device="cpu", **kwargs)

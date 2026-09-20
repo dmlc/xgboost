@@ -11,19 +11,11 @@ else
   cmake_args=''
 fi
 
-if [[ "${USE_FEDERATED:-0}" == 1 ]]
-then
-  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=ON"
-else
-  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
-fi
-
+cmake_prefix_path=''
 if [[ "${USE_RMM:-0}" == 1 ]]
 then
-  cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
+  cmake_prefix_path='/opt/rmm;/opt/rmm/lib64/rapids/cmake'
   cmake_args="${cmake_args} -DPLUGIN_RMM=ON"
-else
-  cmake_prefix_path='/opt/grpc'
 fi
 
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
@@ -31,6 +23,12 @@ fi
 echo "--- Build libxgboost from the source"
 mkdir -p build
 pushd build
+# CTK 13.3 error:
+#   nvcc_internal_extended_lambda_implementation:357:85: error:
+#   '*((void*)(&<anonymous>)+8).__nv_hdl_wrapper_t...'
+#   may be used uninitialized in this function [-Werror=maybe-uninitialized]
+#
+# As a result, the speical `-DCMAKE_CUDA_FLAGS` is employed.
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
@@ -44,15 +42,14 @@ cmake .. \
   -DNCCL_INCLUDE_DIR=/usr/include \
   -DUSE_DLOPEN_NCCL=ON \
   -DGOOGLE_TEST=ON \
-  -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+  -DCMAKE_CUDA_FLAGS="-Xcompiler=-Wno-error=maybe-uninitialized" \
   ${cmake_args}
 time ninja -v
 popd
 
 echo "--- Build binary wheel"
-python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 pushd python-package
 rm -rfv dist/*
 pip wheel --no-deps -v . --wheel-dir dist/

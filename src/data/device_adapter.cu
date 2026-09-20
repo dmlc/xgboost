@@ -1,6 +1,9 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
+#include <algorithm>  // for all_of
+#include <cstddef>    // for size_t
+
 #include "../common/cuda_rt_utils.h"  // for SetDevice, CurrentDevice
 #include "columnar.h"                 // for GetRefCats, GetArrowDictionary
 #include "device_adapter.cuh"
@@ -37,10 +40,11 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
   CHECK_GT(n_columns, 0) << "The number of columns must not equal to 0.";
 
   std::vector<ArrayInterface<1>> columns;
+  std::size_t n_total_cats{0};
   std::vector<std::int32_t> cat_segments{0};
   std::int32_t device = -1;
   for (auto const& jcol : jcolumns) {
-    std::int32_t n_cats{0};
+    std::size_t n_cats{0};
     if (IsA<Array>(jcol)) {
       // This is a dictionary type (categorical values).
       auto const& first = get<Object const>(jcol[0]);
@@ -49,6 +53,7 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
         if (device == -1) {
           auto const& first = get<Object const>(jcol[0]);
           auto names = ArrayInterface<1>{first};
+          CheckNonEmptyCategory(names.n);
           device = dh::CudaGetPointerDevice(names.data);
         }
         n_cats = GetArrowNumericIndex(DeviceOrd::CUDA(device), jcol, &cats_, &columns, &n_bytes_,
@@ -63,18 +68,22 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
       columns.push_back(col);
       this->cats_.emplace_back();
       this->num_rows_ = std::max(num_rows_, col.Shape<0>());
-      CHECK_EQ(num_rows_, col.Shape<0>()) << "All columns should have the same number of rows.";
       n_bytes_ += col.ElementSize() * col.Shape<0>();
     }
-    cat_segments.emplace_back(n_cats);
+    n_total_cats = AddCatCount(n_cats, n_total_cats);
+    cat_segments.emplace_back(static_cast<std::int32_t>(n_total_cats));
     if (device == -1) {
       device = dh::CudaGetPointerDevice(columns.back().data);
     }
     CHECK_EQ(device, dh::CudaGetPointerDevice(columns.back().data))
         << "All columns should use the same device.";
   }
+  auto consistent = std::all_of(columns.cbegin(), columns.cend(), [this](auto const& column) {
+    return column.template Shape<0>() == this->num_rows_;
+  });
+  CHECK(consistent) << "All columns should have the same number of rows.";
+
   // Categories
-  std::partial_sum(cat_segments.cbegin(), cat_segments.cend(), cat_segments.begin());
   this->n_total_cats_ = cat_segments.back();
   this->cat_segments_ = std::move(cat_segments);
   this->d_cats_ = this->cats_;  // thrust copy

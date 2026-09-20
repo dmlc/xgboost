@@ -10,6 +10,7 @@ dependencies:
 - numpy
 - scipy
 - pandas
+- pandas-stubs
 - pyarrow
 - scikit-learn
 - dask

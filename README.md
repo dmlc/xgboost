@@ -2,7 +2,7 @@
 ===========
 
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost%20CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
-[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
+[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.io)
 [![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](https://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
@@ -12,8 +12,8 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost/badge)](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/comet-ml/comet-examples/blob/master/integrations/model-training/xgboost/notebooks/how_to_use_comet_with_xgboost_tutorial.ipynb)
 
-[Community](https://xgboost.ai/community) |
-[Documentation](https://xgboost.readthedocs.org) |
+[Blog](https://xgboost.ai/blog) |
+[Documentation](https://xgboost.readthedocs.io) |
 [Resources](demo/README.md) |
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](https://xgboost.readthedocs.io/en/latest/changes/index.html)
@@ -30,7 +30,7 @@ License
 Contribute to XGBoost
 ---------------------
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
-Checkout the [Community Page](https://xgboost.ai/community).
+Check out the [contributor documentation](https://xgboost.readthedocs.io/en/latest/contrib/index.html).
 
 Reference
 ---------

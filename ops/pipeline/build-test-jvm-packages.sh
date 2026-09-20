@@ -48,16 +48,6 @@ fi
 
 cd jvm-packages/
 
-# Ensure that XGBoost4J-Spark is compatible with multiple versions of Spark
-if [[ "${USE_CUDA:-}" != "1" && "${SCALA_VERSION}" == "2.12" ]]
-then
-  for spark_version in 3.1.3 3.2.4 3.3.4 3.4.3
-  do
-    mvn --no-transfer-progress clean package -Dspark.version=${spark_version} \
-      -pl xgboost4j,xgboost4j-spark
-  done
-fi
-
 set +x
 mvn_options=""
 if [[ "${USE_CUDA:-}" == "1" ]]
@@ -70,10 +60,20 @@ then
 fi
 set -x
 
+# Ensure that XGBoost4J-Spark is compatible with multiple versions of Spark
+if [[ "${USE_CUDA:-}" != "1" && "${SCALA_VERSION}" == "2.12" ]]
+then
+  for spark_version in 3.1.3 3.2.4 3.3.4 3.4.3
+  do
+    mvn --no-transfer-progress clean package -Dspark.version=${spark_version} \
+      -pl xgboost4j,xgboost4j-spark ${mvn_options}
+  done
+fi
+
 mvn --no-transfer-progress clean install ${mvn_options}
 
 # Integration tests
 if [[ "${USE_CUDA:-}" != "1" ]]
 then
-  mvn --no-transfer-progress test -pl xgboost4j-example
+  mvn --no-transfer-progress test -pl xgboost4j-example ${mvn_options}
 fi

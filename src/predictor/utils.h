@@ -6,15 +6,13 @@
 
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "xgboost/data.h"           // for DMatrix
-#include "xgboost/learner.h"        // LearnerModelParam
+#include "xgboost/learner.h"        // LearnerModelState
 
 namespace xgboost::predictor {
 template <typename Adapter>
 void CheckProxyDMatrix(std::shared_ptr<Adapter> m, data::DMatrixProxy const* proxy,
-                       LearnerModelParam const* p) {
+                       LearnerModelState const* p) {
   CHECK(proxy);
-  CHECK(!proxy->Info().IsColumnSplit())
-      << "Inplace predict support for column-wise data split is not yet implemented.";
   auto n_features_data = m->NumColumns();
   auto n_features_model = p->num_feature;
   CHECK_EQ(n_features_data, n_features_model)

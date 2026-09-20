@@ -65,6 +65,22 @@ public class DMatrixTest {
     assert dmat.nonMissingNum() == 12 - 1;
   }
 
+  /**
+   * A sparse LabeledPoint (indices non-null, nnz less than size) is a supported way to build a
+   * DMatrix: the gaps become missing entries rather than zeros.
+   */
+  @Test
+  public void testCreateFromDataIteratorWithSparseLabeledPoint() throws XGBoostError {
+    java.util.List<LabeledPoint> blist = new java.util.LinkedList<>();
+    blist.add(new LabeledPoint(0.1f, 4, new int[]{0, 2}, new float[]{1, 3}));
+    blist.add(new LabeledPoint(0.2f, 4, new int[]{1}, new float[]{5}));
+
+    DMatrix dmat = new DMatrix(blist.iterator(), null);
+    assertEquals(2, dmat.rowNum());
+    assertEquals(3, dmat.nonMissingNum());
+    assertArrayEquals(new float[]{0.1f, 0.2f}, dmat.getLabel(), 1e-6f);
+  }
+
   @Test
   public void testCreateFromDataIterator() throws XGBoostError {
     //create DMatrix from DataIterator

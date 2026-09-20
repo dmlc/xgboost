@@ -1,6 +1,6 @@
-################################
-2.1.4 Patch Release (2025 Feb 6)
-################################
+#################################
+2.1.4 Patch Release (Feb 6, 2025)
+#################################
 
 The 2.1.4 patch release incorporates the following fixes on top of the 2.1.3 release:
 
@@ -8,9 +8,9 @@ The 2.1.4 patch release incorporates the following fixes on top of the 2.1.3 rel
 - Build wheels with CUDA 12.8 and enable Blackwell support (#11187, #11202)
 - Adapt to RMM 25.02 logger changes (#11153)
 
-#################################
-2.1.3 Patch Release (2024 Nov 26)
-#################################
+##################################
+2.1.3 Patch Release (Nov 26, 2024)
+##################################
 
 The 2.1.3 patch release makes the following bug fixes:
 
@@ -18,9 +18,9 @@ The 2.1.3 patch release makes the following bug fixes:
 - Fix rng for the column sampler (#10998).
 - Handle `cudf.pandas` proxy objects properly (#11014).
 
-#################################
-2.1.2 Patch Release (2024 Oct 23)
-#################################
+##################################
+2.1.2 Patch Release (Oct 23, 2024)
+##################################
 
 The 2.1.2 patch release makes the following bug fixes:
 
@@ -35,9 +35,9 @@ The 2.1.2 patch release makes the following bug fixes:
 - Fixes for large size clusters. (#10880)
 - POSIX compliant poll.h and mmap (#10767)
 
-#################################
-2.1.1 Patch Release (2024 Jul 31)
-#################################
+##################################
+2.1.1 Patch Release (Jul 31, 2024)
+##################################
 
 The 2.1.1 patch release makes the following bug fixes:
 
@@ -57,9 +57,9 @@ In addition, it contains several enhancements:
 - Support building with CUDA Toolkit 12.5 and latest CCCL (#10624, #10633, #10574)
 
 
-###################
-2.1.0 (2024 Jun 20)
-###################
+####################
+2.1.0 (Jun 20, 2024)
+####################
 
 We are thrilled to announce the XGBoost 2.1 release. This note will start by summarizing some general changes and then highlighting specific package updates. As we are working on a `new R interface <https://github.com/dmlc/xgboost/issues/9810>`_, this release will not include the R package. We'll update the R package as soon as it's ready. Stay tuned!
 

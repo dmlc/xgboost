@@ -19,13 +19,14 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-import xgboost as xgb
 from distributed import Client, LocalCluster, Nanny, Worker
 from distributed.scheduler import KilledWorker, Scheduler
 from distributed.utils_test import async_poll_for, gen_cluster
 from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 from sklearn.model_selection import train_test_split
+
+import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
@@ -33,7 +34,9 @@ from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree,
+    check_multi_output_tree_classifier,
+    check_multi_output_tree_regressor,
+    check_multi_output_tree_shap,
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
@@ -81,17 +84,20 @@ def generate_array(
     return X, y, None
 
 
-@pytest.mark.parametrize("to_frame", [True, False])
-def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client") -> None:
+@pytest.mark.parametrize("label_type", ["array", "series", "dataframe"])
+def test_xgbclassifier_classes_type_and_value(
+    label_type: Literal["array", "series", "dataframe"], client: "Client"
+) -> None:
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
-    if to_frame:
+    if label_type != "array":
         import pandas as pd
 
         feats = [f"var_{i}" for i in range(4)]
         df = pd.DataFrame(X, columns=feats)
         df["target"] = y
         df = dd.from_pandas(df, npartitions=1)
-        X, y = df[feats], df["target"]
+        X = df[feats]
+        y = df[["target"]] if label_type == "dataframe" else df["target"]
     else:
         X = da.from_array(X)
         y = da.from_array(y)
@@ -729,17 +735,27 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
     assert dxgb.predict(client, out, dtrain).compute().shape[0] == 1
 
 
-def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
+def run_empty_dmatrix_reg(
+    client: "Client", parameters: Dict[str, Any], n_targets: int = 1
+) -> None:
+    def _make_labels(n_rows: int) -> Any:
+        labels = np.random.rand(n_rows, n_targets)
+        if n_targets == 1:
+            labels = labels[:, 0]
+        return dd.from_array(labels)
+
     def _check_outputs(out: dxgb.TrainReturnT, predictions: np.ndarray) -> None:
         assert isinstance(out["booster"], dxgb.Booster)
         for _, v in out["history"]["validation"].items():
             assert len(v) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
+        if n_targets > 1:
+            assert predictions.shape[1] == n_targets
 
     kRows, kCols = 1, 97
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -755,7 +771,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     # valid has more rows than train
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     valid = dxgb.DaskDMatrix(client, X, y)
     out = dxgb.train(
         client,
@@ -771,7 +787,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     valid = dtrain
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -944,6 +960,15 @@ def test_empty_dmatrix(tree_method: str, client: "Client") -> None:
     run_empty_dmatrix_cls(client, parameters)
     parameters = {"tree_method": tree_method, "objective": "reg:absoluteerror"}
     run_empty_dmatrix_reg(client, parameters)
+    run_empty_dmatrix_reg(client, parameters, n_targets=3)
+    run_empty_dmatrix_reg(
+        client,
+        {
+            "tree_method": tree_method,
+            "objective": "reg:quantileerror",
+            "quantile_alpha": 0.5,
+        },
+    )
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
@@ -1052,7 +1077,7 @@ def test_with_asyncio(client: "Client") -> None:
 async def generate_concurrent_trainings() -> None:
     async def train() -> None:
         async with LocalCluster(
-            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=":0"
+            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=None
         ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
@@ -1258,15 +1283,8 @@ def test_invalid_config(client: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client, X, y)
 
-    with dask.config.set({"xgboost.foo": "bar"}):
-        with pytest.raises(ValueError, match=r"Unknown configuration.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=4)
-
-    with dask.config.set({"xgboost.scheduler_address": "127.0.0.1:foo"}):
-        with pytest.raises(socket.gaierror, match=r".*not known.*"):
-            dxgb.train(client, {}, dtrain, num_boost_round=1)
-
-    # No failure only because we are also using the Dask scheduler address.
+    # Fall back to the Dask scheduler address when the requested tracker port is
+    # unavailable.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -1426,18 +1444,7 @@ class TestWithDask:
                 or params.get("max_leaves", None) == 1
             )
 
-        def minimum_bin() -> bool:
-            return "max_bin" in params and params["max_bin"] == 2
-
-        # See note on `ObjFunction::UpdateTreeLeaf`.
-        update_leaf = dataset.name.endswith("-l1")
-        if update_leaf and (is_stump() or minimum_bin()):
-            assert tm.non_increasing(history, tolerance=1e-2)
-            return
-        elif minimum_bin() and is_stump():
-            assert tm.non_increasing(history, tolerance=1e-3)
-        else:
-            assert tm.non_increasing(history)
+        assert tm.non_increasing(history, tolerance=1e-3)
         # Make sure that it's decreasing
         if is_stump():
             # we might have already got the best score with base_score.
@@ -1483,8 +1490,14 @@ class TestWithDask:
         params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
-    def test_hist_multi_absolute_error(self, client: "Client") -> None:
-        check_multi_output_tree(client, "cpu")
+    def test_hist_multi_regressor(self, client: "Client") -> None:
+        check_multi_output_tree_regressor(client, "cpu")
+
+    def test_hist_multi_classifier(self, client: "Client") -> None:
+        check_multi_output_tree_classifier(client, "cpu")
+
+    def test_hist_multi_shap(self, client: "Client") -> None:
+        check_multi_output_tree_shap(client, "cpu")
 
     def test_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 3000, 30, 13)
@@ -1579,7 +1592,56 @@ class TestWithDask:
                 )
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
-                assert base_score == [250.0]
+                # Exact absolute-error initialization uses the lower weighted median.
+                np.testing.assert_allclose(base_score, [0.0], rtol=1e-5)
+
+                # The smooth approximation scale must be global. Worker 0 has only zero
+                # residuals while worker 1 has one residual of -1000. A local scale would
+                # therefore produce a different root update.
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:absoluteerror",
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                delta = (np.sqrt(1000.0) / 4.0) ** 2
+                outlier_curvature = delta / np.hypot(delta, 1000.0)
+                expected = (1000.0 * outlier_curvature) / (3.0 + outlier_curvature)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
+
+                booster = xgb.train(
+                    {
+                        "tree_method": "hist",
+                        "objective": "reg:quantileerror",
+                        "quantile_alpha": 0.5,
+                        "base_score": 0,
+                        "eta": 1,
+                        "max_depth": 1,
+                        "min_child_weight": 0,
+                        "reg_alpha": 0,
+                        "reg_lambda": 0,
+                    },
+                    Xy,
+                    num_boost_round=1,
+                )
+                predt = booster.predict(Xy)
+                residual_scale = (np.sqrt(1000.0) / 4.0) ** 2
+                x_outlier = -1000.0 / (0.04 * residual_scale)
+                tanh_x = np.tanh(x_outlier)
+                outlier_grad = 0.5 * residual_scale * tanh_x
+                zero_hess = 0.5 / 0.04
+                outlier_hess = 0.5 / 0.04 * tanh_x / x_outlier
+                expected = -outlier_grad / (3.0 * zero_hess + outlier_hess)
+                np.testing.assert_allclose(predt, expected, rtol=1e-5)
                 return True
 
         workers = tm.dask.get_client_workers(client)
@@ -1955,6 +2017,7 @@ class TestWithDask:
         cls = dxgb.DaskXGBClassifier()
         cls.load_model(path)
         assert cls.n_classes_ == 10
+        np.testing.assert_array_equal(cls.classes_, np.arange(cls.n_classes_))
         predt_2 = cls.predict(X)
         proba_2 = cls.predict_proba(X)
 

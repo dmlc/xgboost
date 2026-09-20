@@ -5,7 +5,7 @@ Learning to rank with the Dask Interface
   .. versionadded:: 3.0.0
 
 This is a demonstration of using XGBoost for learning to rank tasks using the
-MSLR_10k_letor dataset. For more infomation about the dataset, please visit its
+MSLR_10k_letor dataset. For more information about the dataset, please visit its
 `description page <https://www.microsoft.com/en-us/research/project/mslr/>`_.
 
 See :ref:`ltr-dist` for a general description for distributed learning to rank and

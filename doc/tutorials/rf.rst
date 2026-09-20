@@ -8,10 +8,10 @@ gradient-boosted decision trees, but a different training algorithm.  One can us
 to train a standalone random forest or use random forest as a base model for gradient
 boosting.  Here we focus on training standalone random forest.
 
-We have native APIs for training random forests since the early days, and a new
-Scikit-Learn wrapper after 0.82 (not included in 0.82).  Please note that the new
-Scikit-Learn wrapper is still **experimental**, which means we might change the interface
-whenever needed.
+We have native APIs for training random forests since the early days, and the
+Scikit-Learn estimators can train random forests as well by setting the appropriate
+parameters, as shown below.  The dedicated ``XGBRFClassifier`` and ``XGBRFRegressor``
+wrappers are deprecated since 3.4.0.
 
 *****************************************
 Standalone Random Forest With XGBoost API
@@ -69,16 +69,27 @@ A random forest model can then be trained as follows::
 Standalone Random Forest With Scikit-Learn-Like API
 ***************************************************
 
-``XGBRFClassifier`` and ``XGBRFRegressor`` are SKL-like classes that provide random forest
-functionality. They are basically versions of ``XGBClassifier`` and ``XGBRegressor`` that
-train random forest instead of gradient boosting, and have default values and meaning of
-some of the parameters adjusted accordingly. In particular:
+.. deprecated:: 3.4.0
 
-* ``n_estimators`` specifies the size of the forest to be trained; it is converted to
-  ``num_parallel_tree``, instead of the number of boosting rounds
-* ``learning_rate`` is set to 1 by default
-* ``colsample_bynode`` and ``subsample`` are set to 0.8 by default
-* ``booster`` is always ``gbtree``
+  ``XGBRFClassifier``, ``XGBRFRegressor``, and their Dask counterparts are deprecated and
+  will be removed in a future release. They are thin wrappers over the boosting interface
+  rather than a conventional random forest implementation, and they do not support
+  features like early stopping. Use the native API described above (set
+  ``num_parallel_tree`` with ``num_boost_round=1``), pass ``num_parallel_tree`` along with
+  ``n_estimators=1`` to :py:class:`~xgboost.XGBClassifier` or
+  :py:class:`~xgboost.XGBRegressor`, or use a dedicated implementation such as
+  :py:class:`sklearn.ensemble.RandomForestClassifier`.
+
+:py:class:`~xgboost.XGBClassifier` and :py:class:`~xgboost.XGBRegressor` can train random
+forests by setting the same parameters as the native API described above.  Since
+``n_estimators`` specifies the number of boosting rounds for these estimators, set it to 1
+and use ``num_parallel_tree`` for the size of the forest:
+
+* ``num_parallel_tree`` specifies the size of the forest to be trained
+* ``n_estimators`` should be set to 1 to prevent boosting multiple random forests
+* ``learning_rate`` should be set to 1
+* ``subsample`` and one of the ``colsample_by*`` parameters must be set to a value less
+  than 1
 
 For a simple example, you can train a random forest regressor with::
 
@@ -88,12 +99,14 @@ For a simple example, you can train a random forest regressor with::
 
     kf = KFold(n_splits=2)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBRFRegressor(random_state=42).fit(
-	X[train_index], y[train_index])
-
-Note that these classes have a smaller selection of parameters compared to using
-``train()``. In particular, it is impossible to combine random forests with gradient
-boosting using this API.
+        xgb_model = xgb.XGBRegressor(
+            n_estimators=1,
+            num_parallel_tree=100,
+            learning_rate=1,
+            subsample=0.8,
+            colsample_bynode=0.8,
+            random_state=42,
+        ).fit(X[train_index], y[train_index])
 
 
 *******

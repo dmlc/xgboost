@@ -10,6 +10,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 
+from .data import make_ltr
 from .utils import Device
 
 
@@ -19,7 +20,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str, device: Device) -> No
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 
-    X, y, q, _ = tm.make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
+    X, y, q, _ = make_ltr(n_samples=128, n_features=2, n_query_groups=8, max_rel=3)
 
     # pack qid into x using dataframe
     df = impl.DataFrame(X)
@@ -119,7 +120,7 @@ def run_ranking_categorical(device: str) -> None:
 
 def run_normalization(device: str) -> None:
     """Test normalization."""
-    X, y, qid, _ = tm.make_ltr(2048, 4, 64, 3)
+    X, y, qid, _ = make_ltr(2048, 4, 64, 3)
     # top-k
     ltr = xgb.XGBRanker(objective="rank:pairwise", n_estimators=4, device=device)
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
@@ -186,9 +187,9 @@ def run_score_normalization(device: str, objective: str) -> None:
     """Test normalization by score differences."""
     if objective == "rank:map":
         # Binary relevance
-        X, y, qid, _ = tm.make_ltr(4096, 4, 64, max_rel=1)
+        X, y, qid, _ = make_ltr(4096, 4, 64, max_rel=1)
     else:
-        X, y, qid, _ = tm.make_ltr(4096, 4, 64, 3)
+        X, y, qid, _ = make_ltr(4096, 4, 64, 3)
     ltr = xgb.XGBRanker(objective=objective, n_estimators=4, device=device)
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e0 = ltr.evals_result()

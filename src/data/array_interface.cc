@@ -14,7 +14,7 @@
 namespace xgboost {
 std::string ArrayInterfaceHandler::TypeStr(Type type) {
   auto name_fn = [](std::int32_t bits, char t) {
-    return std::to_string(bits) + "-bit " + ArrayInterfaceErrors::TypeStr(t);
+    return std::to_string(bits) + "-bit " + std::string{ArrayInterfaceErrors::TypeStr(t)};
   };
   switch (type) {
     case kF2:

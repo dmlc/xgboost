@@ -264,6 +264,10 @@ For ``RAPIDS Accelerator Frequently Asked Questions``, please refer to the
 RMM Support
 ***********
 
+.. deprecated:: 3.5.0
+
+  The RMM plugin has been deprecated, use the CUDA async pool instead.
+
 .. versionadded:: 3.0
 
 When compiled with the RMM plugin (see :doc:`/build`), the XGBoost spark package can reuse

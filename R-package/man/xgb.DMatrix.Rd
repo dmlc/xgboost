@@ -131,7 +131,8 @@ not be saved, so make sure that \code{factor} columns passed to \code{predict} h
 
 \item{feature_weights}{Set feature weights for column sampling.}
 
-\item{data_split_mode}{Not used yet. This parameter is for distributed training, which is not yet available for the R package.}
+\item{data_split_mode}{Deprecated. Only row-wise split is supported; column-wise split
+has been removed and is rejected.}
 
 \item{...}{Not used.
 

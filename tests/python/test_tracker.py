@@ -6,9 +6,9 @@ from typing import Dict, Union
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies
+
 from xgboost import RabitTracker, collective
 from xgboost import testing as tm
-from xgboost.testing.collective import get_avail_port
 
 
 def test_rabit_tracker() -> None:
@@ -36,7 +36,7 @@ def test_wait() -> None:
     with pytest.raises(ValueError, match="Timeout waiting for the tracker"):
         tracker.wait_for(1)
 
-    with pytest.raises(ValueError, match=r"Failed to (accept|call `getsockopt`)"):
+    with pytest.raises(ValueError, match=r"Failed to (accept|call `getsockopt)"):
         tracker.free()
 
 
@@ -65,8 +65,9 @@ def test_worker_port() -> None:
     args = tracker.worker_args()
 
     def local_test(worker_id: int, rabit_args: dict) -> int:
-        cfg = collective.Config(worker_port=get_avail_port)
+        cfg = collective.Config(worker_port=lambda: 0)
         cfg.update_worker_args(rabit_args)
+        assert rabit_args["dmlc_worker_port"] == 0
         with collective.CommunicatorContext(**rabit_args):
             a = np.array([1])
             result = collective.allreduce(a, collective.Op.SUM)
@@ -186,6 +187,7 @@ def test_broadcast():
 @pytest.mark.skipif(**tm.no_dask())
 def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
+
     from xgboost import dask as dxgb
     from xgboost.testing.dask import get_rabit_args
 

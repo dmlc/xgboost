@@ -20,11 +20,13 @@ TEST(QuantileLossParam, Basic) {
   ASSERT_EQ(param.quantile_alpha.Get().size(), 2);
   ASSERT_NEAR(ref[0], 0.3, kRtEps);
   ASSERT_NEAR(ref[1], 0.6, kRtEps);
+  ASSERT_NO_THROW(param.Validate());
 
   param.UpdateAllowUnknown(Args{{"quantile_alpha", "(0.6, 0.3)"}});
   ASSERT_EQ(param.quantile_alpha.Get().size(), 2);
   ASSERT_NEAR(ref[0], 0.6, kRtEps);
   ASSERT_NEAR(ref[1], 0.3, kRtEps);
+  ASSERT_ANY_THROW(param.Validate());
 }
 }  // namespace common
 }  // namespace xgboost

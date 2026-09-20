@@ -50,13 +50,13 @@ public class PredictLeafIndices {
     int round = 3;
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
-    //predict using first 2 tree
+    // predict using the first 2 boosting iterations
     float[][] leafindex = booster.predictLeaf(testMat, 2);
     if (leafindex.length > 0 && leafindex[0].length > 1) {
       System.out.println(leafindex[0][0] + ", " + leafindex[0][1]);
     }
 
-    //predict all trees
+    // predict all boosting iterations
     leafindex = booster.predictLeaf(testMat, 0);
     if (leafindex.length > 0 && leafindex[0].length > 1) {
       System.out.println(leafindex[0][0] + ", " + leafindex[0][1]);

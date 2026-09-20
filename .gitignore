@@ -56,6 +56,7 @@ R-package.Rproj
 R-package/build/*
 *.cache*
 .mypy_cache/
+.ruff_cache/
 doxygen
 
 # java
@@ -104,7 +105,8 @@ metastore_db
 
 # files from R-package source install
 **/config.status
-R-package/config.h
+R-package/src/cmake-build
+R-package/src/config.h
 R-package/src/Makevars
 *.lib
 

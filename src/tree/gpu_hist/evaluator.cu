@@ -9,6 +9,7 @@
 
 #include <cuda/std/tuple>  // for make_tuple, get
 
+#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
@@ -18,14 +19,14 @@
 namespace xgboost::tree {
 void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cuts,
                              common::Span<FeatureType const> ft, bst_feature_t n_features,
-                             TrainParam const &param, bool is_column_split) {
+                             TrainParam const &param) {
   param_ = param;
-  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device()};
+  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), 1u};
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
-    auto beg = thrust::make_counting_iterator<size_t>(1ul);
-    auto end = thrust::make_counting_iterator<size_t>(ptrs.size());
+    auto beg = dh::make_counting_iterator<size_t>(1ul);
+    auto end = dh::make_counting_iterator<size_t>(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;
     // This condition avoids sort-based split function calls if the users want
     // onehot-encoding-based splits.
@@ -56,25 +57,23 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
      * cache feature index binary search result
      */
     feature_idx_.resize(cat_sorted_idx_.size());
-    auto it = thrust::make_counting_iterator(0ul);
+    auto it = dh::make_counting_iterator(0ul);
     thrust::transform(ctx->CUDACtx()->CTP(), it, it + feature_idx_.size(), feature_idx_.begin(),
                       [=] XGBOOST_DEVICE(size_t i) {
                         auto fidx = dh::SegmentId(ptrs, i);
                         return fidx;
                       });
   }
-  is_column_split_ = is_column_split;
   device_ = ctx->Device();
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitSharedInputs shared_inputs,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
+    EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<EvalParam> evaluator) {
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
-  auto it = thrust::make_counting_iterator(0u);
+  auto it = dh::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   auto total_bins = shared_inputs.feature_values.size();
   thrust::transform(ctx->CUDACtx()->CTP(), it, it + data.size(), dh::tbegin(data),

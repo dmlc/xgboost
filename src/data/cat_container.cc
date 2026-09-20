@@ -1,13 +1,16 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #include "cat_container.h"
 
-#include <algorithm>  // for copy
-#include <cstddef>    // for size_t
-#include <memory>     // for make_unique
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>    // for copy
+#include <cstddef>      // for size_t
+#include <cstring>      // for memcpy
+#include <limits>       // for numeric_limits
+#include <memory>       // for make_unique
+#include <type_traits>  // for is_same_v
+#include <utility>      // for move
+#include <vector>       // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
@@ -43,12 +46,6 @@ CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatCon
                      using T =
                          typename cpu_impl::ViewToStorageImpl<std::decay_t<decltype(values)>>::Type;
                      this->cpu_impl_->columns.emplace_back();
-                     using ElemT = typename T::value_type;
-
-                     if constexpr (std::is_floating_point_v<ElemT>) {
-                       LOG(FATAL) << error::NoFloatCat();
-                     }
-
                      this->cpu_impl_->columns.back().emplace<T>();
                      auto& v = std::get<T>(this->cpu_impl_->columns.back());
                      v.resize(values.size());
@@ -70,49 +67,54 @@ CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatCon
 }
 
 namespace {
+// These IDs are part of the serialized category schema and must remain stable.
+enum class CatIndexType : std::int64_t {
+  kF32 = 7,
+  kF64 = 8,
+  kI8 = 9,
+  kU8 = 10,
+  kI16 = 11,
+  kU16 = 12,
+  kI32 = 13,
+  kU32 = 14,
+  kI64 = 15,
+  kU64 = 16,
+};
+
 template <typename T>
-struct PrimToUbj;
+struct CatToJson;
+
+template <typename JsonArrayT, CatIndexType category_type>
+struct CatToJsonImpl {
+  using JsonArray = JsonArrayT;
+  static constexpr CatIndexType kCategoryType{category_type};
+};
 
 template <>
-struct PrimToUbj<std::uint8_t> {
-  using Type = U8Array;
-};
+struct CatToJson<std::uint8_t> : CatToJsonImpl<U8Array, CatIndexType::kU8> {};
 template <>
-struct PrimToUbj<std::uint16_t> {
-  using Type = U16Array;
-};
+struct CatToJson<std::int8_t> : CatToJsonImpl<I8Array, CatIndexType::kI8> {};
 template <>
-struct PrimToUbj<std::uint32_t> {
-  using Type = U32Array;
-};
+struct CatToJson<std::int16_t> : CatToJsonImpl<I16Array, CatIndexType::kI16> {};
 template <>
-struct PrimToUbj<std::uint64_t> {
-  using Type = U64Array;
-};
+struct CatToJson<std::int32_t> : CatToJsonImpl<I32Array, CatIndexType::kI32> {};
 template <>
-struct PrimToUbj<std::int8_t> {
-  using Type = I8Array;
-};
+struct CatToJson<std::int64_t> : CatToJsonImpl<I64Array, CatIndexType::kI64> {};
 template <>
-struct PrimToUbj<std::int16_t> {
-  using Type = I16Array;
-};
+struct CatToJson<std::uint16_t> : CatToJsonImpl<U16Array, CatIndexType::kU16> {};
 template <>
-struct PrimToUbj<std::int32_t> {
-  using Type = I32Array;
-};
+struct CatToJson<std::uint32_t> : CatToJsonImpl<U32Array, CatIndexType::kU32> {};
 template <>
-struct PrimToUbj<std::int64_t> {
-  using Type = I64Array;
-};
-template <>
-struct PrimToUbj<float> {
-  using Type = F32Array;
-};
-template <>
-struct PrimToUbj<double> {
-  using Type = F64Array;
-};
+struct CatToJson<std::uint64_t> : CatToJsonImpl<U64Array, CatIndexType::kU64> {};
+
+template <typename In, typename Out>
+void CopyBitPattern(std::vector<In> const& in, std::vector<Out>* out) {
+  static_assert(sizeof(In) == sizeof(Out));
+  out->resize(in.size());
+  if (!in.empty()) {
+    std::memcpy(out->data(), in.data(), in.size() * sizeof(In));
+  }
+}
 }  // anonymous namespace
 
 void CatContainer::Save(Json* p_out) const {
@@ -125,33 +127,42 @@ void CatContainer::Save(Json* p_out) const {
     auto& f_out = arr[fidx];
 
     auto const& col = columns[fidx];
-    std::visit(enc::Overloaded{
-                   [&f_out](cpu_impl::CatStrArray const& str) {
-                     f_out = Object{};
-                     I32Array joffsets{str.offsets.size()};
-                     auto const& f_offsets = str.offsets;
-                     std::copy(f_offsets.cbegin(), f_offsets.cend(), joffsets.GetArray().begin());
-                     f_out["offsets"] = std::move(joffsets);
+    std::visit(
+        enc::Overloaded{
+            [&f_out](cpu_impl::CatStrArray const& str) {
+              f_out = Object{};
+              I32Array joffsets{str.offsets.size()};
+              auto const& f_offsets = str.offsets;
+              std::copy(f_offsets.cbegin(), f_offsets.cend(), joffsets.GetArray().begin());
+              f_out["offsets"] = std::move(joffsets);
 
-                     I8Array jnames{str.values.size()};  // fixme: uint8
-                     auto const& f_names = str.values;
-                     std::copy(f_names.cbegin(), f_names.cend(), jnames.GetArray().begin());
-                     f_out["values"] = std::move(jnames);
-                   },
-                   [&f_out](auto&& values) {
-                     using T =
-                         std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
-                     using JT = typename PrimToUbj<T>::Type;
-                     JT array{values.size()};
-                     std::copy_n(values.data(), values.size(), array.GetArray().begin());
+              I8Array jnames{str.values.size()};  // fixme: uint8
+              auto const& f_names = str.values;
+              std::copy(f_names.cbegin(), f_names.cend(), jnames.GetArray().begin());
+              f_out["values"] = std::move(jnames);
+            },
+            [&f_out](auto&& values) {
+              using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
+              using Serialization = CatToJson<T>;
+              if constexpr (std::is_same_v<T, std::uint64_t>) {
+                auto valid = std::all_of(values.cbegin(), values.cend(), [](T value) {
+                  return value <=
+                         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+                });
+                CHECK(valid) << "Category index values must not exceed the signed 64-bit range.";
+              }
+              using JsonArray = typename Serialization::JsonArray;
+              JsonArray array{values.size()};
+              auto& serialized = array.GetArray();
+              std::copy(values.cbegin(), values.cend(), serialized.begin());
 
-                     Object out{};
-                     out["type"] = static_cast<std::int64_t>(array.Type());
-                     out["values"] = std::move(array);
+              Object out{};
+              out["type"] = static_cast<std::int64_t>(Serialization::kCategoryType);
+              out["values"] = std::move(array);
 
-                     f_out = std::move(out);
-                   }},
-               col);
+              f_out = std::move(out);
+            }},
+        col);
   }
 
   auto jf_segments = I32Array{this->feature_segments_.Size()};
@@ -169,20 +180,34 @@ void CatContainer::Save(Json* p_out) const {
 }
 
 namespace {
+// UBJSON only supports uint8; wider unsigned arrays use same-width signed storage.
+template <typename T>
+using UbjUnsignedStorageT =
+    std::conditional_t<(std::is_unsigned_v<T> && sizeof(T) > 1), std::make_signed_t<T>, T>;
+
 // Dispatch method for JSON and UBJSON
 template <typename U, typename Vec>
 void LoadJson(Json jvalues, Vec* p_out) {
-  if (IsA<Array>(jvalues)) {
+  std::vector<U> buf;
+  if (IsA<Array>(jvalues)) {  // JSON
     auto const& jarray = get<Array const>(jvalues);
-    std::vector<U> buf(jarray.size());
+    buf.resize(jarray.size());
     for (std::size_t i = 0, n = jarray.size(); i < n; ++i) {
       buf[i] = static_cast<U>(get<Integer const>(jarray[i]));
     }
-    *p_out = std::move(buf);
-    return;
+  } else {  // UBJSON
+    using JsonArray = typename CatToJson<U>::JsonArray;
+    if (IsA<JsonArray>(jvalues)) {  // Matches
+      auto const& values = get<JsonArray const>(jvalues);
+      buf.assign(values.cbegin(), values.cend());
+    } else {  // Unsigned, needs to bit cast
+      using UBJArray = typename CatToJson<UbjUnsignedStorageT<U>>::JsonArray;
+      CHECK((std::is_unsigned_v<U> && !std::is_same_v<U, std::uint8_t>));
+      auto const& values = get<UBJArray const>(jvalues);
+      CopyBitPattern(values, &buf);
+    }
   }
-  auto const& values = get<std::add_const_t<typename PrimToUbj<U>::Type>>(jvalues);
-  *p_out = std::move(values);
+  *p_out = std::move(buf);
 }
 }  // namespace
 
@@ -204,48 +229,44 @@ void CatContainer::Load(Json const& in) {
     } else {
       // numeric
       auto type = get<Integer const>(column.at("type"));
-      using T = Value::ValueKind;
       auto const& jvalues = column.at("values");
       columns.emplace_back();
-      switch (static_cast<Value::ValueKind>(type)) {
-        case T::kI8Array: {
+      switch (static_cast<CatIndexType>(type)) {
+        case CatIndexType::kI8: {
           LoadJson<std::int8_t>(jvalues, &columns.back());
           break;
         }
-        case T::kU8Array: {
+        case CatIndexType::kU8: {
           LoadJson<std::uint8_t>(jvalues, &columns.back());
           break;
         }
-        case T::kI16Array: {
+        case CatIndexType::kI16: {
           LoadJson<std::int16_t>(jvalues, &columns.back());
           break;
         }
-        case T::kU16Array: {
+        case CatIndexType::kU16: {
           LoadJson<std::uint16_t>(jvalues, &columns.back());
           break;
         }
-        case T::kI32Array: {
+        case CatIndexType::kI32: {
           LoadJson<std::int32_t>(jvalues, &columns.back());
           break;
         }
-        case T::kU32Array: {
+        case CatIndexType::kU32: {
           LoadJson<std::uint32_t>(jvalues, &columns.back());
           break;
         }
-        case T::kI64Array: {
+        case CatIndexType::kI64: {
           LoadJson<std::int64_t>(jvalues, &columns.back());
           break;
         }
-        case T::kU64Array: {
+        case CatIndexType::kU64: {
           LoadJson<std::uint64_t>(jvalues, &columns.back());
           break;
         }
-        case T::kF32Array: {
-          LoadJson<float>(jvalues, &columns.back());
-          break;
-        }
-        case T::kF64Array: {
-          LoadJson<double>(jvalues, &columns.back());
+        case CatIndexType::kF32:
+        case CatIndexType::kF64: {
+          LOG(FATAL) << error::NoFloatCat();
           break;
         }
         default: {

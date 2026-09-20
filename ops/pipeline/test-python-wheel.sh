@@ -68,17 +68,10 @@ if [[ -n "${cuda_version}" ]]; then
   esac
 fi
 
-# Set up conda environment based on CUDA version and suite
+# Set up the suite's pre-built conda environment
 # Cannot set -u before Conda env activation
 case "$suite" in
   gpu|mgpu|gpu-arm64)
-    if [[ "${cuda_version}" == "13" ]]; then
-      # CUDA 13: Create conda environment on-the-fly
-      # Fix permissions for conda directories
-      gosu root chown -R "$(id -u):$(id -g)" /opt/miniforge/envs /opt/miniforge/pkgs/cache
-      gosu root chown "$(id -u):$(id -g)" /opt/miniforge/pkgs
-      mamba create -y -n gpu_test python=3.12 pytest cupy scipy numpy pandas scikit-learn joblib hypothesis
-    fi
     source activate gpu_test
     ;;
   cpu|cpu-arm64)
@@ -96,6 +89,23 @@ export SPARK_TESTING=1
 
 pip install -v ./wheelhouse/*.whl
 
+if [[ -n "${cuda_version}" ]]; then
+  python - "${cuda_version}" <<'PY'
+import sys
+
+from xgboost import build_info
+
+expected_cuda_major = int(sys.argv[1])
+cuda_version = build_info()["CUDA_VERSION"]
+if cuda_version[0] != expected_cuda_major:
+    raise RuntimeError(
+        f"Expected a CUDA {expected_cuda_major} wheel, but it was built with CUDA "
+        f"{cuda_version[0]}.{cuda_version[1]}"
+    )
+print(f"Wheel was built with CUDA {cuda_version[0]}.{cuda_version[1]}")
+PY
+fi
+
 case "$suite" in
   gpu|gpu-arm64)
     echo "-- Run Python tests, using a single GPU"
@@ -109,7 +119,6 @@ case "$suite" in
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_with_dask
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark/test_data.py -k dmatrix_ctor_gpu
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark/test_spark.py -k local_cluster_gpu
-    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_federated
     ;;
   cpu)
     echo "-- Run Python tests (CPU)"
@@ -117,7 +126,6 @@ case "$suite" in
     pytest -v -s -rxXs --durations=0 tests/python
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_dask
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark
-    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_federated
     ;;
   cpu-arm64)
     echo "-- Run Python tests (CPU, ARM64)"

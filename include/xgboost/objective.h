@@ -17,11 +17,11 @@
 
 #include <cstdint>  // for int32_t
 #include <functional>
+#include <set>
 #include <string>  // for string
 
 namespace xgboost {
 
-class RegTree;
 struct Context;
 
 /** @brief The interface of objective function */
@@ -38,8 +38,9 @@ class ObjFunction : public Configurable {
    * @brief Configure the objective with the specified parameters.
    *
    * @param args arguments to the objective function.
+   * @return Names of parameters consumed by the objective.
    */
-  virtual void Configure(Args const& args) = 0;
+  virtual std::set<std::string> Configure(Args const& args) = 0;
   /**
    * @brief Get gradient over each of predictions, given existing information.
    *
@@ -111,25 +112,6 @@ class ObjFunction : public Configurable {
   /** @brief Getter of the context. */
   [[nodiscard]] Context const* Ctx() const { return this->ctx_; }
 
-  /**
-   * @brief Update the leaf values after a tree is built. Needed for objectives with 0
-   *        hessian.
-   *
-   *   Note that the leaf update is not well defined for distributed training as XGBoost
-   *   computes only an average of quantile between workers. This breaks when some leaf
-   *   have no sample assigned in a local worker.
-   *
-   * @param position The leaf index for each rows.
-   * @param info MetaInfo providing labels and weights.
-   * @param learning_rate The learning rate for current iteration.
-   * @param prediction Model prediction after transformation.
-   * @param group_idx The group index for this tree, 0 when it's not multi-target or multi-class.
-   * @param p_tree Tree that needs to be updated.
-   */
-  virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& /*position*/,
-                              MetaInfo const& /*info*/, float /*learning_rate*/,
-                              HostDeviceVector<float> const& /*prediction*/,
-                              bst_target_t /*group_idx*/, RegTree* /*p_tree*/) const {}
   /**
    * @brief Create an objective function according to the name.
    *

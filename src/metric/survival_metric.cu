@@ -12,6 +12,7 @@
 #include <numeric>  // for accumulate
 #include <vector>
 
+#include "../collective/aggregator.h"
 #include "../common/survival_util.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"  // MetricNoCache
@@ -20,6 +21,9 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
+#include <cuda/std/functional>  // for plus
+
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #endif                                 // XGBOOST_USE_CUDA
 
@@ -81,8 +85,8 @@ class ElementWiseSurvivalMetricsReduction {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
-    thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + ndata;
+    dh::counting_iterator<size_t> begin(0);
+    dh::counting_iterator<size_t> end = begin + ndata;
 
     auto s_label_lower_bound = labels_lower_bound.DeviceSpan();
     auto s_label_upper_bound = labels_upper_bound.DeviceSpan();
@@ -103,7 +107,7 @@ class ElementWiseSurvivalMetricsReduction {
           residue *= weight;
           return PackedReduceResult{residue, weight};
         },
-        PackedReduceResult(), thrust::plus<PackedReduceResult>());
+        PackedReduceResult(), cuda::std::plus<PackedReduceResult>());
 
     return result;
   }
@@ -139,7 +143,7 @@ class ElementWiseSurvivalMetricsReduction {
 };
 
 struct EvalIntervalRegressionAccuracy {
-  void Configure(const Args&) {}
+  std::set<std::string> Configure(const Args&) { return {}; }
 
   [[nodiscard]] const char* Name() const { return "interval-regression-accuracy"; }
 
@@ -155,7 +159,9 @@ struct EvalIntervalRegressionAccuracy {
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
-  void Configure(const Args& args) { param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args& args) {
+    return UpdateAndGetUsedParameters(&param_, args);
+  }
 
   [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
 
@@ -176,10 +182,11 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
   explicit EvalEWiseSurvivalBase(Context const* ctx) { ctx_ = ctx; }
   EvalEWiseSurvivalBase() = default;
 
-  void Configure(const Args& args) override {
-    policy_.Configure(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = policy_.Configure(args);
     reducer_.Configure(policy_);
     CHECK(ctx_);
+    return used;
   }
 
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
@@ -191,7 +198,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
                                   info.labels_upper_bound_, preds);
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
@@ -214,8 +221,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
     return metric_->Eval(preds, info);
   }
 
-  void Configure(const Args& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(const Args& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     switch (param_.aft_loss_distribution) {
       case common::ProbabilityDistributionType::kNormal:
         metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
@@ -230,7 +237,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
       default:
         LOG(FATAL) << "Unknown probability distribution";
     }
-    metric_->Configure(args);
+    used.merge(metric_->Configure(args));
+    return used;
   }
 
   void SaveConfig(Json* p_out) const override {
