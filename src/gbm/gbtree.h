@@ -354,8 +354,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    auto predictor = this->CreatePredictor(false);
-    predictor->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end, approximate);
+    common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
+        ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights(), approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,

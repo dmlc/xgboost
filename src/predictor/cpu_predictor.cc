@@ -618,14 +618,6 @@ class CPUPredictor : public Predictor {
                                    tree_weights, condition, condition_feature);
     }
   }
-
-  void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                                       gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
-                                       bool approximate) const override {
-    auto const *tree_weights = model.TreeWeights();
-    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                            tree_weights, approximate);
-  }
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

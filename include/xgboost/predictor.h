@@ -116,11 +116,6 @@ class Predictor {
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) const = 0;
 
-  virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
-                                               gbm::GBTreeModel const& model,
-                                               bst_tree_t tree_end = 0,
-                                               bool approximate = false) const = 0;
-
   /**
    * \brief Creates a new Predictor*.
    *

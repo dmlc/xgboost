@@ -595,20 +595,6 @@ class GPUPredictor : public xgboost::Predictor {
     interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, 0, 0);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                                       gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                       bool approximate) const override {
-    xgboost_NVTX_FN_RANGE();
-    auto const* tree_weights = model.TreeWeights();
-
-    if (approximate) {
-      LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
-                    "instead.";
-    }
-    interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
-                                            tree_weights, approximate);
-  }
-
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
                           common::Span<RegTree const*> trees,
                           linalg::MatrixView<float> out_preds) const override {
