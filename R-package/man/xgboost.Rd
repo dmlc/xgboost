@@ -513,10 +513,11 @@ Version added: 2.0.0
 trees. After 3.0, this parameter affects GPU algorithms as well.
 }}
 
-\item{max_cat_to_onehot}{(for Non-Exact Tree Methods)
-A threshold for deciding whether XGBoost should use one-hot encoding based split for
-categorical data.  When number of categories is lesser than the threshold then one-hot
-encoding is chosen, otherwise the categories will be partitioned into children nodes.
+\item{max_cat_to_onehot}{(for Non-Exact Tree Methods) (default = \code{2^32 - 1})
+Features with fewer categories than this threshold use one-hot encoding based splits;
+otherwise, partition-based splits are used.
+Since 3.5.0, all categorical features use one-hot encoding based splits by default. Set this
+parameter to \code{1} to use partitioning, or \code{4} to restore the previous default behavior.
 
 Version added: 1.6.0}
 
