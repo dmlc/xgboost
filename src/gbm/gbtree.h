@@ -344,8 +344,13 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    auto predictor = this->CreatePredictor(false);
-    predictor->PredictContribution(p_fmat, out_contribs, model_, tree_end, approximate);
+    if (approximate) {
+      common::DispatchKernel<predictor::PredictApproxContributionKernel>(
+          ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights());
+    } else {
+      common::DispatchKernel<predictor::PredictContributionKernel>(
+          ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights(), 0, 0);
+    }
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,

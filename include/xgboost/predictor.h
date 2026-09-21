@@ -98,25 +98,6 @@ class Predictor {
                                   linalg::MatrixView<float> out_preds) const = 0;
 
   /**
-   * \brief feature contributions to individual predictions; the output will be
-   * a vector of length (nfeats + 1) * num_output_group * nsample, arranged in
-   * that order.
-   *
-   * \param [in,out]  dmat               The input feature matrix.
-   * \param [in,out]  out_contribs       The output feature contribs.
-   * \param           model              Model to make predictions from.
-   * \param           tree_end           The tree end index.
-   * \param           approximate        Use fast approximate algorithm.
-   * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
-   * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
-   */
-
-  virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
-                                   gbm::GBTreeModel const& model, bst_tree_t tree_end = 0,
-                                   bool approximate = false, int condition = 0,
-                                   unsigned condition_feature = 0) const = 0;
-
-  /**
    * \brief Creates a new Predictor*.
    *
    * \param name  Name of the predictor.

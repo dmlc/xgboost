@@ -32,7 +32,7 @@
 #include "../gbtree_view.h"
 #include "../gpu_data_accessor.cuh"
 #include "../predict_fn.h"         // for GetTreeLimit
-#include "../prediction_kernel.h"  // for PredictInteractionContributionsKernel
+#include "../prediction_kernel.h"  // for prediction kernels
 #include "dmlc/registry.h"         // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "shap.h"
@@ -45,6 +45,10 @@ namespace xgboost::interpretability::cuda_impl {
 DMLC_REGISTRY_FILE_TAG(shap_cuda);
 
 namespace {
+common::KernelRegistration<predictor::PredictContributionKernel> const kPredictContributionCUDA{
+    DeviceOrd::kCUDA, &ShapValues};
+common::KernelRegistration<predictor::PredictApproxContributionKernel> const
+    kPredictApproxContributionCUDA{DeviceOrd::kCUDA, &ApproxFeatureImportance};
 common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
     kPredictInteractionCUDA{DeviceOrd::kCUDA, &ShapInteractionValues};
 

@@ -26,7 +26,6 @@
 #include "../tree/tree_view.h"
 #include "gbtree_view.h"  // for GBTreeModelView
 #include "gpu_data_accessor.cuh"
-#include "interpretability/shap.h"
 #include "predict_fn.h"
 #include "prediction_kernel.h"
 #include "utils.h"  // for CheckProxyDMatrix
@@ -581,18 +580,6 @@ class GPUPredictor : public xgboost::Predictor {
         },
         &type_error);
     return !type_error;
-  }
-
-  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           const gbm::GBTreeModel& model, bst_tree_t tree_end, bool approximate,
-                           int, unsigned) const override {
-    auto const* tree_weights = model.TreeWeights();
-    xgboost_NVTX_FN_RANGE();
-    if (approximate) {
-      LOG(FATAL) << "Approximated contribution is not implemented in the GPU predictor, use CPU "
-                    "instead.";
-    }
-    interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, 0, 0);
   }
 
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,

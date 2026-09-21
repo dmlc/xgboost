@@ -457,8 +457,7 @@ TEST(Predictor, ApproxContribsBasic) {
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
 
   HostDeviceVector<float> approx_contribs;
-  interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, *gbtree, 0,
-                                            {});
+  learner->Predict(dmat, false, &approx_contribs, 0, 0, false, false, true, true, false);
 
   auto const& h_margin = margin_predt.ConstHostVector();
   auto const& h_contribs = approx_contribs.ConstHostVector();
@@ -486,6 +485,16 @@ TEST(Predictor, ApproxContribsBasic) {
   common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
       &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, gbtree->TreeWeights(), true);
   EXPECT_EQ(fallback.ConstHostVector(), interactions.ConstHostVector());
+
+  common::DispatchKernel<predictor::PredictApproxContributionKernel>(
+      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, gbtree->TreeWeights());
+  EXPECT_EQ(fallback.ConstHostVector(), approx_contribs.ConstHostVector());
+
+  HostDeviceVector<float> exact_contribs;
+  learner->Predict(dmat, false, &exact_contribs, 0, 0, false, false, true, false, false);
+  common::DispatchKernel<predictor::PredictContributionKernel>(
+      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, gbtree->TreeWeights(), 0, 0);
+  EXPECT_EQ(fallback.ConstHostVector(), exact_contribs.ConstHostVector());
 }
 
 TEST(Predictor, ShapIterationRange) {
