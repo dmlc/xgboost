@@ -349,7 +349,7 @@ class GBTree : public GradientBooster {
           ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights());
     } else {
       common::DispatchKernel<predictor::PredictContributionKernel>(
-          ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights(), 0, 0);
+          ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights());
     }
   }
 

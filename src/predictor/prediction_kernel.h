@@ -32,13 +32,11 @@ struct PredictLeafKernel {
  * \brief Write exact SHAP contributions using explicit tree weights.
  *
  * Zero tree_end selects all trees; null tree_weights gives all trees unit weight.
- * Both CPU and CUDA require condition and condition_feature to be zero.
  */
 struct PredictContributionKernel {
   using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
                          gbm::GBTreeModel const&, bst_tree_t tree_end,
-                         std::vector<float> const* tree_weights, int condition,
-                         unsigned condition_feature);
+                         std::vector<float> const* tree_weights);
 };
 /**
  * \brief Write approximate contributions. CUDA reports this operation as unsupported.

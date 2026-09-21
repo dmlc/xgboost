@@ -239,7 +239,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
 
   HostDeviceVector<float> shap_values;
-  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, *gbtree, 0, nullptr, 0, 0);
+  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, *gbtree, 0, nullptr);
   ASSERT_EQ(shap_values.HostVector().size(), kRows * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
 
@@ -362,7 +362,7 @@ void CheckShapHandlesDeepTree(Context const* ctx) {
   HostDeviceVector<float> margin_predt{std::vector<float>(kRows, 1.0f), ctx->Device()};
 
   HostDeviceVector<float> out;
-  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr));
   ASSERT_EQ(out.HostVector().size(), kRows * (1 + 1));
   for (auto v : out.HostVector()) {
     ASSERT_TRUE(std::isfinite(v));
@@ -406,7 +406,7 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   HostDeviceVector<float> margin_predt{std::vector<float>{0.0f, 1.0f}, ctx->Device()};
 
   HostDeviceVector<float> out;
-  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr));
   ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1));
   for (auto v : out.HostVector()) {
     ASSERT_TRUE(std::isfinite(v));
@@ -492,8 +492,8 @@ TEST(Predictor, ApproxContribsBasic) {
 
   HostDeviceVector<float> exact_contribs;
   learner->Predict(dmat, false, &exact_contribs, 0, 0, false, false, true, false, false);
-  common::DispatchKernel<predictor::PredictContributionKernel>(
-      &fallback_ctx, dmat.get(), &fallback, *gbtree, 0, gbtree->TreeWeights(), 0, 0);
+  common::DispatchKernel<predictor::PredictContributionKernel>(&fallback_ctx, dmat.get(), &fallback,
+                                                               *gbtree, 0, gbtree->TreeWeights());
   EXPECT_EQ(fallback.ConstHostVector(), exact_contribs.ConstHostVector());
 }
 
