@@ -348,7 +348,8 @@ inline void VerifyMultiAlphaLayout(Metric *metric, bool expectile) {
   std::vector<float> weights{1, 3};
   auto expected = expectile ? 0.859375 : 0.421875;
   EXPECT_NEAR(GetMultiMetricEval(metric, predts, labels, weights, {}), expected, 1e-6);
-  if (collective::IsDistributed()) {
+  // Keep at least one non-empty worker when testing empty partitions.
+  if (collective::GetWorldSize() > 1) {
     if (collective::GetRank() == 0) {
       labels.Reshape(0, 2);
       predts.Resize(0);
