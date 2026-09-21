@@ -67,6 +67,9 @@ DMLC_REGISTRY_LINK_TAG(logloss_metric);
 DMLC_REGISTRY_LINK_TAG(pseudohuber_metric);
 DMLC_REGISTRY_LINK_TAG(error_metric);
 DMLC_REGISTRY_LINK_TAG(poisson_metric);
+DMLC_REGISTRY_LINK_TAG(gamma_metric);
+DMLC_REGISTRY_LINK_TAG(tweedie_metric);
+DMLC_REGISTRY_LINK_TAG(normal_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
@@ -78,6 +81,9 @@ DMLC_REGISTRY_LINK_TAG(logloss_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(pseudohuber_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(error_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(poisson_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(gamma_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(tweedie_metric_cuda);
+DMLC_REGISTRY_LINK_TAG(normal_metric_cuda);
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
 #endif
 }  // namespace xgboost::metric
