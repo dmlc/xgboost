@@ -32,7 +32,7 @@ struct PredictLeafKernel {
  * \brief Write exact SHAP contributions using explicit tree weights.
  *
  * Zero tree_end selects all trees; null tree_weights gives all trees unit weight.
- * CPU supports conditional SHAP; CUDA requires condition and condition_feature to be zero.
+ * Both CPU and CUDA require condition and condition_feature to be zero.
  */
 struct PredictContributionKernel {
   using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
