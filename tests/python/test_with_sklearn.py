@@ -8,8 +8,9 @@ from typing import Optional, Type
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing, make_ltr
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
@@ -45,6 +46,26 @@ def test_binary_classification():
                 1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
             ) / float(len(preds))
             assert err < 0.1
+
+
+def test_predict_proba_logitraw():
+    # Regression test for `binary:logitraw` producing an invalid first column in
+    # `predict_proba`, since the raw margin isn't a probability and can't be expanded
+    # into a 2-class matrix without first passing it through a sigmoid.
+    from scipy.special import expit
+
+    X = rng.standard_normal(size=(100, 4))
+    y = rng.randint(2, size=X.shape[0])
+
+    clf = xgb.XGBClassifier(objective="binary:logitraw", n_estimators=2)
+    clf.fit(X, y)
+
+    proba = clf.predict_proba(X)
+    assert np.all(proba >= 0.0) and np.all(proba <= 1.0)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, rtol=1e-5)
+
+    raw = clf.get_booster().inplace_predict(X)
+    np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
 
 
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
@@ -99,6 +120,37 @@ def test_multiclass_classification(objective):
     proba = cls.predict_proba(X)
     assert proba.shape[0] == X.shape[0]
     assert proba.shape[1] == cls.n_classes_
+
+
+def test_classifier_same_class_scratch_refit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+    clf = xgb.XGBClassifier(n_estimators=2, n_jobs=1).fit(X, y, verbose=False)
+
+    clf.fit(X, y, verbose=False)
+
+    assert clf.n_classes_ == 3
+
+
+def test_classifier_rejects_different_class_count_refit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+    clf = xgb.XGBClassifier(n_estimators=2, n_jobs=1).fit(X, y, verbose=False)
+    before_booster = clf.get_booster()
+    before_n_classes = clf.n_classes_
+    before_objective = clf.objective
+    before_predictions = clf.predict(X)
+
+    binary = y < 2
+    with pytest.raises(ValueError, match="number of classes.*does not match"):
+        clf.fit(X[binary], y[binary], verbose=False)
+
+    assert clf.get_booster() is before_booster
+    assert clf.n_classes_ == before_n_classes
+    assert clf.objective == before_objective
+    np.testing.assert_array_equal(clf.predict(X), before_predictions)
 
 
 def test_best_iteration():
@@ -954,6 +1006,9 @@ def test_RFECV():
     from sklearn.datasets import load_breast_cancer, load_diabetes, load_iris
     from sklearn.feature_selection import RFECV
 
+    # These small datasets do not benefit from using every core for each fit.
+    n_jobs = 2
+
     # Regression
     X, y = load_diabetes(return_X_y=True)
     bst = xgb.XGBRegressor(
@@ -963,6 +1018,7 @@ def test_RFECV():
         objective="reg:squarederror",
         random_state=0,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
@@ -976,6 +1032,7 @@ def test_RFECV():
         objective="binary:logistic",
         random_state=0,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="roc_auc")
     rfecv.fit(X, y)
@@ -993,16 +1050,17 @@ def test_RFECV():
         reg_lambda=0.01,
         scale_pos_weight=0.5,
         verbosity=0,
+        n_jobs=n_jobs,
     )
     rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="neg_log_loss")
     rfecv.fit(X, y)
 
     X[0:4, :] = np.nan  # verify scikit_learn doesn't throw with nan
-    reg = xgb.XGBRegressor()
+    reg = xgb.XGBRegressor(n_jobs=n_jobs)
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
-    cls = xgb.XGBClassifier()
+    cls = xgb.XGBClassifier(n_jobs=n_jobs)
     rfecv = RFECV(estimator=cls, step=0.5, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
 
@@ -1198,10 +1256,6 @@ def test_feature_weights(tree_method):
     # number generator in std library.
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
-
-    reg = xgb.XGBRegressor(feature_weights=np.ones((kCols,)))
-    with pytest.raises(ValueError, match="Use the one in"):
-        reg.fit(X, y, feature_weights=np.ones((kCols,)))
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])

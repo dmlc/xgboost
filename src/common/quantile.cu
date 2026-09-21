@@ -3,14 +3,17 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
-#include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
 #include <algorithm>
-#include <cstdint>      // for uintptr_t
-#include <limits>       // for numeric_limits
-#include <numeric>      // for partial_sum
-#include <type_traits>  // for is_same_v
+#include <cstdint>              // for uintptr_t
+#include <cuda/functional>      // for proclaim_return_type
+#include <cuda/std/functional>  // for equal_to, greater
+#include <cuda/std/iterator>    // for make_reverse_iterator
+#include <cuda/std/tuple>       // for make_tuple, tie, tuple
+#include <limits>               // for numeric_limits
+#include <numeric>              // for partial_sum
+#include <type_traits>          // for is_same_v
 #include <utility>
 #include <vector>
 
@@ -21,6 +24,7 @@
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
@@ -91,7 +95,7 @@ void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     float w = back.rmin - front.rmax;
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(in_begin),
+        dh::make_counting_iterator(in_begin),
         [=] __device__(size_t abs_idx) { return entry_from_index(abs_idx); });
     selected_idx[cuts_ptr[column_id] + idx] =
         in_begin + BinarySearchQueryIndex(it, it + in_size, q);
@@ -169,7 +173,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     assert(!d_out.empty());
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+        dh::make_counting_iterator(0ul), [=] __device__(size_t idx) {
           auto e = to_sketch_entry(idx, in_column, column_id);
           return e;
         });
@@ -213,9 +217,9 @@ struct DeviceSketchPayload {
           Span<SketchEntry const>{entries, entries_bytes / sizeof(SketchEntry)}};
 }
 
-XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
-                                                                Span<SketchEntry const> y,
-                                                                uint64_t k) {
+XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
+                                                                   Span<SketchEntry const> y,
+                                                                   uint64_t k) {
   // Find the merge partition for the k-th output within one column.  The merged prefix of
   // length k contains i entries from x and j entries from y, where k = i + j.
   auto m = static_cast<uint64_t>(x.size());
@@ -224,7 +228,7 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   // j = k - i always stays within [0, n].
   auto low = k > n ? k - n : 0ul;
   auto high = std::min(k, m);
-  auto candidate_it = thrust::make_counting_iterator<uint64_t>(low);
+  auto candidate_it = dh::make_counting_iterator<uint64_t>(low);
   auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] XGBOOST_DEVICE(uint64_t i) {
     // j is the number of elements taken from y when the partition takes i from x.
     auto j = k - i;
@@ -235,9 +239,9 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
     return j > 0 && i < m && y[j - 1].value >= x[i].value;
   });
   auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
-                                          false, thrust::greater<bool>{});
+                                          false, cuda::std::greater<bool>{});
   auto a_ind = low + (partition_it - need_more_x);
-  return thrust::make_tuple(a_ind, k - a_ind);
+  return cuda::std::make_tuple(a_ind, k - a_ind);
 }
 
 void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
@@ -276,7 +280,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     }
 
     uint64_t a_ind, b_ind;
-    thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
+    cuda::std::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
 
     assert(b_ind <= d_y_column.size());
     assert(a_ind <= d_x_column.size());
@@ -411,21 +415,23 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
 
   auto key_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_reverse_iterator(thrust::make_counting_iterator(entries.size())),
+      cuda::std::make_reverse_iterator(dh::make_counting_iterator(entries.size())),
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
-  auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
-  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it,
-                                val_it, thrust::equal_to<size_t>{},
-                                [] __device__(SketchEntry const &r, SketchEntry const &l) {
-                                  // Only accumulate for the first type of duplication.
-                                  if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
-                                    auto w = l.wmin + r.wmin;
-                                    SketchEntry v{l.rmin, l.rmin + w, w, l.value};
-                                    return v;
-                                  }
-                                  return l;
-                                });
+  auto val_it = cuda::std::make_reverse_iterator(dh::tend(entries));
+  thrust::inclusive_scan_by_key(
+      ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it, val_it,
+      cuda::std::equal_to<size_t>{},
+      cuda::proclaim_return_type<SketchEntry>(
+          [] __device__(SketchEntry const &r, SketchEntry const &l) -> SketchEntry {
+            // Only accumulate for the first type of duplication.
+            if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
+              auto w = l.wmin + r.wmin;
+              SketchEntry v{l.rmin, l.rmin + w, w, l.value};
+              return v;
+            }
+            return l;
+          }));
 
   auto d_columns_ptr_out = this->columns_ptr_tmp_.DeviceSpan();
   // thrust unique_by_key preserves the first element.

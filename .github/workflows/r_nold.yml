@@ -25,7 +25,7 @@ jobs:
       - name: Install git and system packages
         shell: bash
         run: |
-          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
+          apt update && apt install cmake libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
       - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
@@ -36,6 +36,4 @@ jobs:
       - name: Run R tests
         shell: bash
         run: |
-          cd R-package && \
-          /tmp/R-devel/bin/R CMD INSTALL . && \
-          /tmp/R-devel/bin/R -q -e "library(testthat); setwd('tests'); source('testthat.R')"
+          python3 ops/script/test_r_package.py --r=/tmp/R-devel/bin/R --task=check

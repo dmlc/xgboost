@@ -305,8 +305,12 @@ jobs:
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
-        with:
-          cache-key-prefix: ${{ github.job }}
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: Rscript --vanilla R-package/tests/helper_scripts/install_deps.R imports
+      - name: Configure GPU R build to use CMake sccache launchers
+        run: Rscript --vanilla ops/script/setup_r_sccache.R --cmake
       - run: bash ops/pipeline/build-gpu-rpkg.sh
       - run: sccache --show-stats
       - name: Upload R package tarball
@@ -559,7 +563,7 @@ jobs:
         with:
           submodules: 'true'
       - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@c8707045ccae42888fe98e86f2ee8938bc7cc193
+        uses: Homebrew/actions/setup-homebrew@1e34f2e2acaa766b7efacb8c26352e6abbb023f9
       - name: Install libomp
         run: brew install libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main

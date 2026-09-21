@@ -17,7 +17,9 @@
 #include <utility>
 #include <vector>
 
+#include "../common/kernel.h"  // for DispatchKernel
 #include "../common/timer.h"
+#include "../predictor/prediction_kernel.h"
 #include "../tree/param.h"      // TrainParam
 #include "../tree/tree_view.h"  // for WalkTree
 #include "gbtree_model.h"
@@ -205,7 +207,7 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
 
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
+  explicit GBTree(LearnerModelState const* booster_config, Context const* ctx)
       : GradientBooster{ctx}, model_(booster_config, ctx_) {
     monitor_.Init(__func__);
   }
@@ -230,9 +232,6 @@ class GBTree : public GradientBooster {
              bool* out_of_bound) const override;
 
   [[nodiscard]] std::int32_t BoostedRounds() const override { return this->model_.BoostedRounds(); }
-  [[nodiscard]] bool ModelFitted() const override {
-    return !model_.trees.empty() || !model_.trees_to_update.empty();
-  }
 
   // Test-only accessor. The cache entry is thread-local and must have been initialized by
   // PredictBatch or DoBoost on this thread.
@@ -253,8 +252,8 @@ class GBTree : public GradientBooster {
     // Because feature with no importance doesn't appear in the return value so
     // we need to set up another pair of vectors to store the values during
     // computation.
-    std::vector<size_t> split_counts(this->model_.learner_model_param->num_feature, 0);
-    std::vector<float> gain_map(this->model_.learner_model_param->num_feature, 0);
+    std::vector<size_t> split_counts(this->model_.learner_model_state->num_feature, 0);
+    std::vector<float> gain_map(this->model_.learner_model_state->num_feature, 0);
     std::vector<int32_t> tree_idx;
     if (trees.empty()) {
       tree_idx.resize(this->model_.trees.size());
@@ -336,8 +335,7 @@ class GBTree : public GradientBooster {
       LOG(FATAL)
           << "`strict_shape` with predict leaf is not supported when vector leaf trees are used.";
     }
-    auto predictor = this->CreatePredictor(false);
-    predictor->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    common::DispatchKernel<predictor::PredictLeafKernel>(ctx_, p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -356,8 +354,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    auto predictor = this->CreatePredictor(false);
-    predictor->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end, approximate);
+    common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
+        ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights(), approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,

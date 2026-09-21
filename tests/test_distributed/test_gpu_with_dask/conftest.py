@@ -26,7 +26,7 @@ def local_cuda_client(request: Any, pytestconfig: pytest.Config) -> Generator:
     from dask.distributed import Client
     from dask_cuda import LocalCUDACluster
 
-    yield Client(LocalCUDACluster(**kwargs))
+    yield Client(LocalCUDACluster(**kwargs, dashboard_address=None))
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

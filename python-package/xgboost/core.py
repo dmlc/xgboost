@@ -96,13 +96,28 @@ if TYPE_CHECKING:
 XGBoostError = _XGBoostError
 
 
+def _metric_str_to_float(value: str) -> float:
+    """Convert a metric value from the native library's eval string into a float.
+
+    MSVC builds print an indeterminate NaN as ``-nan(ind)``, which ``float()``
+    rejects.
+
+    """
+    try:
+        return float(value)
+    except ValueError:
+        if "nan" in value.lower():
+            return float("nan")
+        raise
+
+
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
     """Parse an eval result string from the booster."""
     splited = result.split()[1:]
     # split up `test-error:0.1234`
     metric_score_str = [tuple(s.split(":")) for s in splited]
     # convert to float
-    metric_score = [(n, float(s)) for n, s in metric_score_str]
+    metric_score = [(n, _metric_str_to_float(s)) for n, s in metric_score_str]
     return metric_score
 
 
@@ -533,7 +548,7 @@ def require_keyword_args(
 
         Parameters
         ----------
-        f :
+        func :
             function to check arguments on.
 
         """
@@ -3311,8 +3326,8 @@ class Booster:
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
-                "data did not contain feature names, but the following fields are expected: "
-                + ", ".join(self.feature_names)
+                "data did not contain feature names, but the following fields "
+                "are expected: " + ", ".join(self.feature_names)
             )
 
         if self.feature_names != feature_names:
@@ -3355,7 +3370,7 @@ class Booster:
             The name of the feature.
         fmap:
             The name of feature map file.
-        bin :
+        bins :
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.

@@ -15,7 +15,7 @@ from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
 import xgboost.testing as tm
-from xgboost.compat import concat
+from xgboost.compat import concat, import_cudf
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
@@ -396,9 +396,7 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     if device == "cpu":
         DF: DF_T_union = pd.DataFrame
     else:
-        from cudf import DataFrame as CudfDataFrame
-
-        DF = CudfDataFrame
+        DF = import_cudf().DataFrame
 
     def make(n: int, seed: int) -> DF_union:
         rng = np.random.default_rng(seed)

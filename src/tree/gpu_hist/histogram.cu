@@ -2,11 +2,11 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #include <cstdint>               // uint32_t, int32_t
-#include <cuda/functional>       // for proclaim_copyable_arguments
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
 
 #include "../../collective/aggregator.h"
+#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for GetMpCnt
 #include "../../common/device_helpers.cuh"
@@ -515,10 +515,10 @@ class DeviceHistogramDispatchAccessor {
     std::size_t n_total_samples = h_sizes_csum.back();
     if (ridxs.size() == 1 && n_total_samples == matrix.n_rows) {
       // Special optimization for the root node.
-      using RidxIter = thrust::counting_iterator<cuda_impl::RowIndexT>;
+      using RidxIter = dh::counting_iterator<cuda_impl::RowIndexT>;
       CHECK_LT(matrix.base_rowid, std::numeric_limits<cuda_impl::RowIndexT>::max());
       auto iter = common::IterSpan{
-          thrust::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
+          dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
           matrix.n_rows};
       dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(hists.size(), iter);
       this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,

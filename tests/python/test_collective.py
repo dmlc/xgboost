@@ -3,6 +3,7 @@ from dataclasses import asdict
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost import testing as tm

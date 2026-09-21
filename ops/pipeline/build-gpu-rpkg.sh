@@ -7,27 +7,22 @@
 set -euox pipefail
 
 python3 ops/script/test_r_package.py --task=pack
-mv xgboost/ xgboost_rpack/
 
-mkdir build
-cd build
-cmake .. -GNinja \
-  -DUSE_CUDA=ON \
-  -DR_LIB=ON \
-  -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-  -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-  -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache
-ninja -v
-cd ..
+gpu_r_lib=$(mktemp -d)
+cleanup() {
+  rm -r "${gpu_r_lib}"
+}
+trap cleanup EXIT
 
-# This super wacky hack is found in cmake/RPackageInstall.cmake.in and
-# cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R
-# and have R use xgboost.so that we've already built.
-rm -v xgboost_rpack/configure
-rm -rfv xgboost_rpack/src
-mkdir -p xgboost_rpack/src
-cp -v lib/xgboost.so xgboost_rpack/src/
-echo 'all:' > xgboost_rpack/src/Makefile
-echo 'all:' > xgboost_rpack/src/Makefile.win
-mv xgboost_rpack/ xgboost/
-tar cvzf xgboost_r_gpu_linux.tar.gz xgboost/
+env \
+  XGBOOST_USE_CUDA=ON \
+  CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)" \
+  R CMD INSTALL --build --clean --library="${gpu_r_lib}" xgboost/
+
+shopt -s nullglob
+gpu_packages=(xgboost_*_R_*.tar.gz)
+if [[ ${#gpu_packages[@]} -ne 1 ]]; then
+  echo "Expected one R binary package, found ${#gpu_packages[@]}: ${gpu_packages[*]}" >&2
+  exit 1
+fi
+mv -v "${gpu_packages[0]}" xgboost_r_gpu_linux.tar.gz

@@ -20,6 +20,7 @@
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for SetDevice
 #include "../../common/device_helpers.cuh"
+#include "../../common/kernel.h"  // for KernelRegistration
 #include "../../common/math.h"
 #include "../../common/nvtx_utils.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
@@ -30,7 +31,9 @@
 #include "../../tree/tree_view.h"
 #include "../gbtree_view.h"
 #include "../gpu_data_accessor.cuh"
-#include "../predict_fn.h"  // for GetTreeLimit
+#include "../predict_fn.h"         // for GetTreeLimit
+#include "../prediction_kernel.h"  // for PredictInteractionContributionsKernel
+#include "dmlc/registry.h"         // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "shap.h"
 #include "xgboost/data.h"
@@ -39,7 +42,12 @@
 #include "xgboost/logging.h"
 
 namespace xgboost::interpretability::cuda_impl {
+DMLC_REGISTRY_FILE_TAG(shap_cuda);
+
 namespace {
+common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
+    kPredictInteractionCUDA{DeviceOrd::kCUDA, &ShapInteractionValues};
+
 using predictor::EllpackLoader;
 using predictor::GBTreeModelView;
 using predictor::SparsePageLoaderNoShared;
@@ -1196,7 +1204,7 @@ void DispatchByBatchLoader(Context const* ctx, DMatrix* p_fmat, bst_feature_t n_
 template <typename Fn>
 void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView const& new_enc,
                 gbm::GBTreeModel const& model, Fn&& fn) {
-  auto n_features = model.learner_model_param->num_feature;
+  auto n_features = model.learner_model_state->num_feature;
   if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
     DispatchByBatchLoader(ctx, p_fmat, n_features, std::move(acc), fn);
@@ -1205,20 +1213,19 @@ void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView cons
   }
 }
 
-void SetShapDevice(Context const* ctx) { curt::SetDevice(ctx->Ordinal()); }
 }  // namespace
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature) {
   xgboost_NVTX_FN_RANGE();
-  SetShapDevice(ctx);
+  curt::SetDevice(ctx->Ordinal());
   CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1244,7 +1251,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
@@ -1258,15 +1265,15 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                            bst_tree_t tree_end, std::vector<float> const* tree_weights,
                            bool approximate) {
   xgboost_NVTX_FN_RANGE();
-  SetShapDevice(ctx);
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
 
+  curt::SetDevice(ctx->Ordinal());
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
-  auto const ngroup = model.learner_model_param->num_output_group;
+  auto const ngroup = model.learner_model_state->num_output_group;
   CHECK_NE(ngroup, 0);
-  auto const ncolumns = model.learner_model_param->num_feature + 1;
+  auto const ncolumns = model.learner_model_state->num_feature + 1;
   auto dim_size = ncolumns * ncolumns * ngroup;
   out_contribs->SetDevice(ctx->Device());
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
@@ -1293,7 +1300,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-  auto base_score = model.learner_model_param->BaseScore(ctx);
+  auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {

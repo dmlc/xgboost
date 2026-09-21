@@ -3,7 +3,9 @@
  */
 #include <thrust/execution_policy.h>
 
-#include "device_helpers.cuh"            // dh::Reduce, dh::XGBCachingDeviceAllocator
+#include <cuda/std/functional>  // for plus
+
+#include "device_helpers.cuh"  // dh::Reduce, dh::XGBCachingDeviceAllocator
 #include "numeric.h"
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
@@ -14,6 +16,6 @@ double Reduce(Context const* ctx, HostDeviceVector<float> const& values) {
   auto const d_values = values.ConstDeviceSpan();
   dh::XGBCachingDeviceAllocator<char> alloc;
   return dh::Reduce(thrust::cuda::par(alloc), dh::tcbegin(d_values), dh::tcend(d_values), 0.0,
-                    thrust::plus<float>{});
+                    cuda::std::plus<float>{});
 }
 }  // namespace xgboost::common::cuda_impl

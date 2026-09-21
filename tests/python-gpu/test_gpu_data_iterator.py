@@ -1,9 +1,11 @@
 import sys
+from itertools import pairwise
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, settings, strategies
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
@@ -138,27 +140,57 @@ def test_invalid_device_extmem_qdm() -> None:
         xgb.train({"device": "cpu"}, Xy)
 
 
-def test_concat_pages() -> None:
-    boosters = []
-    for min_cache_page_bytes in [0, 256, 386, np.iinfo(np.int64).max]:
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.parametrize(
+    "objective,n_targets",
+    [("reg:absoluteerror", 1), ("reg:squarederror", 1), ("reg:squarederror", 2)],
+)
+@pytest.mark.parametrize("cache_host_ratio", [0.0, 0.5, 1.0])
+def test_concat_pages(objective: str, n_targets: int, cache_host_ratio: float) -> None:
+    """Rebatching uneven inputs preserves trees and predictions exactly."""
+    import cupy as cp
+
+    rng = np.random.default_rng(2026)
+    X = rng.normal(size=(512, 32)).astype(np.float32)
+    y = cp.asarray(rng.normal(size=(512, n_targets)), dtype=cp.float32)
+    X[rng.random(X.shape) < 0.5] = np.nan
+    X = cp.asarray(X)
+    batches = list(pairwise([0, 64, 144, 240, 400, 512]))
+
+    def matrix(min_bytes: int, ref: xgb.DMatrix | None = None) -> xgb.DMatrix:
         it = tm.IteratorForTest(
-            *tm.make_batches(64, 16, 4, use_cupy=True),
+            [X[b:e] for b, e in batches],
+            [y[b:e] for b, e in batches],
+            None,
             cache=None,
-            min_cache_page_bytes=min_cache_page_bytes,
+            min_cache_page_bytes=min_bytes,
             on_host=True,
         )
-        Xy = xgb.ExtMemQuantileDMatrix(it)
-        booster = xgb.train(
-            {
-                "device": "cuda",
-                "objective": "reg:absoluteerror",
-            },
-            Xy,
-        )
-        boosters.append(booster.save_raw(raw_format="json"))
+        return xgb.ExtMemQuantileDMatrix(it, ref=ref, cache_host_ratio=cache_host_ratio)
 
-    for model in boosters[1:]:
-        assert str(model) == str(boosters[0])
+    original = matrix(0)
+    params = {
+        "device": "cuda",
+        "tree_method": "hist",
+        "objective": objective,
+        "multi_strategy": "multi_output_tree",
+        "max_depth": 3,
+        "max_cached_hist_node": 1,
+    }
+    expected = xgb.train(params, original, num_boost_round=3)
+    # Compare partial and full concatenation against the original input batches.
+    for min_cache_page_bytes in [8000, np.iinfo(np.int64).max]:
+        concatenated = matrix(min_cache_page_bytes, ref=original)
+        actual = xgb.train(params, concatenated, num_boost_round=3)
+        assert actual.save_raw(raw_format="json") == expected.save_raw(
+            raw_format="json"
+        )
+        np.testing.assert_array_equal(
+            actual.predict(concatenated), expected.predict(original)
+        )
+        cp.testing.assert_array_equal(
+            actual.inplace_predict(X), expected.inplace_predict(X)
+        )
 
 
 @given(
@@ -224,18 +256,24 @@ def test_uneven_sizes() -> None:
     check_uneven_sizes("cuda")
 
 
-def test_cache_host_ratio() -> None:
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.parametrize(
+    "min_cache_page_bytes", [0, 2048, np.iinfo(np.int64).max, None]
+)
+def test_cache_host_ratio(min_cache_page_bytes: int | None) -> None:
+    """Host/device cache splits preserve models across page-size settings."""
+    batches = tm.make_batches(64, 16, 4, use_cupy=True)
     boosters = []
-    for min_cache_page_bytes in [0, 64, np.iinfo(np.int64).max, None]:
-        for cache_host_ratio in [0, 0.5, 1.0, None]:
-            it = tm.IteratorForTest(
-                *tm.make_batches(64, 16, 4, use_cupy=True),
-                cache=None,
-                on_host=True,
-            )
-            Xy = xgb.ExtMemQuantileDMatrix(it, cache_host_ratio=cache_host_ratio)
-            booster = xgb.train({"device": "cuda"}, Xy)
-            boosters.append(booster.save_raw(raw_format="json"))
+    for cache_host_ratio in [0.0, 0.5, 1.0, None]:
+        it = tm.IteratorForTest(
+            *batches,
+            cache=None,
+            min_cache_page_bytes=min_cache_page_bytes,
+            on_host=True,
+        )
+        Xy = xgb.ExtMemQuantileDMatrix(it, cache_host_ratio=cache_host_ratio)
+        booster = xgb.train({"device": "cuda"}, Xy)
+        boosters.append(booster.save_raw(raw_format="json"))
 
-        for model in boosters[1:]:
-            assert str(model) == str(boosters[0])
+    for model in boosters[1:]:
+        assert model == boosters[0]

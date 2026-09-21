@@ -85,7 +85,7 @@ class DeviceModel {
       }
     }
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_state->num_output_group;
     if (num_group > 1) {
       tree_group.Resize(model.tree_info.Size());
       auto& tree_group_host = tree_group.HostVector();
@@ -211,12 +211,6 @@ class Predictor : public xgboost::Predictor {
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
   }
 
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model, bst_tree_t ntree_limit) const override {
-    LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
-  }
-
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
                           common::Span<RegTree const*> trees,
                           linalg::MatrixView<float> out_preds) const override {
@@ -272,15 +266,6 @@ class Predictor : public xgboost::Predictor {
     LOG(WARNING) << "PredictContribution is not yet implemented for SYCL. CPU Predictor is used.";
     cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, approximate,
                                        condition, condition_feature);
-  }
-
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                                       const gbm::GBTreeModel& model, bst_tree_t ntree_limit,
-                                       bool approximate) const override {
-    LOG(WARNING) << "PredictInteractionContributions is not yet implemented for SYCL. "
-                 << "CPU Predictor is used.";
-    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit,
-                                                   approximate);
   }
 
  private:
@@ -454,7 +439,7 @@ class Predictor : public xgboost::Predictor {
 
     device_model.Init(model, tree_begin, tree_end);
 
-    int num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_state->num_output_group;
     int num_features = dmat->Info().num_col_;
 
     float* out_predictions = out_preds->DevicePointer();

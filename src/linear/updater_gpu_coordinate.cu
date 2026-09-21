@@ -9,6 +9,7 @@
 #include <xgboost/linear_updater.h>
 
 #include "../common/common.h"
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
@@ -48,7 +49,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     out["coordinate_param"] = ToJson(coord_param_);
   }
 
-  void LazyInitDevice(DMatrix *p_fmat, const LearnerModelParam &model_param) {
+  void LazyInitDevice(DMatrix *p_fmat, const LearnerModelState &model_param) {
     if (ctx_->IsCPU()) return;
 
     num_row_ = static_cast<size_t>(p_fmat->Info().num_row_);
@@ -93,7 +94,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
               double sum_instance_weight) override {
     tparam_.DenormalizePenalties(sum_instance_weight);
     monitor_.Start("LazyInitDevice");
-    this->LazyInitDevice(p_fmat, *(model->learner_model_param));
+    this->LazyInitDevice(p_fmat, *(model->learner_model_state));
     monitor_.Stop("LazyInitDevice");
 
     monitor_.Start("UpdateGpair");
@@ -111,9 +112,9 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     selector_->Setup(ctx_, *model, in_gpair->Data()->ConstHostVector(), p_fmat,
                      tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm, coord_param_.top_k);
     monitor_.Start("UpdateFeature");
-    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
+    for (uint32_t group_idx = 0; group_idx < model->learner_model_state->num_output_group;
          ++group_idx) {
-      for (auto i = 0U; i < model->learner_model_param->num_feature; i++) {
+      for (auto i = 0U; i < model->learner_model_state->num_feature; i++) {
         auto fidx =
             selector_->NextFeature(ctx_, i, *model, group_idx, in_gpair->Data()->ConstHostVector(),
                                    p_fmat, tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
@@ -125,12 +126,12 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   }
 
   void UpdateBias(gbm::GBLinearModel *model) {
-    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
+    for (uint32_t group_idx = 0; group_idx < model->learner_model_state->num_output_group;
          ++group_idx) {
       // Get gradient
       auto grad = GradientPair(0, 0);
       if (ctx_->IsCUDA()) {
-        grad = GetBiasGradient(group_idx, model->learner_model_param->num_output_group);
+        grad = GetBiasGradient(group_idx, model->learner_model_state->num_output_group);
       }
       auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
@@ -138,7 +139,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
       // Update residual
       if (ctx_->IsCUDA()) {
-        UpdateBiasResidual(dbias, group_idx, model->learner_model_param->num_output_group);
+        UpdateBiasResidual(dbias, group_idx, model->learner_model_state->num_output_group);
       }
     }
   }
@@ -148,7 +149,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     // Get gradient
     auto grad = GradientPair(0, 0);
     if (ctx_->IsCUDA()) {
-      grad = GetGradient(group_idx, model->learner_model_param->num_output_group, fidx);
+      grad = GetGradient(group_idx, model->learner_model_state->num_output_group, fidx);
     }
     auto dw =
         static_cast<float>(tparam_.learning_rate * CoordinateDelta(grad.GetGrad(), grad.GetHess(),
@@ -157,14 +158,14 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     w += dw;
 
     if (ctx_->IsCUDA()) {
-      UpdateResidual(dw, group_idx, model->learner_model_param->num_output_group, fidx);
+      UpdateResidual(dw, group_idx, model->learner_model_state->num_output_group, fidx);
     }
   }
 
   // This needs to be public because of the __device__ lambda.
   GradientPair GetBiasGradient(int group_idx, int num_group) {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    auto counting = thrust::make_counting_iterator(0ull);
+    auto counting = dh::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       return idx * num_group + group_idx;
     };  // NOLINT
@@ -190,7 +191,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     common::Span<xgboost::Entry> d_col = dh::ToSpan(data_).subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
     common::Span<GradientPair> d_gpair = dh::ToSpan(gpair_);
-    auto counting = thrust::make_counting_iterator(0ull);
+    auto counting = dh::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       auto entry = d_col[idx];
       auto g = d_gpair[entry.index * num_group + group_idx];

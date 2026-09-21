@@ -13,6 +13,7 @@
 #include "../common/bitfield.h"              // for RBitField8
 #include "../common/column_matrix.h"         // for ColumnMatrix
 #include "../common/error_msg.h"             // for InplacePredictProxy
+#include "../common/kernel.h"                // for DispatchKernel, KernelRegistration
 #include "../common/math.h"                  // for CheckNAN
 #include "../common/optional_weight.h"       // for OptionalWeights
 #include "../common/threading_utils.h"       // for ParallelFor
@@ -28,12 +29,13 @@
 #include "gbtree_view.h"                     // for GBTreeModelView
 #include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
 #include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
+#include "prediction_kernel.h"      // for PredictLeafKernel
 #include "utils.h"                  // for CheckProxyDMatrix
 #include "xgboost/base.h"           // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"        // for Context
 #include "xgboost/data.h"           // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
-#include "xgboost/learner.h"                  // for LearnerModelParam
+#include "xgboost/learner.h"                  // for LearnerModelState
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
 #include "xgboost/logging.h"                  // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_NE
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree
@@ -425,6 +427,44 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   });
 }
 
+void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
+                    gbm::GBTreeModel const &model, bst_tree_t ntree_limit) {
+  auto const n_threads = ctx->Threads();
+  // number of valid trees
+  ntree_limit = GetTreeLimit(model.trees, ntree_limit);
+  const MetaInfo &info = p_fmat->Info();
+  std::vector<float> &preds = out_preds->HostVector();
+  preds.resize(info.num_row_ * ntree_limit);
+
+  auto n_features = model.learner_model_state->num_feature;
+  ThreadTmp<1> feat_vecs{n_threads};
+
+  auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
+  LaunchPredict(ctx, p_fmat, model, [&](auto &&policy) {
+    policy.ForEachBatch([&](auto &&batch) {
+      common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
+        auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
+        auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
+        batch.FVecFill(block, n_features, fvec_tloc);
+
+        for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+          bst_node_t nidx = std::visit(
+              [&](auto &&tree) {
+                return GetLeafIndex<true, true>(tree, fvec_tloc.front(), tree.GetCategoriesMatrix(),
+                                                RegTree::kRoot);
+              },
+              h_model.Trees()[j]);
+          preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
+        }
+        batch.FVecDrop(fvec_tloc);
+      });
+    });
+  });
+}
+
+common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
+                                                                    &PredictLeafCPU};
+
 }  // anonymous namespace
 
 class CPUPredictor : public Predictor {
@@ -435,7 +475,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
 
     // Create a writable view on the output prediction vector.
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_groups = model.learner_model_state->OutputLength();
     bst_idx_t n_samples = p_fmat->Info().num_row_;
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
@@ -489,7 +529,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
     // Always use block as we don't know the nnz.
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_groups = model.learner_model_state->OutputLength();
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
     auto const *tree_weights = model.TreeWeights();
@@ -505,7 +545,7 @@ class CPUPredictor : public Predictor {
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
-      CheckProxyDMatrix(x, proxy, model.learner_model_param);
+      CheckProxyDMatrix(x, proxy, model.learner_model_state);
       LaunchPredict(
           this->ctx_, proxy, model,
           [&](auto &&policy) {
@@ -530,41 +570,6 @@ class CPUPredictor : public Predictor {
     bool type_error = false;
     data::cpu_impl::DispatchAny<false>(proxy, dispatch, &type_error);
     return !type_error;
-  }
-
-  void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
-                   gbm::GBTreeModel const &model, bst_tree_t ntree_limit) const override {
-    auto const n_threads = this->ctx_->Threads();
-    // number of valid trees
-    ntree_limit = GetTreeLimit(model.trees, ntree_limit);
-    const MetaInfo &info = p_fmat->Info();
-    std::vector<float> &preds = out_preds->HostVector();
-    preds.resize(info.num_row_ * ntree_limit);
-
-    auto n_features = model.learner_model_param->num_feature;
-    ThreadTmp<1> feat_vecs{n_threads};
-
-    auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
-    LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
-      policy.ForEachBatch([&](auto &&batch) {
-        common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
-          auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
-          auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
-          batch.FVecFill(block, n_features, fvec_tloc);
-
-          for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-            bst_node_t nidx = std::visit(
-                [&](auto &&tree) {
-                  return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
-                                                  tree.GetCategoriesMatrix(), RegTree::kRoot);
-                },
-                h_model.Trees()[j]);
-            preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
-          }
-          batch.FVecDrop(fvec_tloc);
-        });
-      });
-    });
   }
 
   void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
@@ -612,14 +617,6 @@ class CPUPredictor : public Predictor {
       interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                    tree_weights, condition, condition_feature);
     }
-  }
-
-  void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                                       gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
-                                       bool approximate) const override {
-    auto const *tree_weights = model.TreeWeights();
-    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                            tree_weights, approximate);
   }
 };
 

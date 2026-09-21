@@ -70,6 +70,7 @@ from .compat import (
     _is_polars,
     _is_polars_lazyframe,
     _is_polars_series,
+    import_cudf,
     import_pandas,
     import_polars,
     import_pyarrow,
@@ -562,7 +563,7 @@ def pandas_transform_data(
             ),
         )
 
-        if npdtypes or dtype in {np.float32, np.float64}:
+        if npdtypes or dtype in {np.dtype(np.float32), np.dtype(np.float64)}:
             array = ser.to_numpy()
         else:
             # Specifying the dtype can significantly slow down the conversion (about
@@ -819,8 +820,7 @@ def _transform_arrow_table(
         feature_types = t_types
 
     columns = []
-    for cname in feature_names:
-        col0 = data.column(cname)
+    for col0 in data.columns:
         col: Union["pa.NumericArray", "pa.DictionaryArray"] = col0.combine_chunks()
         if isinstance(col, pa.BooleanArray):
             col = col.cast(pa.int8())  # bit-compressed array, not supported.
@@ -973,13 +973,14 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
 
 @functools.cache
 def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
+    cudf = import_cudf()
     try:
-        from cudf import CategoricalDtype
+        CategoricalDtype = cudf.CategoricalDtype
 
         def is_categorical_dtype(dtype: Any) -> bool:
             return isinstance(dtype, CategoricalDtype)
 
-    except ImportError:
+    except AttributeError:
         try:
             from cudf.api.types import (  # type: ignore[no-redef]
                 is_categorical_dtype,
@@ -990,13 +991,6 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
             )
 
     return is_categorical_dtype
-
-
-@functools.cache
-def _lazy_load_cudf_is_bool() -> Callable[[Any], bool]:
-    from cudf.api.types import is_bool_dtype
-
-    return is_bool_dtype
 
 
 class CudfTransformed(TransformedDf):
@@ -1054,7 +1048,8 @@ def _transform_cudf_df(
     Optional[FeatureNames],
     Optional[FeatureTypes],
 ]:
-    is_bool_dtype = _lazy_load_cudf_is_bool()
+    cudf = import_cudf()
+    is_bool_dtype = cudf.api.types.is_bool_dtype
 
     is_categorical_dtype = _lazy_load_cudf_is_cat()
     # Work around https://github.com/dmlc/xgboost/issues/10181

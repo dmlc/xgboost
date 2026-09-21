@@ -131,6 +131,8 @@ TEST(MultiStrategy, Configure) {
   p_fmat->Info().labels.Reshape(p_fmat->Info().num_row_, 2);
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
   learner->Configure(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
+  EXPECT_THROW(learner->Groups(), dmlc::Error);
+  learner->UpdateOneIter(0, p_fmat);
   ASSERT_EQ(learner->Groups(), 2);
 
   ASSERT_THROW(

@@ -212,8 +212,7 @@ class TreeEvaluator {
 
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableVecGrad<LeftGradientSumT, RightGradientSumT> = 0>
-    XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, [[maybe_unused]] bst_node_t nidx,
-                                        [[maybe_unused]] bst_feature_t fidx,
+    XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, bst_node_t nidx, bst_feature_t fidx,
                                         LeftGradientSumT const& left,
                                         RightGradientSumT const& right) const {
       auto n_targets = left.Size();

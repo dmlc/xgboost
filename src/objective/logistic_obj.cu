@@ -12,6 +12,7 @@ namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(logistic_kernel_cuda);
 namespace {
 auto const kRegisterLogisticGradientCuda = elementwise::RegisterGradientCuda<LogisticGradient>();
+auto const kRegisterLogisticInterceptCuda = elementwise::RegisterGradientCuda<LogisticIntercept>();
 auto const kRegisterLogisticPredTransformCuda =
     elementwise::RegisterTransformCuda<LogisticPredTransform>();
 auto const kRegisterLogisticProbToMarginCuda =

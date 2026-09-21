@@ -25,7 +25,7 @@ from dask import dataframe as dd
 from .. import collective as coll
 from .._data_utils import Categories
 from .._typing import FeatureNames, FeatureTypes
-from ..compat import concat, import_cupy
+from ..compat import concat, import_cudf, import_cupy
 from ..core import Booster, DataIter, DMatrix, QuantileDMatrix
 from ..data import is_on_cuda
 from ..sklearn import get_model_categories, pick_ref_categories
@@ -188,9 +188,9 @@ def sort_data_by_qid(**kwargs: List[Any]) -> Dict[str, List[Any]]:
     n_parts = len(data_parts)
 
     if is_on_cuda(data_parts[0]):
-        from cudf import DataFrame
+        DataFrame = import_cudf().DataFrame
     else:
-        from pandas import DataFrame
+        DataFrame = pd.DataFrame
 
     def get_dict(i: int) -> Dict[str, list]:
         """Return a dictionary containing all the meta info and all partitions."""
@@ -227,7 +227,7 @@ def sort_data_by_qid(**kwargs: List[Any]) -> Dict[str, List[Any]]:
     # implementation and GPU compatibility, a simple concat is used.
     #
     # In case it might become useful one day, I managed to get a CPU version working,
-    # albeit qutie slow (much slower than concatenated sort). The implementation merges
+    # albeit quite slow (much slower than concatenated sort). The implementation merges
     # everything into a single Dask DF and runs `DF.sort_values`, then retrieve the
     # individual X,y,qid, ... from calculated partition values `client.compute([p for p
     # in df.partitions])`. It was to avoid creating mismatched partitions.

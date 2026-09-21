@@ -1,3 +1,9 @@
 #!/bin/sh
 
-rm -f src/Makevars
+package_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+rm -rf "${package_dir}/src/cmake-build"
+rm -f \
+  "${package_dir}/src/Makevars" \
+  "${package_dir}/src/Makevars.win" \
+  "${package_dir}/src/xgboost.so" \
+  "${package_dir}/src/xgboost.dll"

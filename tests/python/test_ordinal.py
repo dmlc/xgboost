@@ -2,6 +2,7 @@ from typing import Literal, cast
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost._data_utils import ArrayInf, from_array_interface, pd_cat_inf
@@ -28,6 +29,20 @@ pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_arrow(), tm.no_pandas()))
 
 def test_cat_container() -> None:
     run_cat_container("cpu")
+
+
+def test_cat_container_model_slice() -> None:
+    import pandas as pd
+
+    X = pd.DataFrame(
+        {"cat": pd.Categorical(["a", "b", "a", "c"]), "num": [0.0, 1.0, 2.0, 3.0]}
+    )
+    Xy = xgb.DMatrix(X, label=np.arange(X.shape[0]), enable_categorical=True)
+    booster = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=2)
+
+    expected = booster.get_categories(export_to_arrow=True).to_arrow()
+    actual = booster[:1].get_categories(export_to_arrow=True).to_arrow()
+    assert actual == expected
 
 
 @pytest.mark.parametrize(

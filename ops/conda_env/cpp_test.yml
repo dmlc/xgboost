@@ -7,4 +7,5 @@ dependencies:
 - ninja
 - c-compiler
 - cxx-compiler
+- gcc_linux-64=14.*
 - gtest

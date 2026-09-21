@@ -56,7 +56,7 @@ def test_default_metric(toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray]) ->
 
 
 def test_aft_survival_toy_data(
-    toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray]
+    toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray],
 ) -> None:
     # See demo/aft_survival/aft_survival_viz_demo.py
     X = np.array([1, 2, 3, 4, 5]).reshape((-1, 1))
@@ -125,44 +125,56 @@ def test_aft_empty_dmatrix():
     y_lower, y_upper = np.array([]), np.array([])
     dtrain = xgb.DMatrix(X)
     dtrain.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
-    bst = xgb.train({'objective': 'survival:aft', 'tree_method': 'hist'},
-                    dtrain, num_boost_round=2, evals=[(dtrain, 'train')])
+    bst = xgb.train(
+        {"objective": "survival:aft", "tree_method": "hist"},
+        dtrain,
+        num_boost_round=2,
+        evals=[(dtrain, "train")],
+    )
 
 
 @pytest.mark.skipif(**tm.no_pandas())
 def test_aft_survival_demo_data():
     import pandas as pd
-    df = pd.read_csv(os.path.join(dpath, 'veterans_lung_cancer.csv'))
 
-    y_lower_bound = df['Survival_label_lower_bound']
-    y_upper_bound = df['Survival_label_upper_bound']
-    X = df.drop(['Survival_label_lower_bound', 'Survival_label_upper_bound'], axis=1)
+    df = pd.read_csv(os.path.join(dpath, "veterans_lung_cancer.csv"))
+
+    y_lower_bound = df["Survival_label_lower_bound"]
+    y_upper_bound = df["Survival_label_upper_bound"]
+    X = df.drop(["Survival_label_lower_bound", "Survival_label_upper_bound"], axis=1)
 
     dtrain = xgb.DMatrix(X)
-    dtrain.set_float_info('label_lower_bound', y_lower_bound)
-    dtrain.set_float_info('label_upper_bound', y_upper_bound)
+    dtrain.set_float_info("label_lower_bound", y_lower_bound)
+    dtrain.set_float_info("label_upper_bound", y_upper_bound)
 
-    base_params = {'verbosity': 0,
-                   'objective': 'survival:aft',
-                   'eval_metric': 'aft-nloglik',
-                   'tree_method': 'hist',
-                   'learning_rate': 0.05,
-                   'aft_loss_distribution_scale': 1.20,
-                   'max_depth': 6,
-                   'lambda': 0.01,
-                   'alpha': 0.02}
+    base_params = {
+        "verbosity": 0,
+        "objective": "survival:aft",
+        "eval_metric": "aft-nloglik",
+        "tree_method": "hist",
+        "learning_rate": 0.05,
+        "aft_loss_distribution_scale": 1.20,
+        "max_depth": 6,
+        "lambda": 0.01,
+        "alpha": 0.02,
+    }
     nloglik_rec = {}
-    dists = ['normal', 'logistic', 'extreme']
+    dists = ["normal", "logistic", "extreme"]
     for dist in dists:
         params = base_params
-        params.update({'aft_loss_distribution': dist})
+        params.update({"aft_loss_distribution": dist})
         evals_result = {}
-        bst = xgb.train(params, dtrain, num_boost_round=500, evals=[(dtrain, 'train')],
-                        evals_result=evals_result)
-        nloglik_rec[dist] = evals_result['train']['aft-nloglik']
+        bst = xgb.train(
+            params,
+            dtrain,
+            num_boost_round=500,
+            evals=[(dtrain, "train")],
+            evals_result=evals_result,
+        )
+        nloglik_rec[dist] = evals_result["train"]["aft-nloglik"]
         # AFT metric (negative log likelihood) improve monotonically
         assert all(p >= q for p, q in zip(nloglik_rec[dist], nloglik_rec[dist][:1]))
     # For this data, normal distribution works the best
-    assert nloglik_rec['normal'][-1] < 4.9
-    assert nloglik_rec['logistic'][-1] > 4.9
-    assert nloglik_rec['extreme'][-1] > 4.9
+    assert nloglik_rec["normal"][-1] < 4.9
+    assert nloglik_rec["logistic"][-1] > 4.9
+    assert nloglik_rec["extreme"][-1] > 4.9

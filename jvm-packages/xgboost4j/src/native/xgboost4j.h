@@ -224,10 +224,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterPredictFromDMatrix
- * Signature: (JJII[[F)I
+ * Signature: (JJIIZ[[F)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDMatrix(
-    JNIEnv *, jclass, jlong, jlong, jint, jint, jobjectArray);
+    JNIEnv *, jclass, jlong, jlong, jint, jint, jboolean, jobjectArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

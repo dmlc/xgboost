@@ -10,12 +10,14 @@
 #include <xgboost/tree_model.h>  // for RegTree
 
 #include <cmath>    // for hypot, sqrt
+#include <limits>   // for numeric_limits
 #include <memory>   // for unique_ptr
 #include <utility>  // for pair
 
-#include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../../../src/common/math.h"       // for SoftPlus
-#include "../../../src/tree/tree_view.h"    // for MultiTargetTreeView
+#include "../../../src/common/linalg_op.h"           // for begin, end
+#include "../../../src/common/math.h"                // for SoftPlus
+#include "../../../src/objective/pseudohuber_obj.h"  // for PseudoHuberGradient
+#include "../../../src/tree/tree_view.h"             // for MultiTargetTreeView
 #include "../helpers.h"
 #include "../tree/test_multi_target_tree_model.h"  // for MakeMtTreeForTest
 #include "test_objective_helpers.h"  // for MakePositionsForTest, MakeIotaLabelsForTest
@@ -40,7 +42,16 @@ void TestLinearRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
-  obj->Configure(args);
+  auto used = obj->Configure({{"scale_pos_weight", "2.0"}});
+  EXPECT_EQ(used.count("scale_pos_weight"), 0);
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"reg:squarederror"};
+  legacy_config["reg_loss_param"] = Object{};
+  legacy_config["reg_loss_param"]["scale_pos_weight"] = String{"2"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
+  auto config = CheckConfigReload(obj, obj_name);
+  ASSERT_EQ(get<Object const>(config).size(), 1);
   // clang-format off
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
@@ -80,6 +91,28 @@ void TestSquaredLog(const Context* ctx) {
                    { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
   // clang-format on
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
+
+  MetaInfo info;
+  info.num_row_ = 3;
+  info.labels =
+      linalg::Tensor<float, 2>{{0.0f, 3.0f, 3.0f, 3.0f, 15.0f, 3.0f}, {3, 2}, ctx->Device()};
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score.Size(), 2);
+  ASSERT_NEAR(base_score(0), 3.0f, kRtEps);
+  ASSERT_NEAR(base_score(1), 3.0f, kRtEps);
+
+  info.weights_ = HostDeviceVector<float>{{1.0f, 1.0f, 2.0f}, ctx->Device()};
+  obj->InitEstimation(info, &base_score);
+  ASSERT_NEAR(base_score(0), std::expm1(2.5f * std::log(2.0f)), kRtEps);
+  ASSERT_NEAR(base_score(1), 3.0f, kRtEps);
+
+  info.num_row_ = 1;
+  info.labels =
+      linalg::Tensor<float, 2>{{std::numeric_limits<float>::max()}, {1, 1}, ctx->Device()};
+  info.weights_.HostVector().clear();
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score(0), std::numeric_limits<float>::max());
 }
 
 void TestLogisticRegressionGPair(const Context* ctx) {
@@ -127,6 +160,25 @@ void TestLogisticRegressionBasic(const Context* ctx) {
   }
 }
 
+void TestLogisticRegressionInitEstimation(const Context* ctx) {
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels.Reshape(4, 1);
+  info.labels.Data()->HostVector() = {0.0f, 0.0f, 1.0f, 1.0f};
+  info.weights_.HostVector() = {1.0f, 2.0f, 3.0f, 4.0f};
+
+  auto const expected = 14.0f / 17.0f;
+  for (std::string name : {"reg:logistic", "binary:logistic", "binary:logitraw"}) {
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
+    obj->Configure({{"scale_pos_weight", "2.0"}});
+    linalg::Vector<float> base_score;
+    obj->InitEstimation(info, &base_score);
+    auto const actual = base_score.HostView()(0);
+    auto const expected_score = name == "binary:logitraw" ? common::Logit(expected) : expected;
+    ASSERT_NEAR(actual, expected_score, kRtEps);
+  }
+}
+
 void TestsLogisticRawGPair(const Context* ctx) {
   std::string obj_name = "binary:logitraw";
   std::vector<std::pair<std::string, std::string>> args;
@@ -153,13 +205,13 @@ void TestPoissonRegressionGPair(const Context* ctx) {
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {   1,     1,     1,    1,    1,     1,     1,    1},
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
   CheckObjFunction(obj,
                    {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
                    {   0,     0,     0,    0,    1,     2,     3,    4},
                    {},  // Empty weight
                    { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
-                   {.068f, .184f,   .5f, 1.359f, .568f, 1.184f,     2, 3.359f});
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
   // clang-format on
 }
 
@@ -208,13 +260,13 @@ void TestGammaRegressionGPair(const Context* ctx) {
                    {2,   2,   2,   2, 1,    1,    1,    1},
                    {1,   1,   1,   1, 1,    1,    1,    1},
                    {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+                   {1.667f, 1.540f, .875f, .824f, 1, .937f, .604f, .579f});
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
                    {2,   2,   2,   2, 1,    1,    1,    1},
                    {},  // Empty weight
                    {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+                   {1.667f, 1.540f, .875f, .824f, 1, .937f, .604f, .579f});
   // clang-format on
 }
 
@@ -222,8 +274,16 @@ void TestGammaRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
 
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:gamma");
+  auto used = obj->Configure({{"scale_pos_weight", "2.0"}});
+  EXPECT_EQ(used.count("scale_pos_weight"), 0);
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"reg:gamma"};
+  legacy_config["reg_loss_param"] = Object{};
+  legacy_config["reg_loss_param"]["scale_pos_weight"] = String{"2"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
+  auto config = CheckConfigReload(obj, "reg:gamma");
+  ASSERT_EQ(get<Object const>(config).size(), 1);
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
@@ -258,15 +318,26 @@ void TestTweedieRegressionGPair(const Context* ctx) {
                    {   0,    0,    0,    0, 1,    1,    1,    1},
                    {   1,    1,    1,    1, 1,    1,    1,    1},
                    {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
-                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+                   {.633f, .693f, 1.424f, 1.558f, 1, 1.056f, 1.759f, 1.890f});
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
                    {   0,    0,    0,    0, 1,    1,    1,    1},
                    {},  // Empty weight.
                    {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
-                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+                   {.633f, .693f, 1.424f, 1.558f, 1, 1.056f, 1.759f, 1.890f});
   // clang-format on
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
+
+  std::unique_ptr<ObjFunction> poisson_endpoint{ObjFunction::Create("reg:tweedie", ctx)};
+  poisson_endpoint->Configure({{"tweedie_variance_power", "1"}});
+  // clang-format off
+  CheckObjFunction(poisson_endpoint,
+                   {  -2,    -1,     0,    1,   -2,    -1,     0,    1},
+                   {   0,     0,     0,    0,    1,     2,     3,    4},
+                   {   1,     1,     1,    1,    1,     1,     1,    1},
+                   { .14f,  .37f,     1, 2.71f, -.86f, -1.63f,    -2, -1.28f},
+                   { .09f, .245f, .667f, 1.812f, .424f,  .912f, 1.667f, 3.146f});
+  // clang-format on
 }
 
 void TestTweedieRegressionBasic(const Context* ctx) {
@@ -295,6 +366,87 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   }
 }
 
+void TestNormalRegression(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:normal", ctx)};
+  obj->Configure({});
+  CheckConfigReload(obj, "reg:normal");
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"normal-nloglik"});
+
+  MetaInfo info;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {1.0f, 3.0f};
+  info.weights_.HostVector() = {1.0f, 3.0f};
+  ASSERT_EQ(obj->Targets(info), 2);
+
+  HostDeviceVector<float> preds{{0.0f, 0.0f, 2.0f, std::log(4.0f)}};
+  linalg::Matrix<GradientPair> gpair;
+  obj->GetGradient(preds, info, 0, &gpair);
+  auto result = gpair.HostView();
+  ASSERT_EQ(result.Shape(0), 2);
+  ASSERT_EQ(result.Shape(1), 2);
+  EXPECT_NEAR(result(0, 0).GetGrad(), -1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 0).GetHess(), 1.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetGrad(), 0.0f, kRtEps);
+  EXPECT_NEAR(result(0, 1).GetHess(), 0.5f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetGrad(), -0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 0).GetHess(), 0.75f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetGrad(), 1.125f, kRtEps);
+  EXPECT_NEAR(result(1, 1).GetHess(), 0.75f, kRtEps);
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  auto intercept = base_score.HostView();
+  ASSERT_EQ(intercept.Size(), 2);
+  EXPECT_NEAR(intercept(0), 2.5f, kRtEps);
+  EXPECT_NEAR(intercept(1), std::log(0.75f), kRtEps);
+
+  // Variance can exceed float range while log variance is still representable.
+  constexpr float kLargeLabel = 1.0e20f;
+  info.labels.Data()->HostVector() = {-kLargeLabel, kLargeLabel};
+  for (auto weighted : {false, true}) {
+    info.weights_.HostVector() = weighted ? std::vector<float>{1.0f, 3.0f} : std::vector<float>{};
+    obj->InitEstimation(info, &base_score);
+    auto large_intercept = base_score.HostView();
+    auto expected_mean = weighted ? 0.5 * kLargeLabel : 0.0;
+    auto expected_variance =
+        (weighted ? 0.75 : 1.0) * static_cast<double>(kLargeLabel) * kLargeLabel;
+    EXPECT_NEAR(large_intercept(0), expected_mean, kLargeLabel * 1.0e-6);
+    EXPECT_FLOAT_EQ(large_intercept(1), static_cast<float>(std::log(expected_variance)));
+  }
+  info.weights_.HostVector() = {1.0f, 3.0f};
+
+  HostDeviceVector<float> wrong_size{{0.0f, 0.0f}};
+  EXPECT_ANY_THROW(obj->GetGradient(wrong_size, info, 0, &gpair));
+
+  // Extreme finite margins can overflow both exp(-log_variance) and residual squared in
+  // float arithmetic. Zero-weight rows must remain zero even in these regimes.
+  info.num_row_ = 1;
+  info.labels.Reshape(1, 1);
+  info.labels.Data()->HostVector() = {0.0f};
+  for (auto mean : {0.0f, 1.0e-20f, std::numeric_limits<float>::max()}) {
+    for (auto log_variance : {-1000.0f, -100.0f, 1000.0f}) {
+      for (auto weight : {0.0f, 1.0f}) {
+        info.weights_.HostVector() = {weight};
+        preds.HostVector() = {mean, log_variance};
+        obj->GetGradient(preds, info, 0, &gpair);
+        auto pairs = gpair.HostView();
+        for (std::size_t j = 0; j < 2; ++j) {
+          EXPECT_TRUE(std::isfinite(pairs(0, j).GetGrad()));
+          EXPECT_TRUE(std::isfinite(pairs(0, j).GetHess()));
+          if (weight == 0.0f) {
+            EXPECT_EQ(pairs(0, j).GetGrad(), 0.0f);
+            EXPECT_EQ(pairs(0, j).GetHess(), 0.0f);
+          }
+        }
+      }
+    }
+  }
+
+  info.labels.Reshape(1, 2);
+  EXPECT_ANY_THROW(obj->Targets(info));
+}
+
 void TestCoxRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
@@ -308,6 +460,20 @@ void TestCoxRegressionGPair(const Context* ctx) {
                    { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
   // clang-format on
+}
+
+void TestCoxRegressionInitEstimation(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
+  obj->Configure({});
+
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels = linalg::Tensor<float, 2>{{1.0f, -2.0f, 3.0f, -4.0f}, {4, 1}, ctx->Device()};
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score.Size(), 1);
+  ASSERT_FLOAT_EQ(base_score(0), 1.0f);
 }
 
 void TestAbsoluteError(const Context* ctx) {
@@ -362,37 +528,6 @@ void TestAbsoluteError(const Context* ctx) {
     ASSERT_NEAR(h_gpair(row, 1).GetHess(), curvature, kRtEps);
   }
 
-  auto expected_intercept = [](std::vector<float> const& labels,
-                               std::vector<float> const& weights) {
-    double sum_weight{0.0};
-    double mean{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      sum_weight += w;
-      mean += w * labels[i];
-    }
-    mean /= sum_weight;
-
-    double root_residual{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      root_residual += w * std::sqrt(std::abs(mean - labels[i]));
-    }
-    auto const delta = std::pow(root_residual / sum_weight, 2.0);
-
-    double sum_grad{0.0};
-    double sum_hess{0.0};
-    for (std::size_t i{0}; i < labels.size(); ++i) {
-      auto const w = weights.empty() ? 1.0f : weights[i];
-      auto const residual = mean - labels[i];
-      auto const norm = std::hypot(delta, residual);
-      auto const curvature = norm > 0.0 ? delta / norm : 1.0;
-      sum_grad += w * residual * curvature;
-      sum_hess += w * curvature;
-    }
-    return static_cast<float>(mean - sum_grad / sum_hess);
-  };
-
   auto init = [&](std::vector<float> labels, std::vector<float> const& weights) {
     MetaInfo init_info;
     init_info.num_row_ = labels.size();
@@ -406,11 +541,10 @@ void TestAbsoluteError(const Context* ctx) {
 
   for (auto const& weights : std::vector<std::vector<float>>{{}, {1.0f, 2.0f, 3.0f, 4.0f}}) {
     std::vector<float> labels{0.0f, 0.0f, 0.0f, 1000.0f};
-    auto const expected = expected_intercept(labels, weights);
-    ASSERT_NEAR(init(labels, weights), expected, 1.0e-4f);
+    ASSERT_EQ(init(labels, weights), 0.0f);
     std::transform(labels.cbegin(), labels.cend(), labels.begin(),
                    [](float label) { return label + 1000.0f; });
-    ASSERT_NEAR(init(labels, weights), expected + 1000.0f, 1.0e-4f);
+    ASSERT_EQ(init(labels, weights), 1000.0f);
   }
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mae"});
 }
@@ -499,12 +633,12 @@ void TestPseudoHuber(const Context* ctx) {
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
                    {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+                   {0.743294f, 0.780869f, 0.857493f, 0.980581f, 0.857493f});     // out_hess
   CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {},                                                           // empty weights
                    {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+                   {0.743294f, 0.780869f, 0.857493f, 0.980581f, 0.857493f});     // out_hess
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
 
   obj->Configure({{"huber_slope", "0.1"}});
@@ -513,7 +647,37 @@ void TestPseudoHuber(const Context* ctx) {
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
                    {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
-                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
+                   {0.110432f, 0.124035f, 0.164399f, 0.447214f, 0.164399f});     // out_hess
+
+  // Curvature must not vanish cubically in the tails: -g/h should move to the label.
+  CheckObjFunction(obj, {0.0f, 0.0f, 0.0f}, {-1000.0f, 0.0f, 1000.0f}, {2.0f, 1.0f, 0.0f},
+                   {0.2f, 0.0f, 0.0f}, {0.0002f, 1.0f, 0.0f});
+
+  // The quadratic touches the loss and upper-bounds it, including steps crossing the label.
+  for (float slope : {0.1f, 1.0f, 10.0f}) {
+    obj::PseudoHuberGradient gradient{slope};
+    auto loss = [=](double residual) {
+      return slope * slope * (std::hypot(1.0, residual / slope) - 1.0);
+    };
+    for (float residual : {-100.0f, -1.0f, 0.0f, 1.0f, 100.0f}) {
+      auto pair = gradient(residual, 0.0f, 1.0f);
+      EXPECT_NEAR(-pair.GetGrad() / pair.GetHess(), -residual, 1e-4);
+      for (double step : {-200.0, -2.0, 0.0, 2.0, 200.0}) {
+        auto bound = loss(residual) + pair.GetGrad() * step + 0.5 * pair.GetHess() * step * step;
+        EXPECT_LE(loss(residual + step), bound + 1e-5 * (1.0 + std::abs(bound)));
+      }
+    }
+  }
+
+  // The same curvature is used by the one-step intercept initializer. A constant response
+  // far from zero must initialize at that response, not at a cubically amplified Newton step.
+  MetaInfo info;
+  info.num_row_ = 2;
+  info.labels.Reshape(2, 1);
+  info.labels.Data()->HostVector() = {1000.0f, 1000.0f};
+  linalg::Vector<float> intercept;
+  obj->InitEstimation(info, &intercept);
+  ASSERT_NEAR(intercept(0), 1000.0f, 1e-2);
 }
 
 }  // namespace xgboost

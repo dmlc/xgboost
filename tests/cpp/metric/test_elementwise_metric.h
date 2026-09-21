@@ -6,6 +6,7 @@
 #include <xgboost/metric.h>
 
 #include <algorithm>   // for transform
+#include <cmath>       // for acos, log
 #include <functional>  // for plus
 #include <memory>
 #include <numeric>  // for iota
@@ -155,6 +156,18 @@ inline void VerifyMPHE(DeviceOrd device) {
   metric->Configure({{"huber_slope", "0.1"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {}),
               0.0461686f, 1e-4);
+  Json config{Object{}};
+  metric->SaveConfig(&config);
+  std::unique_ptr<Metric> loaded{Metric::Create("mphe", &ctx)};
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {}),
+              0.0461686f, 1e-4);
+
+  loaded->Configure({{"huber_slope", "2.0"}});
+  EXPECT_NEAR(GetMetricEval(loaded.get(), {0}, {1}, {}, {}), 0.472136f, 1e-6);
+
+  loaded->Configure({{"huber_slope", "0"}});
+  EXPECT_THROW(GetMetricEval(loaded.get(), {0}, {1}, {}, {}), dmlc::Error);
 }
 
 inline void VerifyLogLoss(DeviceOrd device) {
@@ -246,6 +259,64 @@ inline void VerifyPoissonNegLogLik(DeviceOrd device) {
   delete metric;
 
   CheckDeterministicMetricElementWise(StringView{"poisson-nloglik"}, device.ordinal);
+}
+
+inline void VerifyGammaDeviance(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::unique_ptr<Metric> metric{Metric::Create("gamma-deviance", &ctx)};
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "gamma-deviance");
+  EXPECT_NEAR(GetMetricEval(metric.get(), {2, 1}, {1, 2}, {1, 3}, {}),
+              (2.5 - 2.0 * std::log(2.0)) / 2.0, 1e-5);
+  EXPECT_EQ(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}), 0);
+  EXPECT_EQ(GetMetricEval(metric.get(), {2, 1}, {1, 2}, {0, 0}, {}), 0);
+  EXPECT_EQ(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {}), 0);
+  CheckDeterministicMetricElementWise(StringView{"gamma-deviance"}, device.ordinal);
+}
+
+inline void VerifyGammaNLogLik(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::unique_ptr<Metric> metric{Metric::Create("gamma-nloglik", &ctx)};
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "gamma-nloglik");
+  EXPECT_NEAR(GetMetricEval(metric.get(), {2, 1}, {1, 2}, {1, 3}, {}), (std::log(2.0) + 6.5) / 4.0,
+              1e-6);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0}, {0}, {}, {}), std::log(1e-6), 1e-5);
+  EXPECT_EQ(GetMetricEval(metric.get(), {2, 1}, {1, 2}, {0, 0}, {}), 0);
+  EXPECT_EQ(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {}), 0);
+  CheckDeterministicMetricElementWise(StringView{"gamma-nloglik"}, device.ordinal);
+}
+
+inline void VerifyTweedieNLogLik(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  EXPECT_THROW(Metric::Create("tweedie-nloglik", &ctx), dmlc::Error);
+  EXPECT_THROW(Metric::Create("tweedie-nloglik@0.5", &ctx), dmlc::Error);
+  EXPECT_THROW(Metric::Create("tweedie-nloglik@2", &ctx), dmlc::Error);
+  std::unique_ptr<Metric> metric{Metric::Create("tweedie-nloglik@1.5", &ctx)};
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "tweedie-nloglik@1.5");
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 4}, {1, 2}, {1, 3}, {}), 5.5, 1e-6);
+  EXPECT_EQ(GetMetricEval(metric.get(), {1, 4}, {1, 2}, {0, 0}, {}), 0);
+  EXPECT_EQ(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {}), 0);
+  metric.reset(Metric::Create("tweedie-nloglik@1.2", &ctx));
+  metric->Configure({});
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1}, {1}, {}, {}), 6.25, 1e-5);
+  CheckDeterministicMetricElementWise(StringView{"tweedie-nloglik@1.5"}, device.ordinal);
+}
+
+inline void VerifyNormalNLogLik(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::unique_ptr<Metric> metric{Metric::Create("normal-nloglik", &ctx)};
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "normal-nloglik");
+  auto log_two_pi = std::log(2.0 * std::acos(-1.0));
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 0, 1, std::log(4.0f)}, {0, 2}, {1, 3}, {}),
+              (0.5 * log_two_pi + 1.5 * (log_two_pi + std::log(4.0) + 0.25)) / 4.0, 1e-5);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, -100}, {0}, {}, {}), 0.5 * (log_two_pi - 100.0),
+              1e-5);
+  EXPECT_EQ(GetMetricEval(metric.get(), {0, 0}, {1}, {0}, {}), 0);
+  EXPECT_EQ(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {}), 0);
+  EXPECT_THROW(GetMetricEval(metric.get(), {0}, {1}, {}, {}), dmlc::Error);
 }
 
 inline void VerifyMultiRMSE(DeviceOrd device) {

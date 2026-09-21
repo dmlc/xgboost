@@ -27,7 +27,8 @@
 
 namespace xgboost::tree {
 void TestPartitionBasedSplit::SetUp() {
-  param_.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
+  param_.UpdateAllowUnknown(
+      Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"max_cat_to_onehot", "1"}});
   sorted_idx_.resize(n_bins_);
   std::iota(sorted_idx_.begin(), sorted_idx_.end(), 0);
 
