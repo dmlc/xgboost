@@ -395,6 +395,21 @@ inline void VerifyQuantile(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_2, labels, {}, {}), 0.0425f, 0.0001f);
   metric->Configure(Args{{"quantile_alpha", "[0.2, 0.5, 0.8]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+  Json config{Object{}};
+  metric->SaveConfig(&config);
+  std::unique_ptr<Metric> loaded{Metric::Create("quantile", &ctx)};
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+
+  loaded->Configure({{"quantile_alpha", "[0.5]"}});
+  EXPECT_NO_THROW(GetMetricEval(loaded.get(), predts, labels, {}, {}));
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+
+  auto invalid = config;
+  invalid["quantile_loss_param"]["quantile_alpha"] = String{"[1.5]"};
+  EXPECT_THROW(loaded->LoadConfig(invalid), dmlc::Error);
+
   VerifyMultiAlphaLayout(metric.get(), false);
 }
 
