@@ -32,7 +32,7 @@
 #include "../gbtree_view.h"
 #include "../gpu_data_accessor.cuh"
 #include "../predict_fn.h"         // for GetTreeLimit
-#include "../prediction_kernel.h"  // for PredictInteractionContributionsKernel
+#include "../prediction_kernel.h"  // for prediction kernels
 #include "dmlc/registry.h"         // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "shap.h"
@@ -45,6 +45,10 @@ namespace xgboost::interpretability::cuda_impl {
 DMLC_REGISTRY_FILE_TAG(shap_cuda);
 
 namespace {
+common::KernelRegistration<predictor::PredictContributionKernel> const kPredictContributionCUDA{
+    DeviceOrd::kCUDA, &ShapValues};
+common::KernelRegistration<predictor::PredictApproxContributionKernel> const
+    kPredictApproxContributionCUDA{DeviceOrd::kCUDA, &ApproxFeatureImportance};
 common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
     kPredictInteractionCUDA{DeviceOrd::kCUDA, &ShapInteractionValues};
 
@@ -1216,11 +1220,9 @@ void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView cons
 }  // namespace
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                std::vector<float> const* tree_weights, int condition, unsigned condition_feature) {
+                std::vector<float> const* tree_weights) {
   xgboost_NVTX_FN_RANGE();
   curt::SetDevice(ctx->Ordinal());
-  CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
-  CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   auto const ngroup = model.learner_model_state->num_output_group;

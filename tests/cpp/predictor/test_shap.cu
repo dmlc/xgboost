@@ -64,7 +64,11 @@ TEST(GPUPredictor, CompareCPUShap) {
   learner_cpu->Predict(dmat, false, &cpu_predictions, 0, 0, false, false, true, false, false);
   learner_gpu->Predict(dmat, false, &interactions, 0, 0, false, false, false, false, true);
   learner_cpu->Predict(dmat, false, &cpu_interactions, 0, 0, false, false, false, false, true);
+  ASSERT_TRUE(predictions.DeviceCanRead());
   ASSERT_TRUE(interactions.DeviceCanRead());
+  EXPECT_THROW(
+      learner_gpu->Predict(dmat, false, &predictions, 0, 0, false, false, true, true, false),
+      dmlc::Error);
   EXPECT_THROW(
       learner_gpu->Predict(dmat, false, &interactions, 0, 0, false, false, false, true, true),
       dmlc::Error);

@@ -260,14 +260,6 @@ class Predictor : public xgboost::Predictor {
     }
   }
 
-  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           const gbm::GBTreeModel& model, bst_tree_t ntree_limit, bool approximate,
-                           int condition, unsigned condition_feature) const override {
-    LOG(WARNING) << "PredictContribution is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, approximate,
-                                       condition, condition_feature);
-  }
-
  private:
   // 8KB fits EU registers
   static constexpr int kMaxFeatureBufferSize = 2048;
