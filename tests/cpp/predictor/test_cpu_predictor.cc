@@ -4,7 +4,13 @@
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
-#include <limits>
+#include <algorithm>  // for fill, min
+#include <array>      // for array
+#include <cmath>      // for isnan
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <utility>    // for pair
+#include <vector>     // for vector
 
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/common/kernel.h"
@@ -136,6 +142,105 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     ASSERT_EQ(buffer.NumLevels(), 4);
     ASSERT_TRUE(buffer.IsComplete());
     CheckArrayLayout(tree, buffer, 4, 0, 0, 0);
+  }
+}
+
+/**
+ * Process must agree with a walk of the original tree for every number of unrolled
+ * levels: layouts of the default depth (and of deeper trees) traverse with the level
+ * count fixed at compile time, shallower layouts with the runtime level loop.  Both the
+ * dense and the missing-aware traversal are checked on trees whose inner levels are fully
+ * populated (every node offset of every level is used) and that contain early leaves.
+ */
+TEST(CpuPredictor, ArrayTreeLayoutProcessDepths) {
+  Context ctx;
+  constexpr int kMaxLevels = predictor::ArrayTreeLayout::kMaxNumDeepLevels;
+  constexpr bst_feature_t kFeatures = 8;
+  constexpr std::size_t kRows = 64;
+  auto const nan = std::numeric_limits<float>::quiet_NaN();
+
+  std::array<RegTree::FVec, kRows> dense;
+  std::array<RegTree::FVec, kRows> missing;
+  for (std::size_t i = 0; i < kRows; ++i) {
+    dense[i].Init(kFeatures);
+    missing[i].Init(kFeatures);
+    auto d = dense[i].Data();
+    auto m = missing[i].Data();
+    for (bst_feature_t f = 0; f < kFeatures; ++f) {
+      // Values in [-2, 2] in steps of 0.5, never equal to a split condition.
+      d[f] = m[f] = static_cast<float>(static_cast<int>((i * 7 + f * 3) % 9) - 4) * 0.5f;
+    }
+    dense[i].HasMissing(false);
+    bool const row_missing = i % 3 == 0;
+    if (row_missing) {
+      m[i % kFeatures] = nan;
+      m[(i / 3) % kFeatures] = nan;
+    }
+    missing[i].HasMissing(row_missing);
+  }
+
+  for (bst_node_t depth : {0, 1, 2, 3, 4, 5, 6, 7, 8, 10}) {
+    RegTree tree{1, kFeatures};
+    // Breadth-first expansion; some positions below level 1 stay leaves so that the
+    // padding of the layout (NaN split conditions, always to the right) is exercised.
+    std::vector<std::pair<bst_node_t, bst_node_t>> frontier{{RegTree::kRoot, 0}};
+    for (std::size_t k = 0; k < frontier.size(); ++k) {
+      auto const [nidx, level] = frontier[k];
+      if (level >= depth || (level >= 2 && nidx % 7 == 3)) {
+        continue;
+      }
+      auto const split = static_cast<bst_feature_t>((nidx * 5 + level) % kFeatures);
+      auto const cond = static_cast<float>(static_cast<int>(nidx % 5) - 2) + 0.25f;
+      tree.ExpandNode(nidx, split, cond, nidx % 3 != 0, 0, 0, 0, 0, 0, 0, 0);
+      frontier.emplace_back(tree[nidx].LeftChild(), level + 1);
+      frontier.emplace_back(tree[nidx].RightChild(), level + 1);
+    }
+    auto view = tree::ScalarTreeView{ctx.Device(), false, &tree};
+    predictor::ArrayTreeLayout const layout{view};
+    int const n_levels = std::min(static_cast<int>(depth), kMaxLevels);
+    ASSERT_EQ(layout.TreeDepth(), depth);
+    ASSERT_EQ(layout.NumLevels(), n_levels);
+    ASSERT_EQ(layout.IsComplete(), depth <= kMaxLevels);
+    auto const nodes = tree.GetNodes(ctx.Device());
+
+    auto expect = [&](RegTree::FVec const& feat) {
+      bst_node_t nidx = RegTree::kRoot;
+      for (int level = 0; level < n_levels && !nodes[nidx].IsLeaf(); ++level) {
+        auto const& node = nodes[nidx];
+        auto const value = feat.GetFvalue(node.SplitIndex());
+        if (std::isnan(value)) {
+          nidx = node.DefaultChild();
+        } else if (value < node.SplitCond()) {
+          nidx = node.LeftChild();
+        } else {
+          nidx = node.RightChild();
+        }
+      }
+      return nidx;
+    };
+
+    for (std::size_t block_size : {1, 2, 3, 8, 16, 31, 32, 63, 64}) {
+      SCOPED_TRACE(testing::Message() << "depth=" << depth << ", block_size=" << block_size);
+      std::vector<bst_node_t> expected_dense(block_size);
+      std::vector<bst_node_t> expected_missing(block_size);
+      for (std::size_t i = 0; i < block_size; ++i) {
+        expected_dense[i] = expect(dense[i]);
+        expected_missing[i] = expect(missing[i]);
+      }
+      common::Span<RegTree::FVec> dense_block{dense.data(), block_size};
+      common::Span<RegTree::FVec> missing_block{missing.data(), block_size};
+      std::vector<bst_node_t> actual(block_size, RegTree::kInvalidNodeId);
+
+      layout.Process<false, false>(dense_block, block_size, actual.data());
+      ASSERT_EQ(actual, expected_dense);
+      // The missing-aware traversal of the same layout must agree on a dense block.
+      std::fill(actual.begin(), actual.end(), RegTree::kInvalidNodeId);
+      layout.Process<false, true>(dense_block, block_size, actual.data());
+      ASSERT_EQ(actual, expected_dense);
+      std::fill(actual.begin(), actual.end(), RegTree::kInvalidNodeId);
+      layout.Process<false, true>(missing_block, block_size, actual.data());
+      ASSERT_EQ(actual, expected_missing);
+    }
   }
 }
 

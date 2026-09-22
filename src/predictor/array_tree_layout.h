@@ -11,6 +11,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint8_t, uint32_t
 #include <limits>     // for numeric_limits
+#include <utility>    // for integer_sequence, make_integer_sequence
 #include <vector>     // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
@@ -135,6 +136,45 @@ class ArrayTreeLayout {
     return fvalue < split_cond_[nidx];
   }
 
+  /**
+   * @brief Traverse one level (1 <= kLevel < kMaxNumDeepLevels) of the array layout for
+   *        the whole block, with the level fixed at compile time: the offset of the
+   *        level's first node is an immediate instead of a value computed per level.
+   */
+  template <bool has_categorical, bool any_missing, int kLevel>
+  void ProcessLevel(RegTree::FVec const* feats, std::size_t const block_size,
+                    bst_node_t* p_nidx) const {
+    static_assert(kLevel >= 1 && kLevel < kMaxNumDeepLevels, "level outside the array layout");
+    constexpr std::size_t kFirstNode = (std::size_t{1} << kLevel) - 1;
+    bst_feature_t const* split_index = split_index_.data();
+    for (std::size_t i = 0; i < block_size; ++i) {
+      bst_node_t const idx = p_nidx[i];
+      std::size_t const node = kFirstNode + idx;
+
+      bst_feature_t const split = split_index[node];
+      auto const fvalue = feats[i].GetFvalue(split);
+      if constexpr (any_missing) {
+        bool go_left = feats[i].IsMissing(split) ? default_left_[node]
+                                                 : this->GetDecision<has_categorical>(fvalue, node);
+        p_nidx[i] = 2 * idx + !go_left;
+      } else {
+        p_nidx[i] = 2 * idx + !this->GetDecision<has_categorical>(fvalue, node);
+      }
+    }
+  }
+
+  /**
+   * @brief Traverse levels 1, ..., kMaxNumDeepLevels - 1 of a layout that unrolls all
+   *        kMaxNumDeepLevels levels: one loop over the block per level, no runtime level
+   *        count.  Instantiated with make_integer_sequence<int, kMaxNumDeepLevels - 1>.
+   */
+  template <bool has_categorical, bool any_missing, int... kLevels>
+  void ProcessLevels(RegTree::FVec const* feats, std::size_t const block_size,
+                     bst_node_t* p_nidx, std::integer_sequence<int, kLevels...>) const {
+    (this->ProcessLevel<has_categorical, any_missing, kLevels + 1>(feats, block_size, p_nidx),
+     ...);
+  }
+
  public:
   ArrayTreeLayout() = default;
 
@@ -189,6 +229,9 @@ class ArrayTreeLayout {
    * @param p_nidx Output: for each sample the node index in the original tree at the
    *               level next after n_levels_ (a leaf if the layout is complete).  The
    *               input values are ignored.
+   *
+   * Layouts that unroll all kMaxNumDeepLevels levels are traversed with the level count
+   * fixed at compile time (see ProcessLevels); shallower layouts use a runtime level loop.
    */
   template <bool has_categorical, bool any_missing>
   void Process(common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
@@ -220,22 +263,29 @@ class ArrayTreeLayout {
         }
       }
     }
-    for (int depth = 1; depth < n_levels_; ++depth) {
-      std::size_t const first_node = (1u << depth) - 1;
+    if (n_levels_ == kMaxNumDeepLevels) {
+      // The common case (trees of the default depth 6 and deeper ones): the remaining
+      // levels are unrolled at compile time.
+      this->ProcessLevels<has_categorical, any_missing>(
+          feats, block_size, p_nidx, std::make_integer_sequence<int, kMaxNumDeepLevels - 1>{});
+    } else {
+      for (int depth = 1; depth < n_levels_; ++depth) {
+        std::size_t const first_node = (1u << depth) - 1;
 
-      for (std::size_t i = 0; i < block_size; ++i) {
-        bst_node_t const idx = p_nidx[i];
-        std::size_t const node = first_node + idx;
+        for (std::size_t i = 0; i < block_size; ++i) {
+          bst_node_t const idx = p_nidx[i];
+          std::size_t const node = first_node + idx;
 
-        bst_feature_t const split = split_index[node];
-        auto const fvalue = feats[i].GetFvalue(split);
-        if constexpr (any_missing) {
-          bool go_left = feats[i].IsMissing(split)
-                             ? default_left_[node]
-                             : this->GetDecision<has_categorical>(fvalue, node);
-          p_nidx[i] = 2 * idx + !go_left;
-        } else {
-          p_nidx[i] = 2 * idx + !this->GetDecision<has_categorical>(fvalue, node);
+          bst_feature_t const split = split_index[node];
+          auto const fvalue = feats[i].GetFvalue(split);
+          if constexpr (any_missing) {
+            bool go_left = feats[i].IsMissing(split)
+                               ? default_left_[node]
+                               : this->GetDecision<has_categorical>(fvalue, node);
+            p_nidx[i] = 2 * idx + !go_left;
+          } else {
+            p_nidx[i] = 2 * idx + !this->GetDecision<has_categorical>(fvalue, node);
+          }
         }
       }
     }
