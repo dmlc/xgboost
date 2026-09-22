@@ -100,9 +100,9 @@ void PredValueByOneTree(tree::ScalarTreeView const &tree, ArrayTreeLayout const 
     layout->template Process<has_categorical, any_missing>(fvec_tloc, block_size, p_nidx);
     if (layout->IsComplete()) {
       // The array layout covers the whole tree, every sample is already at a leaf.
+      RegTree::Node const *nodes = tree.nodes;
       for (std::size_t i = 0; i < block_size; ++i) {
-        out[i * out_stride] += tree.LeafValue(p_nidx[i]) * tree_weight;
-        p_nidx[i] = 0;
+        out[i * out_stride] += nodes[p_nidx[i]].LeafValue() * tree_weight;
       }
       return;
     }
@@ -116,7 +116,6 @@ void PredValueByOneTree(tree::ScalarTreeView const &tree, ArrayTreeLayout const 
      */
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
-      p_nidx[i] = 0;
     }
     out[i * out_stride] +=
         PredValueByOneTree<has_categorical>(feats[i], tree, cats, nidx) * tree_weight;
@@ -155,7 +154,6 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, ArrayTreeLayout c
     bst_node_t nidx = RegTree::kRoot;
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
-      p_nidx[i] = RegTree::kRoot;
     }
     auto leaf = complete ? nidx
                 : fvec_tloc[i].HasMissing()

@@ -186,9 +186,9 @@ class ArrayTreeLayout {
    *
    * @param fvec_tloc buffer holding the feature values
    * @param block_size size of the current block (1 < block_size <= 64)
-   * @param p_nidx Pointer to the vector of node indexes in the original tree with size
-   *               equals to the block size. (One node per sample). The value corresponds
-   *               to the level next after n_levels_
+   * @param p_nidx Output: for each sample the node index in the original tree at the
+   *               level next after n_levels_ (a leaf if the layout is complete).  The
+   *               input values are ignored.
    */
   template <bool has_categorical, bool any_missing>
   void Process(common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
@@ -197,7 +197,30 @@ class ArrayTreeLayout {
     // innermost loop.
     RegTree::FVec const* feats = fvec_tloc.data();
     bst_feature_t const* split_index = split_index_.data();
-    for (int depth = 0; depth < n_levels_; ++depth) {
+    bst_node_t const* nidx_in_tree = nidx_in_tree_.data();
+    if (n_levels_ == 0) {
+      // The root is a leaf.
+      for (std::size_t i = 0; i < block_size; ++i) {
+        p_nidx[i] = nidx_in_tree[0];
+      }
+      return;
+    }
+    // Level 0: every sample is at the root, so the split is the same for all of them and
+    // the node indices need not be read.
+    {
+      bst_feature_t const split = split_index[0];
+      for (std::size_t i = 0; i < block_size; ++i) {
+        auto const fvalue = feats[i].GetFvalue(split);
+        if constexpr (any_missing) {
+          bool go_left = feats[i].IsMissing(split) ? default_left_[0]
+                                                   : this->GetDecision<has_categorical>(fvalue, 0);
+          p_nidx[i] = !go_left;
+        } else {
+          p_nidx[i] = !this->GetDecision<has_categorical>(fvalue, 0);
+        }
+      }
+    }
+    for (int depth = 1; depth < n_levels_; ++depth) {
       std::size_t const first_node = (1u << depth) - 1;
 
       for (std::size_t i = 0; i < block_size; ++i) {
@@ -217,7 +240,6 @@ class ArrayTreeLayout {
       }
     }
     // Remap to the original index.
-    bst_node_t const* nidx_in_tree = nidx_in_tree_.data();
     for (std::size_t i = 0; i < block_size; ++i) {
       p_nidx[i] = nidx_in_tree[p_nidx[i]];
     }
