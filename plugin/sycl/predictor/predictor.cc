@@ -13,7 +13,9 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
+#include "../../../src/common/kernel.h"
 #include "../../../src/common/timer.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../data.h"
 #include "dmlc/registry.h"
 #include "xgboost/tree_model.h"
@@ -50,6 +52,67 @@ namespace sycl {
 namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(predictor_sycl);
+
+namespace {
+void PredictFromLeafIdsSYCL(Context const* ctx,
+                            common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                            common::Span<RegTree const*> trees,
+                            linalg::MatrixView<float> out_preds) {
+  CHECK_EQ(leaf_ids.size(), trees.size());
+  if (out_preds.Device().IsCPU()) {
+    auto cpu_ctx = ctx->MakeCPU();
+    common::DispatchKernel<xgboost::predictor::PredictFromLeafIdsKernel>(&cpu_ctx, leaf_ids, trees,
+                                                                         out_preds);
+    return;
+  }
+  CHECK(out_preds.Device().IsSycl());
+  DeviceManager device_manager;
+  auto* qu = device_manager.GetQueue(out_preds.Device());
+
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto const* p_tree = trees[tree_idx];
+    CHECK(p_tree);
+    CHECK(!p_tree->IsMultiTarget())
+        << "Multi-target leaf-id prediction is not implemented for SYCL.";
+    CHECK_EQ(out_preds.Shape(1), 1);
+
+    auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+    CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
+
+    auto const h_nodes = p_tree->GetNodes(DeviceOrd::CPU());
+    std::vector<float> h_leaf_values(h_nodes.size());
+    for (std::size_t nidx = 0; nidx < h_nodes.size(); ++nidx) {
+      if (h_nodes[nidx].IsLeaf()) {
+        h_leaf_values[nidx] = h_nodes[nidx].LeafValue();
+      }
+    }
+    USMVector<float, MemoryType::on_device> leaf_values;
+    leaf_values.Resize(qu, h_leaf_values.size());
+    qu->memcpy(leaf_values.Data(), h_leaf_values.data(),
+               h_leaf_values.size() * sizeof(h_leaf_values.front()))
+        .wait_and_throw();
+
+    auto const* d_leaf_values = leaf_values.DataConst();
+    auto* out = out_preds.Values().data();
+    auto out_stride = out_preds.Stride(0);
+    qu->submit([&](::sycl::handler& cgh) {
+        cgh.parallel_for<>(::sycl::range<1>(d_leaf_ids.size()), [=](::sycl::id<1> pid) {
+          auto row_idx = pid[0];
+          auto position = d_leaf_ids[row_idx];
+          auto nidx = position >= 0 ? position : ~position;
+          out[row_idx * out_stride] += d_leaf_values[nidx];
+        });
+      }).wait_and_throw();
+  }
+}
+
+common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
+    kPredictFromLeafIdsSYCL{DeviceOrd::kSyclDefault, &PredictFromLeafIdsSYCL};
+common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
+    kPredictFromLeafIdsSYCLCPU{DeviceOrd::kSyclCPU, &PredictFromLeafIdsSYCL};
+common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
+    kPredictFromLeafIdsSYCLGPU{DeviceOrd::kSyclGPU, &PredictFromLeafIdsSYCL};
+}  // namespace
 
 class DeviceModel {
  public:
@@ -209,55 +272,6 @@ class Predictor : public xgboost::Predictor {
                       bst_tree_t tree_end) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
-  }
-
-  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
-                          common::Span<RegTree const*> trees,
-                          linalg::MatrixView<float> out_preds) const override {
-    CHECK_EQ(leaf_ids.size(), trees.size());
-    if (out_preds.Device().IsCPU()) {
-      cpu_predictor->PredictFromLeafIds(leaf_ids, trees, out_preds);
-      return;
-    }
-    CHECK(out_preds.Device().IsSycl());
-    qu_ = device_manager.GetQueue(out_preds.Device());
-
-    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-      auto const* p_tree = trees[tree_idx];
-      CHECK(p_tree);
-      CHECK(!p_tree->IsMultiTarget())
-          << "Multi-target leaf-id prediction is not implemented for SYCL.";
-      CHECK_EQ(out_preds.Shape(1), 1);
-
-      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
-      CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
-
-      auto const h_nodes = p_tree->GetNodes(DeviceOrd::CPU());
-      std::vector<float> h_leaf_values(h_nodes.size());
-      for (std::size_t nidx = 0; nidx < h_nodes.size(); ++nidx) {
-        if (h_nodes[nidx].IsLeaf()) {
-          h_leaf_values[nidx] = h_nodes[nidx].LeafValue();
-        }
-      }
-      USMVector<float, MemoryType::on_device> leaf_values;
-      leaf_values.Resize(qu_, h_leaf_values.size());
-      qu_->memcpy(leaf_values.Data(), h_leaf_values.data(),
-                  h_leaf_values.size() * sizeof(h_leaf_values.front()))
-          .wait_and_throw();
-
-      auto const* d_leaf_values = leaf_values.DataConst();
-      auto* out = out_preds.Values().data();
-      auto out_stride = out_preds.Stride(0);
-      qu_->submit([&](::sycl::handler& cgh) {
-           cgh.parallel_for<>(::sycl::range<1>(d_leaf_ids.size()), [=](::sycl::id<1> pid) {
-             auto row_idx = pid[0];
-             auto position = d_leaf_ids[row_idx];
-             auto nidx = position >= 0 ? position : ~position;
-             out[row_idx * out_stride] += d_leaf_values[nidx];
-           });
-         })
-          .wait_and_throw();
-    }
   }
 
  private:

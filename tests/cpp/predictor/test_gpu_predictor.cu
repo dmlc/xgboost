@@ -59,6 +59,12 @@ TEST(GPUPredictor, Basic) {
   }
 }
 
+TEST(GPUPredictor, PredictFromLeafIds) {
+  auto ctx = MakeCUDACtx(0);
+  auto dmat = RandomDataGenerator(16, 4, 0).GenerateDMatrix();
+  TestBasic(dmat.get(), &ctx);
+}
+
 TEST(GPUPredictor, BatchPredictionWithWeights) {
   auto ctx = MakeCUDACtx(0);
   TestBatchPredictionWithWeights(&ctx);

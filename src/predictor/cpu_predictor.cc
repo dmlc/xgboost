@@ -461,6 +461,44 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
   });
 }
 
+void PredictFromLeafIdsCPU(Context const *ctx,
+                           common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                           common::Span<RegTree const *> trees,
+                           linalg::MatrixView<float> out_preds) {
+  CHECK_EQ(leaf_ids.size(), trees.size());
+  CHECK(out_preds.Device().IsCPU());
+
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto const *p_tree = trees[tree_idx];
+    CHECK(p_tree);
+    auto const h_leaf_ids = leaf_ids[tree_idx].ConstHostSpan();
+    CHECK_EQ(h_leaf_ids.size(), out_preds.Shape(0));
+
+    if (!p_tree->IsMultiTarget()) {
+      CHECK_EQ(out_preds.Shape(1), 1);
+      auto const tree = p_tree->HostScView();
+      common::ParallelFor(out_preds.Shape(0), ctx->Threads(), [&](std::size_t row_idx) {
+        auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
+        out_preds(row_idx, 0) += tree.LeafValue(nidx);
+      });
+    } else {
+      auto const tree = p_tree->HostMtView();
+      auto n_targets = tree.NumTargets();
+      CHECK_EQ(out_preds.Shape(1), n_targets);
+      common::ParallelFor(out_preds.Shape(0), ctx->Threads(), [&](std::size_t row_idx) {
+        auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
+        auto weight = tree.LeafValue(nidx);
+        for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+          out_preds(row_idx, target_idx) += weight(target_idx);
+        }
+      });
+    }
+  }
+}
+
+common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCPU{
+    DeviceOrd::kCPU, &PredictFromLeafIdsCPU};
+
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
                                                                     &PredictLeafCPU};
 
@@ -569,40 +607,6 @@ class CPUPredictor : public Predictor {
     bool type_error = false;
     data::cpu_impl::DispatchAny<false>(proxy, dispatch, &type_error);
     return !type_error;
-  }
-
-  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
-                          common::Span<RegTree const *> trees,
-                          linalg::MatrixView<float> out_preds) const override {
-    CHECK_EQ(leaf_ids.size(), trees.size());
-    CHECK(out_preds.Device().IsCPU());
-
-    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-      auto const *p_tree = trees[tree_idx];
-      CHECK(p_tree);
-      auto const h_leaf_ids = leaf_ids[tree_idx].ConstHostSpan();
-      CHECK_EQ(h_leaf_ids.size(), out_preds.Shape(0));
-
-      if (!p_tree->IsMultiTarget()) {
-        CHECK_EQ(out_preds.Shape(1), 1);
-        auto const tree = p_tree->HostScView();
-        common::ParallelFor(out_preds.Shape(0), ctx_->Threads(), [&](std::size_t row_idx) {
-          auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
-          out_preds(row_idx, 0) += tree.LeafValue(nidx);
-        });
-      } else {
-        auto const tree = p_tree->HostMtView();
-        auto n_targets = tree.NumTargets();
-        CHECK_EQ(out_preds.Shape(1), n_targets);
-        common::ParallelFor(out_preds.Shape(0), ctx_->Threads(), [&](std::size_t row_idx) {
-          auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
-          auto weight = tree.LeafValue(nidx);
-          for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-            out_preds(row_idx, target_idx) += weight(target_idx);
-          }
-        });
-      }
-    }
   }
 };
 
