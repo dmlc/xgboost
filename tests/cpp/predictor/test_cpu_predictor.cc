@@ -89,11 +89,6 @@ void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, i
   }
 }
 
-namespace {
-template <bst_node_t kDepth>
-using LayoutForTest = predictor::ArrayTreeLayout<false, true, kDepth, tree::ScalarTreeView>;
-}
-
 TEST(CpuPredictor, ArrayTreeLayout) {
   Context ctx;
 
@@ -111,28 +106,36 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
   {
     constexpr bst_node_t kDepth = 1;
-    LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout buffer(sc_tree, kDepth);
+    ASSERT_EQ(buffer.NumLevels(), kDepth);
+    ASSERT_EQ(buffer.TreeDepth(), 4);
+    ASSERT_FALSE(buffer.IsComplete());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr bst_node_t kDepth = 2;
-    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
+    predictor::ArrayTreeLayout buffer{sc_tree, kDepth};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr bst_node_t kDepth = 3;
-    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
+    predictor::ArrayTreeLayout buffer{sc_tree, kDepth};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr bst_node_t kDepth = 4;
-    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
+    predictor::ArrayTreeLayout buffer{sc_tree, kDepth};
+    ASSERT_EQ(buffer.NumLevels(), kDepth);
+    ASSERT_TRUE(buffer.IsComplete());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
+    // The number of unrolled levels is capped by the depth of the tree.
     constexpr bst_node_t kDepth = 5;
-    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
-    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+    predictor::ArrayTreeLayout buffer{sc_tree, kDepth};
+    ASSERT_EQ(buffer.NumLevels(), 4);
+    ASSERT_TRUE(buffer.IsComplete());
+    CheckArrayLayout(tree, buffer, 4, 0, 0, 0);
   }
 }
 
