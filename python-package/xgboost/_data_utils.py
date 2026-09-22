@@ -610,6 +610,12 @@ def cudf_cat_inf(
     if cudf.api.types.is_integer_dtype(cats.dtype) or cudf.api.types.is_float_dtype(
         cats.dtype
     ):
+        if cats.dtype == np.dtype(np.uint64) and cast(Any, cats).max() > np.iinfo(
+            np.int64
+        ).max:
+            raise ValueError(
+                "Category index values must not exceed the signed 64-bit range."
+            )
         cats_ainf = cuda_array_interface_dict(cats)
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
