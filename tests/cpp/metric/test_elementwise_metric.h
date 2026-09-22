@@ -341,6 +341,24 @@ inline void VerifyMultiRMSE(DeviceOrd device) {
   ASSERT_FLOAT_EQ(ret, loss_w);
 }
 
+inline void VerifyMultiAlphaLayout(Metric *metric, bool expectile) {
+  metric->Configure({{expectile ? "expectile_alpha" : "quantile_alpha", "[0.25, 0.75]"}});
+  linalg::Tensor<float, 2> labels{{1.0f, 3.0f, 2.0f, 4.0f}, {2, 2}, DeviceOrd::CPU()};
+  HostDeviceVector<float> predts{0, 1, 3, 4, 1, 1, 3, 6};
+  std::vector<float> weights{1, 3};
+  auto expected = expectile ? 0.859375 : 0.421875;
+  EXPECT_NEAR(GetMultiMetricEval(metric, predts, labels, weights, {}), expected, 1e-6);
+  // Keep at least one non-empty worker when testing empty partitions.
+  if (collective::GetWorldSize() > 1) {
+    if (collective::GetRank() == 0) {
+      labels.Reshape(0, 2);
+      predts.Resize(0);
+      weights.clear();
+    }
+    EXPECT_NEAR(GetMultiMetricEval(metric, predts, labels, weights, {}), expected, 1e-6);
+  }
+}
+
 inline void VerifyQuantile(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
@@ -378,6 +396,22 @@ inline void VerifyQuantile(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_2, labels, {}, {}), 0.0425f, 0.0001f);
   metric->Configure(Args{{"quantile_alpha", "[0.2, 0.5, 0.8]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+  Json config{Object{}};
+  metric->SaveConfig(&config);
+  std::unique_ptr<Metric> loaded{Metric::Create("quantile", &ctx)};
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+
+  loaded->Configure({{"quantile_alpha", "[0.5]"}});
+  EXPECT_NO_THROW(GetMetricEval(loaded.get(), predts, labels, {}, {}));
+  loaded->LoadConfig(config);
+  EXPECT_NEAR(GetMetricEval(loaded.get(), predts_3, labels, {}, {}), 0.0450f, 0.0001f);
+
+  auto invalid = config;
+  invalid["quantile_loss_param"]["quantile_alpha"] = String{"[1.5]"};
+  EXPECT_THROW(loaded->LoadConfig(invalid), dmlc::Error);
+
+  VerifyMultiAlphaLayout(metric.get(), false);
 }
 
 inline void VerifyExpectile(DeviceOrd device) {
@@ -422,5 +456,6 @@ inline void VerifyExpectile(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_2, labels, weights, {}), 0.0129f, 0.0001f);
   metric->Configure(Args{{"expectile_alpha", "[0.2, 0.5, 0.8]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, weights, {}), 0.0119333f, 0.0001f);
+  VerifyMultiAlphaLayout(metric.get(), true);
 }
 }  // namespace xgboost::metric
