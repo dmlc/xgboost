@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <type_traits>  // for is_same_v
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,8 @@
 #include "../common/common.h"         // for Range1d
 #include "../common/hist_util.h"      // for DispatchBinType, HistogramCuts
 #include "../common/math.h"           // for CheckNAN
+#include "../data/adapter.h"          // for ArrayAdapter
+#include "../data/array_interface.h"  // for ArrayInterface, ArrayInterfaceHandler
 #include "../data/cat_container.h"    // for NoOpAccessor
 #include "../data/gradient_index.h"   // for GHistIndexMatrix
 #include "xgboost/data.h"             // for HostSparsePageView
@@ -171,12 +174,46 @@ class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
   float missing_;
   EncAccessor acc_;
 
+  /**
+   * @brief Fill one row of a dense array whose element type has been resolved.
+   *
+   * `ArrayInterface::operator()` dispatches on the element type for every element; for
+   * dense input the type is resolved once per row instead and the row is copied with a
+   * tight loop.  Semantics are identical to the generic loop in @ref DoFill.
+   */
+  template <typename T>
+  [[nodiscard]] bst_idx_t FillTypedRow(ArrayInterface<2> const& array, bst_idx_t ridx,
+                                       float* out) const {
+    auto const* p_row = static_cast<T const*>(array.data) + ridx * array.strides[0];
+    std::size_t const stride = array.strides[1];
+    std::size_t const n_columns = array.shape[1];
+    bst_idx_t n_non_missings = 0;
+    for (std::size_t c = 0; c < n_columns; ++c) {
+      float const fvalue = static_cast<float>(p_row[c * stride]);
+      if (missing_ != fvalue && !common::CheckNAN(fvalue)) {
+        out[c] = this->acc_(fvalue, c);
+        n_non_missings++;
+      }
+    }
+    return n_non_missings;
+  }
+
  public:
   explicit AdapterView(Adapter const* adapter, float missing, EncAccessor acc)
       : adapter_{adapter}, missing_{missing}, acc_{std::move(acc)} {}
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float* out) const {
     auto const& batch = adapter_->Value();
+    if constexpr (std::is_same_v<Adapter, data::ArrayAdapter>) {
+      // Dense (NumPy-like) input with the most common element types.
+      auto const& array = batch.Array();
+      if (array.type == ArrayInterfaceHandler::kF4) {
+        return this->FillTypedRow<float>(array, ridx, out);
+      }
+      if (array.type == ArrayInterfaceHandler::kF8) {
+        return this->FillTypedRow<double>(array, ridx, out);
+      }
+    }
     auto row = batch.GetLine(ridx);
     bst_idx_t n_non_missings = 0;
     for (size_t c = 0; c < row.Size(); ++c) {

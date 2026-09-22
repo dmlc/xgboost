@@ -187,6 +187,8 @@ class ArrayAdapterBatch : public detail::NoMetaInfo {
   [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape<0>(); }
   [[nodiscard]] std::size_t NumCols() const { return array_interface_.Shape<1>(); }
   [[nodiscard]] std::size_t Size() const { return this->NumRows(); }
+  /** @brief The underlying array, for typed row access without per-element dispatch. */
+  [[nodiscard]] ArrayInterface<2> const& Array() const { return array_interface_; }
 
   explicit ArrayAdapterBatch(ArrayInterface<2> array_interface)
       : array_interface_{std::move(array_interface)} {}
