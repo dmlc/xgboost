@@ -57,7 +57,9 @@ class Driver {
       : param_(param),
         max_node_batch_size_(max_node_batch_size),
         queue_(param.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT>
-                                                           : LossGuide<ExpandEntryT>) {}
+                                                           : LossGuide<ExpandEntryT>) {
+    CHECK_GT(max_node_batch_size, 0);
+  }
   template <typename EntryIterT>
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
