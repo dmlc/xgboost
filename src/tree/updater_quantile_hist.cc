@@ -633,6 +633,7 @@ class QuantileHistMaker : public TreeUpdater {
       }
 
       if (in_gpair->HasValueGrad()) {
+        CHECK((*tree_it)->IsMultiTarget());
         // Copy the value gradient and replay sampling from the original split gradient.
         auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
                                                       in_gpair->value_gpair.Shape(1));

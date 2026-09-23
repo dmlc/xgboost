@@ -515,6 +515,13 @@ def run_eta(device: Device) -> None:
     }
     for obj in (None, LsObj0(device), LsObj2(device, False)):
         check_base_weights(params, data, obj)
+    with pytest.raises(ValueError, match="IsMultiTarget"):
+        train(
+            params,
+            QuantileDMatrix(features, labels[:, 0]),
+            num_boost_round=1,
+            obj=LsObj0(device),
+        )
 
 
 def run_deterministic(device: Device) -> None:

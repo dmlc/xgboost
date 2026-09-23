@@ -678,6 +678,9 @@ class GPUHistMaker : public TreeUpdater {
     // build tree
     std::size_t t_idx{0};
     for (xgboost::RegTree* p_tree : trees) {
+      if (in_gpair->HasValueGrad()) {
+        CHECK(p_tree->IsMultiTarget());
+      }
       this->InitData(param, p_fmat, p_tree);
       if (p_tree->IsMultiTarget()) {
         p_mtimpl_->UpdateTree(in_gpair, p_fmat, task_, p_tree, &out_position[t_idx]);
