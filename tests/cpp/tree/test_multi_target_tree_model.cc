@@ -200,6 +200,7 @@ TEST(MultiTargetTree, FinalizeLeaves) {
   for (std::size_t i = 0; i < right.Size(); ++i) {
     ASSERT_EQ(right.Values()[i], i + left.Size());
   }
+  ASSERT_THROW(tree->FinalizeLeaves(leaves_idx, leaf_weights, 1.0f), dmlc::Error);
 }
 
 TEST(MultiTargetTree, Statistics) {

@@ -210,8 +210,7 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
 
 void MultiTargetTree::FinalizeLeaves(common::Span<bst_node_t const> leaves,
                                      common::Span<float const> weights, float learning_rate) {
-  auto is_partial_tree = this->NumLeaves() == 0;
-  CHECK(is_partial_tree || leaves.size() == this->NumLeaves());
+  CHECK_EQ(this->NumLeaves(), 0);
   auto n_targets = this->NumTargets();
   std::int32_t nidx_in_set = 0;
   auto n_leaves = leaves.size();
@@ -226,9 +225,7 @@ void MultiTargetTree::FinalizeLeaves(common::Span<bst_node_t const> leaves,
     auto w_out = h_weights.subspan(nidx_in_set * n_targets, n_targets);
     std::transform(w_in.cbegin(), w_in.cend(), w_out.begin(),
                    [learning_rate](float weight) { return weight * learning_rate; });
-    if (is_partial_tree) {
-      CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
-    }
+    CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
     h_leaf_mapping[nidx] = nidx_in_set;
     nidx_in_set++;
   }
