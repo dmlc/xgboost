@@ -184,5 +184,5 @@ def run_eta_decay_leaf_output(
 
     tree_3th_0 = j0["learner"]["gradient_booster"]["model"]["trees"][3]
     tree_3th_1 = j1["learner"]["gradient_booster"]["model"]["trees"][3]
-    assert tree_3th_0["base_weights"] != tree_3th_1["base_weights"]
+    assert tree_3th_0["base_weights"] == tree_3th_1["base_weights"]
     assert tree_3th_0["split_conditions"] != tree_3th_1["split_conditions"]

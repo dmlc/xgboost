@@ -514,8 +514,8 @@ struct GPUHistMakerDevice {
     }
 
     auto base_weight = candidate.base_weight;
-    auto left_weight = candidate.left_weight * param.learning_rate;
-    auto right_weight = candidate.right_weight * param.learning_rate;
+    auto left_weight = candidate.left_weight;
+    auto right_weight = candidate.right_weight;
     auto const& q = (*quantiser)[0];
     auto parent_hess =
         q.ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
@@ -535,12 +535,13 @@ struct GPUHistMakerDevice {
       tree.ExpandCategorical(candidate.nidx, candidate.split.findex, cat_bits,
                              candidate.split.dir == kLeftDir, base_weight, left_weight,
                              right_weight, candidate.split.loss_chg, parent_hess, left_hess,
-                             right_hess);
+                             right_hess, param.learning_rate);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
       tree.ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_hess, left_hess, right_hess);
+                      candidate.split.loss_chg, parent_hess, left_hess, right_hess,
+                      param.learning_rate);
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 

@@ -213,9 +213,9 @@ void TestHistUpdaterBuildHistogramsLossGuide(const xgboost::tree::TrainParam& pa
   gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
 
   ExpandEntry node0(0, tree.GetDepth(0));
   ExpandEntry node1(1, tree.GetDepth(1));
@@ -278,7 +278,7 @@ void TestHistUpdaterInitNewNode(const xgboost::tree::TrainParam& param, float sp
   gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
   ExpandEntry node(ExpandEntry::kRootNid, tree.GetDepth(ExpandEntry::kRootNid));
 
   auto* row_set_collection = updater.TestInitData(gmat, gpair, *p_fmat, tree);
@@ -334,7 +334,7 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
   gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
   ExpandEntry node(ExpandEntry::kRootNid, tree.GetDepth(ExpandEntry::kRootNid));
 
   auto* row_set_collection = updater.TestInitData(gmat, gpair, *p_fmat, tree);
@@ -398,7 +398,7 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
   gmat.Init(qu, &ctx, p_fmat.get(), max_bins);
 
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
 
   std::vector<tree::ExpandEntry> nodes;
   nodes.emplace_back(tree::ExpandEntry(0, tree.GetDepth(0)));

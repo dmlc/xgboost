@@ -113,7 +113,7 @@ void GetSplit(RegTree* tree, float split_value, std::vector<GPUExpandEntry>* can
       /*nid=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
       /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
       /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+      /*right_sum=*/0.0f, 1.0f);
   candidates->front().nidx = 0;
   candidates->front().depth = 0;
   candidates->front().split.fvalue = split_value;

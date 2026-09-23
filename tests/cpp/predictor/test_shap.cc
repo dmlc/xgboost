@@ -347,7 +347,7 @@ void CheckShapHandlesDeepTree(Context const* ctx) {
     auto const right_cover = cover - left_cover;
     auto const left_leaf_weight = depth + 1 == kDepth ? 1.0f : 0.0f;
     tree->ExpandNode(nidx, 0, 0.5f, true, 0.0f, left_leaf_weight, 0.0f, 0.0f, cover, left_cover,
-                     right_cover);
+                     right_cover, 1.0f);
     nidx = (*tree)[nidx].LeftChild();
     cover = left_cover;
   }
@@ -399,7 +399,7 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   auto const parent_cover = zero_parent_cover ? 0.0f : 1.0f;
   auto const left_cover = parent_cover;
   trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, parent_cover,
-                            left_cover, 0.0f);
+                            left_cover, 0.0f, 1.0f);
   model.CommitModelGroup(std::move(trees), 0);
 
   auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);

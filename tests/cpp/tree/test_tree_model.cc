@@ -46,12 +46,12 @@ TEST(Tree, ModelShape) {
 TEST(Tree, AllocateNode) {
   RegTree tree;
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f, 1.0f);
   tree.CollapseToLeaf(0, 0);
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f, 1.0f);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   auto nodes = tree.GetNodes(DeviceOrd::CPU());
@@ -65,7 +65,7 @@ TEST(Tree, ExpandCategoricalFeature) {
   {
     RegTree tree;
     tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+                           /*left_sum=*/3.0, /*right_sum=*/4.0, 1.0f);
     ASSERT_EQ(tree.Size(), 3ul);
     ASSERT_EQ(tree.GetNumLeaves(), 2);
     ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
@@ -82,7 +82,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     LBitField32 bitset{split_cats};
     bitset.Set(cat);
     tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+                           /*left_sum=*/3.0, /*right_sum=*/4.0, 1.0f);
     auto categories = tree.GetSplitCategories(ctx.Device());
     auto segments = tree.GetSplitCategoriesPtr();
     auto got = categories.subspan(segments[0].beg, segments[0].size);
@@ -130,11 +130,11 @@ void GrowTree(RegTree* p_tree) {
       LBitField32 bitset{split_cats};
       bitset.Set(cat);
       tree.ExpandCategorical(node, f, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                             /*left_sum=*/3.0, /*right_sum=*/4.0);
+                             /*left_sum=*/3.0, /*right_sum=*/4.0, 1.0f);
     } else {
       auto split = split_value(&lcg);
       tree.ExpandNode(node, f, split, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                      /*left_sum=*/3.0, /*right_sum=*/4.0);
+                      /*left_sum=*/3.0, /*right_sum=*/4.0, 1.0f);
     }
 
     stack.push(tree[node].LeftChild());
@@ -162,7 +162,7 @@ TEST(Tree, CategoricalIO) {
     LBitField32 bitset{split_cats};
     bitset.Set(cat);
     tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+                           /*left_sum=*/3.0, /*right_sum=*/4.0, 1.0f);
 
     CheckReload(tree);
   }
@@ -180,17 +180,17 @@ RegTree ConstructTree() {
   tree.ExpandNode(
       /*nid=*/0, /*split_index=*/0, /*split_value=*/0.0f,
       /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+      /*right_sum=*/0.0f, 1.0f);
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.ExpandNode(
       /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
       /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+      /*right_sum=*/0.0f, 1.0f);
   tree.ExpandNode(
       /*nid=*/right, /*split_index=*/2, /*split_value=*/2.0f,
       /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+      /*right_sum=*/0.0f, 1.0f);
   return tree;
 }
 
@@ -207,15 +207,15 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
   cond->push_back(32);
 
   tree.ExpandCategorical(0, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0, 3.0,
-                         4.0);
+                         4.0, 1.0f);
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.ExpandNode(
       /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
       /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+      /*right_sum=*/0.0f, 1.0f);
   tree.ExpandCategorical(right, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0,
-                         3.0, 4.0);
+                         3.0, 4.0, 1.0f);
   return tree;
 }
 
@@ -371,7 +371,7 @@ TEST(Tree, DumpDotCategorical) { TestCategoricalTreeDump("dot", ","); }
 TEST(Tree, JsonIO) {
   RegTree tree;
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f, 1.0f);
   Json j_tree{Object()};
   tree.SaveModel(&j_tree);
 
@@ -395,9 +395,9 @@ TEST(Tree, JsonIO) {
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.ExpandNode(left, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f, 1.0f);
   tree.ExpandNode(right, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f, 1.0f);
   tree.SaveModel(&j_tree);
 
   tree.ChangeToLeaf(1, 1.0f);

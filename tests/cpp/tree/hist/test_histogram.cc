@@ -60,9 +60,9 @@ void TestAddHistRows(bool is_distributed) {
 
   RegTree tree;
 
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
   nodes_to_build.emplace_back(3);
   nodes_to_build.emplace_back(4);
   nodes_to_sub.emplace_back(5);
@@ -118,7 +118,7 @@ void TestSyncHist(bool is_distributed) {
   histogram.AddHistRows(tree.HostScView(), &nodes_for_explicit_hist_build,
                         &nodes_for_subtraction_trick, false);
 
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
   nodes_for_explicit_hist_build.clear();
   nodes_for_subtraction_trick.clear();
 
@@ -129,8 +129,8 @@ void TestSyncHist(bool is_distributed) {
   histogram.AddHistRows(tree.HostScView(), &nodes_for_explicit_hist_build,
                         &nodes_for_subtraction_trick, false);
 
-  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
 
   nodes_for_explicit_hist_build.clear();
   nodes_for_subtraction_trick.clear();
@@ -541,9 +541,9 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
     best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
     tree.ExpandNode(best.nid, best.split.SplitIndex(), best.split.split_value, false,
                     /*base_weight=*/2.0f,
-                    /*left_leaf_weight=*/1.0f, /*right_leaf_weight=*/1.0f, best.GetLossChange(),
+                    /*left_weight=*/1.0f, /*right_weight=*/1.0f, best.GetLossChange(),
                     /*sum_hess=*/2.0f, best.split.left_sum.GetHess(),
-                    best.split.right_sum.GetHess());
+                    best.split.right_sum.GetHess(), 1.0f);
 
     std::vector<CPUExpandEntry> valid_candidates{best};
     for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {

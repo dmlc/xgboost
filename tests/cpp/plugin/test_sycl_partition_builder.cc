@@ -42,7 +42,7 @@ void TestPartitioning(float sparsity, int max_bins) {
   row_set_collection.Init();
 
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0, 1.0f);
 
   const size_t n_nodes = row_set_collection.Size();
   PartitionBuilder partition_builder;

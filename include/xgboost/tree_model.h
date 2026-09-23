@@ -58,7 +58,7 @@ struct RTreeNodeStat {
   float loss_chg;
   /** @brief sum of hessian values, used to measure coverage of data */
   float sum_hess;
-  /** @brief weight of current node */
+  /** @brief weight of current node before applying the learning rate */
   float base_weight;
   /** @brief number of child that is leaf node known up to now */
   int leaf_child_cnt{0};
@@ -288,19 +288,20 @@ class RegTree : public Model {
    * \param split_value       The split condition.
    * \param default_left      True to default left.
    * \param base_weight       The base weight, before learning rate.
-   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
-   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
+   * \param left_weight       The left child base weight, before learning rate.
+   * \param right_weight      The right child base weight, before learning rate.
    * \param loss_change       The loss change.
    * \param sum_hess          The sum hess.
    * \param left_sum          The sum hess of left leaf.
    * \param right_sum         The sum hess of right leaf.
+   * \param learning_rate     The learning rate applied to prediction leaf values.
    * \param leaf_right_child  The right child index of leaf, by default kInvalidNodeId,
    *                          some updaters use the right child index of leaf as a marker
    */
   void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value, bool default_left,
-                  bst_float base_weight, bst_float left_leaf_weight, bst_float right_leaf_weight,
+                  bst_float base_weight, bst_float left_weight, bst_float right_weight,
                   bst_float loss_change, float sum_hess, float left_sum, float right_sum,
-                  bst_node_t leaf_right_child = kInvalidNodeId);
+                  float learning_rate, bst_node_t leaf_right_child = kInvalidNodeId);
   /**
    * @brief Expand multiple leaves in a multi-target tree.
    *
@@ -327,18 +328,19 @@ class RegTree : public Model {
    * \param split_cat         The bitset containing categories
    * \param default_left      True to default left.
    * \param base_weight       The base weight, before learning rate.
-   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
-   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
+   * \param left_weight       The left child base weight, before learning rate.
+   * \param right_weight      The right child base weight, before learning rate.
    * \param loss_change       The loss change.
    * \param sum_hess          The sum hess.
    * \param left_sum          The sum hess of left leaf.
    * \param right_sum         The sum hess of right leaf.
+   * \param learning_rate     The learning rate applied to prediction leaf values.
    */
   void ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
                          common::Span<tree::CatWordT const> split_cat, bool default_left,
-                         bst_float base_weight, bst_float left_leaf_weight,
-                         bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                         float left_sum, float right_sum);
+                         bst_float base_weight, bst_float left_weight, bst_float right_weight,
+                         bst_float loss_change, float sum_hess, float left_sum, float right_sum,
+                         float learning_rate);
   /**
    * @brief Whether this tree has categorical split.
    */

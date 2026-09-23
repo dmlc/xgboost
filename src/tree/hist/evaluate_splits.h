@@ -349,17 +349,17 @@ class HistEvaluator {
         evaluator.CalcWeight(candidate.nid, *param_, GradStats{candidate.split.right_sum});
 
     if (candidate.split.is_cat) {
-      tree.ExpandCategorical(
-          candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
-          candidate.split.DefaultLeft(), base_weight, left_weight * param_->learning_rate,
-          right_weight * param_->learning_rate, candidate.split.loss_chg, parent_sum.GetHess(),
-          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+      tree.ExpandCategorical(candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
+                             candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
+                             candidate.split.loss_chg, parent_sum.GetHess(),
+                             candidate.split.left_sum.GetHess(),
+                             candidate.split.right_sum.GetHess(), param_->learning_rate);
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                      candidate.split.DefaultLeft(), base_weight,
-                      left_weight * param_->learning_rate, right_weight * param_->learning_rate,
+                      candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
                       candidate.split.loss_chg, parent_sum.GetHess(),
-                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess(),
+                      param_->learning_rate);
     }
 
     // Set up child constraints

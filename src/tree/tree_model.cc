@@ -856,9 +856,10 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
 }
 
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
-                         bool default_left, bst_float base_weight, bst_float left_leaf_weight,
-                         bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                         float left_sum, float right_sum, bst_node_t leaf_right_child) {
+                         bool default_left, bst_float base_weight, bst_float left_weight,
+                         bst_float right_weight, bst_float loss_change, float sum_hess,
+                         float left_sum, float right_sum, float learning_rate,
+                         bst_node_t leaf_right_child) {
   CHECK(!IsMultiTarget());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
@@ -872,12 +873,12 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   h_nodes[node.RightChild()].SetParent(nid, false);
   node.SetSplit(split_index, split_value, default_left);
 
-  h_nodes[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
-  h_nodes[pright].SetLeaf(right_leaf_weight, leaf_right_child);
+  h_nodes[pleft].SetLeaf(left_weight * learning_rate, leaf_right_child);
+  h_nodes[pright].SetLeaf(right_weight * learning_rate, leaf_right_child);
 
   this->Stat(nid) = {loss_change, sum_hess, base_weight};
-  this->Stat(pleft) = {0.0f, left_sum, left_leaf_weight};
-  this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
+  this->Stat(pleft) = {0.0f, left_sum, left_weight};
+  this->Stat(pright) = {0.0f, right_sum, right_weight};
 
   this->split_types_.HostVector().at(nid) = FeatureType::kNumerical;
 }
@@ -924,13 +925,13 @@ void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const
 
 void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
                                 common::Span<tree::CatWordT const> split_cat, bool default_left,
-                                bst_float base_weight, bst_float left_leaf_weight,
-                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                                float left_sum, float right_sum) {
+                                bst_float base_weight, bst_float left_weight,
+                                bst_float right_weight, bst_float loss_change, float sum_hess,
+                                float left_sum, float right_sum, float learning_rate) {
   static_assert(std::is_same_v<common::KCatBitField::value_type, std::add_const_t<tree::CatWordT>>);
   CHECK(!this->IsMultiTarget());
-  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
-                   right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
+  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_weight,
+                   right_weight, loss_change, sum_hess, left_sum, right_sum, learning_rate);
 
   auto& h_split_categories = split_categories_.HostVector();
   std::size_t orig_size = h_split_categories.size();

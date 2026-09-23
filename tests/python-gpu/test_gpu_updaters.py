@@ -18,6 +18,7 @@ from xgboost.testing.updater import (
     check_categorical_ohe,
     check_get_quantile_cut,
     check_quantile_loss,
+    check_scalar_base_weights,
     run_invalid_category,
     run_max_cat,
     train_result,
@@ -27,6 +28,11 @@ pytestmark = tm.timeout(30)
 
 
 class TestGPUUpdaters:
+    @pytest.mark.parametrize("tree_method", ["approx", "hist"])
+    @pytest.mark.parametrize("categorical", [False, True])
+    def test_base_weights(self, tree_method: str, categorical: bool) -> None:
+        check_scalar_base_weights(tree_method, "cuda", categorical)
+
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,

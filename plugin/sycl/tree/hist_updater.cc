@@ -140,13 +140,11 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(const common::GHistIndexMatrix& 
       nodes_for_apply_split->push_back(entry);
 
       NodeEntry<GradientSumT>& e = snode_host_[nid];
-      bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
-      bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
+      bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
+      bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                         e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
-                         e.stats.GetHess(), e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+                         e.weight, left_weight, right_weight, e.best.loss_chg, e.stats.GetHess(),
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess(), lr);
 
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
@@ -267,13 +265,11 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
     } else {
       auto evaluator = tree_evaluator_.GetEvaluator();
       NodeEntry<GradientSumT>& e = snode_host_[nid];
-      bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
-      bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
+      bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
+      bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                         e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
-                         e.stats.GetHess(), e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+                         e.weight, left_weight, right_weight, e.best.loss_chg, e.stats.GetHess(),
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess(), lr);
 
       this->ApplySplit({candidate}, gmat, p_tree);
 

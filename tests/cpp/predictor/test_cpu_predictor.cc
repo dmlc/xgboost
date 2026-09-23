@@ -105,7 +105,7 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     bst_float split_cond = nid + 2;
     bool default_left = nid % 2 == 0;
 
-    tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
+    tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0, 1.0f);
   }
 
   auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};

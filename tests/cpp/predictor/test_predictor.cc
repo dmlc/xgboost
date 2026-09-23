@@ -398,7 +398,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind, bst_cat_t s
   cats_bits.Set(split_cat);
 
   p_tree->ExpandCategorical(0, split_ind, split_cats, true, 1.5f, left_weight, right_weight, 3.0f,
-                            2.2f, 7.0f, 9.0f);
+                            2.2f, 7.0f, 9.0f, 1.0f);
   model->CommitModelGroup(std::move(trees), 0);
 }
 
