@@ -132,6 +132,52 @@ implement the ``split_grad`` method.
 See :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py` for a complete worked
 example. The feature supports only the ``multi_strategy=multi_output_tree``.
 
+********************************************
+Exact Hessian for multi-class (experimental)
+********************************************
+
+.. versionadded:: 3.2.0
+
+XGBoost approximates the multi-class second-order statistics with a **diagonal** matrix: each
+class gets its own scalar Hessian and the coupling between classes is discarded. The true
+multinomial Hessian is dense,
+
+.. math::
+
+   g = p - y, \qquad H = \mathrm{diag}(p) - p p^{	op}
+
+and its off-diagonal entries :math:`-p_i p_j` are exactly that discarded coupling. Setting
+``multi_hessian=exact`` uses the dense matrix and solves one joint Newton system per leaf.
+
+Because softmax is invariant to adding a constant to every logit, :math:`H` is singular
+(:math:`H \mathbf{1} = 0`). XGBoost removes that direction by pinning the last class to logit
+zero, solving in :math:`K-1` free coordinates, and writing the mean-centred representative of
+the resulting step back to the :math:`K` leaf outputs. The L2 penalty is applied to that
+centred leaf, :math:`R = \lambda (I - \mathbf{1}\mathbf{1}^{	op}/K)`, which makes the fitted
+model independent of which class is used as the reference.
+
+**Cost.** Histogram storage per bin grows from :math:`O(K)` to :math:`O(K^2)` and each leaf
+solve costs :math:`O(K^3)`. End-to-end training is several times slower than ``diagonal``,
+and the factor grows with ``num_class``; ``research/benchmark_k_scaling.py`` measures it.
+
+**Benefit.** This is the open question, and it is deliberately not answered by assertion
+here. ``research/benchmark_v2.py`` compares the two modes under a fixed protocol -- identical
+grid, seeds and splits for both, configuration selection and early stopping on a validation
+split, symmetric validation-only targets, and the test split evaluated once after selection.
+It reports rounds-to-target, wall-clock-to-target, equal-wall-clock quality and held-out
+quality, so the trade-off can be measured on your own data rather than inherited from someone
+else's. Treat ``multi_hessian=exact`` as an opt-in experimental capability, not as a better
+default.
+
+**Requirements.** ``multi:softprob`` or ``multi:softmax``, ``device=cpu``,
+``tree_method=hist``, ``multi_strategy=multi_output_tree``. Unsupported combinations are
+rejected with an actionable error rather than silently falling back to the diagonal
+curvature. ``min_child_weight`` is compared against each mode's own curvature and therefore
+does not gate identically in the two modes; see :doc:`/parameter`.
+
+``multi_hessian`` is a training parameter. It is not stored in the model, and a model trained
+with it predicts identically to any other model.
+
 *************
 Brief History
 *************

@@ -57,6 +57,7 @@
 #include "xgboost/task.h"                 // for ObjInfo
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
+DECLARE_FIELD_ENUM_CLASS(xgboost::MultiHessian);
 
 namespace xgboost {
 Learner::~Learner() = default;
@@ -165,6 +166,8 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   std::string objective;
   // This is a training parameter and is not saved (nor loaded) in the model.
   MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
+  // Curvature model for multi-class objectives. Training parameter, not saved.
+  MultiHessian multi_hessian{MultiHessian::kDiagonal};
 
   template <typename Container>
   Args UpdateAllowUnknown(Container const& kwargs) {
@@ -214,6 +217,15 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .describe(
             "Strategy used for training multi-target models. `multi_output_tree` means building "
             "one single tree for all targets.");
+    DMLC_DECLARE_FIELD(multi_hessian)
+        .add_enum("diagonal", MultiHessian::kDiagonal)
+        .add_enum("exact", MultiHessian::kExact)
+        .set_default(MultiHessian::kDiagonal)
+        .describe(
+            "Curvature model for multi-class objectives. `diagonal` gives each class its own "
+            "scalar Hessian. `exact` uses the full dense multinomial Hessian and one joint "
+            "Newton solve per leaf; it requires a native multinomial objective, CPU, "
+            "tree_method=hist and multi_strategy=multi_output_tree.");
   }
 };
 
@@ -404,7 +416,8 @@ class LearnerModelStateContainer : public Learner {
     bool model_input_changed =
         has("base_score") || has("num_class") || has("num_target") || has("boost_from_average");
     bool structure_changed = old_tparam.objective != tparam_.objective ||
-                             old_tparam.multi_strategy != tparam_.multi_strategy;
+                             old_tparam.multi_strategy != tparam_.multi_strategy ||
+                             old_tparam.multi_hessian != tparam_.multi_hessian;
     if (!model_input_changed && !structure_changed) {
       return;
     }
@@ -560,6 +573,9 @@ class LearnerConfiguration : public LearnerModelStateContainer {
     Args config_args{config.cbegin(), config.cend()};
 
     used.merge(UpdateAndGetUsedParameters(&tparam_, config_args));
+    // Checked here, against the accumulated configuration and before the Context resolves
+    // the device, so a GPU request cannot be normalised away into silent CPU training.
+    this->ValidateExactDevice(config_args);
 
     auto initialized = ctx_.GetInitialised();
     auto old_seed = ctx_.seed;
@@ -726,6 +742,32 @@ class LearnerConfiguration : public LearnerModelStateContainer {
   Context const* Ctx() const override { return &ctx_; }
 
  private:
+  /**
+   * @brief Reject an exact-Hessian request on a device it is not implemented for.
+   *
+   * This reads the device the user *asked for*, not the one the Context settled on. On a
+   * machine without a GPU, `device=cuda` is silently downgraded to CPU before
+   * `ValidateExactHessian` runs, so checking only the resolved context would let a GPU
+   * request quietly train on the CPU and appear to be supported. Checking the raw argument
+   * keeps the answer the same on every machine.
+   */
+  void ValidateExactDevice(Args const& args) const {
+    if (tparam_.multi_hessian != MultiHessian::kExact) {
+      return;
+    }
+    for (auto const& kv : args) {
+      if (kv.first != "device") {
+        continue;
+      }
+      auto const& requested = kv.second;
+      auto is_cpu = requested.rfind("cpu", 0) == 0 || requested.empty();
+      CHECK(is_cpu) << "multi_hessian=exact is implemented for the CPU only, but device=\""
+                    << requested
+                    << "\" was requested. There is no GPU implementation of the exact "
+                       "multinomial Hessian; set device=cpu, or use multi_hessian=diagonal.";
+    }
+  }
+
   void ValidateParameters(Args const& args, std::set<std::string> const& used) {
     std::set<std::string> provided;
     for (auto const& kv : args) {
@@ -1077,7 +1119,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("PredictRaw");
 
     monitor_.Start("GetGradient");
-    GetGradient(predt, train->Info(), iter, &gpair_.gpair);
+    GetGradient(predt, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_.Grad()->Data(), "Gradients");
 
@@ -1097,6 +1139,16 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
+    // A caller-supplied gradient carries no exact Hessian, and this entry point bypasses
+    // LearnerImpl::GetGradient, so nothing would populate the sidecar. Without this check the
+    // updater would see no sidecar, quietly take the diagonal path, and train a different
+    // model than the one that was configured -- the exact silent downgrade the rest of this
+    // feature is built to prevent.
+    CHECK(!this->UseExactHessian() || in_gpair->HasExactHessian())
+        << "multi_hessian=exact cannot be used with a custom objective or with "
+           "XGBoosterTrainOneIter: those supply the gradient directly and cannot produce the "
+           "exact dense Hessian. Use a built-in multinomial objective (multi:softprob, "
+           "multi:softmax), or set multi_hessian=diagonal.";
     if (in_gpair->HasValueGrad()) {
       CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumTargets())
           << "Value gradient should have the same number of targets as the overall model.";
@@ -1262,10 +1314,48 @@ class LearnerImpl : public LearnerIO {
   }
 
  private:
+  /**
+   * @brief Reject an exact-Hessian request the rest of the stack cannot honour.
+   *
+   * Every branch here would otherwise end in a silent fall back to the diagonal curvature,
+   * producing a different model than the user asked for without saying so.
+   */
+  void ValidateExactHessian() const {
+    auto task = obj_->Task();
+    CHECK(task.exact_hess) << "multi_hessian=exact requires an objective that can produce an "
+                              "exact dense Hessian, but `"
+                           << tparam_.objective
+                           << "` cannot. Supported objectives: multi:softmax, multi:softprob.";
+    CHECK(ctx_.IsCPU()) << "multi_hessian=exact is implemented for the CPU only, but the "
+                           "current device is "
+                        << ctx_.Device().Name()
+                        << ". Set device=cpu, or use multi_hessian=diagonal.";
+    CHECK(tparam_.multi_strategy == MultiStrategy::kMultiOutputTree)
+        << "multi_hessian=exact needs one tree shared by all classes, because the joint Newton "
+           "solve couples them. Set multi_strategy=multi_output_tree, or use "
+           "multi_hessian=diagonal.";
+    CHECK_GE(tparam_.num_class, 2) << "multi_hessian=exact requires num_class >= 2, got "
+                                   << tparam_.num_class << ".";
+  }
+
+  [[nodiscard]] bool UseExactHessian() const {
+    return tparam_.multi_hessian == MultiHessian::kExact;
+  }
+
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
-                   linalg::Matrix<GradientPair>* out_gpair) {
-    out_gpair->Reshape(info.num_row_, this->model_state_.OutputLength());
-    obj_->GetGradient(preds, info, iter, out_gpair);
+                   GradientContainer* out) {
+    // The container persists across boosting rounds, so any exact statistics left from an
+    // earlier round describe a gradient that is about to be overwritten. Drop them here,
+    // where a new gradient computation starts, so the sidecar can never disagree with the
+    // gradient it accompanies.
+    out->ClearExactHessian();
+    out->gpair.Reshape(info.num_row_, this->model_state_.OutputLength());
+    if (this->UseExactHessian()) {
+      this->ValidateExactHessian();
+      obj_->GetGradientAndExactHessian(preds, info, iter, &out->gpair, &out->exact_hessian);
+    } else {
+      obj_->GetGradient(preds, info, iter, &out->gpair);
+    }
   }
 
   /*! \brief random number transformation seed. */

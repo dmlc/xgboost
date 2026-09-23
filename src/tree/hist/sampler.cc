@@ -245,4 +245,35 @@ void Sampler::ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair 
       LOG(FATAL) << "Unknown sampling method: " << sampling_method_;
   }
 }
+
+void Sampler::ApplySampling(Context const* ctx, ExactHessian* hessian) const {
+  if (!is_sampling_) {
+    return;
+  }
+  CHECK(hessian);
+  CHECK_EQ(sampling_method_, TrainParam::kUniform)
+      << "multi_hessian=exact supports uniform subsampling only. The gradient-based method "
+         "rescales rows using the scalar (g, h) pair, which has no defined meaning for a dense "
+         "Hessian. Set sampling_method=uniform, or use multi_hessian=diagonal.";
+  if (hessian->Empty()) {
+    return;
+  }
+
+  auto n_samples = hessian->NumRows();
+  auto row_size = hessian->RowSize();
+  auto values = hessian->HostValues();
+  // Mirrors UniformSample exactly: same block partition, same displaced seed, and one
+  // Bernoulli draw per row in the same order, so a row is dropped here if and only if it was
+  // dropped from the gradient.
+  ParallelSampling(ctx, n_samples, initial_seed_,
+                   [&](std::size_t ibegin, std::size_t iend, auto& eng) {
+                     std::bernoulli_distribution coin_flip{subsample_};
+                     for (std::size_t i = ibegin; i < iend; ++i) {
+                       if (!coin_flip(eng)) {
+                         auto* row = values.data() + i * row_size;
+                         std::fill(row, row + row_size, 0.0f);
+                       }
+                     }
+                   });
+}
 }  // namespace xgboost::tree::cpu_impl

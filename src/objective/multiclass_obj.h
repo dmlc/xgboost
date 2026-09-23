@@ -13,6 +13,7 @@
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
+#include "xgboost/gradient.h"            // for ExactHessian
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for Matrix
 
@@ -32,6 +33,14 @@ struct MulticlassCenter {
 struct MulticlassGradientKernel {
   using Signature = void(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
                          std::int64_t, linalg::Matrix<GradientPair>*);
+};
+
+/**
+ * @brief Gradient and exact packed Hessian from a single softmax evaluation per row.
+ */
+struct MulticlassExactGradientKernel {
+  using Signature = void(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
+                         std::int64_t, linalg::Matrix<GradientPair>*, ExactHessian*);
 };
 
 struct MulticlassInitEstimationKernel {

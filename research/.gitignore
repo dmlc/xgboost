@@ -1,0 +1,6 @@
+# Generated benchmark output. The scripts are the reproducible artifact; their results are
+# machine- and run-specific and must not be committed as if they were source.
+benchmark_raw.jsonl
+benchmark_v2_raw.jsonl
+detail_results.jsonl
+__pycache__/

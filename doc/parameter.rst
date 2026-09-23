@@ -263,6 +263,51 @@ Parameters for Tree Booster
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
 
+* ``multi_hessian``, [default = ``diagonal``]
+
+  .. versionadded:: 3.2.0
+
+  .. note:: This parameter is experimental.
+
+  - The curvature model used for multi-class objectives.
+
+    - ``diagonal``: The long-standing behaviour. Each class receives its own scalar
+      second-order statistic and the leaf value is ``K`` independent scalar Newton steps.
+      The coupling between classes is ignored.
+    - ``exact``: Use the full multinomial Hessian ``H = diag(p) - p pᵀ`` and solve one joint
+      Newton system per leaf over ``K-1`` free logits (the last class is the reference
+      class). The leaf value is the minimum-norm, mean-centred representative of that step.
+
+  ``exact`` is opt-in and substantially more expensive: histogram storage per bin grows as
+  :math:`O(K^2)` instead of :math:`O(K)`, and each leaf solve costs :math:`O(K^3)`. Measured
+  end-to-end training time relative to ``diagonal`` on one machine was roughly 3x at
+  ``num_class=10`` and grows with ``num_class``; treat those figures as indicative, not as a
+  guarantee. Whether the exact curvature repays that cost is dataset dependent and is not
+  assumed here: ``research/benchmark_v2.py`` measures it under a fixed protocol in which
+  configuration selection, early stopping and all targets use a validation split, and the
+  test split is touched once, after selection. Run it rather than relying on a headline
+  number. Use ``exact`` when you want the true Newton direction — for research into
+  curvature, or for problems where the diagonal approximation is known to be a poor fit —
+  not as a default.
+
+  ``exact`` requires a native multinomial objective (``multi:softprob``, ``multi:softmax``),
+  ``device=cpu``, ``tree_method=hist`` and ``multi_strategy=multi_output_tree``. It rejects
+  rather than silently falls back on: categorical features, ``monotone_constraints``,
+  ``reg_alpha``, ``max_delta_step``, ``sampling_method=gradient_based``, custom objectives,
+  and GPU. External-memory (multi-page) input is supported.
+
+  .. note::
+
+     ``min_child_weight`` is compared against each mode's own curvature, so the same value
+     does not gate identically in the two modes. ``diagonal`` compares against the mean
+     absolute-residual pseudo-Hessian ``mean_k |p_k - y_k|``; ``exact`` compares against the
+     true normalised curvature ``(1 - sum_k p_k^2) / K``. At a uniform prediction the
+     ``diagonal`` quantity is twice the ``exact`` one, converging as predictions sharpen.
+     Re-tune ``min_child_weight`` when switching modes.
+
+  ``multi_hessian`` is a training parameter only. It is not stored in the model, and a model
+  trained with ``exact`` loads and predicts identically to any other model.
+
 
 Parameters for Non-Exact Tree Methods
 =====================================
