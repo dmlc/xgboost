@@ -523,26 +523,26 @@ struct GPUHistMakerDevice {
     auto right_hess = q.ToFloatingPoint(candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
+    common::Span<CatWordT const> cat_bits;
     if (is_cat) {
       // should be set to nan in evaluation split.
       CHECK(common::CheckNAN(candidate.split.fvalue));
-      auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
+      cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
       auto n_bins_feature = cuts_->FeatureBins(candidate.split.findex);
       auto n_words = common::CatBitField::ComputeStorageSize(n_bins_feature);
       CHECK_LE(n_words, cat_bits.size());
       cat_bits = cat_bits.subspan(0, n_words);
 
-      tree.ExpandCategorical(candidate.nidx, candidate.split.findex, cat_bits,
-                             candidate.split.dir == kLeftDir, base_weight, left_weight,
-                             right_weight, candidate.split.loss_chg, parent_hess, left_hess,
-                             right_hess, param.learning_rate);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
-      tree.ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                      candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_hess, left_hess, right_hess,
-                      param.learning_rate);
     }
+    tree.Expand({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+                  candidate.split.fvalue, candidate.split.dir == kLeftDir,
+                  is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+                 {base_weight, parent_hess},
+                 {left_weight, left_hess},
+                 {right_weight, right_hess},
+                 candidate.split.loss_chg});
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
     const auto& parent = tree[candidate.nidx];
@@ -574,10 +574,8 @@ struct GPUHistMakerDevice {
 
     // Remember root stats
     auto root_sum = (*this->quantiser)[0].ToFloatingPoint(root_sum_quantised);
-    p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
-    p_tree->Stat(kRootNIdx).base_weight = weight;
-    (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
+    p_tree->SetRoot(weight, root_sum.GetHess());
 
     // Generate first split
     auto root_entry = this->EvaluateRootSplit(p_fmat, root_sum_quantised);
@@ -625,6 +623,7 @@ struct GPUHistMakerDevice {
       CHECK_GE(p_tree->NumNodes(), this->partitioners_.Front()->GetNumNodes());
     }
     this->FinalisePosition(p_fmat, p_tree, p_out_position);
+    p_tree->FinalizeLeaves(param.learning_rate);
   }
 };
 

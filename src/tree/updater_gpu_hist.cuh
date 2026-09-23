@@ -323,9 +323,14 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, node_cats.size());
         cat_bits = node_cats.subspan(0, n_words);
       }
-      batch.Push(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                 candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                 candidate.split.loss_chg, candidate.left_sum, candidate.right_sum, cat_bits);
+      batch.Push(
+          {{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+            candidate.split.fvalue, candidate.split.dir == kLeftDir,
+            candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+           {base_weight, candidate.left_sum + candidate.right_sum},
+           {left_weight, candidate.left_sum},
+           {right_weight, candidate.right_sum},
+           candidate.split.loss_chg});
     }
 
     p_tree->Expand(this->ctx_, batch);
@@ -341,13 +346,12 @@ class MultiTargetHistMaker {
                                     dh::ToSpan(candidates), n_targets);
   }
   /**
-   * @brief Calculate the leaf weight based on the node sum for each leaf.
+   * @brief Calculate output weights using value gradients and finalize prediction leaves.
    *
-   * This method helps support reduced gradient. Weights in p_tree are calculated using
-   * split gradient. This function replaces those weights with new weights calculated from
-   * value gradient.
+   * Split-gradient base weights remain unchanged. The tree applies the learning rate when
+   * storing the output weights.
    */
-  void ExpandTreeLeaf(RegTree* p_tree) const {
+  void FinalizeLeafWeights(RegTree* p_tree) const {
     CHECK(!this->value_gpair_.Empty());
     CHECK(this->value_quantizer_);
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
@@ -397,7 +401,8 @@ class MultiTargetHistMaker {
                this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
                out_weight.View(this->ctx_->Device()));
 
-    p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
+    p_tree->FinalizeLeaves(leaves_idx, out_weight.Data()->ConstHostSpan(),
+                           this->param_.learning_rate);
   }
 
   struct NodeSplitData {
@@ -645,9 +650,9 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(p_tree);
+      this->FinalizeLeafWeights(p_tree);
     } else {
-      p_tree->GetMultiTargetTree()->SetLeaves(this->param_.learning_rate);
+      p_tree->FinalizeLeaves(this->param_.learning_rate);
     }
   }
 

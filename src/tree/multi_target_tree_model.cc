@@ -73,7 +73,8 @@ void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch con
                          HostDeviceVector<CatWordT>* out) {
   xgboost_NVTX_FN_RANGE();
   std::vector<CopyBatchItem<CatWordT>> copies;
-  for (auto cats : batch.cat_bits) {
+  for (auto const& node : batch.nodes) {
+    auto cats = node.split.categories;
     if (!cats.empty()) {
       copies.emplace_back(offset, cats);
       offset += cats.size();
@@ -171,22 +172,25 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
   auto h_split_conds = split_conds_.HostSpan();
   auto h_default_left = default_left_.HostSpan();
   for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const nidx = batch.nidxs[i];
+    auto const& split = batch.nodes[i].split;
+    auto const nidx = split.nidx;
     h_left[nidx] = static_cast<bst_node_t>(old_n_nodes + i * 2);
     h_right[nidx] = h_left[nidx] + 1;
     h_parent[h_left[nidx]] = nidx;
     h_parent[h_right[nidx]] = nidx;
-    h_split_index[nidx] = batch.fidxs[i];
-    h_split_conds[nidx] = batch.cat_bits[i].empty() ? batch.conds[i] : DftBadValue();
-    h_default_left[nidx] = batch.dft_lefts[i];
+    h_split_index[nidx] = split.fidx;
+    h_split_conds[nidx] = split.type == FeatureType::kCategorical ? DftBadValue() : split.cond;
+    h_default_left[nidx] = split.default_left;
   }
 
   std::vector<CopyBatchItem<float>> weight_copies;
   for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const nidx = batch.nidxs[i];
-    weight_copies.emplace_back(nidx * n_split_targets, batch.base_weight_batch[i]);
-    weight_copies.emplace_back(h_left[nidx] * n_split_targets, batch.left_weight_batch[i]);
-    weight_copies.emplace_back(h_right[nidx] * n_split_targets, batch.right_weight_batch[i]);
+    auto const& node = batch.nodes[i];
+    auto const nidx = node.split.nidx;
+    CHECK_EQ(node.parent.weight.size(), n_split_targets);
+    weight_copies.emplace_back(nidx * n_split_targets, node.parent.weight);
+    weight_copies.emplace_back(h_left[nidx] * n_split_targets, node.left.weight);
+    weight_copies.emplace_back(h_right[nidx] * n_split_targets, node.right.weight);
   }
   CopyBatch(ctx, n_nodes * n_split_targets, weight_copies, &weights_);
 
@@ -195,15 +199,17 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
   auto h_loss_chg = loss_chg_.HostSpan();
   auto h_sum_hess = sum_hess_.HostSpan();
   for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const nidx = batch.nidxs[i];
-    h_loss_chg[nidx] = batch.loss_chgs[i];
-    h_sum_hess[nidx] = batch.left_sums[i] + batch.right_sums[i];
-    h_sum_hess[h_left[nidx]] = batch.left_sums[i];
-    h_sum_hess[h_right[nidx]] = batch.right_sums[i];
+    auto const& node = batch.nodes[i];
+    auto const nidx = node.split.nidx;
+    h_loss_chg[nidx] = node.loss_chg;
+    h_sum_hess[nidx] = node.parent.sum_hess;
+    h_sum_hess[h_left[nidx]] = node.left.sum_hess;
+    h_sum_hess[h_right[nidx]] = node.right.sum_hess;
   }
 }
 
-void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
+void MultiTargetTree::FinalizeLeaves(common::Span<bst_node_t const> leaves,
+                                     common::Span<float const> weights, float learning_rate) {
   auto is_partial_tree = this->NumLeaves() == 0;
   CHECK(is_partial_tree || leaves.size() == this->NumLeaves());
   auto n_targets = this->NumTargets();
@@ -218,7 +224,8 @@ void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<flo
     CHECK(this->IsLeaf(nidx));
     auto w_in = weights.subspan(nidx_in_set * n_targets, n_targets);
     auto w_out = h_weights.subspan(nidx_in_set * n_targets, n_targets);
-    std::copy(w_in.cbegin(), w_in.cend(), w_out.begin());
+    std::transform(w_in.cbegin(), w_in.cend(), w_out.begin(),
+                   [learning_rate](float weight) { return weight * learning_rate; });
     if (is_partial_tree) {
       CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
     }
@@ -227,7 +234,7 @@ void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<flo
   }
 }
 
-void MultiTargetTree::SetLeaves(float learning_rate) {
+void MultiTargetTree::FinalizeLeaves(float learning_rate) {
   CHECK_EQ(this->NumLeaves(), 0);
   auto n_targets = this->NumTargets();
   CHECK_EQ(n_targets, this->NumSplitTargets());

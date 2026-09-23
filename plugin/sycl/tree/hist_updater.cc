@@ -129,22 +129,23 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(const common::GHistIndexMatrix& 
   builder_monitor_.Start("AddSplitsToTree");
   auto evaluator = tree_evaluator_.GetEvaluator();
   for (auto const& entry : qexpand_depth_wise_) {
-    const auto lr = param_.learning_rate;
     int nid = entry.nid;
 
     if (snode_host_[nid].best.loss_chg < kRtEps ||
         (param_.max_depth > 0 && depth == param_.max_depth) ||
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
+      (*p_tree)[nid].SetLeaf(0.0f);
     } else {
       nodes_for_apply_split->push_back(entry);
 
       NodeEntry<GradientSumT>& e = snode_host_[nid];
       bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
       bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                         e.weight, left_weight, right_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess(), lr);
+      p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+                      {e.weight, e.stats.GetHess()},
+                      {left_weight, e.best.left_sum.GetHess()},
+                      {right_weight, e.best.right_sum.GetHess()},
+                      e.best.loss_chg});
 
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
@@ -243,7 +244,6 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
                                                     const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("ExpandWithLossGuide");
   int num_leaves = 0;
-  const auto lr = param_.learning_rate;
 
   ExpandEntry node(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid));
   BuildHistogramsLossGuide(node, gmat, p_tree, gpair);
@@ -261,15 +261,17 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
     if (!::xgboost::tree::IsValidExpandEntry(candidate, param_, num_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
+      (*p_tree)[nid].SetLeaf(0.0f);
     } else {
       auto evaluator = tree_evaluator_.GetEvaluator();
       NodeEntry<GradientSumT>& e = snode_host_[nid];
       bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
       bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                         e.weight, left_weight, right_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess(), lr);
+      p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+                      {e.weight, e.stats.GetHess()},
+                      {left_weight, e.best.left_sum.GetHess()},
+                      {right_weight, e.best.right_sum.GetHess()},
+                      e.best.loss_chg});
 
       this->ApplySplit({candidate}, gmat, p_tree);
 
@@ -329,6 +331,7 @@ void HistUpdater<GradientSumT>::Update(xgboost::tree::TrainParam const* param,
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_host_[nid].stats.GetHess());
   }
   this->FinalizePosition(p_fmat->Info().num_row_, *p_tree, p_out_position);
+  p_tree->FinalizeLeaves(param_.learning_rate);
 
   builder_monitor_.Stop("Update");
 }

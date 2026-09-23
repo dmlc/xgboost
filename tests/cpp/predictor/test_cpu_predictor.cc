@@ -98,14 +98,14 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   Context ctx;
 
   RegTree tree;
-  size_t n_nodes = 15;  // 2^4 - 1
-  for (size_t nid = 0; nid < n_nodes; ++nid) {
+  bst_node_t n_nodes = 15;  // 2^4 - 1
+  for (bst_node_t nid = 0; nid < n_nodes; ++nid) {
     // Some place-holders
-    size_t split_index = nid + 1;
+    bst_feature_t split_index = nid + 1;
     bst_float split_cond = nid + 2;
     bool default_left = nid % 2 == 0;
 
-    tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0, 1.0f);
+    tree.Expand({{nid, split_index, split_cond, default_left}, {0, 0}, {0, 0}, {0, 0}, 0});
   }
 
   auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};

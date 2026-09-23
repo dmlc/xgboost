@@ -249,6 +249,7 @@ TEST(HistEvaluator, Apply) {
     entry.split.is_cat = true;
     entry.split.split_value = 1.0;
     evaluator_.ApplyTreeSplit(entry, &tree);
+    tree.FinalizeLeaves(param.learning_rate);
     auto l = entry.split.left_sum;
     ASSERT_NEAR(tree[1].LeafValue(), -l.sum_grad / l.sum_hess * param.learning_rate, kRtEps);
     ASSERT_NEAR(tree[2].LeafValue(), -param.learning_rate, kRtEps);

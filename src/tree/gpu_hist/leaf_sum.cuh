@@ -26,7 +26,7 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  linalg::MatrixView<GradientPairInt64> out_sum);
 
 /**
- * @brief Calculate leaf weights from gradient sum.
+ * @brief Calculate unscaled leaf weights from gradient sum.
  *
  *   shape(grad_sum) == (n_leaves, n_targets)
  *   shape(out_weights) == (n_leaves, n_targets)

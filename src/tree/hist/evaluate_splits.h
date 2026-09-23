@@ -348,19 +348,18 @@ class HistEvaluator {
     auto right_weight =
         evaluator.CalcWeight(candidate.nid, *param_, GradStats{candidate.split.right_sum});
 
+    common::Span<CatWordT const> cat_bits;
     if (candidate.split.is_cat) {
-      tree.ExpandCategorical(candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
-                             candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
-                             candidate.split.loss_chg, parent_sum.GetHess(),
-                             candidate.split.left_sum.GetHess(),
-                             candidate.split.right_sum.GetHess(), param_->learning_rate);
-    } else {
-      tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                      candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_sum.GetHess(),
-                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess(),
-                      param_->learning_rate);
+      cat_bits = candidate.split.cat_bits;
     }
+    tree.Expand(
+        {{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
+          candidate.split.DefaultLeft(),
+          candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+         {base_weight, parent_sum.GetHess()},
+         {left_weight, candidate.split.left_sum.GetHess()},
+         {right_weight, candidate.split.right_sum.GetHess()},
+         candidate.split.loss_chg});
 
     // Set up child constraints
     auto left_child = tree[candidate.nid].LeftChild();
@@ -774,9 +773,14 @@ class HistMultiEvaluator {
       return weight.Values().subspan(0, weight.Size());
     };
     ExpandBatch batch;
-    batch.Push(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-               candidate.split.DefaultLeft(), as_span(base_weight), as_span(left_weight),
-               as_span(right_weight), loss_chg, left_sum_hess, right_sum_hess, cat_bits);
+    batch.Push(
+        {{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
+          candidate.split.DefaultLeft(),
+          candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+         {as_span(base_weight), left_sum_hess + right_sum_hess},
+         {as_span(left_weight), left_sum_hess},
+         {as_span(right_weight), right_sum_hess},
+         loss_chg});
     p_tree->Expand(ctx_, batch);
 
     CHECK(p_tree->IsMultiTarget());
