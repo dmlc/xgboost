@@ -503,9 +503,24 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     )
 
 
-def run_eta(device: Device) -> None:
-    """Test for learning rate."""
-    X, y = make_regression(512, 16, random_state=2025, n_targets=3)
+def run_eta(device: Device, is_stump: bool, num_parallel_tree: int) -> None:
+    """Test unscaled base weights and learning-rate-scaled prediction leaves."""
+    features, labels = make_regression(512, 16, random_state=2025, n_targets=3)
+    data = QuantileDMatrix(features, labels)
+
+    def trees(booster: Booster) -> list[dict]:
+        model = json.loads(booster.save_raw(raw_format="json"))
+        return model["learner"]["gradient_booster"]["model"]["trees"]
+
+    def tree_eq(ref_tree: dict, tree: dict, learning_rate: float) -> None:
+        np.testing.assert_equal(tree["base_weights"], ref_tree["base_weights"])
+        np.testing.assert_equal(tree["left_children"], ref_tree["left_children"])
+        np.testing.assert_equal(tree["right_children"], ref_tree["right_children"])
+        np.testing.assert_allclose(
+            tree["leaf_weights"],
+            np.asarray(ref_tree["leaf_weights"]) * (learning_rate / num_parallel_tree),
+            rtol=1e-6,
+        )
 
     def run(obj: Optional[Objective]) -> None:
         params = {
@@ -514,23 +529,36 @@ def run_eta(device: Device) -> None:
             "learning_rate": 1.0,
             "debug_synchronize": True,
             "base_score": 0.0,
+            "max_depth": 2,
+            "min_split_loss": 1e20 if is_stump else 0.0,
         }
-        Xy = QuantileDMatrix(X, y)
-        booster_0 = train(params, Xy, num_boost_round=1, obj=obj)
-        params["learning_rate"] = 0.1
-        booster_1 = train(params, Xy, num_boost_round=1, obj=obj)
-        params["learning_rate"] = 2.0
-        booster_2 = train(params, Xy, num_boost_round=1, obj=obj)
+        ref = train(params, data, num_boost_round=1, obj=obj)
+        ref_tree = trees(ref)[0]
+        ref_prediction = ref.predict(data)
+        if is_stump:
+            assert len(ref_tree["left_children"]) == 1
+        else:
+            assert len(ref_tree["left_children"]) > 3
 
-        predt_0 = booster_0.predict(Xy)
-        predt_1 = booster_1.predict(Xy)
-        predt_2 = booster_2.predict(Xy)
+        params["num_parallel_tree"] = num_parallel_tree
+        for learning_rate in (0.0, 2.0):
+            params["learning_rate"] = learning_rate
+            booster = train(params, data, num_boost_round=1, obj=obj)
+            model_trees = trees(booster)
+            assert len(model_trees) == num_parallel_tree
+            for tree in model_trees:
+                tree_eq(ref_tree, tree, learning_rate)
 
-        np.testing.assert_allclose(predt_0, predt_1 * 10, rtol=1e-6)
-        np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
+            prediction = booster.predict(data)
+            np.testing.assert_allclose(
+                prediction, ref_prediction * learning_rate, rtol=1e-6
+            )
+            restored = Booster(model_file=booster.save_raw())
+            np.testing.assert_array_equal(restored.predict(data), prediction)
 
     run(None)
     run(LsObj0(device))
+    run(LsObj2(device, False))
 
 
 def run_deterministic(device: Device) -> None:

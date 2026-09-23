@@ -773,7 +773,7 @@ class HistMultiEvaluator {
       // sliced weight might have larger span as the underlying data
       return weight.Values().subspan(0, weight.Size());
     };
-    ExpandBatch batch{param_->learning_rate};
+    ExpandBatch batch;
     batch.Push(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                candidate.split.DefaultLeft(), as_span(base_weight), as_span(left_weight),
                as_span(right_weight), loss_chg, left_sum_hess, right_sum_hess, cat_bits);

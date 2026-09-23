@@ -585,11 +585,11 @@ void TestVectorLeafPrediction(Context const *ctx) {
   auto &tree = trees.front();
   tree->SetRoot(linalg::MakeVec(p_w.data(), p_w.size()), /*sum_hess=*/1.0f);
   Context tree_ctx;
-  xgboost::tree::ExpandBatch batch{1.0f};
+  xgboost::tree::ExpandBatch batch;
   batch.Push(0, static_cast<bst_feature_t>(1), 2.0, true, p_w, l_w, r_w,
              /*loss_chg=*/0.5f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
   tree->Expand(&tree_ctx, batch);
-  tree->GetMultiTargetTree()->SetLeaves();
+  tree->GetMultiTargetTree()->SetLeaves(1.0f);
   ASSERT_TRUE(tree->IsMultiTarget());
   ASSERT_TRUE(mparam.IsVectorLeaf());
 

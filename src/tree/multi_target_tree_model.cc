@@ -25,7 +25,6 @@ namespace tree::cuda_impl {
 template <typename T>
 void CopyBatch(Context const* ctx, common::Span<T*> dsts, common::Span<T const*> srcs,
                common::Span<std::size_t const> sizes);
-void ApplyLearningRate(Context const* ctx, common::Span<float> weights, float eta);
 }  // namespace tree::cuda_impl
 
 namespace {
@@ -67,20 +66,6 @@ void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T
   }
 }
 
-void ApplyLearningRate(Context const* ctx, std::size_t offset, std::size_t size, float eta,
-                       HostDeviceVector<float>* values) {
-  values->SetDevice(ctx->Device());
-#if defined(XGBOOST_USE_CUDA)
-  if (ctx->IsCUDA()) {
-    tree::cuda_impl::ApplyLearningRate(ctx, values->DeviceSpan().subspan(offset, size), eta);
-    return;
-  }
-#endif  // defined(XGBOOST_USE_CUDA)
-
-  auto out = values->HostSpan().subspan(offset, size);
-  std::transform(out.cbegin(), out.cend(), out.begin(),
-                 [eta](float weight) { return weight * eta; });
-}
 }  // namespace
 
 namespace tree {
@@ -204,8 +189,6 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
     weight_copies.emplace_back(h_right[nidx] * n_split_targets, batch.right_weight_batch[i]);
   }
   CopyBatch(ctx, n_nodes * n_split_targets, weight_copies, &weights_);
-  auto const n_child_weights = batch_size * 2 * n_split_targets;
-  ApplyLearningRate(ctx, old_n_nodes * n_split_targets, n_child_weights, batch.eta, &weights_);
 
   loss_chg_.Resize(n_nodes, 0.0f);
   sum_hess_.Resize(n_nodes, 0.0f);
@@ -244,7 +227,7 @@ void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<flo
   }
 }
 
-void MultiTargetTree::SetLeaves() {
+void MultiTargetTree::SetLeaves(float learning_rate) {
   CHECK_EQ(this->NumLeaves(), 0);
   auto n_targets = this->NumTargets();
   CHECK_EQ(n_targets, this->NumSplitTargets());
@@ -262,7 +245,8 @@ void MultiTargetTree::SetLeaves() {
     auto w_in = this->NodeWeight(nidx);
     h_weights.resize((nidx_in_set + 1) * n_targets);
     auto w_out = common::Span{h_weights}.subspan(nidx_in_set * n_targets, n_targets);
-    std::copy(linalg::cbegin(w_in), linalg::cend(w_in), w_out.begin());
+    std::transform(linalg::cbegin(w_in), linalg::cend(w_in), w_out.begin(),
+                   [learning_rate](float weight) { return weight * learning_rate; });
     CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
     h_leaf_mapping[nidx] = nidx_in_set;
     nidx_in_set++;

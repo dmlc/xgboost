@@ -37,9 +37,6 @@ struct ExpandBatch {
   std::vector<common::Span<CatWordT const>> cat_bits;
   // Total number of CatWordT storage elements in cat_bits.
   std::size_t n_cat_words{0};
-  float eta;
-
-  explicit ExpandBatch(float eta) : eta{eta} {}
 
   [[nodiscard]] std::size_t Size() const { return nidxs.size(); }
 
@@ -73,6 +70,7 @@ struct TreeParam;
  * between base weights and leaf weights. The former is the weight calculated from split
  * gradient, and the later is the weight calculated from value gradient and used as
  * outputs. Every node has a base weight, but only leaves have leaf weights.
+ * Base weights are stored before applying the learning rate; leaf weights include it.
  *
  * To access the leaf weights, we re-use the right child to store leaf indices. For split
  * nodes, the `right_` member stores their right child node indices, for leaf nodes, the
@@ -123,21 +121,20 @@ class MultiTargetTree : public Model {
   /**
    * @brief Set the weight and statistics for the root.
    *
-   * @param weight   The weight vector for the root node.
+   * @param weight   The weight vector for the root node, before applying the learning rate.
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
   void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
   /**
-   * @brief Expand a batch of leaves and apply learning rate to child weights.
+   * @brief Expand a batch of leaves using unscaled weights.
    *
-   * Base weights are stored unchanged. Left and right child weights are multiplied by
-   * `batch.eta`.
+   * Parent and child base weights are stored before applying the learning rate.
    */
   void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
-  /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */
-  void SetLeaves();
+  /** @brief Scale base weights into prediction leaf weights for a non-reduced tree. */
+  void SetLeaves(float learning_rate);
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
     return left_.ConstHostVector()[nidx] == InvalidNodeId();

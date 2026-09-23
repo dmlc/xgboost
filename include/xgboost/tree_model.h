@@ -315,7 +315,7 @@ class RegTree : public Model {
    *
    * @param leaves  The node indices for all leaves. This must contain all the leaves in this tree.
    * @param weights Row-major matrix for leaf weights, each row contains a leaf specified by the
-   *                leaves parameter.
+   *                leaves parameter. Weights must already include the learning rate.
    */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
 

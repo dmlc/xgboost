@@ -20,9 +20,9 @@ void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bo
             linalg::VectorView<float const> base_weight,
             linalg::VectorView<float const> left_weight,
             linalg::VectorView<float const> right_weight, float loss_chg, double left_sum,
-            double right_sum, float eta = 1.0f, common::Span<tree::CatWordT const> cat_bits = {}) {
+            double right_sum, common::Span<tree::CatWordT const> cat_bits = {}) {
   Context ctx;
-  tree::ExpandBatch batch{eta};
+  tree::ExpandBatch batch;
   batch.Push(nidx, fidx, cond, dft_left, base_weight.Values(), left_weight.Values(),
              right_weight.Values(), loss_chg, left_sum, right_sum, cat_bits);
   p_tree->Expand(&ctx, batch);
@@ -60,7 +60,7 @@ std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
   Expand(tree.get(), RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
          left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
          /*left_sum=*/0.6f, /*right_sum=*/0.4f);
-  tree->GetMultiTargetTree()->SetLeaves();
+  tree->GetMultiTargetTree()->SetLeaves(1.0f);
   return tree;
 }
 
@@ -130,7 +130,7 @@ void TestTreeDump(std::string format, std::string leaf_key) {
     Expand(&tree, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(), weight.HostView(),
            weight.HostView(), /*loss_chg=*/0.5f,
            /*left_sum=*/0.6f, /*right_sum=*/0.4f);
-    tree.GetMultiTargetTree()->SetLeaves();
+    tree.GetMultiTargetTree()->SetLeaves(1.0f);
     auto str = tree.DumpModel(fmap, false, format);
     if (format != "json") {
       ASSERT_NE(str.find(leaf_key + "[1, 2, ..., 4]"), std::string::npos);

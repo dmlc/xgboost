@@ -290,14 +290,8 @@ class MultiTargetHistMaker {
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    auto root_weight = linalg::Empty<float>(this->ctx_, n_targets);
-    auto d_root_weight = root_weight.View(this->ctx_->Device());
     auto base_weight = weights.Base(RegTree::kRoot);
-    auto eta = this->param_.learning_rate;
-    dh::LaunchN(
-        n_targets, this->ctx_->CUDACtx()->Stream(),
-        [=] XGBOOST_DEVICE(std::size_t t) mutable { d_root_weight(t) = base_weight[t] * eta; });
-    p_tree->SetRoot(d_root_weight, root_sum_hess);
+    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), base_weight), root_sum_hess);
 
     return entry;
   }
@@ -313,7 +307,7 @@ class MultiTargetHistMaker {
     // look up the persistent weight storage by node ID.
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
 
-    ExpandBatch batch{this->param_.learning_rate};
+    ExpandBatch batch;
 
     for (auto const& candidate : h_candidates) {
       auto base_weight = weights.Base(candidate.nidx);
@@ -653,7 +647,7 @@ class MultiTargetHistMaker {
     if (gpair->HasValueGrad()) {
       this->ExpandTreeLeaf(p_tree);
     } else {
-      p_tree->GetMultiTargetTree()->SetLeaves();
+      p_tree->GetMultiTargetTree()->SetLeaves(this->param_.learning_rate);
     }
   }
 

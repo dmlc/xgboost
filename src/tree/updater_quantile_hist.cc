@@ -243,8 +243,6 @@ class MultiTargetHistBuilder {
 
     auto weight = evaluator_->InitRoot(h_root_sum);
     auto weight_t = weight.HostView();
-    std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
-                   [&](float w) { return w * param_->learning_rate; });
 
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
@@ -649,7 +647,7 @@ class QuantileHistMaker : public TreeUpdater {
           // Refresh the leaf weights.
           p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
         } else {
-          (*tree_it)->GetMultiTargetTree()->SetLeaves();
+          (*tree_it)->GetMultiTargetTree()->SetLeaves(param->learning_rate);
         }
       } else {
         UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
