@@ -254,6 +254,16 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
     // Multi-target, scalar leaf
     CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
         << "Must have exactly n_groups * n_samples gpairs.";
+    // This branch copies only the gradient into a per-group container, so an exact Hessian
+    // sidecar would be dropped and the tree would be grown with diagonal curvature while the
+    // caller believed otherwise. That cannot happen today because the learner rejects
+    // multi_hessian=exact together with multi_strategy=one_output_per_tree, but the guard
+    // lives there and this is the place that would break. Assert it locally so relaxing the
+    // rejection fails loudly instead of silently changing the model.
+    CHECK(!in_gpair->HasExactHessian())
+        << "An exact Hessian sidecar reached the scalar-leaf boosting path, which cannot use "
+           "it. This is an internal inconsistency: multi_hessian=exact requires "
+           "multi_strategy=multi_output_tree and should have been rejected earlier.";
     GradientContainer tmp;
     tmp.gpair = linalg::Matrix<GradientPair>{
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};

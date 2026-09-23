@@ -23,6 +23,7 @@
 namespace xgboost {
 
 struct Context;
+struct ExactHessian;
 
 /** @brief The interface of objective function */
 class ObjFunction : public Configurable {
@@ -51,7 +52,6 @@ class ObjFunction : public Configurable {
    */
   virtual void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info,
                            std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) = 0;
-
   /** @return the default evaluation metric for the objective */
   [[nodiscard]] virtual const char* DefaultEvalMetric() const = 0;
   /**
@@ -109,6 +109,40 @@ class ObjFunction : public Configurable {
     }
     return 1;
   }
+  /**
+   * @brief Get the gradient and the exact Hessian in a single pass over the predictions.
+   *
+   *   `out_gpair` receives exactly what @ref GetGradient produces for the same input, so an
+   *   objective can be switched to this entry point without changing the boosted model.
+   *   `out_hessian` additionally receives the packed exact Hessian over the free
+   *   coordinates. Producing both together keeps the inverse link from being applied twice.
+   *
+   *   Declared LAST in the virtual interface on purpose. XGBoost installs its headers and
+   *   `plugin/example/custom_obj.cc` shows that subclassing ObjFunction is a supported
+   *   extension point, so inserting a virtual anywhere earlier would shift every following
+   *   vtable slot. A translation unit compiled against an older objective.h and linked
+   *   against a newer libxgboost would then dispatch into the wrong slot -- silently, not
+   *   as a link error. Appending keeps every pre-existing slot index unchanged; a rebuild
+   *   of dependent code is still required, as for any header change.
+   *
+   *   Implemented only by objectives whose @ref Task reports `exact_hess`. That flag states
+   *   what the objective can do mathematically; an implementation is still free to reject a
+   *   device or configuration it does not support, so callers must be prepared for a fatal
+   *   error rather than treating the flag as a guarantee for every context.
+   *
+   * @param preds       Raw prediction (before applying the inverse link) of the current round.
+   * @param info        Information about labels and weights.
+   * @param iter        Current iteration number.
+   * @param out_gpair   Output gradient, identical to the @ref GetGradient result.
+   * @param out_hessian Output exact Hessian.
+   */
+  virtual void GetGradientAndExactHessian(HostDeviceVector<float> const& /*preds*/,
+                                          MetaInfo const& /*info*/, std::int32_t /*iter*/,
+                                          linalg::Matrix<GradientPair>* /*out_gpair*/,
+                                          ExactHessian* /*out_hessian*/) {
+    LOG(FATAL) << "The exact Hessian is not supported by this objective.";
+  }
+
   /** @brief Getter of the context. */
   [[nodiscard]] Context const* Ctx() const { return this->ctx_; }
 

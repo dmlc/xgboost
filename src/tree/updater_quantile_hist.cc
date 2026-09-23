@@ -24,6 +24,7 @@
 #include "driver.h"                          // for Driver
 #include "fit_stump.h"                       // for SumGradients
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
+#include "hist/exact_builder.h"              // for ExactMultiTargetHistBuilder
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
@@ -571,6 +572,9 @@ class HistUpdater {
 class QuantileHistMaker : public TreeUpdater {
   std::unique_ptr<HistUpdater> p_impl_{nullptr};
   std::unique_ptr<MultiTargetHistBuilder> p_mtimpl_{nullptr};
+  std::unique_ptr<ExactMultiTargetHistBuilder> p_exactimpl_{nullptr};
+  // Per-tree sampled copy of the exact Hessian, mirroring the gradient's sample buffer.
+  ExactHessian exact_sample_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
 
   common::Monitor monitor_;
@@ -597,7 +601,27 @@ class QuantileHistMaker : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
-    if (trees.front()->IsMultiTarget()) {
+    // Exact multinomial mode is selected by the presence of the exact Hessian sidecar, which
+    // only the native multinomial objective produces and only when explicitly asked. Any
+    // other run takes the untouched scalar or multi-target path below.
+    bool const use_exact = in_gpair->HasExactHessian();
+    if (use_exact) {
+      CHECK(trees.front()->IsMultiTarget())
+          << "multi_hessian=exact requires a shared multi-output tree. Set "
+             "multi_strategy=multi_output_tree, or use multi_hessian=diagonal.";
+      // Rejected up front rather than after the tree is grown: the reduced gradient would
+      // otherwise refit the leaves from scalar statistics, quietly discarding the joint
+      // solve the caller asked for.
+      CHECK(!in_gpair->HasValueGrad())
+          << "The reduced value gradient is not supported with multi_hessian=exact, because "
+             "the leaf value comes from the joint Newton solve rather than from a scalar "
+             "per-class statistic. Use multi_hessian=diagonal for objectives that need it.";
+      CHECK(hist_param_.GetInitialised());
+      if (!p_exactimpl_) {
+        this->p_exactimpl_ = std::make_unique<ExactMultiTargetHistBuilder>(
+            ctx_, param, &hist_param_, column_sampler_, &monitor_);
+      }
+    } else if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
@@ -634,7 +658,22 @@ class QuantileHistMaker : public TreeUpdater {
       }
       sampler.Sample(ctx_, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
-      if ((*tree_it)->IsMultiTarget()) {
+      if (use_exact) {
+        // The gradient is sampled on a copy, leaving the caller's container pristine for the
+        // next tree. The sidecar must be handled the same way: masking it in place would
+        // compound across trees and misalign it from each tree's own freshly drawn mask.
+        auto const& source = in_gpair->exact_hessian;
+        exact_sample_.Reshape(source.NumRows(), source.n_free);
+        auto src = source.HostValues();
+        auto dst = exact_sample_.HostValues();
+        std::copy(src.cbegin(), src.cend(), dst.begin());
+        // Replay the identical row selection onto the copy; see Sampler::ApplySampling.
+        sampler.ApplySampling(ctx_, &exact_sample_);
+        p_exactimpl_->SetExactHessian(&exact_sample_);
+        UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_exactimpl_.get(), p_fmat, param,
+                                     h_out_position, *tree_it);
+        (*tree_it)->GetMultiTargetTree()->SetLeaves();
+      } else if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
         if (in_gpair->HasValueGrad()) {

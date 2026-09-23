@@ -17,6 +17,7 @@
 #include "xgboost/base.h"       // for GradientPair, bst_idx_t
 #include "xgboost/context.h"    // for Context
 #include "xgboost/data.h"       // for MetaInfo
+#include "xgboost/gradient.h"   // for ExactHessian
 #include "xgboost/linalg.h"     // for TensorView
 #include "xgboost/span.h"       // for Span
 
@@ -98,6 +99,22 @@ class Sampler {
   /** Replay sampling on the value gradient using the original, unsampled split gradient. */
   void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> split_gpair,
                      linalg::Matrix<GradientPair>* value_gpair) const;
+  /**
+   * @brief Replay the same row selection onto the exact Hessian sidecar.
+   *
+   * The exact path accumulates the gradient from `gpair` and the Hessian from the sidecar,
+   * so the two must agree on which rows survived sampling. Rather than inferring the mask
+   * from the zeroed gradients, this replays the identical random sequence -- same seed, same
+   * block partition, same one Bernoulli draw per row -- so the selection matches
+   * `Sample` by construction.
+   *
+   * Only uniform sampling is supported: the gradient-based method rescales rows by a weight
+   * derived from the scalar `(g, h)` pair, which has no established meaning for a dense
+   * Hessian. Exact mode rejects it rather than guessing.
+   */
+  void ApplySampling(Context const* ctx, ExactHessian* hessian) const;
+  /** @brief Whether sampling is actually active for this round. */
+  [[nodiscard]] bool IsSampling() const { return is_sampling_; }
 
  private:
   int sampling_method_{TrainParam::kUniform};

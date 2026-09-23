@@ -31,9 +31,19 @@ struct ObjInfo {
   } task;
   // Does the objective have constant hessian value?
   bool const_hess{false};
+  /**
+   * @brief Can the objective produce an exact dense Hessian?
+   *
+   * This states a property of the objective's mathematics only: that it implements
+   * ObjFunction::GetGradientAndExactHessian. Whether a particular run can actually use
+   * that producer is a separate question -- it depends on the device, the tree method and
+   * the training configuration -- and is answered by the training path, not here.
+   */
+  bool exact_hess{false};
 
   ObjInfo(Task t) : task{t} {}  // NOLINT
   ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
+  ObjInfo(Task t, bool khess, bool kexact) : task{t}, const_hess{khess}, exact_hess{kexact} {}
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_

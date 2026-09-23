@@ -269,6 +269,23 @@ enum class MultiStrategy : std::int32_t {
 };
 
 /**
+ * @brief Curvature model used for multi-class objectives.
+ *
+ * `kDiagonal` is the long-standing behaviour: each class is given its own scalar second
+ * order statistic, which ignores the coupling between classes. `kExact` uses the full dense
+ * multinomial Hessian `diag(p) - p p^T` and solves one joint Newton system per leaf.
+ *
+ * Exact mode is currently limited to the native multinomial objectives on CPU with
+ * `tree_method=hist` and `multi_strategy=multi_output_tree`, because a joint solve needs a
+ * single tree structure shared by all classes. Unsupported configurations are rejected
+ * rather than quietly falling back.
+ */
+enum class MultiHessian : std::int32_t {
+  kDiagonal = 0,
+  kExact = 1,
+};
+
+/**
  * @brief State shared by the learner and gradient booster.
  */
 struct LearnerModelState {
