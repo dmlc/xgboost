@@ -100,21 +100,26 @@ class Driver {
       }
     }
     // Return nodes on same level for depth wise
-    std::vector<ExpandEntryT> result;
-    ExpandEntryT e = queue_.top();
-    int level = e.depth;
-    while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
-      queue_.pop();
-      if (IsValidExpandEntry(e, param_, num_leaves_)) {
-        num_leaves_++;
-        result.emplace_back(e);
-      }
+    while (!queue_.empty()) {
+      std::vector<ExpandEntryT> result;
+      ExpandEntryT e = queue_.top();
+      int level = e.depth;
+      while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
+        queue_.pop();
+        if (IsValidExpandEntry(e, param_, num_leaves_)) {
+          num_leaves_++;
+          result.emplace_back(e);
+        }
 
-      if (!queue_.empty()) {
-        e = queue_.top();
+        if (!queue_.empty()) {
+          e = queue_.top();
+        }
+      }
+      if (!result.empty()) {
+        return result;
       }
     }
-    return result;
+    return {};
   }
 
  private:
