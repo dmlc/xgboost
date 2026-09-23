@@ -770,14 +770,13 @@ class HistMultiEvaluator {
       // sliced weight might have larger span as the underlying data
       return weight.Values().subspan(0, weight.Size());
     };
-    ExpandBatch batch;
-    batch.push_back({{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                      candidate.split.DefaultLeft(), cat_bits},
-                     {as_span(base_weight), left_sum_hess + right_sum_hess},
-                     {as_span(left_weight), left_sum_hess},
-                     {as_span(right_weight), right_sum_hess},
-                     loss_chg});
-    p_tree->Expand(ctx_, batch);
+    p_tree->Expand(ctx_, ExpandBatch{{SplitInfo{candidate.nid, candidate.split.SplitIndex(),
+                                                candidate.split.split_value,
+                                                candidate.split.DefaultLeft(), cat_bits},
+                                      {as_span(base_weight), left_sum_hess + right_sum_hess},
+                                      {as_span(left_weight), left_sum_hess},
+                                      {as_span(right_weight), right_sum_hess},
+                                      loss_chg}});
 
     CHECK(p_tree->IsMultiTarget());
     auto left_child = p_tree->LeftChild(candidate.nid);

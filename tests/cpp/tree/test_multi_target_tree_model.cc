@@ -23,12 +23,11 @@ void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bo
             linalg::VectorView<float const> right_weight, float loss_chg, double left_sum,
             double right_sum, common::Span<tree::CatWordT const> cat_bits = {}) {
   Context ctx;
-  tree::ExpandBatch batch;
-  batch.push_back({{nidx, fidx, cond, dft_left, cat_bits},
-                   {base_weight.Values(), left_sum + right_sum},
-                   {left_weight.Values(), left_sum},
-                   {right_weight.Values(), right_sum},
-                   loss_chg});
+  tree::ExpandBatch batch{{tree::SplitInfo{nidx, fidx, cond, dft_left, cat_bits},
+                           {base_weight.Values(), left_sum + right_sum},
+                           {left_weight.Values(), left_sum},
+                           {right_weight.Values(), right_sum},
+                           loss_chg}};
   p_tree->Expand(&ctx, batch);
 }
 }  // namespace

@@ -39,7 +39,6 @@
 #include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
-#include "sample_position.h"             // for SamplePosition
 #include "tree_view.h"                   // for ScalarTreeView
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
