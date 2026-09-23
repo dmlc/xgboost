@@ -5,15 +5,15 @@
 
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
 
 #include <memory>
 
+#include "../../../src/common/kernel.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
-#include "../predictor/test_predictor.h"  // for CreatePredictorForTest
-#include "xgboost/task.h"                 // for ObjInfo
+#include "xgboost/task.h"  // for ObjInfo
 
 namespace xgboost {
 class TestPredictionCache : public ::testing::Test {
@@ -85,9 +85,9 @@ class TestPredictionCache : public ::testing::Test {
       auto cache =
           linalg::MakeTensorView(ctx, &out_prediction_cached, out_prediction_cached.Size(), 1);
       if (position.front().Size() == n_samples_) {
-        std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
         std::vector<RegTree const*> tree_ptrs{&tree};
-        predictor->PredictFromLeafIds(common::Span{position}, common::Span{tree_ptrs}, cache);
+        common::DispatchKernel<predictor::PredictFromLeafIdsKernel>(ctx, common::Span{position},
+                                                                    common::Span{tree_ptrs}, cache);
       }
     }
 

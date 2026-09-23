@@ -20,9 +20,11 @@
 #include "../common/common.h"
 #include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "../common/error_msg.h"  // for UnknownDevice, WarnOldSerialization, InplacePredictProxy
+#include "../common/kernel.h"
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy, HostAdapterDispatch
+#include "../predictor/prediction_kernel.h"
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -211,9 +213,9 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
   }
 
   predt->predictions.SetDevice(ctx_->Device());
-  auto predictor = this->CreatePredictor(false, &predt->predictions, p_fmat.get());
   if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(predt->version, 0);
+    auto predictor = this->CreatePredictor(false, &predt->predictions, p_fmat.get());
     predictor->InitOutPredictions(p_fmat->Info(), &predt->predictions, model_);
   }
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
@@ -238,7 +240,8 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
     for (auto const& tree : trees) {
       tree_ptrs.push_back(tree.get());
     }
-    predictor->PredictFromLeafIds(common::Span{positions}, common::Span{tree_ptrs}, out_preds);
+    common::DispatchKernel<predictor::PredictFromLeafIdsKernel>(ctx_, common::Span{positions},
+                                                                common::Span{tree_ptrs}, out_preds);
     return true;
   };
 

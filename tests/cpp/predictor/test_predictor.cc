@@ -23,6 +23,7 @@
 #include "../../../src/data/proxy_dmatrix.h"           // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"                   // for PredictionContainer
 #include "../../../src/predictor/prediction_kernel.h"  // for PredictLeafKernel
+#include "../../../src/tree/sample_position.h"         // for SamplePosition
 #include "../../../src/tree/tree_view.h"               // for MultiTargetTreeView
 #include "../collective/test_worker.h"                 // for TestDistributedGlobal
 #include "../helpers.h"          // for GetDMatrixFromData, RandomDataGenerator
@@ -66,18 +67,29 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   leaf_ids.front().Resize(h_leaf_out_predictions.size());
   auto &h_leaf_ids = leaf_ids.front().HostVector();
   for (std::size_t i = 0; i < h_leaf_out_predictions.size(); ++i) {
-    h_leaf_ids[i] = static_cast<bst_node_t>(h_leaf_out_predictions[i]);
+    h_leaf_ids[i] = tree::SamplePosition::Encode(static_cast<bst_node_t>(h_leaf_out_predictions[i]),
+                                                 i % 2 == 0);
   }
   std::vector<RegTree const *> trees{model.trees.front().get()};
   HostDeviceVector<float> from_leaf_ids;
   predictor->InitOutPredictions(dmat->Info(), &from_leaf_ids, model);
   auto from_leaf_view = linalg::MakeTensorView(ctx, &from_leaf_ids, dmat->Info().num_row_,
                                                model.learner_model_state->OutputLength());
-  predictor->PredictFromLeafIds(common::Span{leaf_ids}, common::Span{trees}, from_leaf_view);
+  common::DispatchKernel<predictor::PredictFromLeafIdsKernel>(ctx, common::Span{leaf_ids},
+                                                              common::Span{trees}, from_leaf_view);
   auto const &h_from_leaf_ids = from_leaf_ids.ConstHostVector();
   ASSERT_EQ(h_from_leaf_ids.size(), out_predictions_h.size());
   for (std::size_t i = 0; i < h_from_leaf_ids.size(); ++i) {
     ASSERT_EQ(h_from_leaf_ids[i], out_predictions_h[i]);
+  }
+
+  // Leaf-id prediction increments an existing output, including sampled-out rows.
+  from_leaf_view = linalg::MakeTensorView(ctx, &from_leaf_ids, dmat->Info().num_row_,
+                                          model.learner_model_state->OutputLength());
+  common::DispatchKernel<predictor::PredictFromLeafIdsKernel>(ctx, common::Span{leaf_ids},
+                                                              common::Span{trees}, from_leaf_view);
+  for (auto value : from_leaf_ids.ConstHostVector()) {
+    ASSERT_EQ(value, 3.0f);
   }
 }
 

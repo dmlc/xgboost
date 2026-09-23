@@ -6,11 +6,14 @@
 
 #include <vector>  // for vector
 
-#include "xgboost/base.h"  // for bst_tree_t
+#include "xgboost/base.h"    // for bst_node_t, bst_tree_t
+#include "xgboost/linalg.h"  // for MatrixView
+#include "xgboost/span.h"    // for Span
 
 namespace xgboost {
 class Context;
 class DMatrix;
+class RegTree;
 template <typename T>
 class HostDeviceVector;
 namespace gbm {
@@ -18,6 +21,16 @@ struct GBTreeModel;
 }  // namespace gbm
 
 namespace predictor {
+/**
+ * \brief Add tree leaf values to predictions using known leaf ids.
+ *
+ * One leaf-id vector per tree. Sampled-out rows encoded with tree::SamplePosition
+ * are decoded and included. The output view must be on the dispatch device.
+ */
+struct PredictFromLeafIdsKernel {
+  using Signature = void(Context const*, common::Span<HostDeviceVector<bst_node_t> const>,
+                         common::Span<RegTree const*>, linalg::MatrixView<float>);
+};
 /**
  * \brief Write row-major leaf indices for the first tree_end trees.
  *

@@ -10,8 +10,6 @@
 #include <xgboost/context.h>  // for Context
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/linalg.h>
-#include <xgboost/span.h>
 
 #include <functional>  // for function
 #include <memory>      // for shared_ptr
@@ -24,7 +22,6 @@ struct GBTreeModel;
 }  // namespace xgboost::gbm
 
 namespace xgboost {
-class RegTree;
 /**
  * \class Predictor
  *
@@ -84,18 +81,6 @@ class Predictor {
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
                               float missing, HostDeviceVector<float>* out_preds,
                               bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
-
-  /**
-   * \brief Add prediction contributions from known leaf ids. The leaf ids are encoded with
-   *        tree::SamplePosition, where invalid rows are still decoded for prediction.
-   *
-   * \param leaf_ids Leaf ids for each tree, one vector per tree.
-   * \param trees Trees corresponding to the leaf id vectors.
-   * \param out_preds Prediction output to be incremented.
-   */
-  virtual void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
-                                  common::Span<RegTree const*> trees,
-                                  linalg::MatrixView<float> out_preds) const = 0;
 
   /**
    * \brief Creates a new Predictor*.
