@@ -81,7 +81,7 @@ TEST(GpuHist, DriverLossGuided) {
 }
 
 namespace {
-GPUExpandEntry MakeGPU(bst_node_t nidx, bst_node_t depth, float loss_chg) {
+GPUExpandEntry MakeGPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
   DeviceSplitCandidate split;
   split.loss_chg = loss_chg;
   split.left_sum = {0, 1};
@@ -89,8 +89,12 @@ GPUExpandEntry MakeGPU(bst_node_t nidx, bst_node_t depth, float loss_chg) {
   return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
 }
 
-GPUExpandEntry ValidGPU(bst_node_t nidx, bst_node_t depth) { return MakeGPU(nidx, depth, 2.0f); }
-GPUExpandEntry InvalidGPU(bst_node_t nidx, bst_node_t depth) { return MakeGPU(nidx, depth, 0.5f); }
+GPUExpandEntry ValidGPU(bst_node_t nidx, bst_node_t depth) {
+  return MakeGPUExpandEntry(nidx, depth, 2.0f);
+}
+GPUExpandEntry InvalidGPU(bst_node_t nidx, bst_node_t depth) {
+  return MakeGPUExpandEntry(nidx, depth, 0.5f);
+}
 
 void QueueBoundaryCase(Driver<GPUExpandEntry>* driver, std::size_t batch_size) {
   std::vector<GPUExpandEntry> entries;

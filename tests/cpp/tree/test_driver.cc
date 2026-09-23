@@ -13,14 +13,18 @@
 
 namespace xgboost::tree {
 namespace {
-CPUExpandEntry MakeCPU(bst_node_t nidx, bst_node_t depth, float loss_chg) {
+CPUExpandEntry MakeCPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
   SplitEntry split;
   split.loss_chg = loss_chg;
   return CPUExpandEntry{nidx, depth, split};
 }
 
-CPUExpandEntry ValidCPU(bst_node_t nidx, bst_node_t depth) { return MakeCPU(nidx, depth, 2.0f); }
-CPUExpandEntry InvalidCPU(bst_node_t nidx, bst_node_t depth) { return MakeCPU(nidx, depth, 0.5f); }
+CPUExpandEntry ValidCPU(bst_node_t nidx, bst_node_t depth) {
+  return MakeCPUExpandEntry(nidx, depth, 2.0f);
+}
+CPUExpandEntry InvalidCPU(bst_node_t nidx, bst_node_t depth) {
+  return MakeCPUExpandEntry(nidx, depth, 0.5f);
+}
 
 void QueueBoundaryCase(Driver<CPUExpandEntry>* driver, std::size_t batch_size) {
   std::vector<CPUExpandEntry> entries;
