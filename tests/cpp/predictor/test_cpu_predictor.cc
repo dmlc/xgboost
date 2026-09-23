@@ -33,7 +33,8 @@ TEST(CpuPredictor, PredictLeafKernel) {
   Context ctx;
   LearnerModelState mparam{MakeMP(1, 0.0f, 2, ctx.Device())};
   auto model = CreateTestModel(&mparam, &ctx, 2);
-  model->trees.front()->ExpandNode(0, 0, 0.5f, true, 0.0f, 1.0f, 2.0f, 0.0f, 2.0f, 1.0f, 1.0f);
+  model->trees.front()->Expand(
+      {{0, 0, 0.5f, true}, {0.0f, 2.0f}, {1.0f, 1.0f}, {2.0f, 1.0f}, 0.0f});
   auto dmat = GetDMatrixFromData({0.0f, 1.0f, std::numeric_limits<float>::quiet_NaN()}, 3, 1);
   HostDeviceVector<float> leaves;
   common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
