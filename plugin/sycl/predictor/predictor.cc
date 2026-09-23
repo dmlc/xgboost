@@ -37,8 +37,7 @@ namespace xgboost {
 namespace sycl {
 namespace predictor {
 
-// Referenced by the plugin's linker options to retain registrations in static builds.
-extern "C" void XGBoostLinkSYCLPredictor() {}
+DMLC_REGISTRY_FILE_TAG(predictor_sycl);
 
 namespace {
 void InitBaseScoreSYCL(Context const*, xgboost::linalg::VectorView<float const> base_score,
