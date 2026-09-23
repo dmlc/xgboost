@@ -559,7 +559,7 @@ class GPUPredictor : public xgboost::Predictor {
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
-    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
     out_preds->SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 

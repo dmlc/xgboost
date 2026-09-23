@@ -33,8 +33,8 @@
 #include "node.h"
 
 namespace xgboost::sycl_impl {
-void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base_score,
-                        linalg::MatrixView<float> predt) {
+void InitBaseScoreSYCL(Context const* ctx, linalg::VectorView<float const> base_score,
+                       linalg::MatrixView<float> predt) {
   sycl::DeviceManager device_manager;
   auto* qu = device_manager.GetQueue(predt.Device());
   qu->submit([&](::sycl::handler& cgh) {
@@ -45,6 +45,14 @@ void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base
       });
     }).wait_and_throw();
 }
+namespace {
+common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCL{
+    DeviceOrd::kSyclDefault, &InitBaseScoreSYCL};
+common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLCPU{
+    DeviceOrd::kSyclCPU, &InitBaseScoreSYCL};
+common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLGPU{
+    DeviceOrd::kSyclGPU, &InitBaseScoreSYCL};
+}  // namespace
 }  // namespace xgboost::sycl_impl
 
 namespace xgboost {

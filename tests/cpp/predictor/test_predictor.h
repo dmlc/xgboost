@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "../../../src/gbm/gbtree_model.h"  // for GBTreeModel
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -63,11 +64,11 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
 
     HostDeviceVector<float> approx_out_predictions;
-    predictor->InitOutPredictions(p_hist->Info(), &approx_out_predictions, model);
+    predictor::InitOutPredictions(&cuda_ctx, p_hist->Info(), &approx_out_predictions, model);
     predictor->PredictBatch(p_hist.get(), &approx_out_predictions, model, 0);
 
     HostDeviceVector<float> precise_out_predictions;
-    predictor->InitOutPredictions(p_precise->Info(), &precise_out_predictions, model);
+    predictor::InitOutPredictions(&cuda_ctx, p_precise->Info(), &precise_out_predictions, model);
     predictor->PredictBatch(p_precise.get(), &precise_out_predictions, model, 0);
 
     for (size_t i = 0; i < rows; ++i) {
@@ -81,12 +82,13 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
     // matrix is used for training.
     auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
     HostDeviceVector<float> precise_out_predictions;
-    predictor->InitOutPredictions(p_dmat->Info(), &precise_out_predictions, model);
+    predictor::InitOutPredictions(&cuda_ctx, p_dmat->Info(), &precise_out_predictions, model);
     predictor->PredictBatch(p_dmat.get(), &precise_out_predictions, model, 0);
     CHECK(!p_dmat->PageExists<Page>());
   }
 }
 
+void TestInitOutPredictions(Context const* ctx);
 void TestBasic(DMatrix* dmat, Context const* ctx);
 void TestBatchPredictionWithWeights(Context const* ctx);
 void TestInplacePredictionWithWeights(Context const* ctx);

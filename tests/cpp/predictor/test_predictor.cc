@@ -34,6 +34,39 @@
 #include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
+void TestInitOutPredictions(Context const *ctx) {
+  for (bool vector_score : {false, true}) {
+    auto score = vector_score ? linalg::Vector<float>{{0.25f, 0.5f, 0.75f}, {3}, ctx->Device()}
+                              : linalg::Vector<float>{{0.5f}, {1}, ctx->Device()};
+    LearnerModelState mparam{2, std::move(score), 1, 3, MultiStrategy::kMultiOutputTree};
+    gbm::GBTreeModel model{&mparam, ctx};
+    MetaInfo info;
+    info.num_row_ = 2;
+    HostDeviceVector<float> predictions;
+    auto expected = vector_score ? std::vector<float>{0.25f, 0.5f, 0.75f, 0.25f, 0.5f, 0.75f}
+                                 : std::vector<float>(6, 0.5f);
+    for (int repeat = 0; repeat < 2; ++repeat) {
+      predictor::InitOutPredictions(ctx, info, &predictions, model);
+      EXPECT_EQ(predictions.ConstHostVector(), expected);
+      EXPECT_EQ(predictions.Device(), ctx->Device());
+      predictions.Fill(-1.0f);
+    }
+
+    info.base_margin_ = linalg::Matrix<float>{{1, 2, 3, 4, 5, 6}, {2, 3}, ctx->Device()};
+    predictor::InitOutPredictions(ctx, info, &predictions, model);
+    EXPECT_EQ(predictions.ConstHostVector(), (std::vector<float>{1, 2, 3, 4, 5, 6}));
+
+    // Equal element counts must not hide an incorrect margin shape.
+    info.base_margin_.Reshape(3, 2);
+    EXPECT_THROW(predictor::InitOutPredictions(ctx, info, &predictions, model), dmlc::Error);
+
+    info.base_margin_ = linalg::Matrix<float>{};
+    info.num_row_ = 0;
+    predictor::InitOutPredictions(ctx, info, &predictions, model);
+    EXPECT_TRUE(predictions.Empty());
+  }
+}
+
 void TestBasic(DMatrix *dmat, Context const *ctx) {
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
@@ -46,7 +79,7 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
 
   // Test predict batch
   HostDeviceVector<float> out_predictions;
-  predictor->InitOutPredictions(dmat->Info(), &out_predictions, model);
+  predictor::InitOutPredictions(ctx, dmat->Info(), &out_predictions, model);
   predictor->PredictBatch(dmat, &out_predictions, model, 0);
 
   std::vector<float> &out_predictions_h = out_predictions.HostVector();
@@ -72,7 +105,7 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   }
   std::vector<RegTree const *> trees{model.trees.front().get()};
   HostDeviceVector<float> from_leaf_ids;
-  predictor->InitOutPredictions(dmat->Info(), &from_leaf_ids, model);
+  predictor::InitOutPredictions(ctx, dmat->Info(), &from_leaf_ids, model);
   auto from_leaf_view = linalg::MakeTensorView(ctx, &from_leaf_ids, dmat->Info().num_row_,
                                                model.learner_model_state->OutputLength());
   common::DispatchKernel<predictor::PredictFromLeafIdsKernel>(ctx, common::Span{leaf_ids},
@@ -117,7 +150,7 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
   model->weight_drop = {0.5f, 2.0f};
 
   HostDeviceVector<float> weighted_predictions;
-  predictor->InitOutPredictions(dmat->Info(), &weighted_predictions, *model);
+  predictor::InitOutPredictions(ctx, dmat->Info(), &weighted_predictions, *model);
   predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0);
 
   auto const &h_predt = weighted_predictions.ConstHostVector();
@@ -126,7 +159,7 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
   }
 
   HostDeviceVector<float> ranged_predictions;
-  predictor->InitOutPredictions(dmat->Info(), &ranged_predictions, *model);
+  predictor::InitOutPredictions(ctx, dmat->Info(), &ranged_predictions, *model);
   predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2);
 
   auto const &h_ranged = ranged_predictions.ConstHostVector();
@@ -428,7 +461,7 @@ void TestCategoricalPrediction(bool use_gpu) {
   std::vector<FeatureType> types(10, FeatureType::kCategorical);
   m->Info().feature_types.HostVector() = types;
 
-  predictor->InitOutPredictions(m->Info(), &out_predictions, model);
+  predictor::InitOutPredictions(&ctx, m->Info(), &out_predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   auto score = mparam.BaseScore(DeviceOrd::CPU())(0);
   ASSERT_EQ(out_predictions.Size(), 1ul);
@@ -438,7 +471,7 @@ void TestCategoricalPrediction(bool use_gpu) {
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
 
-  predictor->InitOutPredictions(m->Info(), &out_predictions, model);
+  predictor::InitOutPredictions(&ctx, m->Info(), &out_predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.HostVector()[0], left_weight + score);
 }
@@ -599,7 +632,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   auto test_batch = [&](float expected, HostDeviceVector<float> const *p_data) {
     auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
     HostDeviceVector<float> predt_cache;
-    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache, model);
+    predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
     ASSERT_EQ(predt_cache.Size(), kRows * mparam.LeafLength());
     predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
     auto const &h_predt = predt_cache.HostVector();
@@ -610,7 +643,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   auto test_inplace = [&](float expected, HostDeviceVector<float> const *p_data) {
     HostDeviceVector<float> predt_cache;
     std::shared_ptr<DMatrix> p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
-    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache, model);
+    predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
     if (ctx->IsCUDA()) {
       // pull data to device.
       p_data->SetDevice(ctx->Device());
@@ -642,7 +675,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
     }
     auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
 
-    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache, model);
+    predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
 
     std::unique_ptr<ArrayIterForTest> iter;
     if (ctx->IsCUDA()) {
@@ -657,7 +690,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
         std::make_shared<data::IterativeDMatrix>(iter.get(), iter->Proxy(), nullptr, Reset, Next,
                                                  std::numeric_limits<float>::quiet_NaN(), 0, 256);
 
-    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache, model);
+    predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
     predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
     auto const &h_predt = predt_cache.HostVector();
     // the smallest v uses the min_value from histogram cuts, which leads to a left leaf

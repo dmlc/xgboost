@@ -21,6 +21,11 @@
 #include "test_shap.h"
 
 namespace xgboost {
+TEST(CpuPredictor, InitOutPredictions) {
+  Context ctx;
+  TestInitOutPredictions(&ctx);
+}
+
 TEST(CpuPredictor, Basic) {
   Context ctx;
   size_t constexpr kRows = 5;
