@@ -6,6 +6,8 @@ if(PLUGIN_SYCL)
     ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc
     ${xgboost_SOURCE_DIR}/src/objective/multiclass_obj.cc)
   add_library(plugin_sycl OBJECT ${SYCL_SOURCES})
+  # Retain predictor and kernel registrations when linking the static XGBoost archive.
+  target_link_options(plugin_sycl INTERFACE "LINKER:--undefined=XGBoostLinkSYCLPredictor")
   target_include_directories(plugin_sycl
     PRIVATE
     ${xgboost_SOURCE_DIR}/include

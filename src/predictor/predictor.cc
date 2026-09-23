@@ -111,9 +111,3 @@ DMLC_REGISTRY_LINK_TAG(shap_cuda);
 }  // namespace cuda_impl
 #endif  // XGBOOST_USE_CUDA
 }  // namespace xgboost::interpretability
-
-#ifdef XGBOOST_USE_SYCL
-namespace xgboost::sycl::predictor {
-DMLC_REGISTRY_LINK_TAG(predictor_sycl);
-}  // namespace xgboost::sycl::predictor
-#endif  // XGBOOST_USE_SYCL
