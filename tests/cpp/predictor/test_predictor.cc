@@ -397,8 +397,12 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind, bst_cat_t s
   LBitField32 cats_bits(split_cats);
   cats_bits.Set(split_cat);
 
-  p_tree->ExpandCategorical(0, split_ind, split_cats, true, 1.5f, left_weight, right_weight, 3.0f,
-                            2.2f, 7.0f, 9.0f);
+  p_tree->Expand({{0, split_ind, 0.0f, true, split_cats},
+                  {1.5f, 2.2f},
+                  {left_weight, 7.0f},
+                  {right_weight, 9.0f},
+                  3.0f});
+  p_tree->FinalizeLeaves(1.0f);
   model->CommitModelGroup(std::move(trees), 0);
 }
 
@@ -585,11 +589,10 @@ void TestVectorLeafPrediction(Context const *ctx) {
   auto &tree = trees.front();
   tree->SetRoot(linalg::MakeVec(p_w.data(), p_w.size()), /*sum_hess=*/1.0f);
   Context tree_ctx;
-  xgboost::tree::ExpandBatch batch{1.0f};
-  batch.Push(0, static_cast<bst_feature_t>(1), 2.0, true, p_w, l_w, r_w,
-             /*loss_chg=*/0.5f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
+  xgboost::tree::ExpandBatch batch;
+  batch.push_back({{0, 1, 2.0f, true}, {p_w, 1.0}, {l_w, 0.6f}, {r_w, 0.4f}, 0.5f});
   tree->Expand(&tree_ctx, batch);
-  tree->GetMultiTargetTree()->SetLeaves();
+  tree->FinalizeLeaves(1.0f);
   ASSERT_TRUE(tree->IsMultiTarget());
   ASSERT_TRUE(mparam.IsVectorLeaf());
 

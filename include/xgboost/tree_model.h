@@ -58,7 +58,7 @@ struct RTreeNodeStat {
   float loss_chg;
   /** @brief sum of hessian values, used to measure coverage of data */
   float sum_hess;
-  /** @brief weight of current node */
+  /** @brief weight of current node before applying the learning rate */
   float base_weight;
   /** @brief number of child that is leaf node known up to now */
   int leaf_child_cnt{0};
@@ -281,64 +281,25 @@ class RegTree : public Model {
   [[nodiscard]] bool Equal(RegTree const& b) const;
 
   /**
-   * \brief Expands a leaf node into two additional leaf nodes.
+   * @brief Expand a scalar leaf using unscaled weights and explicit split metadata.
    *
-   * \param nid               The node index to expand.
-   * \param split_index       Feature index of the split.
-   * \param split_value       The split condition.
-   * \param default_left      True to default left.
-   * \param base_weight       The base weight, before learning rate.
-   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
-   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
-   * \param loss_change       The loss change.
-   * \param sum_hess          The sum hess.
-   * \param left_sum          The sum hess of left leaf.
-   * \param right_sum         The sum hess of right leaf.
-   * \param leaf_right_child  The right child index of leaf, by default kInvalidNodeId,
-   *                          some updaters use the right child index of leaf as a marker
+   * Prediction leaves are initialized by FinalizeLeaves after tree construction.
+   * The optional right-child marker is used by the exact updater during construction.
    */
-  void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value, bool default_left,
-                  bst_float base_weight, bst_float left_leaf_weight, bst_float right_leaf_weight,
-                  bst_float loss_change, float sum_hess, float left_sum, float right_sum,
-                  bst_node_t leaf_right_child = kInvalidNodeId);
-  /**
-   * @brief Expand multiple leaves in a multi-target tree.
-   *
-   * A non-empty category span marks a categorical split; an empty span marks a numerical split.
-   */
+  void Expand(tree::ExpandData<float> const& node, bst_node_t leaf_right_child = kInvalidNodeId);
+  /** @brief Expand multiple vector leaves using unscaled weights. */
   void Expand(Context const* ctx, tree::ExpandBatch const& batch);
+  /** @brief Initialize prediction leaves from base weights, applying the learning rate. */
+  void FinalizeLeaves(float learning_rate);
   /**
-   * @brief Set all leaf weights for a multi-target tree.
+   * @brief Initialize vector prediction leaves from unscaled output weights.
    *
-   * The leaf weight can be different from the internal weight stored by @ref Expand.
-   * This function is used to set the leaf at the end of tree construction.
-   *
-   * @param leaves  The node indices for all leaves. This must contain all the leaves in this tree.
-   * @param weights Row-major matrix for leaf weights, each row contains a leaf specified by the
-   *                leaves parameter.
+   * @param leaves The node indices of all valid leaves.
+   * @param weights Row-major output weights, with NumTargets() values per leaf.
+   * @param learning_rate Applied to output weights without modifying base weights.
    */
-  void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
-
-  /**
-   * \brief Expands a leaf node with categories
-   *
-   * \param nid               The node index to expand.
-   * \param split_index       Feature index of the split.
-   * \param split_cat         The bitset containing categories
-   * \param default_left      True to default left.
-   * \param base_weight       The base weight, before learning rate.
-   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
-   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
-   * \param loss_change       The loss change.
-   * \param sum_hess          The sum hess.
-   * \param left_sum          The sum hess of left leaf.
-   * \param right_sum         The sum hess of right leaf.
-   */
-  void ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
-                         common::Span<tree::CatWordT const> split_cat, bool default_left,
-                         bst_float base_weight, bst_float left_leaf_weight,
-                         bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                         float left_sum, float right_sum);
+  void FinalizeLeaves(common::Span<bst_node_t const> leaves, common::Span<float const> weights,
+                      float learning_rate);
   /**
    * @brief Whether this tree has categorical split.
    */
@@ -386,6 +347,8 @@ class RegTree : public Model {
    * @brief Get the depth of a node.
    */
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
+  /** @brief Set the unscaled weight and coverage for a scalar root. */
+  void SetRoot(float weight, float sum_hess);
   /**
    * @brief Set the root weight and statistics for a multi-target tree.
    *

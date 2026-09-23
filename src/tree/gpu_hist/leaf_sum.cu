@@ -101,7 +101,7 @@ void LeafWeight(Context const* ctx, EvalParam const& param,
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
     auto weight = evaluator.CalcWeight(nidx[nidx_in_set], t, param, g);
-    out_weights(nidx_in_set, t) = weight * param.learning_rate;
+    out_weights(nidx_in_set, t) = weight;
   });
 }
 }  // namespace xgboost::tree::cuda_impl

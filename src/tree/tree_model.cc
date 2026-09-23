@@ -855,31 +855,43 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
   return this->HostScView().MaxDepth(RegTree::kRoot);
 }
 
-void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
-                         bool default_left, bst_float base_weight, bst_float left_leaf_weight,
-                         bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                         float left_sum, float right_sum, bst_node_t leaf_right_child) {
+void RegTree::SetRoot(float weight, float sum_hess) {
   CHECK(!IsMultiTarget());
-  int pleft = this->AllocNode();
-  int pright = this->AllocNode();
-  auto& h_nodes = nodes_.HostVector();
+  CHECK_EQ(this->NumNodes(), 1);
+  this->Stat(kRoot) = {0.0f, sum_hess, weight};
+}
 
-  auto& node = h_nodes[nid];
-  CHECK(node.IsLeaf());
-  node.SetLeftChild(pleft);
-  node.SetRightChild(pright);
-  h_nodes[node.LeftChild()].SetParent(nid, true);
-  h_nodes[node.RightChild()].SetParent(nid, false);
-  node.SetSplit(split_index, split_value, default_left);
+void RegTree::Expand(tree::ExpandData<float> const& entry, bst_node_t leaf_right_child) {
+  CHECK(!IsMultiTarget());
+  auto const& split = entry.split;
+  auto is_cat = !split.categories.empty();
+  CHECK((*this)[split.nidx].IsLeaf());
+  auto left = this->AllocNode();
+  auto right = this->AllocNode();
+  auto& nodes = nodes_.HostVector();
+  auto& node = nodes[split.nidx];
+  node.SetLeftChild(left);
+  node.SetRightChild(right);
+  nodes[left].SetParent(split.nidx, true);
+  nodes[right].SetParent(split.nidx, false);
+  node.SetSplit(split.fidx, is_cat ? DftBadValue() : split.cond, split.default_left);
+  nodes[left].SetLeaf(0.0f, leaf_right_child);
+  nodes[right].SetLeaf(0.0f, leaf_right_child);
 
-  h_nodes[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
-  h_nodes[pright].SetLeaf(right_leaf_weight, leaf_right_child);
+  this->Stat(split.nidx) = {entry.loss_chg, static_cast<float>(entry.parent.sum_hess),
+                            entry.parent.weight};
+  this->Stat(left) = {0.0f, static_cast<float>(entry.left.sum_hess), entry.left.weight};
+  this->Stat(right) = {0.0f, static_cast<float>(entry.right.sum_hess), entry.right.weight};
 
-  this->Stat(nid) = {loss_change, sum_hess, base_weight};
-  this->Stat(pleft) = {0.0f, left_sum, left_leaf_weight};
-  this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
-
-  this->split_types_.HostVector().at(nid) = FeatureType::kNumerical;
+  split_types_.HostVector().at(split.nidx) =
+      is_cat ? FeatureType::kCategorical : FeatureType::kNumerical;
+  auto& segment = split_categories_segments_.HostVector().at(split.nidx);
+  segment = {};
+  if (is_cat) {
+    auto& categories = split_categories_.HostVector();
+    segment = {categories.size(), split.categories.size()};
+    categories.insert(categories.end(), split.categories.begin(), split.categories.end());
+  }
 }
 
 void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
@@ -896,14 +908,13 @@ void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   auto& h_segments = split_categories_segments_.HostVector();
   h_segments.resize(n_nodes);
 
-  if (batch.n_cat_words != 0) {
-    tree::CopyCategoryStorage(ctx, categories_begin, batch, &split_categories_);
-  }
+  tree::CopyCategoryStorage(ctx, categories_begin, batch, &split_categories_);
 
   std::size_t category_offset = categories_begin;
-  for (std::size_t i = 0; i < batch.Size(); ++i) {
-    auto nidx = batch.nidxs[i];
-    auto cats = batch.cat_bits[i];
+  for (auto const& node : batch) {
+    auto const& split = node.split;
+    auto nidx = split.nidx;
+    auto cats = split.categories;
     if (cats.empty()) {
       h_split_types[nidx] = FeatureType::kNumerical;
       h_segments[nidx] = {};
@@ -917,32 +928,26 @@ void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   this->param_.num_nodes = n_nodes;
 }
 
-void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
-  CHECK(IsMultiTarget());
-  this->p_mt_tree_->SetLeaves(std::move(leaves), weights);
+void RegTree::FinalizeLeaves(float learning_rate) {
+  if (this->IsMultiTarget()) {
+    this->p_mt_tree_->FinalizeLeaves(learning_rate);
+    return;
+  }
+  auto nodes = nodes_.HostSpan();
+  auto stats = stats_.ConstHostSpan();
+  for (bst_node_t nidx = 0; nidx < this->NumNodes(); ++nidx) {
+    if (!nodes[nidx].IsDeleted() && nodes[nidx].IsLeaf()) {
+      nodes[nidx].SetLeaf(stats[nidx].base_weight * learning_rate);
+    }
+  }
 }
 
-void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
-                                common::Span<tree::CatWordT const> split_cat, bool default_left,
-                                bst_float base_weight, bst_float left_leaf_weight,
-                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                                float left_sum, float right_sum) {
-  static_assert(std::is_same_v<common::KCatBitField::value_type, std::add_const_t<tree::CatWordT>>);
-  CHECK(!this->IsMultiTarget());
-  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
-                   right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
-
-  auto& h_split_categories = split_categories_.HostVector();
-  std::size_t orig_size = h_split_categories.size();
-  h_split_categories.resize(orig_size + split_cat.size());
-  std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
-            h_split_categories.begin() + orig_size);
-
-  this->split_types_.HostVector().at(nidx) = FeatureType::kCategorical;
-
-  auto& h_split_categories_segments = this->split_categories_segments_.HostVector();
-  h_split_categories_segments.at(nidx).beg = orig_size;
-  h_split_categories_segments.at(nidx).size = split_cat.size();
+void RegTree::FinalizeLeaves(common::Span<bst_node_t const> leaves,
+                             common::Span<float const> weights, float learning_rate) {
+  CHECK(this->IsMultiTarget());
+  CHECK_EQ(leaves.size(), this->GetNumLeaves());
+  CHECK_EQ(weights.size(), leaves.size() * this->NumTargets());
+  this->p_mt_tree_->FinalizeLeaves(leaves, weights, learning_rate);
 }
 
 RegTree* RegTree::Copy() const {
