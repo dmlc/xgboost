@@ -138,7 +138,11 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
     out["aft_loss_param"] = ToJson(param_);
   }
 
-  void LoadConfig(const Json& in) override { FromJson(in["aft_loss_param"], &param_); }
+  void LoadConfig(const Json& in) override {
+    FromJson(in["aft_loss_param"], &param_);
+    auto args = param_.__DICT__();
+    this->Configure(Args{args.cbegin(), args.cend()});
+  }
 
  private:
   AFTParam param_;
