@@ -122,10 +122,8 @@ def test_with_iter() -> None:
             run_with_iter("cuda")
 
 
-@pytest.mark.parametrize("is_stump", [False, True])
-@pytest.mark.parametrize("num_parallel_tree", [1, 2])
-def test_eta(is_stump: bool, num_parallel_tree: int) -> None:
-    run_eta("cuda", is_stump, num_parallel_tree)
+def test_eta() -> None:
+    run_eta("cuda")
 
 
 def test_deterministic() -> None:

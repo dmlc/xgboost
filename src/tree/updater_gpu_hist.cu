@@ -536,9 +536,8 @@ struct GPUHistMakerDevice {
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
     }
-    tree.Expand({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
-                  candidate.split.fvalue, candidate.split.dir == kLeftDir,
-                  is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+    tree.Expand({SplitInfo{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+                           candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
                  {base_weight, parent_hess},
                  {left_weight, left_hess},
                  {right_weight, right_hess},

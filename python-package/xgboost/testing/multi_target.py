@@ -503,7 +503,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     )
 
 
-def run_eta(device: Device, is_stump: bool, num_parallel_tree: int) -> None:
+def run_eta(device: Device) -> None:
     """Test unscaled base weights and learning-rate-scaled prediction leaves."""
     features, labels = make_regression(512, 16, random_state=2025, n_targets=3)
     data = QuantileDMatrix(features, labels)
@@ -514,7 +514,7 @@ def run_eta(device: Device, is_stump: bool, num_parallel_tree: int) -> None:
         "debug_synchronize": True,
     }
     for obj in (None, LsObj0(device), LsObj2(device, False)):
-        check_base_weights(params, data, is_stump, num_parallel_tree, obj)
+        check_base_weights(params, data, obj)
 
 
 def run_deterministic(device: Device) -> None:

@@ -60,54 +60,40 @@ TEST(Tree, AllocateNode) {
 
 TEST(Tree, ExpandCategoricalFeature) {
   Context ctx;
-  {
-    RegTree tree;
-    tree.Expand({{0, 0, 0.0f, true, FeatureType::kCategorical, {}},
-                 {1.0, 2.0},
-                 {2.0, 3.0},
-                 {3.0, 4.0},
-                 11.0});
-    ASSERT_EQ(tree.Size(), 3ul);
-    ASSERT_EQ(tree.GetNumLeaves(), 2);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[1], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[2], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitCategories(ctx.Device()).size(), 0ul);
-    ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
-  }
-  {
-    RegTree tree;
-    bst_cat_t cat = 33;
-    std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
-    LBitField32 bitset{split_cats};
-    bitset.Set(cat);
-    tree.Expand({{0, 0, 0.0f, true, FeatureType::kCategorical, split_cats},
-                 {1.0, 2.0},
-                 {2.0, 3.0},
-                 {3.0, 4.0},
-                 11.0});
-    auto categories = tree.GetSplitCategories(ctx.Device());
-    auto segments = tree.GetSplitCategoriesPtr();
-    auto got = categories.subspan(segments[0].beg, segments[0].size);
-    ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
+  RegTree tree;
+  bst_cat_t cat = 33;
+  std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
+  LBitField32 bitset{split_cats};
+  bitset.Set(cat);
+  tree.Expand({{0, 0, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
+  ASSERT_EQ(tree.Size(), 3ul);
+  ASSERT_EQ(tree.GetNumLeaves(), 2);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[1], FeatureType::kNumerical);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[2], FeatureType::kNumerical);
+  ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
+  auto categories = tree.GetSplitCategories(ctx.Device());
+  ASSERT_EQ(categories.size(), split_cats.size());
+  auto segments = tree.GetSplitCategoriesPtr();
+  auto got = categories.subspan(segments[0].beg, segments[0].size);
+  ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
 
-    tree.FinalizeLeaves(1.0f);
-    Json out{Object()};
-    tree.SaveModel(&out);
+  tree.FinalizeLeaves(1.0f);
+  Json out{Object()};
+  tree.SaveModel(&out);
 
-    RegTree loaded_tree;
-    loaded_tree.LoadModel(out);
+  RegTree loaded_tree;
+  loaded_tree.LoadModel(out);
 
-    auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();
-    ASSERT_EQ(cat_ptr.size(), 3ul);
-    ASSERT_EQ(cat_ptr[0].beg, 0ul);
-    ASSERT_EQ(cat_ptr[0].size, 2ul);
+  auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();
+  ASSERT_EQ(cat_ptr.size(), 3ul);
+  ASSERT_EQ(cat_ptr[0].beg, 0ul);
+  ASSERT_EQ(cat_ptr[0].size, 2ul);
 
-    auto loaded_categories = loaded_tree.GetSplitCategories(ctx.Device());
-    auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
-    ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
-  }
+  auto loaded_categories = loaded_tree.GetSplitCategories(ctx.Device());
+  auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
+  ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
 }
 
 void GrowTree(RegTree* p_tree) {
@@ -134,11 +120,7 @@ void GrowTree(RegTree* p_tree) {
       std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
       LBitField32 bitset{split_cats};
       bitset.Set(cat);
-      tree.Expand({{node, f, 0.0f, true, FeatureType::kCategorical, split_cats},
-                   {1.0, 2.0},
-                   {2.0, 3.0},
-                   {3.0, 4.0},
-                   11.0});
+      tree.Expand({{node, f, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
     } else {
       auto split = static_cast<float>(split_value(&lcg));
       tree.Expand({{node, f, split, true}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
@@ -169,11 +151,7 @@ TEST(Tree, CategoricalIO) {
     std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
     LBitField32 bitset{split_cats};
     bitset.Set(cat);
-    tree.Expand({{0, 0, 0.0f, true, FeatureType::kCategorical, split_cats},
-                 {1.0, 2.0},
-                 {2.0, 3.0},
-                 {3.0, 4.0},
-                 11.0});
+    tree.Expand({{0, 0, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
 
     tree.FinalizeLeaves(1.0f);
     CheckReload(tree);
@@ -210,19 +188,11 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
   cond->push_back(14);
   cond->push_back(32);
 
-  tree.Expand({{0, 0, 0.0f, true, FeatureType::kCategorical, cats_storage},
-               {0.0f, 2.0},
-               {2.0, 3.0},
-               {3.00, 4.0},
-               11.0});
+  tree.Expand({{0, 0, 0.0f, true, cats_storage}, {0.0f, 2.0}, {2.0, 3.0}, {3.00, 4.0}, 11.0});
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.Expand({{left, 1, 1.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
-  tree.Expand({{right, 0, 0.0f, true, FeatureType::kCategorical, cats_storage},
-               {0.0f, 2.0},
-               {2.0, 3.0},
-               {3.00, 4.0},
-               11.0});
+  tree.Expand({{right, 0, 0.0f, true, cats_storage}, {0.0f, 2.0}, {2.0, 3.0}, {3.00, 4.0}, 11.0});
   tree.FinalizeLeaves(1.0f);
   return tree;
 }

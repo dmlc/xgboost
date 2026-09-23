@@ -510,14 +510,15 @@ class ColMaker : public TreeUpdater {
         NodeEntry const &e = snode_[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
-          bst_float left_weight = evaluator.CalcWeight(nid, param_, e.best.left_sum);
-          bst_float right_weight = evaluator.CalcWeight(nid, param_, e.best.right_sum);
-          p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
-                          {e.weight, e.stats.sum_hess},
-                          {left_weight, e.best.left_sum.GetHess()},
-                          {right_weight, e.best.right_sum.GetHess()},
-                          e.best.loss_chg},
-                         0);
+          float left_weight = evaluator.CalcWeight(nid, param_, e.best.left_sum);
+          float right_weight = evaluator.CalcWeight(nid, param_, e.best.right_sum);
+          p_tree->Expand(
+              {SplitInfo{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+               {e.weight, e.stats.sum_hess},
+               {left_weight, e.best.left_sum.GetHess()},
+               {right_weight, e.best.right_sum.GetHess()},
+               e.best.loss_chg},
+              0);
         } else {
           (*p_tree)[nid].SetLeaf(0.0f);
         }

@@ -134,26 +134,25 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(const common::GHistIndexMatrix& 
     if (snode_host_[nid].best.loss_chg < kRtEps ||
         (param_.max_depth > 0 && depth == param_.max_depth) ||
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
-      (*p_tree)[nid].SetLeaf(0.0f);
-    } else {
-      nodes_for_apply_split->push_back(entry);
-
-      NodeEntry<GradientSumT>& e = snode_host_[nid];
-      bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
-      bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
-      p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
-                      {e.weight, e.stats.GetHess()},
-                      {left_weight, e.best.left_sum.GetHess()},
-                      {right_weight, e.best.right_sum.GetHess()},
-                      e.best.loss_chg});
-
-      int left_id = (*p_tree)[nid].LeftChild();
-      int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id, p_tree->GetDepth(left_id)));
-      temp_qexpand_depth->push_back(ExpandEntry(right_id, p_tree->GetDepth(right_id)));
-      // - 1 parent + 2 new children
-      (*num_leaves)++;
+      continue;
     }
+    nodes_for_apply_split->push_back(entry);
+
+    NodeEntry<GradientSumT>& e = snode_host_[nid];
+    float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
+    float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
+    p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+                    {e.weight, e.stats.GetHess()},
+                    {left_weight, e.best.left_sum.GetHess()},
+                    {right_weight, e.best.right_sum.GetHess()},
+                    e.best.loss_chg});
+
+    bst_node_t left_id = (*p_tree)[nid].LeftChild();
+    bst_node_t right_id = (*p_tree)[nid].RightChild();
+    temp_qexpand_depth->push_back(ExpandEntry(left_id, p_tree->GetDepth(left_id)));
+    temp_qexpand_depth->push_back(ExpandEntry(right_id, p_tree->GetDepth(right_id)));
+    // - 1 parent + 2 new children
+    (*num_leaves)++;
   }
   builder_monitor_.Stop("AddSplitsToTree");
 }
@@ -261,48 +260,47 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
     if (!::xgboost::tree::IsValidExpandEntry(candidate, param_, num_leaves)) {
-      (*p_tree)[nid].SetLeaf(0.0f);
-    } else {
-      auto evaluator = tree_evaluator_.GetEvaluator();
-      NodeEntry<GradientSumT>& e = snode_host_[nid];
-      bst_float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
-      bst_float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
-      p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
-                      {e.weight, e.stats.GetHess()},
-                      {left_weight, e.best.left_sum.GetHess()},
-                      {right_weight, e.best.right_sum.GetHess()},
-                      e.best.loss_chg});
-
-      this->ApplySplit({candidate}, gmat, p_tree);
-
-      const int cleft = (*p_tree)[nid].LeftChild();
-      const int cright = (*p_tree)[nid].RightChild();
-
-      ExpandEntry left_node(cleft, p_tree->GetDepth(cleft));
-      ExpandEntry right_node(cright, p_tree->GetDepth(cright));
-
-      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-        BuildHistogramsLossGuide(left_node, gmat, p_tree, gpair);
-      } else {
-        BuildHistogramsLossGuide(right_node, gmat, p_tree, gpair);
-      }
-
-      this->InitNewNode(cleft, gmat, gpair, *p_tree);
-      this->InitNewNode(cright, gmat, gpair, *p_tree);
-      bst_uint featureid = snode_host_[nid].best.SplitIndex();
-      tree_evaluator_.AddSplit(nid, cleft, cright, featureid, snode_host_[cleft].weight,
-                               snode_host_[cright].weight);
-      interaction_constraints_.Split(nid, featureid, cleft, cright);
-
-      this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
-      left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
-      right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
-
-      qexpand_loss_guided_->push(left_node);
-      qexpand_loss_guided_->push(right_node);
-
-      ++num_leaves;  // give two and take one, as parent is no longer a leaf
+      continue;
     }
+    auto evaluator = tree_evaluator_.GetEvaluator();
+    NodeEntry<GradientSumT>& e = snode_host_[nid];
+    float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
+    float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
+    p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+                    {e.weight, e.stats.GetHess()},
+                    {left_weight, e.best.left_sum.GetHess()},
+                    {right_weight, e.best.right_sum.GetHess()},
+                    e.best.loss_chg});
+
+    this->ApplySplit({candidate}, gmat, p_tree);
+
+    bst_node_t const cleft = (*p_tree)[nid].LeftChild();
+    bst_node_t const cright = (*p_tree)[nid].RightChild();
+
+    ExpandEntry left_node(cleft, p_tree->GetDepth(cleft));
+    ExpandEntry right_node(cright, p_tree->GetDepth(cright));
+
+    if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+      BuildHistogramsLossGuide(left_node, gmat, p_tree, gpair);
+    } else {
+      BuildHistogramsLossGuide(right_node, gmat, p_tree, gpair);
+    }
+
+    this->InitNewNode(cleft, gmat, gpair, *p_tree);
+    this->InitNewNode(cright, gmat, gpair, *p_tree);
+    bst_uint featureid = snode_host_[nid].best.SplitIndex();
+    tree_evaluator_.AddSplit(nid, cleft, cright, featureid, snode_host_[cleft].weight,
+                             snode_host_[cright].weight);
+    interaction_constraints_.Split(nid, featureid, cleft, cright);
+
+    this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
+    left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
+    right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
+
+    qexpand_loss_guided_->push(left_node);
+    qexpand_loss_guided_->push(right_node);
+
+    ++num_leaves;  // give two and take one, as parent is no longer a leaf
   }
   builder_monitor_.Stop("ExpandWithLossGuide");
 }

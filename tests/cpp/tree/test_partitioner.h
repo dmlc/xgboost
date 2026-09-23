@@ -32,11 +32,11 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   linalg::Vector<float> right_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
   tree->SetRoot(base_weight.HostView(), /*sum_hess=*/0.0f);
   ExpandBatch batch;
-  batch.Push({{RegTree::kRoot, 0, split_value, true},
-              {base_weight.HostView().Values(), 0.0f},
-              {left_weight.HostView().Values(), 0.0f},
-              {right_weight.HostView().Values(), 0.0f},
-              0.0f});
+  batch.push_back({{RegTree::kRoot, 0, split_value, true},
+                   {base_weight.HostView().Values(), 0.0f},
+                   {left_weight.HostView().Values(), 0.0f},
+                   {right_weight.HostView().Values(), 0.0f},
+                   0.0f});
   tree->Expand(&ctx, batch);
   candidates->front().split.split_value = split_value;
   candidates->front().split.sindex = 0;

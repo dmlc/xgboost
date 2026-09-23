@@ -352,14 +352,12 @@ class HistEvaluator {
     if (candidate.split.is_cat) {
       cat_bits = candidate.split.cat_bits;
     }
-    tree.Expand(
-        {{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-          candidate.split.DefaultLeft(),
-          candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
-         {base_weight, parent_sum.GetHess()},
-         {left_weight, candidate.split.left_sum.GetHess()},
-         {right_weight, candidate.split.right_sum.GetHess()},
-         candidate.split.loss_chg});
+    tree.Expand({SplitInfo{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
+                           candidate.split.DefaultLeft(), cat_bits},
+                 {base_weight, parent_sum.GetHess()},
+                 {left_weight, candidate.split.left_sum.GetHess()},
+                 {right_weight, candidate.split.right_sum.GetHess()},
+                 candidate.split.loss_chg});
 
     // Set up child constraints
     auto left_child = tree[candidate.nid].LeftChild();
@@ -773,14 +771,12 @@ class HistMultiEvaluator {
       return weight.Values().subspan(0, weight.Size());
     };
     ExpandBatch batch;
-    batch.Push(
-        {{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-          candidate.split.DefaultLeft(),
-          candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
-         {as_span(base_weight), left_sum_hess + right_sum_hess},
-         {as_span(left_weight), left_sum_hess},
-         {as_span(right_weight), right_sum_hess},
-         loss_chg});
+    batch.push_back({{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
+                      candidate.split.DefaultLeft(), cat_bits},
+                     {as_span(base_weight), left_sum_hess + right_sum_hess},
+                     {as_span(left_weight), left_sum_hess},
+                     {as_span(right_weight), right_sum_hess},
+                     loss_chg});
     p_tree->Expand(ctx_, batch);
 
     CHECK(p_tree->IsMultiTarget());

@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>  // for GradientContainer

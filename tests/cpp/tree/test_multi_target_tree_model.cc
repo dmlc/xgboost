@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 #include <xgboost/linalg.h>   // for Vector
+#include <xgboost/logging.h>  // for Error
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
@@ -23,12 +24,11 @@ void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bo
             double right_sum, common::Span<tree::CatWordT const> cat_bits = {}) {
   Context ctx;
   tree::ExpandBatch batch;
-  batch.Push({{nidx, fidx, cond, dft_left,
-               cat_bits.empty() ? FeatureType::kNumerical : FeatureType::kCategorical, cat_bits},
-              {base_weight.Values(), left_sum + right_sum},
-              {left_weight.Values(), left_sum},
-              {right_weight.Values(), right_sum},
-              loss_chg});
+  batch.push_back({{nidx, fidx, cond, dft_left, cat_bits},
+                   {base_weight.Values(), left_sum + right_sum},
+                   {left_weight.Values(), left_sum},
+                   {right_weight.Values(), right_sum},
+                   loss_chg});
   p_tree->Expand(&ctx, batch);
 }
 }  // namespace

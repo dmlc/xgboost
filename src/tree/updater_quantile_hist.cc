@@ -242,14 +242,13 @@ class MultiTargetHistBuilder {
                                       HistBatch(param_));
 
     auto weight = evaluator_->InitRoot(h_root_sum);
-    auto weight_t = weight.HostView();
 
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
     for (bst_target_t t{0}; t < n_targets; ++t) {
       root_sum_hess += static_cast<float>(h_root_sum(t).GetHess());
     }
-    p_tree->SetRoot(weight_t, root_sum_hess);
+    p_tree->SetRoot(weight.HostView(), root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
 
@@ -634,7 +633,6 @@ class QuantileHistMaker : public TreeUpdater {
       }
 
       if (in_gpair->HasValueGrad()) {
-        CHECK((*tree_it)->IsMultiTarget());
         // Copy the value gradient and replay sampling from the original split gradient.
         auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
                                                       in_gpair->value_gpair.Shape(1));

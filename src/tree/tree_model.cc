@@ -859,13 +859,12 @@ void RegTree::SetRoot(float weight, float sum_hess) {
   CHECK(!IsMultiTarget());
   CHECK_EQ(this->NumNodes(), 1);
   this->Stat(kRoot) = {0.0f, sum_hess, weight};
-  (*this)[kRoot].SetLeaf(0.0f);
 }
 
 void RegTree::Expand(tree::ExpandData<float> const& entry, bst_node_t leaf_right_child) {
   CHECK(!IsMultiTarget());
   auto const& split = entry.split;
-  CHECK(split.type == FeatureType::kCategorical || split.categories.empty());
+  auto is_cat = !split.categories.empty();
   CHECK((*this)[split.nidx].IsLeaf());
   auto left = this->AllocNode();
   auto right = this->AllocNode();
@@ -875,8 +874,7 @@ void RegTree::Expand(tree::ExpandData<float> const& entry, bst_node_t leaf_right
   node.SetRightChild(right);
   nodes[left].SetParent(split.nidx, true);
   nodes[right].SetParent(split.nidx, false);
-  node.SetSplit(split.fidx, split.type == FeatureType::kCategorical ? DftBadValue() : split.cond,
-                split.default_left);
+  node.SetSplit(split.fidx, is_cat ? DftBadValue() : split.cond, split.default_left);
   nodes[left].SetLeaf(0.0f, leaf_right_child);
   nodes[right].SetLeaf(0.0f, leaf_right_child);
 
@@ -885,10 +883,11 @@ void RegTree::Expand(tree::ExpandData<float> const& entry, bst_node_t leaf_right
   this->Stat(left) = {0.0f, static_cast<float>(entry.left.sum_hess), entry.left.weight};
   this->Stat(right) = {0.0f, static_cast<float>(entry.right.sum_hess), entry.right.weight};
 
-  split_types_.HostVector().at(split.nidx) = split.type;
+  split_types_.HostVector().at(split.nidx) =
+      is_cat ? FeatureType::kCategorical : FeatureType::kNumerical;
   auto& segment = split_categories_segments_.HostVector().at(split.nidx);
   segment = {};
-  if (split.type == FeatureType::kCategorical) {
+  if (is_cat) {
     auto& categories = split_categories_.HostVector();
     segment = {categories.size(), split.categories.size()};
     categories.insert(categories.end(), split.categories.begin(), split.categories.end());
@@ -909,16 +908,14 @@ void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   auto& h_segments = split_categories_segments_.HostVector();
   h_segments.resize(n_nodes);
 
-  if (batch.n_cat_words != 0) {
-    tree::CopyCategoryStorage(ctx, categories_begin, batch, &split_categories_);
-  }
+  tree::CopyCategoryStorage(ctx, categories_begin, batch, &split_categories_);
 
   std::size_t category_offset = categories_begin;
-  for (std::size_t i = 0; i < batch.Size(); ++i) {
-    auto const& split = batch.nodes[i].split;
+  for (auto const& node : batch) {
+    auto const& split = node.split;
     auto nidx = split.nidx;
     auto cats = split.categories;
-    if (split.type == FeatureType::kNumerical) {
+    if (cats.empty()) {
       h_split_types[nidx] = FeatureType::kNumerical;
       h_segments[nidx] = {};
     } else {

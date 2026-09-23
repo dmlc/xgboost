@@ -323,10 +323,9 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, node_cats.size());
         cat_bits = node_cats.subspan(0, n_words);
       }
-      batch.Push(
+      batch.push_back(
           {{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
-            candidate.split.fvalue, candidate.split.dir == kLeftDir,
-            candidate.split.is_cat ? FeatureType::kCategorical : FeatureType::kNumerical, cat_bits},
+            candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
            {base_weight, candidate.left_sum + candidate.right_sum},
            {left_weight, candidate.left_sum},
            {right_weight, candidate.right_sum},

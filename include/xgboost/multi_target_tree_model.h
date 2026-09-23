@@ -12,7 +12,6 @@
 #include <xgboost/linalg.h>              // for VectorView, MatrixView
 #include <xgboost/model.h>               // for Model
 #include <xgboost/span.h>                // for Span
-#include <xgboost/tree_model_defs.h>
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint8_t
@@ -21,6 +20,36 @@
 namespace xgboost {
 namespace tree {
 struct MultiTargetTreeView;
+using CatWordT = std::uint32_t;
+
+/** @brief Split metadata; a nonempty category span marks a categorical split. */
+struct SplitInfo {
+  bst_node_t nidx;
+  bst_feature_t fidx;
+  float cond;
+  bool default_left;
+  common::Span<CatWordT const> categories{};
+};
+
+/** @brief Unscaled split weight and coverage for a node. */
+template <typename Weight>
+struct ExpandNodeStat {
+  Weight weight;
+  double sum_hess;
+};
+
+/** @brief Inputs for expanding a leaf, independent of prediction-leaf finalization. */
+template <typename Weight>
+struct ExpandData {
+  SplitInfo split;
+  ExpandNodeStat<Weight> parent;
+  ExpandNodeStat<Weight> left;
+  ExpandNodeStat<Weight> right;
+  float loss_chg;
+};
+
+/** @brief Batch of vector expansions, with weight/category spans on the context's device. */
+using ExpandBatch = std::vector<ExpandData<common::Span<float const>>>;
 }  // namespace tree
 struct TreeParam;
 
@@ -86,11 +115,7 @@ class MultiTargetTree : public Model {
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
   void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
-  /**
-   * @brief Expand a batch of leaves using unscaled weights.
-   *
-   * Parent and child base weights are stored before applying the learning rate.
-   */
+  /** @brief Expand a batch of leaves using unscaled parent and child weights. */
   void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /** @see RegTree::FinalizeLeaves */
   void FinalizeLeaves(common::Span<bst_node_t const> leaves, common::Span<float const> weights,

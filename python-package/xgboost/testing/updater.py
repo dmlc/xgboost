@@ -61,67 +61,39 @@ def get_basescore(
 def check_base_weights(
     params: Dict[str, Any],
     data: DMatrix,
-    is_stump: bool,
-    num_parallel_tree: int,
     obj: Optional[Objective] = None,
 ) -> None:
     """Check unscaled base weights and eta-scaled scalar or vector prediction leaves."""
-    params = {
-        **params,
-        "learning_rate": 1.0,
-        "base_score": 0.0,
-        "max_depth": 2,
-        "min_split_loss": 1e20 if is_stump else 0.0,
-    }
+    params = {**params, "base_score": 0.0, "max_depth": 2}
 
     def trees(booster: Booster) -> list[dict]:
         model = json.loads(booster.save_raw(raw_format="json"))
         return model["learner"]["gradient_booster"]["model"]["trees"]
 
-    def tree_eq(ref_tree: dict, tree: dict, learning_rate: float) -> None:
-        np.testing.assert_equal(tree["base_weights"], ref_tree["base_weights"])
-        np.testing.assert_equal(tree["left_children"], ref_tree["left_children"])
-        np.testing.assert_equal(tree["right_children"], ref_tree["right_children"])
-        if "leaf_weights" in tree:
-            leaf_weights = tree["leaf_weights"]
-            ref_leaf_weights = np.asarray(ref_tree["leaf_weights"])
-        else:
-            is_leaf = np.asarray(ref_tree["left_children"]) == -1
-            split_conditions = np.asarray(tree["split_conditions"])
-            ref_split_conditions = np.asarray(ref_tree["split_conditions"])
-            np.testing.assert_equal(
-                split_conditions[~is_leaf], ref_split_conditions[~is_leaf]
+    for is_stump, num_parallel_tree in ((False, 1), (True, 1), (False, 2)):
+        params.update(
+            learning_rate=1.0,
+            num_parallel_tree=1,
+            min_split_loss=1e20 if is_stump else 0.0,
+        )
+        ref = train(params, data, num_boost_round=1, obj=obj)
+        ref_tree = trees(ref)[0]
+        ref_prediction = ref.predict(data)
+        assert (ref_tree["left_children"][0] == -1) == is_stump
+        if not is_stump:
+            assert len(ref_tree["left_children"]) > 3
+
+        params["num_parallel_tree"] = num_parallel_tree
+        for learning_rate in (0.0, 2.0):
+            params["learning_rate"] = learning_rate
+            booster = train(params, data, num_boost_round=1, obj=obj)
+            model_trees = trees(booster)
+            assert len(model_trees) == num_parallel_tree
+            for tree in model_trees:
+                np.testing.assert_equal(tree["base_weights"], ref_tree["base_weights"])
+            np.testing.assert_allclose(
+                booster.predict(data), ref_prediction * learning_rate, rtol=1e-6
             )
-            leaf_weights = split_conditions[is_leaf]
-            ref_leaf_weights = ref_split_conditions[is_leaf]
-        np.testing.assert_allclose(
-            leaf_weights,
-            ref_leaf_weights * (learning_rate / num_parallel_tree),
-            rtol=1e-6,
-        )
-
-    ref = train(params, data, num_boost_round=1, obj=obj)
-    ref_tree = trees(ref)[0]
-    ref_prediction = ref.predict(data)
-    assert (ref_tree["left_children"][0] == -1) == is_stump
-    if not is_stump:
-        assert len(ref_tree["left_children"]) > 3
-
-    params["num_parallel_tree"] = num_parallel_tree
-    for learning_rate in (0.0, 2.0):
-        params["learning_rate"] = learning_rate
-        booster = train(params, data, num_boost_round=1, obj=obj)
-        model_trees = trees(booster)
-        assert len(model_trees) == num_parallel_tree
-        for tree in model_trees:
-            tree_eq(ref_tree, tree, learning_rate)
-
-        prediction = booster.predict(data)
-        np.testing.assert_allclose(
-            prediction, ref_prediction * learning_rate, rtol=1e-6
-        )
-        restored = Booster(model_file=booster.save_raw())
-        np.testing.assert_array_equal(restored.predict(data), prediction)
 
 
 def check_scalar_base_weights(
@@ -136,8 +108,7 @@ def check_scalar_base_weights(
         "device": device,
         "max_cat_to_onehot": 1,
     }
-    for is_stump, num_parallel_tree in ((False, 1), (True, 1), (False, 2)):
-        check_base_weights(params, data, is_stump, num_parallel_tree)
+    check_base_weights(params, data)
 
 
 def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> None:

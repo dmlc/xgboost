@@ -73,14 +73,16 @@ void CopyCategoryStorage(Context const* ctx, std::size_t offset, ExpandBatch con
                          HostDeviceVector<CatWordT>* out) {
   xgboost_NVTX_FN_RANGE();
   std::vector<CopyBatchItem<CatWordT>> copies;
-  for (auto const& node : batch.nodes) {
+  for (auto const& node : batch) {
     auto cats = node.split.categories;
     if (!cats.empty()) {
       copies.emplace_back(offset, cats);
       offset += cats.size();
     }
   }
-  CopyBatch(ctx, offset, copies, out);
+  if (!copies.empty()) {
+    CopyBatch(ctx, offset, copies, out);
+  }
 }
 }  // namespace tree
 
@@ -154,7 +156,7 @@ void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_
 
 void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   xgboost_NVTX_FN_RANGE();
-  auto const batch_size = batch.Size();
+  auto const batch_size = batch.size();
   auto const n_split_targets = this->NumSplitTargets();
   auto const old_n_nodes = this->Size();
   auto const n_nodes = old_n_nodes + batch_size * 2;
@@ -172,22 +174,23 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
   auto h_split_conds = split_conds_.HostSpan();
   auto h_default_left = default_left_.HostSpan();
   for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const& split = batch.nodes[i].split;
+    auto const& split = batch[i].split;
     auto const nidx = split.nidx;
     h_left[nidx] = static_cast<bst_node_t>(old_n_nodes + i * 2);
     h_right[nidx] = h_left[nidx] + 1;
     h_parent[h_left[nidx]] = nidx;
     h_parent[h_right[nidx]] = nidx;
     h_split_index[nidx] = split.fidx;
-    h_split_conds[nidx] = split.type == FeatureType::kCategorical ? DftBadValue() : split.cond;
+    h_split_conds[nidx] = split.categories.empty() ? split.cond : DftBadValue();
     h_default_left[nidx] = split.default_left;
   }
 
   std::vector<CopyBatchItem<float>> weight_copies;
-  for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const& node = batch.nodes[i];
+  for (auto const& node : batch) {
     auto const nidx = node.split.nidx;
     CHECK_EQ(node.parent.weight.size(), n_split_targets);
+    CHECK_EQ(node.left.weight.size(), n_split_targets);
+    CHECK_EQ(node.right.weight.size(), n_split_targets);
     weight_copies.emplace_back(nidx * n_split_targets, node.parent.weight);
     weight_copies.emplace_back(h_left[nidx] * n_split_targets, node.left.weight);
     weight_copies.emplace_back(h_right[nidx] * n_split_targets, node.right.weight);
@@ -198,8 +201,7 @@ void MultiTargetTree::Expand(Context const* ctx, tree::ExpandBatch const& batch)
   sum_hess_.Resize(n_nodes, 0.0f);
   auto h_loss_chg = loss_chg_.HostSpan();
   auto h_sum_hess = sum_hess_.HostSpan();
-  for (std::size_t i = 0; i < batch_size; ++i) {
-    auto const& node = batch.nodes[i];
+  for (auto const& node : batch) {
     auto const nidx = node.split.nidx;
     h_loss_chg[nidx] = node.loss_chg;
     h_sum_hess[nidx] = node.parent.sum_hess;
@@ -212,9 +214,9 @@ void MultiTargetTree::FinalizeLeaves(common::Span<bst_node_t const> leaves,
                                      common::Span<float const> weights, float learning_rate) {
   CHECK_EQ(this->NumLeaves(), 0);
   auto n_targets = this->NumTargets();
-  std::int32_t nidx_in_set = 0;
+  bst_node_t nidx_in_set = 0;
   auto n_leaves = leaves.size();
-  this->leaf_weights_.Resize(n_leaves * n_targets);
+  this->leaf_weights_.HostVector().resize(n_leaves * n_targets);
   auto h_weights = this->leaf_weights_.HostSpan();
   // Reuse the right child as the leaf weight mapping.
   auto h_leaf_mapping = this->right_.HostSpan();

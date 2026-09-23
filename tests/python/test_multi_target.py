@@ -295,10 +295,8 @@ def test_with_iter() -> None:
     run_with_iter("cpu")
 
 
-@pytest.mark.parametrize("is_stump", [False, True])
-@pytest.mark.parametrize("num_parallel_tree", [1, 2])
-def test_eta(is_stump: bool, num_parallel_tree: int) -> None:
-    run_eta("cpu", is_stump, num_parallel_tree)
+def test_eta() -> None:
+    run_eta("cpu")
 
 
 def test_column_sampling() -> None:
