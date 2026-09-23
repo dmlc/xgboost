@@ -16,6 +16,7 @@
 #include "../../../src/common/kernel.h"
 #include "../../../src/common/timer.h"
 #include "../../../src/predictor/prediction_kernel.h"
+#include "../common/linalg_op.h"
 #include "../data.h"
 #include "dmlc/registry.h"
 #include "xgboost/tree_model.h"
@@ -32,29 +33,6 @@
 #include "../device_properties.h"
 #include "node.h"
 
-namespace xgboost::sycl_impl {
-void InitBaseScoreSYCL(Context const* ctx, linalg::VectorView<float const> base_score,
-                       linalg::MatrixView<float> predt) {
-  sycl::DeviceManager device_manager;
-  auto* qu = device_manager.GetQueue(predt.Device());
-  qu->submit([&](::sycl::handler& cgh) {
-      cgh.parallel_for<>(::sycl::range<1>(predt.Size()), [=](::sycl::id<1> pid) {
-        size_t k = pid[0];
-        auto [i, j] = xgboost::linalg::UnravelIndex(k, predt.Shape());
-        const_cast<float&>(predt(i, j)) = base_score(j);
-      });
-    }).wait_and_throw();
-}
-namespace {
-common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCL{
-    DeviceOrd::kSyclDefault, &InitBaseScoreSYCL};
-common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLCPU{
-    DeviceOrd::kSyclCPU, &InitBaseScoreSYCL};
-common::KernelRegistration<predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLGPU{
-    DeviceOrd::kSyclGPU, &InitBaseScoreSYCL};
-}  // namespace
-}  // namespace xgboost::sycl_impl
-
 namespace xgboost {
 namespace sycl {
 namespace predictor {
@@ -62,10 +40,23 @@ namespace predictor {
 DMLC_REGISTRY_FILE_TAG(predictor_sycl);
 
 namespace {
+void InitBaseScoreSYCL(Context const*, xgboost::linalg::VectorView<float const> base_score,
+                       xgboost::linalg::MatrixView<float> predt) {
+  linalg::ElementWiseKernel(
+      predt, [=](std::size_t i, std::size_t j) mutable { predt(i, j) = base_score(j); });
+}
+
+common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCL{
+    DeviceOrd::kSyclDefault, &InitBaseScoreSYCL};
+common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLCPU{
+    DeviceOrd::kSyclCPU, &InitBaseScoreSYCL};
+common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLGPU{
+    DeviceOrd::kSyclGPU, &InitBaseScoreSYCL};
+
 void PredictFromLeafIdsSYCL(Context const* ctx,
                             common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
                             common::Span<RegTree const*> trees,
-                            linalg::MatrixView<float> out_preds) {
+                            xgboost::linalg::MatrixView<float> out_preds) {
   CHECK_EQ(leaf_ids.size(), trees.size());
   if (out_preds.Device().IsCPU()) {
     auto cpu_ctx = ctx->MakeCPU();
