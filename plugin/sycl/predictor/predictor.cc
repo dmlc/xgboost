@@ -47,11 +47,7 @@ void InitBaseScoreSYCL(Context const*, xgboost::linalg::VectorView<float const> 
 }
 
 common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCL{
-    DeviceOrd::kSyclDefault, &InitBaseScoreSYCL};
-common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLCPU{
-    DeviceOrd::kSyclCPU, &InitBaseScoreSYCL};
-common::KernelRegistration<xgboost::predictor::InitBaseScoreKernel> const kInitBaseScoreSYCLGPU{
-    DeviceOrd::kSyclGPU, &InitBaseScoreSYCL};
+    {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU}, &InitBaseScoreSYCL};
 
 void PredictFromLeafIdsSYCL(Context const* ctx,
                             common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
@@ -106,11 +102,8 @@ void PredictFromLeafIdsSYCL(Context const* ctx,
 }
 
 common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
-    kPredictFromLeafIdsSYCL{DeviceOrd::kSyclDefault, &PredictFromLeafIdsSYCL};
-common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
-    kPredictFromLeafIdsSYCLCPU{DeviceOrd::kSyclCPU, &PredictFromLeafIdsSYCL};
-common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
-    kPredictFromLeafIdsSYCLGPU{DeviceOrd::kSyclGPU, &PredictFromLeafIdsSYCL};
+    kPredictFromLeafIdsSYCL{{DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU},
+                            &PredictFromLeafIdsSYCL};
 }  // namespace
 
 class DeviceModel {
