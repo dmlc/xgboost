@@ -2,8 +2,10 @@
  * Copyright 2020-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"
+#include "../test_empty_pop.h"
 
 namespace xgboost {
 namespace tree {
@@ -29,7 +31,7 @@ TEST(GpuHist, DriverDepthWise) {
   // as we limited the driver to pop maximum 2 nodes
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 2);
-  for (auto &e : res) {
+  for (auto& e : res) {
     EXPECT_EQ(e.depth, 1);
   }
 
@@ -56,7 +58,7 @@ TEST(GpuHist, DriverLossGuided) {
 
   Driver<GPUExpandEntry> driver(p);
   EXPECT_TRUE(driver.Pop().empty());
-  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f );
+  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f);
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nidx, 0);
   // Select high gain first
@@ -76,6 +78,60 @@ TEST(GpuHist, DriverLossGuided) {
   EXPECT_EQ(res[0].nidx, 1);
   res = driver.Pop();
   EXPECT_EQ(res[0].nidx, 2);
+}
+
+namespace {
+GPUExpandEntry MakeGPU(bst_node_t nidx, bst_node_t depth, float loss_chg) {
+  DeviceSplitCandidate split;
+  split.loss_chg = loss_chg;
+  split.left_sum = {0, 1};
+  split.right_sum = {0, 1};
+  return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
+}
+
+GPUExpandEntry ValidGPU(bst_node_t nidx, bst_node_t depth) { return MakeGPU(nidx, depth, 2.0f); }
+GPUExpandEntry InvalidGPU(bst_node_t nidx, bst_node_t depth) { return MakeGPU(nidx, depth, 0.5f); }
+
+void QueueBoundaryCase(Driver<GPUExpandEntry>* driver, std::size_t batch_size) {
+  std::vector<GPUExpandEntry> entries;
+  entries.reserve(batch_size + 3);
+  for (std::size_t i = 0; i < batch_size; ++i) {
+    entries.push_back(ValidGPU(static_cast<bst_node_t>(i + 1), 1));
+  }
+  entries.push_back(InvalidGPU(static_cast<bst_node_t>(batch_size + 1), 1));
+  entries.push_back(ValidGPU(static_cast<bst_node_t>(batch_size + 2), 2));
+  entries.push_back(ValidGPU(static_cast<bst_node_t>(batch_size + 3), 2));
+  driver->Push(entries);
+}
+}  // namespace
+
+TEST(GpuHist, DriverEmptyPopSkipsInvalidGroup) {
+  constexpr std::size_t kBatch = 2;
+  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
+  QueueBoundaryCase(&driver, kBatch);
+  test_empty_pop::ExpectPopReturnsDeeperWork(&driver, kBatch);
+}
+
+TEST(GpuHist, DriverEmptyPopAtMaxNodeBatchSize) {
+  constexpr std::size_t kBatch = 1024;
+  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
+  QueueBoundaryCase(&driver, kBatch);
+  test_empty_pop::ExpectPopReturnsDeeperWork(&driver, kBatch);
+}
+
+TEST(GpuHist, DriverGrowthLoopExpandsChildren) {
+  constexpr std::size_t kBatch = 1024;
+  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
+  std::vector<GPUExpandEntry> level;
+  level.reserve(kBatch + 1);
+  for (std::size_t i = 0; i < kBatch; ++i) {
+    level.push_back(ValidGPU(static_cast<bst_node_t>(i + 1), 1));
+  }
+  level.push_back(InvalidGPU(static_cast<bst_node_t>(kBatch + 1), 1));
+  driver.Push(level);
+
+  test_empty_pop::ExpectGrowthLoopExpandsChildren<GPUExpandEntry>(
+      &driver, [](bst_node_t nidx, bst_node_t depth) { return ValidGPU(nidx, depth); }, kBatch);
 }
 }  // namespace tree
 }  // namespace xgboost
