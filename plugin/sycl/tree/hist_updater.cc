@@ -142,7 +142,7 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(const common::GHistIndexMatrix& 
     float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
     float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
     p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
-                    {e.weight, e.stats.GetHess()},
+                    {static_cast<float>(e.weight), e.stats.GetHess()},
                     {left_weight, e.best.left_sum.GetHess()},
                     {right_weight, e.best.right_sum.GetHess()},
                     e.best.loss_chg});
@@ -267,7 +267,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatr
     float left_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum});
     float right_weight = evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum});
     p_tree->Expand({{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
-                    {e.weight, e.stats.GetHess()},
+                    {static_cast<float>(e.weight), e.stats.GetHess()},
                     {left_weight, e.best.left_sum.GetHess()},
                     {right_weight, e.best.right_sum.GetHess()},
                     e.best.loss_chg});
