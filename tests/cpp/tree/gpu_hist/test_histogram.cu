@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 
-#include <algorithm>  // for shuffle, none_of, transform, remove
+#include <algorithm>  // for shuffle, none_of, transform
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr
 #include <numeric>    // for iota, accumulate
@@ -26,11 +26,18 @@
 
 namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
-  auto device = 0;
+  auto ctx = MakeCUDACtx(0);
+  auto device = ctx.Ordinal();
   auto optin = dh::MaxSharedMemoryOptin(device);
+  std::int32_t max_carve_out = 0, reserved = 0;
+  dh::safe_cuda(
+      cudaDeviceGetAttribute(&max_carve_out, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
+  dh::safe_cuda(cudaDeviceGetAttribute(&reserved, cudaDevAttrReservedSharedMemoryPerBlock, device));
+
   for (auto budget : {DftStHistShmemBytes(device), DftMtHistShmemBytes(device)}) {
     ASSERT_GT(budget, 0);
     ASSERT_LE(budget, optin);
+    ASSERT_LE(budget + reserved, static_cast<std::size_t>(max_carve_out));
   }
 }
 
@@ -148,8 +155,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_categories, false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
-                             dh::ToSpan(cat_hist));
+      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(cat_hist));
     });
   }
 
@@ -165,8 +172,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), encode_hist.size(), false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
-                             dh::ToSpan(encode_hist));
+      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(encode_hist));
     });
   }
 
@@ -358,8 +365,8 @@ class HistogramExternalMemoryTest
         builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                       force_global);
         impl->Visit(&ctx, {}, [&](auto&& acc) {
-          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                                 d_histogram);
+          builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
+                                 gpair.View(ctx.Device()).Values(), ridx, d_histogram);
         });
         ++k;
       }
@@ -386,8 +393,8 @@ class HistogramExternalMemoryTest
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                     force_global);
       concat.Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                               d_histogram);
+        builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
+                               gpair.View(ctx.Device()).Values(), ridx, d_histogram);
       });
     }
 
@@ -502,12 +509,6 @@ struct HistInput {
       CHECK_GE(n_samples, n_used);
       this->sizes.push_back(n_samples - n_used);
       this->sizes.push_back(0);
-      if (n_targets > 1) {
-        // Empty nodes are only supported by the single-target histogram.
-        // FIXME(jiamingy): Remove this once the histogram kernels are unified.
-        this->sizes.erase(std::remove(this->sizes.begin(), this->sizes.end(), 0),
-                          this->sizes.end());
-      }
     }
   }
 
@@ -613,12 +614,12 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   std::vector<common::Span<GradientPairInt64>> hists;
   std::size_t beg = 0;
   for (bst_node_t i = 0; i < n_nodes; ++i) {
-    ridxs.emplace_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
+    ridxs.push_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
-  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg, input.gpair.View(ctx.Device()),
-                         ridxs, hists);
+  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg.DeviceAccessor(ctx.Device()),
+                         input.gpair.View(ctx.Device()), ridxs, hists);
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     std::vector<GradientPairInt64> got(hists[i].size());
