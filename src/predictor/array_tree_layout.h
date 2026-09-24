@@ -201,8 +201,10 @@ class ArrayTreeLayout {
 };
 
 template <bool has_categorical, bool any_missing, int num_deep_levels = 1, typename TreeView>
-void ProcessArrayTree(TreeView const& tree, common::Span<RegTree::FVec> fvec_tloc,
-                      std::size_t const block_size, bst_node_t* p_nidx, bst_node_t tree_depth) {
+[[nodiscard]] bool ProcessArrayTree(TreeView const& tree,
+                                    common::Span<RegTree::FVec> fvec_tloc,
+                                    std::size_t const block_size, bst_node_t* p_nidx,
+                                    bst_node_t tree_depth) {
   constexpr int kMaxNumDeepLevels =
       ArrayTreeLayout<has_categorical, any_missing, 0, TreeView>::kMaxNumDeepLevels;
 
@@ -211,13 +213,15 @@ void ProcessArrayTree(TreeView const& tree, common::Span<RegTree::FVec> fvec_tlo
     ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{
         tree, tree.GetCategoriesMatrix()};
     buffer.Process(fvec_tloc, block_size, p_nidx);
+    return tree_depth <= num_deep_levels;
   } else {
     if (tree_depth <= num_deep_levels) {
       ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{
           tree, tree.GetCategoriesMatrix()};
       buffer.Process(fvec_tloc, block_size, p_nidx);
+      return true;
     } else {
-      ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>(
+      return ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>(
           tree, fvec_tloc, block_size, p_nidx, tree_depth);
     }
   }
