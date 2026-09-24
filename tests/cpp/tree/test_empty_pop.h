@@ -5,60 +5,56 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cstddef>
-#include <vector>
 
 #include "../../../src/tree/driver.h"
 #include "../../../src/tree/param.h"
 
-namespace xgboost::tree::test_empty_pop {
+namespace xgboost::tree {
 
-inline TrainParam DepthwiseGammaParam() {
-  TrainParam p{};
-  p.grow_policy = TrainParam::kDepthWise;
-  p.min_split_loss = 1.0f;
-  p.max_depth = 8;
-  p.max_leaves = 0;
-  return p;
-}
+template <typename ExpandEntryT, typename MakeEntry>
+void TestDriverEmptyPop(MakeEntry make_entry) {
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{{"grow_policy", "depthwise"}, {"min_split_loss", "1"}});
 
-template <typename ExpandEntryT>
-void ExpectPopReturnsDeeperWork(Driver<ExpandEntryT>* driver, std::size_t batch_size) {
-  auto first = driver->Pop();
-  ASSERT_EQ(first.size(), batch_size);
-  for (auto const& e : first) {
-    ASSERT_EQ(e.depth, 1);
-  }
+  // Exercise a small batch and the batch sizes used by hist and gpu_hist.
+  for (std::size_t batch_size : {2, 256, 1024}) {
+    SCOPED_TRACE(batch_size);
+    Driver<ExpandEntryT> driver{param, batch_size};
+    bst_node_t next_nid = 1;
+    for (std::size_t i = 0; i < batch_size; ++i) {
+      driver.Push(make_entry(next_nid++, 1, 2.0f));
+    }
+    // This entry has positive gain but cannot pass min_split_loss.
+    driver.Push(make_entry(next_nid++, 1, 0.5f));
 
-  auto second = driver->Pop();
-  ASSERT_FALSE(second.empty());
-  ASSERT_EQ(second.front().depth, 2);
-}
+    auto batch = driver.Pop();
+    ASSERT_EQ(batch.size(), batch_size);
+    bst_node_t expected_nid = 1;
+    for (auto const& entry : batch) {
+      EXPECT_EQ(entry.GetNodeId(), expected_nid++);
+      EXPECT_EQ(entry.depth, 1);
+      ASSERT_TRUE(driver.IsChildValid(entry));
+    }
 
-template <typename ExpandEntryT, typename MakeValid>
-void ExpectGrowthLoopExpandsChildren(Driver<ExpandEntryT>* driver, MakeValid make_valid,
-                                     std::size_t batch_size) {
-  std::size_t applied = 0;
-  bst_node_t max_depth_applied = 0;
-  bst_node_t next_nid = static_cast<bst_node_t>(batch_size) + 1000;
-
-  auto expand_set = driver->Pop();
-  while (!expand_set.empty()) {
-    applied += expand_set.size();
-    for (auto const& e : expand_set) {
-      max_depth_applied = std::max(max_depth_applied, e.depth);
-      if (driver->IsChildValid(e) && e.depth == 1) {
-        driver->Push(make_valid(next_nid++, e.depth + 1));
-        driver->Push(make_valid(next_nid++, e.depth + 1));
+    // Expanding the first batch queues children behind the invalid entry.
+    expected_nid = next_nid;
+    for (auto const& entry : batch) {
+      driver.Push(make_entry(next_nid++, entry.depth + 1, 2.0f));
+      driver.Push(make_entry(next_nid++, entry.depth + 1, 2.0f));
+    }
+    // Pop must skip the invalid entry and return all children in two full batches.
+    for (int i = 0; i < 2; ++i) {
+      batch = driver.Pop();
+      ASSERT_EQ(batch.size(), batch_size);
+      for (auto const& entry : batch) {
+        EXPECT_EQ(entry.GetNodeId(), expected_nid++);
+        EXPECT_EQ(entry.depth, 2);
       }
     }
-    expand_set = driver->Pop();
+    EXPECT_TRUE(driver.IsEmpty());
+    EXPECT_TRUE(driver.Pop().empty());
   }
-
-  EXPECT_TRUE(driver->IsEmpty());
-  EXPECT_EQ(applied, batch_size + 2 * batch_size);
-  EXPECT_EQ(max_depth_applied, 2);
 }
 
-}  // namespace xgboost::tree::test_empty_pop
+}  // namespace xgboost::tree

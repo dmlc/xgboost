@@ -88,54 +88,10 @@ GPUExpandEntry MakeGPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_
   split.right_sum = {0, 1};
   return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
 }
-
-GPUExpandEntry ValidGPU(bst_node_t nidx, bst_node_t depth) {
-  return MakeGPUExpandEntry(nidx, depth, 2.0f);
-}
-GPUExpandEntry InvalidGPU(bst_node_t nidx, bst_node_t depth) {
-  return MakeGPUExpandEntry(nidx, depth, 0.5f);
-}
-
-void QueueBoundaryCase(Driver<GPUExpandEntry>* driver, std::size_t batch_size) {
-  std::vector<GPUExpandEntry> entries;
-  entries.reserve(batch_size + 3);
-  for (std::size_t i = 0; i < batch_size; ++i) {
-    entries.push_back(ValidGPU(static_cast<bst_node_t>(i + 1), 1));
-  }
-  entries.push_back(InvalidGPU(static_cast<bst_node_t>(batch_size + 1), 1));
-  entries.push_back(ValidGPU(static_cast<bst_node_t>(batch_size + 2), 2));
-  entries.push_back(ValidGPU(static_cast<bst_node_t>(batch_size + 3), 2));
-  driver->Push(entries);
-}
 }  // namespace
 
 TEST(GpuHist, DriverEmptyPopSkipsInvalidGroup) {
-  constexpr std::size_t kBatch = 2;
-  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
-  QueueBoundaryCase(&driver, kBatch);
-  test_empty_pop::ExpectPopReturnsDeeperWork(&driver, kBatch);
-}
-
-TEST(GpuHist, DriverEmptyPopAtMaxNodeBatchSize) {
-  constexpr std::size_t kBatch = 1024;
-  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
-  QueueBoundaryCase(&driver, kBatch);
-  test_empty_pop::ExpectPopReturnsDeeperWork(&driver, kBatch);
-}
-
-TEST(GpuHist, DriverGrowthLoopExpandsChildren) {
-  constexpr std::size_t kBatch = 1024;
-  Driver<GPUExpandEntry> driver{test_empty_pop::DepthwiseGammaParam(), kBatch};
-  std::vector<GPUExpandEntry> level;
-  level.reserve(kBatch + 1);
-  for (std::size_t i = 0; i < kBatch; ++i) {
-    level.push_back(ValidGPU(static_cast<bst_node_t>(i + 1), 1));
-  }
-  level.push_back(InvalidGPU(static_cast<bst_node_t>(kBatch + 1), 1));
-  driver.Push(level);
-
-  test_empty_pop::ExpectGrowthLoopExpandsChildren<GPUExpandEntry>(
-      &driver, [](bst_node_t nidx, bst_node_t depth) { return ValidGPU(nidx, depth); }, kBatch);
+  TestDriverEmptyPop<GPUExpandEntry>(MakeGPUExpandEntry);
 }
 }  // namespace tree
 }  // namespace xgboost
