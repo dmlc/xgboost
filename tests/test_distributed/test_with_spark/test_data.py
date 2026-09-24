@@ -162,3 +162,50 @@ def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
     np.testing.assert_array_equal(sm.indptr, [0, 2, 5, 8, 10])
     np.testing.assert_array_equal(sm.indices, [0, 2, 0, 1, 2, 0, 1, 2, 1, 2])
     assert sm.shape == (4, 3)
+
+
+def test_sparse_dmatrix_empty_partition() -> None:
+    # A non-empty partition followed by an empty one used to crash
+    # append_m_sparse: n_features was already set from the first partition,
+    # then _read_csr_matrix_from_unwrapped_spark_vec on the empty partition
+    # raised "need at least one array to concatenate" trying to concatenate
+    # zero arrays. Empty partitions are ordinary in Spark, e.g. a
+    # train/validation split can put every row of a small partition on one
+    # side, leaving the other side's partition empty.
+    part1 = pd.DataFrame(
+        {
+            "featureVectorType": [0, 0],
+            "featureVectorSize": [3, 3],
+            "featureVectorIndices": [
+                np.array([0, 2], dtype=np.int32),
+                np.array([1], dtype=np.int32),
+            ],
+            "featureVectorValues": [
+                np.array([1.0, 2.0]),
+                np.array([3.0]),
+            ],
+        }
+    )
+    part2_empty = pd.DataFrame(
+        {
+            "featureVectorType": pd.Series([], dtype="int64"),
+            "featureVectorSize": pd.Series([], dtype="int64"),
+            "featureVectorIndices": pd.Series([], dtype="object"),
+            "featureVectorValues": pd.Series([], dtype="object"),
+        }
+    )
+
+    kwargs = {"feature_types": ["float"] * 3, "missing": 0.0}
+    train_Xy, valid_Xy = create_dmatrix_from_partitions(
+        iterator=iter([part1, part2_empty]),
+        feature_cols=None,
+        dev_ordinal=None,
+        use_qdm=False,
+        kwargs=kwargs,
+        enable_sparse_data_optim=True,
+        has_validation_col=False,
+    )
+    assert valid_Xy is None
+    assert train_Xy.num_row() == 2
+    assert train_Xy.num_col() == 3
+
