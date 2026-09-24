@@ -174,22 +174,25 @@ class ArrayTreeLayout {
    *               to the level next after kNumDeepLevels
    */
   void Process(common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
-               bst_node_t* p_nidx) {
+               bst_node_t* p_nidx) const {
+    RegTree::FVec const* feats = fvec_tloc.data();
+    bst_feature_t const* split_index = split_index_.data();
+
     for (int depth = 0; depth < kNumDeepLevels; ++depth) {
-      std::size_t first_node = (1u << depth) - 1;
+      std::size_t const first_node = (1u << depth) - 1;
 
       for (std::size_t i = 0; i < block_size; ++i) {
-        bst_node_t idx = p_nidx[i];
+        bst_node_t const idx = p_nidx[i];
+        std::size_t const node = first_node + idx;
 
-        const auto& feat = fvec_tloc[i];
-        bst_feature_t split = split_index_[first_node + idx];
-        auto fvalue = feat.GetFvalue(split);
+        bst_feature_t const split = split_index[node];
+        auto const fvalue = feats[i].GetFvalue(split);
         if constexpr (any_missing) {
-          bool go_left = feat.IsMissing(split) ? default_left_[first_node + idx]
-                                               : GetDecision(fvalue, first_node + idx);
+          bool const go_left =
+              feats[i].IsMissing(split) ? default_left_[node] : GetDecision(fvalue, node);
           p_nidx[i] = 2 * idx + !go_left;
         } else {
-          p_nidx[i] = 2 * idx + !GetDecision(fvalue, first_node + idx);
+          p_nidx[i] = 2 * idx + !GetDecision(fvalue, node);
         }
       }
     }
