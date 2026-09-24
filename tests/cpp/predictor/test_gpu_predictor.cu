@@ -23,6 +23,11 @@
 #include "test_shap.h"
 
 namespace xgboost::predictor {
+TEST(GPUPredictor, InitOutPredictions) {
+  auto ctx = MakeCUDACtx(0);
+  TestInitOutPredictions(&ctx);
+}
+
 TEST(GPUPredictor, Basic) {
   auto cpu_lparam = MakeCUDACtx(-1);
   auto gpu_lparam = MakeCUDACtx(0);
@@ -45,9 +50,9 @@ TEST(GPUPredictor, Basic) {
     HostDeviceVector<float> gpu_out_predictions;
     HostDeviceVector<float> cpu_out_predictions;
 
-    gpu_predictor->InitOutPredictions(dmat->Info(), &gpu_out_predictions, model);
+    InitOutPredictions(&gpu_lparam, dmat->Info(), &gpu_out_predictions, model);
     gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
-    cpu_predictor->InitOutPredictions(dmat->Info(), &cpu_out_predictions, model);
+    InitOutPredictions(&cpu_lparam, dmat->Info(), &cpu_out_predictions, model);
     cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
 
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
@@ -120,7 +125,7 @@ void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_feature
   for (auto p_fmat : {create_fn(400), create_fn(800), create_fn(2048)}) {
     p_fmat->Info().base_margin_ = linalg::Constant(ctx, 0.5f, p_fmat->Info().num_row_, n_classes);
     HostDeviceVector<float> out_predictions;
-    gpu_predictor->InitOutPredictions(p_fmat->Info(), &out_predictions, model);
+    InitOutPredictions(ctx, p_fmat->Info(), &out_predictions, model);
     gpu_predictor->PredictBatch(p_fmat.get(), &out_predictions, model, 0);
     ASSERT_EQ(out_predictions.Size(), p_fmat->Info().num_row_ * n_classes);
     auto const& h_predt = out_predictions.ConstHostVector();

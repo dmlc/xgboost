@@ -40,16 +40,6 @@ class Predictor {
   virtual ~Predictor() = default;
 
   /**
-   * \brief Initialize output prediction
-   *
-   * \param info Meta info for the DMatrix object used for prediction.
-   * \param out_predt Prediction vector to be initialized.
-   * \param model Tree model used for prediction.
-   */
-  virtual void InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_predt,
-                                  const gbm::GBTreeModel& model) const;
-
-  /**
    * \brief Generate batch predictions for a given feature matrix. May use
    * cached predictions if available instead of calculating from scratch.
    *

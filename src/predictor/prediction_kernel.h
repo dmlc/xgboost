@@ -13,6 +13,7 @@
 namespace xgboost {
 class Context;
 class DMatrix;
+class MetaInfo;
 class RegTree;
 template <typename T>
 class HostDeviceVector;
@@ -21,6 +22,16 @@ struct GBTreeModel;
 }  // namespace gbm
 
 namespace predictor {
+/** \brief Initialize predictions from base margins or the model base score. */
+void InitOutPredictions(Context const* ctx, MetaInfo const& info,
+                        HostDeviceVector<float>* out_preds, gbm::GBTreeModel const& model);
+
+/** \brief Broadcast a vector base score across the rows of an output view. */
+struct InitBaseScoreKernel {
+  using Signature = void(Context const*, linalg::VectorView<float const>,
+                         linalg::MatrixView<float>);
+};
+
 /**
  * \brief Add tree leaf values to predictions using known leaf ids.
  *

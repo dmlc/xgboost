@@ -215,8 +215,7 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
   predt->predictions.SetDevice(ctx_->Device());
   if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(predt->version, 0);
-    auto predictor = this->CreatePredictor(false, &predt->predictions, p_fmat.get());
-    predictor->InitOutPredictions(p_fmat->Info(), &predt->predictions, model_);
+    predictor::InitOutPredictions(ctx_, p_fmat->Info(), &predt->predictions, model_);
   }
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_state->OutputLength());
@@ -678,7 +677,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
   if (initialize_output) {
     // cache->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
-    predictor->InitOutPredictions(p_fmat->Info(), &cache->predictions, model_);
+    predictor::InitOutPredictions(ctx_, p_fmat->Info(), &cache->predictions, model_);
   }
 
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
@@ -710,7 +709,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
     auto predictor = CreatePredictor(false, out_preds, p_fmat.get());
-    predictor->InitOutPredictions(p_fmat->Info(), out_preds, model_);
+    predictor::InitOutPredictions(ctx_, p_fmat->Info(), out_preds, model_);
     if (tree_end > tree_begin) {
       predictor->PredictBatch(p_fmat.get(), out_preds, model_, tree_begin, tree_end);
     }

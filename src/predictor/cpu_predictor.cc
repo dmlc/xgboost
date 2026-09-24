@@ -559,7 +559,7 @@ class CPUPredictor : public Predictor {
       tree_end = model.trees.size();
     }
 
-    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
     auto &predictions = out_preds->HostVector();
     bool any_missing = true;
 
