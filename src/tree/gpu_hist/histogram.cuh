@@ -12,33 +12,18 @@
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "feature_groups.cuh"               // for FeatureGroups
+#include "feature_groups.cuh"               // for FeatureGroupsAccessor
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Single-target shared memory policy
-[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
-  auto optin = dh::MaxSharedMemoryOptin(device);
-  return std::min(optin, std::size_t{96} * 1024);
-}
+// Single-target shared memory policy. The largest budget for a block that doesn't reduce the
+// number of co-resident blocks.
+[[nodiscard]] std::size_t DftStHistShmemBytes(std::int32_t device);
 
-// Multi-target shared memory policy
-[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
-  auto max_shared = dh::MaxSharedMemory(device);
-  // Use larger shared memory if available.
-  //
-  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
-  // have large optin size, like the H200. We expand the shared memory size for those
-  // large devices.
-  constexpr std::size_t kThreshold = 4;
-  if (max_shared_optin > max_shared * kThreshold) {
-    return 2 * max_shared;
-  }
-  return max_shared;
-}
+// Multi-target shared memory policy, same rule with the per-arch block size.
+[[nodiscard]] std::size_t DftMtHistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
@@ -183,19 +168,18 @@ class DeviceHistogramBuilder {
              bool force_global_memory);
   // Build histogram for single target and single node, a wrapper of the batched version.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroups const& feature_groups,
+                      FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
                       common::Span<GradientPairInt64> histogram);
   /**
    * @brief Build histograms for multiple nodes and multiple targets.
    *
-   * @param ridxs One span of row indices for each node. Empty nodes are only allowed for
-   *              single-target.
+   * @param ridxs One span of row indices for each node, empty nodes are allowed.
    * @param hists One histogram for each node, must match `ridxs`.
    */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroups const& feature_groups,
+                      FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
                       std::vector<common::Span<std::uint32_t const>> const& ridxs,
                       std::vector<common::Span<GradientPairInt64>> const& hists);
