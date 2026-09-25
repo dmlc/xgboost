@@ -146,33 +146,74 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
 Enforcing Feature Interaction Constraints in XGBoost
 ****************************************************
 
-It is very simple to enforce feature interaction constraints in XGBoost.  Here we will
-give an example using Python, but the same general idea generalizes to other
-platforms.
+It is very simple to enforce feature interaction constraints in XGBoost.
 
 Suppose the following code fits your model without feature interaction constraints:
 
-.. code-block:: python
+.. tabs::
 
-  model_no_constraints = xgb.train(params, dtrain,
-                                   num_boost_round = 1000, evals = evallist,
-                                   early_stopping_rounds = 10)
+    .. code-tab:: py
+       :class: no-doctest
+
+       model_no_constraints = xgb.train(
+           params,
+           dtrain,
+           num_boost_round=1000,
+           evals=evallist,
+           early_stopping_rounds=10,
+       )
+
+    .. code-tab:: r R
+       :class: no-doctest
+
+       model_no_constraints <- xgb.train(
+         params = params,
+         data = dtrain,
+         nrounds = 1000,
+         evals = evallist,
+         early_stopping_rounds = 10
+       )
 
 Then fitting with feature interaction constraints only requires adding a single
 parameter:
 
-.. code-block:: python
+.. tabs::
 
-  params_constrained = params.copy()
-  # Use nested list to define feature interaction constraints
-  params_constrained['interaction_constraints'] = '[[0, 2], [1, 3, 4], [5, 6]]'
-  # Features 0 and 2 are allowed to interact with each other but with no other feature
-  # Features 1, 3, 4 are allowed to interact with one another but with no other feature
-  # Features 5 and 6 are allowed to interact with each other but with no other feature
+    .. code-tab:: py
+       :class: no-doctest
 
-  model_with_constraints = xgb.train(params_constrained, dtrain,
-                                     num_boost_round = 1000, evals = evallist,
-                                     early_stopping_rounds = 10)
+       params_constrained = params.copy()
+       # Use nested list to define feature interaction constraints
+       params_constrained["interaction_constraints"] = "[[0, 2], [1, 3, 4], [5, 6]]"
+       # Features 0 and 2 are allowed to interact with each other but with no other feature
+       # Features 1, 3, 4 are allowed to interact with one another but with no other feature
+       # Features 5 and 6 are allowed to interact with each other but with no other feature
+
+       model_with_constraints = xgb.train(
+           params_constrained,
+           dtrain,
+           num_boost_round=1000,
+           evals=evallist,
+           early_stopping_rounds=10,
+       )
+
+    .. code-tab:: r R
+       :class: no-doctest
+
+       params_constrained <- params
+       # Use a list of vectors to define feature interaction constraints
+       params_constrained$interaction_constraints <- list(c(0, 2), c(1, 3, 4), c(5, 6))
+       # Features 0 and 2 are allowed to interact with each other but with no other feature
+       # Features 1, 3, 4 are allowed to interact with one another but with no other feature
+       # Features 5 and 6 are allowed to interact with each other but with no other feature
+
+       model_with_constraints <- xgb.train(
+         params = params_constrained,
+         data = dtrain,
+         nrounds = 1000,
+         evals = evallist,
+         early_stopping_rounds = 10
+       )
 
 **************************
 Using feature name instead
@@ -180,8 +221,28 @@ Using feature name instead
 
 XGBoost's Python and R packages support using feature names instead of feature index for
 specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
-feature interaction constraint can be specified as ``[["f0", "f2"]]`` (Python) or
-``list(c("f0", "f2"))`` (R, when passing them to function ``xgboost()``).
+feature interaction constraint can be specified as:
+
+.. tabs::
+
+    .. code-tab:: py
+       :class: no-doctest
+
+       # When using scikit-learn interface or DMatrix with feature names
+       interaction_constraints = [["f0", "f2"]]
+       clf = xgb.XGBClassifier(interaction_constraints=interaction_constraints)
+       clf.fit(X, y)
+
+    .. code-tab:: r R
+       :class: no-doctest
+
+       # When using the xgboost() interface with feature names
+       model <- xgboost(
+         x = df[, c("f0", "f1", "f2")],
+         y = y,
+         interaction_constraints = list(c("f0", "f2")),
+         nrounds = 10
+       )
 
 **************
 Advanced topic
