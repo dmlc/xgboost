@@ -573,7 +573,18 @@ inline size_t RegTree::FVec::Size() const { return data_.size(); }
 
 inline float RegTree::FVec::GetFvalue(size_t i) const { return data_[i]; }
 
-inline bool RegTree::FVec::IsMissing(size_t i) const { return std::isnan(data_[i]); }
+inline bool RegTree::FVec::IsMissing(size_t i) const {
+#if defined(_MSC_VER)
+  // MSVC lowers std::isnan to an out-of-line CRT call, which dominates tree traversal on
+  // data with missing values. Test the IEEE-754 bits instead: NaN has an all-ones exponent
+  // and a non-zero mantissa.
+  std::uint32_t bits;
+  std::memcpy(&bits, &data_[i], sizeof(bits));
+  return (bits & 0x7fffffffu) > 0x7f800000u;
+#else
+  return std::isnan(data_[i]);
+#endif  // defined(_MSC_VER)
+}
 
 inline bool RegTree::FVec::HasMissing() const { return has_missing_; }
 

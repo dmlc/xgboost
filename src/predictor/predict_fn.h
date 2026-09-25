@@ -4,13 +4,32 @@
 #ifndef XGBOOST_PREDICTOR_PREDICT_FN_H_
 #define XGBOOST_PREDICTOR_PREDICT_FN_H_
 
-#include <memory>  // for unique_ptr
-#include <vector>  // for vector
+#include <cstdint>  // for uint32_t
+#include <cstring>  // for memcpy
+#include <memory>   // for unique_ptr
+#include <vector>   // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
+#include "../common/math.h"         // for CheckNAN
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
+/**
+ * @brief Same as common::CheckNAN for float, but always inlined.
+ *
+ * MSVC lowers std::isnan to an out-of-line CRT call, which is significant in the traversal
+ * and when it runs for every input element.
+ */
+inline bool IsNaN(float v) {
+#if defined(_MSC_VER)
+  std::uint32_t bits;
+  std::memcpy(&bits, &v, sizeof(bits));
+  return (bits & 0x7fffffffu) > 0x7f800000u;
+#else
+  return common::CheckNAN(v);
+#endif  // defined(_MSC_VER)
+}
+
 /** @brief Whether it should traverse to the left branch of a tree. */
 template <bool has_categorical, typename TreeView>
 XGBOOST_DEVICE bool GetDecision(TreeView const &tree, bst_node_t nid, float fvalue,
