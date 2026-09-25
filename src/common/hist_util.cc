@@ -122,7 +122,6 @@ void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, siz
 
 struct Prefetch {
  public:
-  static constexpr size_t kCacheLineSize = 64;
   static constexpr size_t kPrefetchOffset = 10;
 
  private:
@@ -132,9 +131,11 @@ struct Prefetch {
  public:
   static size_t NoPrefetchSize(size_t rows) { return std::min(rows, kNoPrefetchSize); }
 
+  // One prefetch per cache line. Understating the line size only costs redundant
+  // prefetches, but overstating it would leave lines unprefetched.
   template <typename T>
   static constexpr size_t GetPrefetchStep() {
-    return Prefetch::kCacheLineSize / sizeof(T);
+    return kCacheLineSize / sizeof(T);
   }
 };
 
