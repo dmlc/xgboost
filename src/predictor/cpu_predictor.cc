@@ -209,7 +209,7 @@ void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offse
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
    */
-  const bool use_array_tree_layout = block_size > 1;
+  const bool use_array_tree_layout = block_size > 1 && !tree_depth.empty();
   if (use_array_tree_layout) {
     CHECK_EQ(n_trees, tree_depth.size());
     // Recheck if the current block has missing values.
@@ -408,7 +408,10 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
    */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
-    if (n_samples > 1) {
+    auto const threads = static_cast<std::size_t>(std::max(n_threads, 1));
+    auto const layout_threshold =
+        std::min(kBlockOfRowsSize, std::max((kBlockOfRowsSize * 2) / threads, std::size_t{1}));
+    if (n_samples > layout_threshold) {
       tree_depth.resize(model.tree_end - model.tree_begin);
       CHECK_EQ(tree_depth.size(), model.Trees().size());
       common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
