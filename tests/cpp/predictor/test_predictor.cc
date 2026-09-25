@@ -171,7 +171,6 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
 void TestInplacePredictionWithWeights(Context const *ctx) {
   size_t constexpr kRows = 5, kCols = 5;
   HostDeviceVector<float> data(kRows * kCols);
-  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
   LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
   auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
@@ -206,19 +205,38 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
   }
 
   HostDeviceVector<float> weighted_predictions;
-  predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
-                            &weighted_predictions, 0, 0);
+  ASSERT_TRUE(common::DispatchKernel<predictor::InplacePredictKernel>(
+      ctx, proxy, *model, std::numeric_limits<float>::quiet_NaN(), &weighted_predictions, 0, 0));
   auto const &h_predt = weighted_predictions.ConstHostVector();
   for (auto v : h_predt) {
     ASSERT_EQ(v, 4.75f);
   }
 
   HostDeviceVector<float> ranged_predictions;
-  predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
-                            &ranged_predictions, 1, 2);
+  ASSERT_TRUE(common::DispatchKernel<predictor::InplacePredictKernel>(
+      ctx, proxy, *model, std::numeric_limits<float>::quiet_NaN(), &ranged_predictions, 1, 2));
   auto const &h_ranged = ranged_predictions.ConstHostVector();
   for (auto v : h_ranged) {
     ASSERT_EQ(v, 4.0f);
+  }
+
+  if (ctx->IsCPU()) {
+    // An unregistered backend must use CPU data and a CPU context for initialization.
+    Context fallback_ctx;
+    fallback_ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+    HostDeviceVector<float> fallback_predictions;
+    ASSERT_TRUE(common::DispatchKernel<predictor::InplacePredictKernel>(
+        &fallback_ctx, proxy, *model, std::numeric_limits<float>::quiet_NaN(),
+        &fallback_predictions, 0, 0));
+    EXPECT_TRUE(fallback_predictions.Device().IsCPU());
+    EXPECT_EQ(fallback_predictions.ConstHostVector(), h_predt);
+  } else if (ctx->IsCUDA()) {
+    // A supported backend still reports an adapter it cannot handle to the caller.
+    auto cpu_ctx = ctx->MakeCPU();
+    HostDeviceVector<float> unsupported_predictions;
+    EXPECT_FALSE(common::DispatchKernel<predictor::InplacePredictKernel>(
+        &cpu_ctx, proxy, *model, std::numeric_limits<float>::quiet_NaN(), &unsupported_predictions,
+        0, 0));
   }
 }
 
@@ -661,8 +679,8 @@ void TestVectorLeafPrediction(Context const *ctx) {
     } else {
       dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.c_str());
     }
-    predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
-                              0, 1);
+    common::DispatchKernel<predictor::InplacePredictKernel>(
+        ctx, proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache, 0, 1);
     auto const &h_predt = predt_cache.HostVector();
     for (auto v : h_predt) {
       ASSERT_EQ(v, expected);

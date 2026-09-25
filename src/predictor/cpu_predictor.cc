@@ -496,6 +496,67 @@ void PredictFromLeafIdsCPU(Context const *ctx,
   }
 }
 
+[[nodiscard]] bool InplacePredictCPU(Context const *ctx, std::shared_ptr<DMatrix> p_m,
+                                     gbm::GBTreeModel const &model, float missing,
+                                     HostDeviceVector<float> *out_preds, bst_tree_t tree_begin,
+                                     bst_tree_t tree_end) {
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << error::InplacePredictProxy();
+  if (tree_end == 0) {
+    tree_end = model.trees.size();
+  }
+
+  InitOutPredictions(ctx, p_m->Info(), out_preds, model);
+  auto &predictions = out_preds->HostVector();
+  bool any_missing = true;
+
+  auto const n_threads = ctx->Threads();
+  // Always use block as we don't know the nnz.
+  ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
+  bst_idx_t n_groups = model.learner_model_state->OutputLength();
+  auto const h_model = HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
+  auto const *tree_weights = model.TreeWeights();
+  auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
+                                         : common::OptionalWeights{common::Span<float const>{
+                                               tree_weights->data() + tree_begin,
+                                               static_cast<std::size_t>(tree_end - tree_begin)}};
+
+  auto kernel = [&](auto &&view) {
+    auto out_predt = linalg::MakeTensorView(ctx, predictions, view.Size(), n_groups);
+    PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
+                                                             any_missing, out_predt, weights);
+  };
+  auto dispatch = [&](auto x) {
+    using AdapterT = typename decltype(x)::element_type;
+    CheckProxyDMatrix(x, proxy, model.learner_model_state);
+    LaunchPredict(
+        ctx, proxy, model,
+        [&](auto &&policy) {
+          if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
+            auto view = AdapterView{x.get(), missing, policy.MakeAccessor(ctx, x->Cats(), model)};
+            kernel(view);
+          } else {
+            auto view = AdapterView{x.get(), missing, NoOpAccessor{}};
+            kernel(view);
+          }
+        },
+        [&](auto) {
+          if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
+            return !x->Cats().Empty();
+          } else {
+            return false;
+          }
+        });
+  };
+
+  bool type_error = false;
+  data::cpu_impl::DispatchAny<false>(proxy, dispatch, &type_error);
+  return !type_error;
+}
+
+common::KernelRegistration<InplacePredictKernel> const kInplacePredictCPU{DeviceOrd::kCPU,
+                                                                          &InplacePredictCPU};
+
 common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCPU{
     DeviceOrd::kCPU, &PredictFromLeafIdsCPU};
 
@@ -548,65 +609,6 @@ class CPUPredictor : public Predictor {
                                                  tree_weights->data() + tree_begin,
                                                  static_cast<std::size_t>(tree_end - tree_begin)}};
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end, weights);
-  }
-
-  [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
-                                    float missing, HostDeviceVector<float> *out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
-    auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
-    CHECK(proxy) << error::InplacePredictProxy();
-    if (tree_end == 0) {
-      tree_end = model.trees.size();
-    }
-
-    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
-    auto &predictions = out_preds->HostVector();
-    bool any_missing = true;
-
-    auto const n_threads = this->ctx_->Threads();
-    // Always use block as we don't know the nnz.
-    ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
-    bst_idx_t n_groups = model.learner_model_state->OutputLength();
-    auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
-    auto const *tree_weights = model.TreeWeights();
-    auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
-                                           : common::OptionalWeights{common::Span<float const>{
-                                                 tree_weights->data() + tree_begin,
-                                                 static_cast<std::size_t>(tree_end - tree_begin)}};
-
-    auto kernel = [&](auto &&view) {
-      auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
-      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
-                                                               any_missing, out_predt, weights);
-    };
-    auto dispatch = [&](auto x) {
-      using AdapterT = typename decltype(x)::element_type;
-      CheckProxyDMatrix(x, proxy, model.learner_model_state);
-      LaunchPredict(
-          this->ctx_, proxy, model,
-          [&](auto &&policy) {
-            if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
-              auto view =
-                  AdapterView{x.get(), missing, policy.MakeAccessor(ctx_, x->Cats(), model)};
-              kernel(view);
-            } else {
-              auto view = AdapterView{x.get(), missing, NoOpAccessor{}};
-              kernel(view);
-            }
-          },
-          [&](auto) {
-            if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
-              return !x->Cats().Empty();
-            } else {
-              return false;
-            }
-          });
-    };
-
-    bool type_error = false;
-    data::cpu_impl::DispatchAny<false>(proxy, dispatch, &type_error);
-    return !type_error;
   }
 };
 
