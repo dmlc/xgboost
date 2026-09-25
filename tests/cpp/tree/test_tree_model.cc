@@ -306,6 +306,19 @@ TEST(Tree, DumpText) {
 
 TEST(Tree, DumpTextCategorical) { TestCategoricalTreeDump("text", ","); }
 
+TEST(Tree, DumpNonFiniteSplit) {
+  // GPU hist splits at the `-inf` lower bound of the first bin, sending every value right.
+  auto constexpr kNegInf = -std::numeric_limits<float>::infinity();
+  RegTree tree;
+  tree.Expand({{0, 0, kNegInf, true}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.FinalizeLeaves(1.0f);
+
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, false, "json");
+  auto j_tree = Json::Load({str.c_str(), str.size()});
+  ASSERT_EQ(get<Number const>(j_tree["split_condition"]), kNegInf);
+}
+
 TEST(Tree, DumpDot) {
   auto tree = ConstructTree();
   FeatureMap fmap;

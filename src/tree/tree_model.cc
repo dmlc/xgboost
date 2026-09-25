@@ -72,6 +72,16 @@ std::string ToStr(linalg::VectorView<Float> value, bst_target_t truncate_limit =
   ss << value(value.Size() - 1) << "]";
   return ss.str();
 }
+
+std::string ToJsonStr(float value) {
+  if (std::isfinite(value)) {
+    return ToStr(value);
+  }
+  // The stream writes `inf` and `nan`, which are not JSON. Write them as the model JSON does.
+  std::string str;
+  Json::Dump(Json{JsonNumber{value}}, &str);
+  return str;
+}
 }  // namespace
 
 /**
@@ -422,7 +432,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
         R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
     bst_float cond = tree.SplitCond(nid);
-    return SplitNodeImpl(tree, nid, kQuantitiveTemplate, ToStr(cond), depth);
+    return SplitNodeImpl(tree, nid, kQuantitiveTemplate, ToJsonStr(cond), depth);
   }
 
   std::string PlainNode(TreeView tree, int32_t nid, uint32_t depth) const override {
@@ -431,7 +441,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
         R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
-    return SplitNodeImpl(tree, nid, kNodeTemplate, ToStr(cond), depth);
+    return SplitNodeImpl(tree, nid, kNodeTemplate, ToJsonStr(cond), depth);
   }
 
   std::string NodeStat(TreeView tree, int32_t nid) const override {
