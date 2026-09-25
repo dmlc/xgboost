@@ -409,9 +409,8 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
     auto const threads = static_cast<std::size_t>(std::max(n_threads, 1));
-    auto const layout_threshold = std::min(
-        kBlockOfRowsSize,
-        std::max((kBlockOfRowsSize * 2) / threads, std::size_t{1}));
+    auto const layout_threshold =
+        std::min(kBlockOfRowsSize, std::max((kBlockOfRowsSize * 2) / threads, std::size_t{1}));
     if (n_samples > layout_threshold) {
       tree_depth.resize(model.tree_end - model.tree_begin);
       CHECK_EQ(tree_depth.size(), model.Trees().size());
