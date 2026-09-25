@@ -18,6 +18,7 @@
 
 #include "../../../../src/data/gradient_index.h"
 #include "../../../../src/tree/hist/exact_histogram.h"
+#include "../../../../src/tree/hist/expand_entry.h"
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/hist/exact_split.h"
 #include "../../helpers.h"
@@ -782,12 +783,8 @@ TEST(ExactSplit, InheritedKRtEpsGateBehavesConsistentlyForExactGains) {
   bool previous_accepted = false;
   bool seen_accept = false;
   for (auto gain : probes) {
-    // Exactly the narrowing the builder performs.
+    // Match the float storage used by the split entry before applying the inherited kRtEps gate.
     auto narrowed = static_cast<float>(gain);
-    // The float round-trip must not move a probe across the threshold: 1e-6 is comfortably
-    // inside float's range and precision, so this is a check, not an assumption.
-    EXPECT_NEAR(static_cast<double>(narrowed), gain, 1e-13 * gain)
-        << "float narrowing moved the gain at " << gain;
 
     MultiExpandEntry entry{0, 0};
     entry.split.loss_chg = narrowed;

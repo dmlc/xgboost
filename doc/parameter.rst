@@ -279,14 +279,12 @@ Parameters for Tree Booster
       class). The leaf value is the minimum-norm, mean-centred representative of that step.
 
   ``exact`` is opt-in and substantially more expensive: histogram storage per bin grows as
-  :math:`O(K^2)` instead of :math:`O(K)`, and each leaf solve costs :math:`O(K^3)`. Measured
-  end-to-end training time relative to ``diagonal`` on one machine was roughly 3x at
-  ``num_class=10`` and grows with ``num_class``; treat those figures as indicative, not as a
-  guarantee. Whether the exact curvature repays that cost is dataset dependent and is not
-  assumed here: ``research/benchmark_v2.py`` measures it under a fixed protocol in which
-  configuration selection, early stopping and all targets use a validation split, and the
-  test split is touched once, after selection. Run it rather than relying on a headline
-  number. Use ``exact`` when you want the true Newton direction — for research into
+  :math:`O(K^2)` instead of :math:`O(K)`, and each leaf solve costs :math:`O(K^3)`. The
+  training-time cost and convergence behaviour are dataset and configuration dependent;
+  ``research/benchmark_v2.py`` measures them under a fixed protocol in which configuration
+  selection, early stopping and all targets use a validation split, and the test split is
+  touched once, after selection. Run it rather than relying on a headline number. Use
+  ``exact`` when you want the true Newton direction — for research into
   curvature, or for problems where the diagonal approximation is known to be a poor fit —
   not as a default.
 
