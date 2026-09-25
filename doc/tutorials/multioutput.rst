@@ -157,8 +157,9 @@ centred leaf, :math:`R = \lambda (I - \mathbf{1}\mathbf{1}^{	op}/K)`, which make
 model independent of which class is used as the reference.
 
 **Cost.** Histogram storage per bin grows from :math:`O(K)` to :math:`O(K^2)` and each leaf
-solve costs :math:`O(K^3)`. End-to-end training is several times slower than ``diagonal``,
-and the factor grows with ``num_class``; ``research/benchmark_k_scaling.py`` measures it.
+solve costs :math:`O(K^3)`. Training-time cost and convergence behaviour are dataset and
+configuration dependent. ``research/benchmark_v2.py`` compares the two modes under a fixed
+protocol when measuring their empirical trade-offs.
 
 **Benefit.** This is the open question, and it is deliberately not answered by assertion
 here. ``research/benchmark_v2.py`` compares the two modes under a fixed protocol -- identical
