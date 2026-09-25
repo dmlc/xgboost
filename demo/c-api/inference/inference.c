@@ -124,7 +124,7 @@ int main() {
   DMatrix Xy;
   /* Dense means "dense matrix". */
   safe_xgboost(XGDMatrixCreateFromDense(X_interface, config, &Xy));
-  /* Label must be in a contigious array. */
+  /* Label must be in a contiguous array. */
   safe_xgboost(XGDMatrixSetDenseInfo(Xy, "label", y->data, y->shape[0], 1));
 
   DMatrix cache[] = {Xy};
@@ -154,7 +154,7 @@ int main() {
     uint64_t const *out_shape;
     /* Dimension of output prediction */
     uint64_t out_dim;
-    /* Pointer to a thread local contigious array, assigned in prediction function. */
+    /* Pointer to a thread local contiguous array, assigned in prediction function. */
     float const *out_results;
 
     safe_xgboost(XGBoosterPredictFromDMatrix(booster, Xy, config, &out_shape,
@@ -182,7 +182,7 @@ int main() {
     uint64_t const *out_shape;
     /* Dimension of output prediction */
     uint64_t out_dim;
-    /* Pointer to a thread local contigious array, assigned in prediction function. */
+    /* Pointer to a thread local contiguous array, assigned in prediction function. */
     float const *out_results;
 
     char const *X_interface = Matrix_ArrayInterface(X);
