@@ -235,13 +235,20 @@ void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offse
   }
 }
 
+constexpr std::size_t kBlockOfRowsSize = 64;
+
 bool ShouldUseBlock(DMatrix *p_fmat) {
   // Threshold to use block-based prediction.
   constexpr double kDensityThresh = .125;
+  // Sparse data uses blocks as well when the feature vectors of a block are small (at most
+  // 512 KiB per thread): the rows of a block are traversed together with the array
+  // layouts. Each row is reset after the prediction with or without blocks.
+  constexpr std::size_t kMaxBlockBytes = 512 * 1024;
   bst_idx_t n_samples = p_fmat->Info().num_row_;
   bst_idx_t total = std::max(n_samples * p_fmat->Info().num_col_, static_cast<bst_idx_t>(1));
   double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
-  bool blocked = density > kDensityThresh;
+  bool small_block = kBlockOfRowsSize * p_fmat->Info().num_col_ * sizeof(float) <= kMaxBlockBytes;
+  bool blocked = density > kDensityThresh || small_block;
   return blocked;
 }
 
@@ -278,7 +285,7 @@ struct NullEncAccessorPolicy {
 
 // Block-based parallel.
 struct BlockPolicy {
-  constexpr static std::size_t kBlockOfRowsSize = 64;
+  constexpr static std::size_t kBlockOfRowsSize = xgboost::predictor::kBlockOfRowsSize;
 };
 
 struct NullBlockPolicy {
