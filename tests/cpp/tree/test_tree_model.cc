@@ -317,6 +317,11 @@ TEST(Tree, DumpNonFiniteSplit) {
   auto str = tree.DumpModel(fmap, false, "json");
   auto j_tree = Json::Load({str.c_str(), str.size()});
   ASSERT_EQ(get<Number const>(j_tree["split_condition"]), kNegInf);
+
+  fmap.PushBack(0, "feat_0", "int");
+  str = tree.DumpModel(fmap, false, "json");
+  j_tree = Json::Load({str.c_str(), str.size()});
+  ASSERT_EQ(get<Number const>(j_tree["split_condition"]), kNegInf);
 }
 
 TEST(Tree, DumpDot) {

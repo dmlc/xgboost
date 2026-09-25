@@ -416,6 +416,9 @@ class JsonGenerator : public TreeGenerator<TreeView> {
 
   std::string Integer(TreeView tree, int32_t nid, uint32_t depth) const override {
     auto cond = tree.SplitCond(nid);
+    if (!std::isfinite(cond)) {
+      return this->Quantitive(tree, nid, depth);  // No integer form, write it as a float.
+    }
     const bst_float floored = std::floor(cond);
     const int32_t integer_threshold =
         (floored == cond) ? static_cast<int32_t>(floored) : static_cast<int32_t>(floored) + 1;
