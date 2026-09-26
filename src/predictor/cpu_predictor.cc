@@ -93,7 +93,15 @@ void PredValueByOneTree(tree::ScalarTreeView const &tree, std::size_t const pred
                         float tree_weight) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
+    bool const complete = ProcessArrayTree<has_categorical, any_missing>(
+        tree, fvec_tloc, block_size, p_nidx, depth);
+    if (complete) {
+      for (std::size_t i = 0; i < block_size; ++i) {
+        out_predt(predict_offset + i, gid) += tree.LeafValue(p_nidx[i]) * tree_weight;
+        p_nidx[i] = 0;
+      }
+      return;
+    }
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -132,8 +140,10 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth,
                         float tree_weight) {
   auto const &cats = tree.GetCategoriesMatrix();
+  bool complete = false;
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
+    complete = ProcessArrayTree<has_categorical, any_missing>(
+        tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = RegTree::kRoot;
@@ -141,11 +151,21 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const
       nidx = p_nidx[i];
       p_nidx[i] = RegTree::kRoot;
     }
+    auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
+
+    if (complete) {
+      auto leaf_value = tree.LeafValue(nidx);
+      assert(t_predts.Shape(0) == leaf_value.Shape(0) && "shape mismatch.");
+      for (size_t j = 0; j < leaf_value.Size(); ++j) {
+        t_predts(j) += leaf_value(j) * tree_weight;
+      }
+      continue;
+    }
+
     auto leaf = fvec_tloc[i].HasMissing()
                     ? GetLeafIndex<true, has_categorical>(tree, fvec_tloc[i], cats, nidx)
                     : GetLeafIndex<false, has_categorical>(tree, fvec_tloc[i], cats, nidx);
     auto leaf_value = tree.LeafValue(leaf);
-    auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
     assert(t_predts.Shape(0) == leaf_value.Shape(0) && "shape mismatch.");
     for (size_t j = 0; j < leaf_value.Size(); ++j) {
       t_predts(j) += leaf_value(j) * tree_weight;
