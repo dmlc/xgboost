@@ -22,47 +22,34 @@ namespace tree {
 struct MultiTargetTreeView;
 using CatWordT = std::uint32_t;
 
-/** @brief Inputs for expanding multiple leaves in a multi-target tree. */
-struct ExpandBatch {
-  std::vector<bst_node_t> nidxs;
-  std::vector<bst_feature_t> fidxs;
-  std::vector<float> conds;
-  std::vector<std::uint8_t> dft_lefts;
-  std::vector<common::Span<float const>> base_weight_batch;
-  std::vector<common::Span<float const>> left_weight_batch;
-  std::vector<common::Span<float const>> right_weight_batch;
-  std::vector<float> loss_chgs;
-  std::vector<double> left_sums;
-  std::vector<double> right_sums;
-  std::vector<common::Span<CatWordT const>> cat_bits;
-  // Total number of CatWordT storage elements in cat_bits.
-  std::size_t n_cat_words{0};
-  float eta;
-
-  explicit ExpandBatch(float eta) : eta{eta} {}
-
-  [[nodiscard]] std::size_t Size() const { return nidxs.size(); }
-
-  void Push(bst_node_t nidx, bst_feature_t fidx, float cond, bool dft_left,
-            common::Span<float const> base_weight, common::Span<float const> left_weight,
-            common::Span<float const> right_weight, float loss_chg, double left_sum,
-            double right_sum, common::Span<CatWordT const> cats = {}) {
-    this->nidxs.push_back(nidx);
-    this->fidxs.push_back(fidx);
-    this->conds.push_back(cond);
-    this->dft_lefts.push_back(dft_left);
-    this->base_weight_batch.emplace_back(base_weight);
-    this->left_weight_batch.emplace_back(left_weight);
-    this->right_weight_batch.emplace_back(right_weight);
-    this->loss_chgs.push_back(loss_chg);
-    this->left_sums.push_back(left_sum);
-    this->right_sums.push_back(right_sum);
-    this->cat_bits.emplace_back(cats);
-    this->n_cat_words += cats.size();
-    CHECK_EQ(left_weight.size(), base_weight.size());
-    CHECK_EQ(right_weight.size(), base_weight.size());
-  }
+/** @brief Split metadata; a nonempty category span marks a categorical split. */
+struct SplitInfo {
+  bst_node_t nidx;
+  bst_feature_t fidx;
+  float cond;
+  bool default_left;
+  common::Span<CatWordT const> categories{};
 };
+
+/** @brief Unscaled split weight and coverage for a node. */
+template <typename Weight>
+struct ExpandNodeStat {
+  Weight weight;
+  double sum_hess;
+};
+
+/** @brief Inputs for expanding a leaf, independent of prediction-leaf finalization. */
+template <typename Weight>
+struct ExpandData {
+  SplitInfo split;
+  ExpandNodeStat<Weight> parent;
+  ExpandNodeStat<Weight> left;
+  ExpandNodeStat<Weight> right;
+  float loss_chg;
+};
+
+/** @brief Batch of vector expansions, with weight/category spans on the context's device. */
+using ExpandBatch = std::vector<ExpandData<common::Span<float const>>>;
 }  // namespace tree
 struct TreeParam;
 
@@ -73,6 +60,7 @@ struct TreeParam;
  * between base weights and leaf weights. The former is the weight calculated from split
  * gradient, and the later is the weight calculated from value gradient and used as
  * outputs. Every node has a base weight, but only leaves have leaf weights.
+ * Base weights are stored before applying the learning rate; leaf weights include it.
  *
  * To access the leaf weights, we re-use the right child to store leaf indices. For split
  * nodes, the `right_` member stores their right child node indices, for leaf nodes, the
@@ -123,21 +111,17 @@ class MultiTargetTree : public Model {
   /**
    * @brief Set the weight and statistics for the root.
    *
-   * @param weight   The weight vector for the root node.
+   * @param weight   The weight vector for the root node, before applying the learning rate.
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
   void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
-  /**
-   * @brief Expand a batch of leaves and apply learning rate to child weights.
-   *
-   * Base weights are stored unchanged. Left and right child weights are multiplied by
-   * `batch.eta`.
-   */
+  /** @brief Expand a batch of leaves using unscaled parent and child weights. */
   void Expand(Context const* ctx, tree::ExpandBatch const& batch);
-  /** @see RegTree::SetLeaves */
-  void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
-  /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */
-  void SetLeaves();
+  /** @see RegTree::FinalizeLeaves */
+  void FinalizeLeaves(common::Span<bst_node_t const> leaves, common::Span<float const> weights,
+                      float learning_rate);
+  /** @brief Scale base weights into prediction leaf weights for a non-reduced tree. */
+  void FinalizeLeaves(float learning_rate);
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
     return left_.ConstHostVector()[nidx] == InvalidNodeId();

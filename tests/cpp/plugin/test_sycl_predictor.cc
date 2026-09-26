@@ -22,6 +22,12 @@
 
 namespace xgboost {
 
+TEST(SyclPredictor, InitOutPredictions) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestInitOutPredictions(&ctx);
+}
+
 TEST(SyclPredictor, Basic) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});

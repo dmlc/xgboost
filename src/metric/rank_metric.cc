@@ -20,7 +20,8 @@
 
 #include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"
-#include "../common/algorithm.h"         // for ArgSort, Sort
+#include "../common/algorithm.h"  // for ArgSort, Sort
+#include "../common/kernel.h"
 #include "../common/linalg_op.h"         // for cbegin, cend
 #include "../common/optional_weight.h"   // for OptionalWeights, MakeOptionalWeights
 #include "metric_common.h"               // for MetricNoCache, GPUMetric, PackedReduceResult
@@ -44,6 +45,93 @@ namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(rank_metric);
 
+namespace {
+double EvalAMSCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
+                  float ratio) {
+  using namespace std;  // NOLINT(*)
+
+  const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
+  PredIndPairContainer rec(ndata);
+
+  const auto& h_preds = preds.ConstHostVector();
+  common::ParallelFor(ndata, ctx->Threads(),
+                      [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
+  common::Sort(ctx, rec.begin(), rec.end(),
+               [](auto const& l, auto const& r) { return l.first > r.first; });
+  auto ntop = static_cast<unsigned>(ratio * ndata);
+  if (ntop == 0) ntop = ndata;
+  const double br = 10.0;
+  unsigned thresindex = 0;
+  double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
+  const auto& labels = info.labels.View(DeviceOrd::CPU());
+  for (unsigned i = 0; i < static_cast<unsigned>(ndata - 1) && i < ntop; ++i) {
+    const unsigned ridx = rec[i].second;
+    const bst_float wt = info.GetWeight(ridx);
+    if (labels(ridx) > 0.5f) {
+      s_tp += wt;
+    } else {
+      b_fp += wt;
+    }
+    if (rec[i].first != rec[i + 1].first) {
+      double ams = sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp / (b_fp + br)) - s_tp));
+      if (tams < ams) {
+        thresindex = i;
+        tams = ams;
+      }
+    }
+  }
+  if (ntop == ndata) {
+    LOG(INFO) << "best-ams-ratio=" << static_cast<bst_float>(thresindex) / ndata;
+    return static_cast<bst_float>(tams);
+  } else {
+    return static_cast<bst_float>(
+        sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp / (b_fp + br)) - s_tp)));
+  }
+}
+
+double EvalCoxCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info) {
+  using namespace std;  // NOLINT(*)
+
+  const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
+  const auto& label_order = info.LabelAbsSort(ctx);
+
+  // pre-compute a sum for the denominator
+  double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
+
+  const auto& h_preds = preds.ConstHostVector();
+  for (omp_ulong i = 0; i < ndata; ++i) {
+    exp_p_sum += h_preds[i];
+  }
+
+  double out = 0;
+  double accumulated_sum = 0;
+  bst_omp_uint num_events = 0;
+  const auto& labels = info.labels.HostView();
+  for (bst_omp_uint i = 0; i < ndata; ++i) {
+    const size_t ind = label_order[i];
+    const auto label = labels(ind);
+    if (label > 0) {
+      out -= log(h_preds[ind]) - log(exp_p_sum);
+      ++num_events;
+    }
+
+    // only update the denominator after we move forward in time (labels are sorted)
+    accumulated_sum += h_preds[ind];
+    if (i == ndata - 1 || std::abs(label) < std::abs(labels(label_order[i + 1]))) {
+      exp_p_sum -= accumulated_sum;
+      accumulated_sum = 0;
+    }
+  }
+
+  return out / num_events;  // normalize by the number of events
+}
+
+auto const kRegisterAMSCpu =
+    common::KernelRegistration<AMSEvalKernel>{DeviceOrd::kCPU, &EvalAMSCpu};
+auto const kRegisterCoxCpu =
+    common::KernelRegistration<CoxEvalKernel>{DeviceOrd::kCPU, &EvalCoxCpu};
+}  // namespace
+
 /*! \brief AMS: also records best threshold */
 struct EvalAMS : public MetricNoCache {
  public:
@@ -59,45 +147,7 @@ struct EvalAMS : public MetricNoCache {
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CheckRowWeights(info);
     CHECK(!collective::IsDistributed()) << "metric AMS do not support distributed evaluation";
-    using namespace std;  // NOLINT(*)
-
-    const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
-    PredIndPairContainer rec(ndata);
-
-    const auto& h_preds = preds.ConstHostVector();
-    common::ParallelFor(ndata, ctx_->Threads(),
-                        [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
-    common::Sort(ctx_, rec.begin(), rec.end(),
-                 [](auto const& l, auto const& r) { return l.first > r.first; });
-    auto ntop = static_cast<unsigned>(ratio_ * ndata);
-    if (ntop == 0) ntop = ndata;
-    const double br = 10.0;
-    unsigned thresindex = 0;
-    double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    const auto& labels = info.labels.View(DeviceOrd::CPU());
-    for (unsigned i = 0; i < static_cast<unsigned>(ndata - 1) && i < ntop; ++i) {
-      const unsigned ridx = rec[i].second;
-      const bst_float wt = info.GetWeight(ridx);
-      if (labels(ridx) > 0.5f) {
-        s_tp += wt;
-      } else {
-        b_fp += wt;
-      }
-      if (rec[i].first != rec[i + 1].first) {
-        double ams = sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp / (b_fp + br)) - s_tp));
-        if (tams < ams) {
-          thresindex = i;
-          tams = ams;
-        }
-      }
-    }
-    if (ntop == ndata) {
-      LOG(INFO) << "best-ams-ratio=" << static_cast<bst_float>(thresindex) / ndata;
-      return static_cast<bst_float>(tams);
-    } else {
-      return static_cast<bst_float>(
-          sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp / (b_fp + br)) - s_tp)));
-    }
+    return common::DispatchKernel<AMSEvalKernel>(ctx_, preds, info, ratio_);
   }
 
   [[nodiscard]] const char* Name() const override { return name_.c_str(); }
@@ -158,40 +208,7 @@ struct EvalCox : public MetricNoCache {
   EvalCox() = default;
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK(!collective::IsDistributed()) << "Cox metric does not support distributed evaluation";
-    using namespace std;  // NOLINT(*)
-
-    const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
-    const auto& label_order = info.LabelAbsSort(ctx_);
-
-    // pre-compute a sum for the denominator
-    double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
-
-    const auto& h_preds = preds.ConstHostVector();
-    for (omp_ulong i = 0; i < ndata; ++i) {
-      exp_p_sum += h_preds[i];
-    }
-
-    double out = 0;
-    double accumulated_sum = 0;
-    bst_omp_uint num_events = 0;
-    const auto& labels = info.labels.HostView();
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
-      const size_t ind = label_order[i];
-      const auto label = labels(ind);
-      if (label > 0) {
-        out -= log(h_preds[ind]) - log(exp_p_sum);
-        ++num_events;
-      }
-
-      // only update the denominator after we move forward in time (labels are sorted)
-      accumulated_sum += h_preds[ind];
-      if (i == ndata - 1 || std::abs(label) < std::abs(labels(label_order[i + 1]))) {
-        exp_p_sum -= accumulated_sum;
-        accumulated_sum = 0;
-      }
-    }
-
-    return out / num_events;  // normalize by the number of events
+    return common::DispatchKernel<CoxEvalKernel>(ctx_, preds, info);
   }
 
   [[nodiscard]] const char* Name() const override { return "cox-nloglik"; }

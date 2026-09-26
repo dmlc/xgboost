@@ -199,10 +199,6 @@ class ColMaker : public TreeUpdater {
         // if nothing left to be expand, break
         if (qexpand_.size() == 0) break;
       }
-      // set all the rest expanding nodes to leaf
-      for (const int nid : qexpand_) {
-        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-      }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
         auto &stat = p_tree->Stat(nid);
@@ -210,6 +206,7 @@ class ColMaker : public TreeUpdater {
         stat.base_weight = snode_[nid].weight;
         stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
+      p_tree->FinalizeLeaves(param_.learning_rate);
       CHECK(p_out_position);
       auto &h_position = p_out_position->HostVector();
       h_position.resize(position_.size());
@@ -513,16 +510,17 @@ class ColMaker : public TreeUpdater {
         NodeEntry const &e = snode_[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
-          bst_float left_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.left_sum) * param_.learning_rate;
-          bst_float right_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.right_sum) * param_.learning_rate;
-          p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                             e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
-                             e.stats.sum_hess, e.best.left_sum.GetHess(),
-                             e.best.right_sum.GetHess(), 0);
+          float left_weight = evaluator.CalcWeight(nid, param_, e.best.left_sum);
+          float right_weight = evaluator.CalcWeight(nid, param_, e.best.right_sum);
+          p_tree->Expand(
+              {SplitInfo{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+               {e.weight, e.stats.sum_hess},
+               {left_weight, e.best.left_sum.GetHess()},
+               {right_weight, e.best.right_sum.GetHess()},
+               e.best.loss_chg},
+              0);
         } else {
-          (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
+          (*p_tree)[nid].SetLeaf(0.0f);
         }
       }
     }

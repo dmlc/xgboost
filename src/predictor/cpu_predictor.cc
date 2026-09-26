@@ -8,32 +8,31 @@
 #include <memory>     // for unique_ptr, shared_ptr
 #include <vector>     // for vector
 
-#include "../collective/allreduce.h"         // for Allreduce
-#include "../collective/communicator-inl.h"  // for IsDistributed
-#include "../common/bitfield.h"              // for RBitField8
-#include "../common/column_matrix.h"         // for ColumnMatrix
-#include "../common/error_msg.h"             // for InplacePredictProxy
-#include "../common/kernel.h"                // for DispatchKernel, KernelRegistration
-#include "../common/math.h"                  // for CheckNAN
-#include "../common/optional_weight.h"       // for OptionalWeights
-#include "../common/threading_utils.h"       // for ParallelFor
-#include "../data/adapter.h"                 // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
-#include "../data/cat_container.h"           // for CatContainer
-#include "../data/gradient_index.h"          // for GHistIndexMatrix
-#include "../data/proxy_dmatrix.h"           // for DMatrixProxy
-#include "../gbm/gbtree_model.h"             // for GBTreeModel, GBTreeModelParam
-#include "../tree/sample_position.h"         // for SamplePosition
-#include "array_tree_layout.h"               // for ProcessArrayTree
-#include "data_accessor.h"                   // for GHistIndexMatrixView, SparsePageView
-#include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
-#include "gbtree_view.h"                     // for GBTreeModelView
-#include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
-#include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
-#include "prediction_kernel.h"      // for PredictLeafKernel
-#include "utils.h"                  // for CheckProxyDMatrix
-#include "xgboost/base.h"           // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
-#include "xgboost/context.h"        // for Context
-#include "xgboost/data.h"           // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
+#include "../collective/allreduce.h"          // for Allreduce
+#include "../collective/communicator-inl.h"   // for IsDistributed
+#include "../common/bitfield.h"               // for RBitField8
+#include "../common/column_matrix.h"          // for ColumnMatrix
+#include "../common/error_msg.h"              // for InplacePredictProxy
+#include "../common/kernel.h"                 // for DispatchKernel, KernelRegistration
+#include "../common/math.h"                   // for CheckNAN
+#include "../common/optional_weight.h"        // for OptionalWeights
+#include "../common/threading_utils.h"        // for ParallelFor
+#include "../data/adapter.h"                  // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
+#include "../data/cat_container.h"            // for CatContainer
+#include "../data/gradient_index.h"           // for GHistIndexMatrix
+#include "../data/proxy_dmatrix.h"            // for DMatrixProxy
+#include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
+#include "../tree/sample_position.h"          // for SamplePosition
+#include "array_tree_layout.h"                // for ProcessArrayTree
+#include "data_accessor.h"                    // for GHistIndexMatrixView, SparsePageView
+#include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
+#include "gbtree_view.h"                      // for GBTreeModelView
+#include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
+#include "prediction_kernel.h"                // for PredictLeafKernel
+#include "utils.h"                            // for CheckProxyDMatrix
+#include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
+#include "xgboost/context.h"                  // for Context
+#include "xgboost/data.h"                     // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
 #include "xgboost/learner.h"                  // for LearnerModelState
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
@@ -210,7 +209,7 @@ void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offse
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
    */
-  const bool use_array_tree_layout = block_size > 1;
+  const bool use_array_tree_layout = block_size > 1 && !tree_depth.empty();
   if (use_array_tree_layout) {
     CHECK_EQ(n_trees, tree_depth.size());
     // Recheck if the current block has missing values.
@@ -409,7 +408,10 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
    */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
-    if (n_samples > 1) {
+    auto const threads = static_cast<std::size_t>(std::max(n_threads, 1));
+    auto const layout_threshold =
+        std::min(kBlockOfRowsSize, std::max((kBlockOfRowsSize * 2) / threads, std::size_t{1}));
+    if (n_samples > layout_threshold) {
       tree_depth.resize(model.tree_end - model.tree_begin);
       CHECK_EQ(tree_depth.size(), model.Trees().size());
       common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
@@ -461,6 +463,44 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
     });
   });
 }
+
+void PredictFromLeafIdsCPU(Context const *ctx,
+                           common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                           common::Span<RegTree const *> trees,
+                           linalg::MatrixView<float> out_preds) {
+  CHECK_EQ(leaf_ids.size(), trees.size());
+  CHECK(out_preds.Device().IsCPU());
+
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto const *p_tree = trees[tree_idx];
+    CHECK(p_tree);
+    auto const h_leaf_ids = leaf_ids[tree_idx].ConstHostSpan();
+    CHECK_EQ(h_leaf_ids.size(), out_preds.Shape(0));
+
+    if (!p_tree->IsMultiTarget()) {
+      CHECK_EQ(out_preds.Shape(1), 1);
+      auto const tree = p_tree->HostScView();
+      common::ParallelFor(out_preds.Shape(0), ctx->Threads(), [&](std::size_t row_idx) {
+        auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
+        out_preds(row_idx, 0) += tree.LeafValue(nidx);
+      });
+    } else {
+      auto const tree = p_tree->HostMtView();
+      auto n_targets = tree.NumTargets();
+      CHECK_EQ(out_preds.Shape(1), n_targets);
+      common::ParallelFor(out_preds.Shape(0), ctx->Threads(), [&](std::size_t row_idx) {
+        auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
+        auto weight = tree.LeafValue(nidx);
+        for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+          out_preds(row_idx, target_idx) += weight(target_idx);
+        }
+      });
+    }
+  }
+}
+
+common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCPU{
+    DeviceOrd::kCPU, &PredictFromLeafIdsCPU};
 
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
                                                                     &PredictLeafCPU};
@@ -522,7 +562,7 @@ class CPUPredictor : public Predictor {
       tree_end = model.trees.size();
     }
 
-    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
     auto &predictions = out_preds->HostVector();
     bool any_missing = true;
 
@@ -570,61 +610,6 @@ class CPUPredictor : public Predictor {
     bool type_error = false;
     data::cpu_impl::DispatchAny<false>(proxy, dispatch, &type_error);
     return !type_error;
-  }
-
-  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
-                          common::Span<RegTree const *> trees,
-                          linalg::MatrixView<float> out_preds) const override {
-    CHECK_EQ(leaf_ids.size(), trees.size());
-    CHECK(out_preds.Device().IsCPU());
-
-    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-      auto const *p_tree = trees[tree_idx];
-      CHECK(p_tree);
-      auto const h_leaf_ids = leaf_ids[tree_idx].ConstHostSpan();
-      CHECK_EQ(h_leaf_ids.size(), out_preds.Shape(0));
-
-      if (!p_tree->IsMultiTarget()) {
-        CHECK_EQ(out_preds.Shape(1), 1);
-        auto const tree = p_tree->HostScView();
-        common::ParallelFor(out_preds.Shape(0), ctx_->Threads(), [&](std::size_t row_idx) {
-          auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
-          out_preds(row_idx, 0) += tree.LeafValue(nidx);
-        });
-      } else {
-        auto const tree = p_tree->HostMtView();
-        auto n_targets = tree.NumTargets();
-        CHECK_EQ(out_preds.Shape(1), n_targets);
-        common::ParallelFor(out_preds.Shape(0), ctx_->Threads(), [&](std::size_t row_idx) {
-          auto nidx = tree::SamplePosition::Decode(h_leaf_ids[row_idx]);
-          auto weight = tree.LeafValue(nidx);
-          for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-            out_preds(row_idx, target_idx) += weight(target_idx);
-          }
-        });
-      }
-    }
-  }
-
-  void PredictContribution(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                           const gbm::GBTreeModel &model, bst_tree_t ntree_limit, bool approximate,
-                           int condition, unsigned condition_feature) const override {
-    auto const *tree_weights = model.TreeWeights();
-    if (approximate) {
-      interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
-                                                ntree_limit, tree_weights);
-    } else {
-      interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                   tree_weights, condition, condition_feature);
-    }
-  }
-
-  void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                                       gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
-                                       bool approximate) const override {
-    auto const *tree_weights = model.TreeWeights();
-    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                            tree_weights, approximate);
   }
 };
 

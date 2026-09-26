@@ -12,6 +12,17 @@
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
+namespace xgboost::metric {
+struct AMSEvalKernel {
+  using Signature = double(Context const *, HostDeviceVector<float> const &, MetaInfo const &,
+                           float);
+};
+
+struct CoxEvalKernel {
+  using Signature = double(Context const *, HostDeviceVector<float> const &, MetaInfo const &);
+};
+}  // namespace xgboost::metric
+
 namespace xgboost::metric::cuda_impl {
 PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
                              HostDeviceVector<float> const &predt, bool minus,

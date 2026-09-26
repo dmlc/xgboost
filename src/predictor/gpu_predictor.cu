@@ -26,7 +26,6 @@
 #include "../tree/tree_view.h"
 #include "gbtree_view.h"  // for GBTreeModelView
 #include "gpu_data_accessor.cuh"
-#include "interpretability/shap.h"
 #include "predict_fn.h"
 #include "prediction_kernel.h"
 #include "utils.h"  // for CheckProxyDMatrix
@@ -442,6 +441,49 @@ void PredictLeafCUDA(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float
   });
 }
 
+void PredictFromLeafIdsCUDA(Context const* ctx,
+                            common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
+                            common::Span<RegTree const*> trees,
+                            linalg::MatrixView<float> out_preds) {
+  CHECK_EQ(leaf_ids.size(), trees.size());
+  CHECK(out_preds.Device().IsCUDA());
+  CHECK_EQ(out_preds.Device().ordinal, ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
+  auto stream = ctx->CUDACtx()->Stream();
+
+  for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto const* p_tree = trees[tree_idx];
+    CHECK(p_tree);
+    auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+    CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
+
+    if (!p_tree->IsMultiTarget()) {
+      CHECK_EQ(out_preds.Shape(1), 1);
+      dh::CachingDeviceUVector<RegTree::Node> nodes;
+      dh::CopyTo(p_tree->GetNodes(DeviceOrd::CPU()), &nodes, stream);
+      common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
+      dh::LaunchN(d_leaf_ids.size(), stream, [=] XGBOOST_DEVICE(std::size_t row_idx) mutable {
+        auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
+        out_preds(row_idx, 0) += d_nodes[nidx].LeafValue();
+      });
+    } else {
+      auto mt_tree = tree::MultiTargetTreeView{ctx->Device(), false, p_tree};
+      auto n_targets = mt_tree.NumTargets();
+      CHECK_EQ(out_preds.Shape(1), n_targets);
+      thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), out_preds.Size(),
+                         [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                           auto [row_idx, target_idx] = linalg::UnravelIndex(i, out_preds.Shape());
+                           auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
+                           auto weight = mt_tree.LeafValue(nidx);
+                           out_preds(row_idx, target_idx) += weight(target_idx);
+                         });
+    }
+  }
+}
+
+common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCUDA{
+    DeviceOrd::kCUDA, &PredictFromLeafIdsCUDA};
+
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCUDA{DeviceOrd::kCUDA,
                                                                      &PredictLeafCUDA};
 
@@ -517,7 +559,7 @@ class GPUPredictor : public xgboost::Predictor {
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
-    this->InitOutPredictions(p_m->Info(), out_preds, model);
+    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
     out_preds->SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
@@ -581,71 +623,6 @@ class GPUPredictor : public xgboost::Predictor {
         },
         &type_error);
     return !type_error;
-  }
-
-  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           const gbm::GBTreeModel& model, bst_tree_t tree_end, bool approximate,
-                           int, unsigned) const override {
-    auto const* tree_weights = model.TreeWeights();
-    xgboost_NVTX_FN_RANGE();
-    if (approximate) {
-      LOG(FATAL) << "Approximated contribution is not implemented in the GPU predictor, use CPU "
-                    "instead.";
-    }
-    interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, 0, 0);
-  }
-
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                                       gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                       bool approximate) const override {
-    xgboost_NVTX_FN_RANGE();
-    auto const* tree_weights = model.TreeWeights();
-
-    if (approximate) {
-      LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
-                    "instead.";
-    }
-    interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
-                                            tree_weights, approximate);
-  }
-
-  void PredictFromLeafIds(common::Span<HostDeviceVector<bst_node_t> const> leaf_ids,
-                          common::Span<RegTree const*> trees,
-                          linalg::MatrixView<float> out_preds) const override {
-    CHECK_EQ(leaf_ids.size(), trees.size());
-    CHECK(out_preds.Device().IsCUDA());
-    CHECK_EQ(out_preds.Device().ordinal, ctx_->Ordinal());
-    auto stream = ctx_->CUDACtx()->Stream();
-
-    for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-      auto const* p_tree = trees[tree_idx];
-      CHECK(p_tree);
-      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
-      CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
-
-      if (!p_tree->IsMultiTarget()) {
-        CHECK_EQ(out_preds.Shape(1), 1);
-        dh::CachingDeviceUVector<RegTree::Node> nodes;
-        dh::CopyTo(p_tree->GetNodes(DeviceOrd::CPU()), &nodes, stream);
-        common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
-        dh::LaunchN(d_leaf_ids.size(), stream, [=] XGBOOST_DEVICE(std::size_t row_idx) mutable {
-          auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
-          out_preds(row_idx, 0) += d_nodes[nidx].LeafValue();
-        });
-      } else {
-        auto mt_tree = tree::MultiTargetTreeView{ctx_->Device(), false, p_tree};
-        auto n_targets = mt_tree.NumTargets();
-        CHECK_EQ(out_preds.Shape(1), n_targets);
-        thrust::for_each_n(ctx_->CUDACtx()->CTP(), dh::make_counting_iterator(0ul),
-                           out_preds.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                             auto [row_idx, target_idx] =
-                                 linalg::UnravelIndex(i, out_preds.Shape());
-                             auto nidx = tree::SamplePosition::Decode(d_leaf_ids[row_idx]);
-                             auto weight = mt_tree.LeafValue(nidx);
-                             out_preds(row_idx, target_idx) += weight(target_idx);
-                           });
-      }
-    }
   }
 };
 

@@ -563,7 +563,7 @@ jobs:
         with:
           submodules: 'true'
       - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@1e34f2e2acaa766b7efacb8c26352e6abbb023f9
+        uses: Homebrew/actions/setup-homebrew@848c272c7bfe984a197bd4d16383f4c106ec61e6
       - name: Install libomp
         run: brew install libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -593,13 +593,21 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
   test-python-wheel-macos:
-    name: Python tests (macOS Intel)
+    name: Python tests (${{ matrix.os }})
     needs: python-wheels-macos
-    runs-on: macos-15-intel
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
       run:
         shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          platform_id: macosx_x86_64
+        - os: macos-14
+          platform_id: macosx_arm64
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -609,7 +617,7 @@ jobs:
       - name: Download macOS wheel artifact
         uses: actions/download-artifact@v8.0.1
         with:
-          name: python-wheel-macosx_x86_64
+          name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse
       - name: Install XGBoost wheel
         run: python -m pip install -v wheelhouse/*.whl

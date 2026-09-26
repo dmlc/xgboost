@@ -11,12 +11,15 @@
 #include <variant>      // for variant
 #include <vector>       // for vector
 
+#include "../../common/kernel.h"           // for KernelRegistration
 #include "../../common/threading_utils.h"  // for ParallelFor
 #include "../../gbm/gbtree_model.h"        // for GBTreeModel
 #include "../../tree/tree_view.h"          // for MultiTargetTreeView, ScalarTreeView
 #include "../data_accessor.h"              // for GHistIndexMatrixView
 #include "../predict_fn.h"                 // for GetTreeLimit
+#include "../prediction_kernel.h"          // for prediction kernels
 #include "dmlc/omp.h"                      // for omp_get_thread_num
+#include "dmlc/registry.h"                 // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "xgboost/base.h"        // for bst_omp_uint
 #include "xgboost/logging.h"     // for CHECK
@@ -24,7 +27,16 @@
 #include "xgboost/tree_model.h"  // for MTNotImplemented
 
 namespace xgboost::interpretability {
+DMLC_REGISTRY_FILE_TAG(shap_cpu);
+
 namespace {
+common::KernelRegistration<predictor::PredictContributionKernel> const kPredictContributionCPU{
+    DeviceOrd::kCPU, &cpu_impl::ShapValues};
+common::KernelRegistration<predictor::PredictApproxContributionKernel> const
+    kPredictApproxContributionCPU{DeviceOrd::kCPU, &cpu_impl::ApproxFeatureImportance};
+common::KernelRegistration<predictor::PredictInteractionContributionsKernel> const
+    kPredictInteractionCPU{DeviceOrd::kCPU, &cpu_impl::ShapInteractionValues};
+
 using TreeView = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 
 void ValidateTreeWeights(std::vector<float> const *tree_weights, bst_tree_t tree_end) {
@@ -538,12 +550,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
 void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                std::vector<float> const *tree_weights, int condition, unsigned condition_feature) {
-  CHECK_EQ(condition, 0) << "CPU exact SHAP uses fixed 8-point QuadratureTreeSHAP and does not "
-                            "support conditioned exact attributions.";
-  CHECK_EQ(condition_feature, 0U)
-      << "CPU exact SHAP uses fixed 8-point QuadratureTreeSHAP and does "
-         "not support conditioned exact attributions.";
+                std::vector<float> const *tree_weights) {
   QuadratureTreeShapValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
                            kQuadratureTreeShapPoints);
 }

@@ -154,7 +154,7 @@ def no_modin() -> PytestSkip:
 
     except ImportError:
         return {"reason": "Failed import modin.", "condition": True}
-    return {"reason": "Failed import modin.", "condition": True}
+    return {"reason": "Failed import modin.", "condition": False}
 
 
 def no_matplotlib() -> PytestSkip:
