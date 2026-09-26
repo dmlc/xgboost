@@ -198,6 +198,77 @@ void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_of
   }
 }
 
+std::int32_t SmallBatchTreeThreads(HostModel const &model, std::size_t n_rows,
+                                   std::int32_t n_threads) {
+  constexpr std::size_t kMinWork = 256;
+  constexpr std::size_t kMinWorkPerThread = 64;
+
+  if (n_threads <= 1 || n_rows == 0) {
+    return 1;
+  }
+
+  auto trees = model.Trees();
+  for (auto const &tree : trees) {
+    if (!std::holds_alternative<tree::ScalarTreeView>(tree)) {
+      return 1;
+    }
+  }
+
+  auto const n_trees = trees.size();
+
+  if (n_rows == 1 && n_trees < 500) {
+    return 1;
+  }
+  if (n_rows < 16 && n_trees < 256) {
+    return 1;
+  }
+
+  auto const work = n_trees * n_rows;
+  if (work < kMinWork) {
+    return 1;
+  }
+
+  auto const useful = work / kMinWorkPerThread;
+  return static_cast<std::int32_t>(std::min<std::size_t>(
+      static_cast<std::size_t>(n_threads), std::min<std::size_t>(trees.size(), useful)));
+}
+
+void PredictSmallBatchByTrees(HostModel const &model, std::size_t predict_offset,
+                              common::Span<RegTree::FVec> fvec_tloc,
+                              linalg::MatrixView<float> out_predt,
+                              common::OptionalWeights tree_weights, std::int32_t n_threads) {
+  auto trees = model.Trees();
+  auto const n_trees = trees.size();
+  auto const n_rows = fvec_tloc.size();
+
+  std::vector<float> leaves(n_trees * n_rows);
+
+  common::ParallelFor(n_trees, n_threads, [&](auto tree_id) {
+    auto const &tree = std::get<tree::ScalarTreeView>(trees[tree_id]);
+    auto const &cats = tree.GetCategoriesMatrix();
+    bool const has_categorical = tree.HasCategoricalSplit();
+
+    auto *out = leaves.data() + tree_id * n_rows;
+    for (std::size_t row = 0; row < n_rows; ++row) {
+      out[row] =
+          has_categorical
+              ? scalar::PredValueByOneTree<true>(fvec_tloc[row], tree, cats, RegTree::kRoot)
+              : scalar::PredValueByOneTree<false>(fvec_tloc[row], tree, cats, RegTree::kRoot);
+    }
+  });
+
+  // Preserve the original floating-point accumulation order.
+  for (std::size_t tree_id = 0; tree_id < n_trees; ++tree_id) {
+    auto const gid = model.tree_groups[tree_id];
+    auto const weight = tree_weights[tree_id];
+    auto const *leaf = leaves.data() + tree_id * n_rows;
+
+    for (std::size_t row = 0; row < n_rows; ++row) {
+      out_predt(predict_offset + row, gid) += leaf[row] * weight;
+    }
+  }
+}
+
 // Dispatch between template implementations
 void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offset,
                          common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
@@ -419,6 +490,22 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
       });
     }
   }
+  if constexpr (kBlockOfRowsSize > 1) {
+    if (n_samples <= kBlockOfRowsSize) {
+      auto const tree_threads = SmallBatchTreeThreads(model, n_samples, n_threads);
+      if (tree_threads > 1) {
+        common::Range1d const block{0, n_samples};
+        auto fvec_tloc = fvec.ThreadBuffer(block.Size());
+
+        batch.FVecFill(block, n_features, fvec_tloc);
+        PredictSmallBatchByTrees(model, batch.base_rowid, fvec_tloc, out_predt, tree_weights,
+                                 tree_threads);
+        batch.FVecDrop(fvec_tloc);
+        return;
+      }
+    }
+  }
+
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
