@@ -15,8 +15,9 @@
 #include <utility>
 
 #include "../collective/allreduce.h"
-#include "../common/algorithm.cuh"        // SegmentedArgSort, InclusiveScan
-#include "../common/cuda_compat.cuh"      // for CUDA compatibility
+#include "../common/algorithm.cuh"    // SegmentedArgSort, InclusiveScan
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
+#include "../common/kernel.h"
 #include "../common/optional_weight.h"    // OptionalWeights
 #include "../common/threading_utils.cuh"  // UnravelTrapeziodIdx,SegmentedTrapezoidThreads
 #include "auc.h"
@@ -858,4 +859,63 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
   };
   return RankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);
 }
+
+namespace {
+void PrepareInputs(Context const *ctx, HostDeviceVector<float> const &preds, MetaInfo const &info) {
+  preds.SetDevice(ctx->Device());
+  info.labels.SetDevice(ctx->Device());
+  info.weights_.SetDevice(ctx->Device());
+}
+
+template <AUCCurve curve>
+std::tuple<double, double, double> BinaryAUCCuda(Context const *ctx,
+                                                 HostDeviceVector<float> const &preds,
+                                                 MetaInfo const &info,
+                                                 std::shared_ptr<DeviceAUCCache> *cache) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return BinaryROCAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  } else {
+    return BinaryPRAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  }
+}
+
+template <AUCCurve curve>
+double MultiAUCCuda(Context const *ctx, HostDeviceVector<float> const &preds, MetaInfo const &info,
+                    std::shared_ptr<DeviceAUCCache> *cache, std::size_t n_outputs,
+                    MultiAUCType type) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return MultiROCAUC(ctx, preds.ConstDeviceSpan(), info, cache, n_outputs, type);
+  } else {
+    return MultiPRAUC(ctx, preds.ConstDeviceSpan(), info, cache, n_outputs, type);
+  }
+}
+
+template <AUCCurve curve>
+std::pair<double, std::uint32_t> RankingAUCCuda(Context const *ctx,
+                                                HostDeviceVector<float> const &preds,
+                                                MetaInfo const &info,
+                                                std::shared_ptr<DeviceAUCCache> *cache) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return RankingAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  } else {
+    return RankingPRAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  }
+}
+
+auto const kRegisterBinaryROCCuda = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &BinaryAUCCuda<AUCCurve::kROC>};
+auto const kRegisterMultiROCCuda = common::KernelRegistration<MultiAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &MultiAUCCuda<AUCCurve::kROC>};
+auto const kRegisterRankingROCCuda = common::KernelRegistration<RankingAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &RankingAUCCuda<AUCCurve::kROC>};
+auto const kRegisterBinaryPRCuda = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &BinaryAUCCuda<AUCCurve::kPR>};
+auto const kRegisterMultiPRCuda = common::KernelRegistration<MultiAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &MultiAUCCuda<AUCCurve::kPR>};
+auto const kRegisterRankingPRCuda = common::KernelRegistration<RankingAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &RankingAUCCuda<AUCCurve::kPR>};
+}  // namespace
 }  // namespace xgboost::metric::cuda_impl

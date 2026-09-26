@@ -16,6 +16,7 @@
 
 #include "../collective/aggregator.h"
 #include "../common/algorithm.h"  // ArgSort
+#include "../common/kernel.h"
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "metric_common.h"              // MetricNoCache
@@ -36,7 +37,7 @@ template <typename Fn>
 std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
                                              linalg::VectorView<float const> labels,
                                              common::OptionalWeights weights,
-                                             std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
+                                             std::vector<size_t> const& sorted_idx, Fn&& area_fn) {
   CHECK_NE(labels.Size(), 0);
   CHECK_EQ(labels.Size(), predts.size());
   auto p_predts = predts.data();
@@ -80,9 +81,9 @@ std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
  *   Machine Learning Models
  */
 template <typename BinaryAUC>
-double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+double MultiAUC(Context const* ctx, common::Span<float const> predts, MetaInfo const& info,
                 std::size_t n_targets, std::int32_t n_threads, MultiAUCType type,
-                BinaryAUC &&binary_auc) {
+                BinaryAUC&& binary_auc) {
   CHECK_NE(n_targets, 0);
   auto const labels = info.labels.HostView();
   if (labels.Shape(0) != 0) {
@@ -150,7 +151,7 @@ double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo c
   return auc_sum;
 }
 
-std::tuple<double, double, double> BinaryROCAUC(Context const *ctx,
+std::tuple<double, double, double> BinaryROCAUC(Context const* ctx,
                                                 common::Span<float const> predts,
                                                 linalg::VectorView<float const> labels,
                                                 common::OptionalWeights weights) {
@@ -162,7 +163,7 @@ std::tuple<double, double, double> BinaryROCAUC(Context const *ctx,
 /**
  * Calculate AUC for 1 ranking group;
  */
-double GroupRankingROC(Context const *ctx, common::Span<float const> predts,
+double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
                        linalg::VectorView<float const> labels, float w) {
   // on ranking, we just count all pairs.
   double auc{0};
@@ -199,7 +200,7 @@ double GroupRankingROC(Context const *ctx, common::Span<float const> predts,
  *
  *   https://doi.org/10.1371/journal.pone.0092209
  */
-std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<float const> predts,
+std::tuple<double, double, double> BinaryPRAUC(Context const* ctx, common::Span<float const> predts,
                                                linalg::VectorView<float const> labels,
                                                common::OptionalWeights weights) {
   auto const sorted_idx =
@@ -226,8 +227,8 @@ std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<
  * Cast LTR problem to binary classification problem by comparing pairs.
  */
 template <bool is_roc>
-std::pair<double, uint32_t> RankingAUC(Context const *ctx, std::vector<float> const &predts,
-                                       MetaInfo const &info, int32_t n_threads) {
+std::pair<double, uint32_t> RankingAUC(Context const* ctx, std::vector<float> const& predts,
+                                       MetaInfo const& info, int32_t n_threads) {
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
@@ -267,18 +268,68 @@ std::pair<double, uint32_t> RankingAUC(Context const *ctx, std::vector<float> co
   return std::make_pair(sum_auc, n_groups - invalid_groups);
 }
 
+namespace {
+template <AUCCurve curve>
+std::tuple<double, double, double> BinaryAUCCpu(Context const* ctx,
+                                                HostDeviceVector<float> const& preds,
+                                                MetaInfo const& info,
+                                                std::shared_ptr<cuda_impl::DeviceAUCCache>*) {
+  auto labels = info.labels.HostView().Slice(linalg::All(), 0);
+  auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
+  if constexpr (curve == AUCCurve::kROC) {
+    return BinaryROCAUC(ctx, preds.ConstHostSpan(), labels, weights);
+  } else {
+    return BinaryPRAUC(ctx, preds.ConstHostSpan(), labels, weights);
+  }
+}
+
+template <AUCCurve curve>
+double MultiAUCCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
+                   std::shared_ptr<cuda_impl::DeviceAUCCache>*, std::size_t n_outputs,
+                   MultiAUCType type) {
+  if constexpr (curve == AUCCurve::kROC) {
+    return MultiAUC(ctx, preds.ConstHostSpan(), info, n_outputs, ctx->Threads(), type,
+                    BinaryROCAUC);
+  } else {
+    return MultiAUC(ctx, preds.ConstHostSpan(), info, n_outputs, ctx->Threads(), type, BinaryPRAUC);
+  }
+}
+
+template <AUCCurve curve>
+std::pair<double, std::uint32_t> RankingAUCCpu(Context const* ctx,
+                                               HostDeviceVector<float> const& preds,
+                                               MetaInfo const& info,
+                                               std::shared_ptr<cuda_impl::DeviceAUCCache>*) {
+  if constexpr (curve == AUCCurve::kPR) {
+    auto labels = info.labels.Data()->ConstHostSpan();
+    if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
+      InvalidLabels();
+    }
+  }
+  return RankingAUC<curve == AUCCurve::kROC>(ctx, preds.ConstHostVector(), info, ctx->Threads());
+}
+
+auto const kRegisterBinaryROCCpu = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCPU, &BinaryAUCCpu<AUCCurve::kROC>};
+auto const kRegisterMultiROCCpu = common::KernelRegistration<MultiAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCPU, &MultiAUCCpu<AUCCurve::kROC>};
+auto const kRegisterRankingROCCpu = common::KernelRegistration<RankingAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCPU, &RankingAUCCpu<AUCCurve::kROC>};
+auto const kRegisterBinaryPRCpu = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCPU, &BinaryAUCCpu<AUCCurve::kPR>};
+auto const kRegisterMultiPRCpu = common::KernelRegistration<MultiAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCPU, &MultiAUCCpu<AUCCurve::kPR>};
+auto const kRegisterRankingPRCpu = common::KernelRegistration<RankingAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCPU, &RankingAUCCpu<AUCCurve::kPR>};
+}  // namespace
+
 template <typename Curve>
 class EvalAUC : public MetricNoCache {
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     if (info.group_ptr_.empty()) {
       CheckRowWeights(info);
     }
     double auc{0};
-    if (ctx_->Device().IsCUDA()) {
-      preds.SetDevice(ctx_->Device());
-      info.labels.SetDevice(ctx_->Device());
-      info.weights_.SetDevice(ctx_->Device());
-    }
     // Use global metadata so empty workers enter the same metric path as nonempty workers.
     std::array<bst_idx_t, 4> meta{info.labels.Size(), preds.Size(), info.labels.Shape(1),
                                   !info.group_ptr_.empty()};
@@ -309,7 +360,7 @@ class EvalAUC : public MetricNoCache {
           CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1);
         }
         CHECK_EQ(info.group_ptr_.back(), info.labels.Shape(0));
-        std::tie(auc, valid_groups) = static_cast<Curve *>(this)->EvalRanking(preds, info);
+        std::tie(auc, valid_groups) = static_cast<Curve*>(this)->EvalRanking(preds, info);
       }
       auto n_groups = info.group_ptr_.empty() ? 0 : info.group_ptr_.size() - 1;
       if (valid_groups != n_groups) {
@@ -326,21 +377,21 @@ class EvalAUC : public MetricNoCache {
         LOG(FATAL) << "AUC and AUCPR do not support multi-target-multi-class classification.";
       }
       CHECK_EQ(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
-      auc = static_cast<Curve *>(this)->EvalMultiLabel(preds, info, n_targets);
+      auc = static_cast<Curve*>(this)->EvalMultiLabel(preds, info, n_targets);
     } else if (n_predts != n_labels) {
       /**
        * multi class
        */
       CHECK_GT(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
       CHECK_EQ(n_predts % n_labels, 0) << "Invalid shape of labels and predictions for AUC.";
-      auc = static_cast<Curve *>(this)->EvalMultiClass(preds, info, n_predts / n_labels);
+      auc = static_cast<Curve*>(this)->EvalMultiClass(preds, info, n_predts / n_labels);
     } else {
       /**
        * binary classification
        */
       double fp{0}, tp{0};
       if (!(preds.Empty() || info.labels.Size() == 0)) {
-        std::tie(fp, tp, auc) = static_cast<Curve *>(this)->EvalBinary(preds, info);
+        std::tie(fp, tp, auc) = static_cast<Curve*>(this)->EvalBinary(preds, info);
       }
       auc = collective::GlobalRatio(ctx_, auc, fp * tp);
       if (!std::isnan(auc)) {
@@ -359,181 +410,66 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::shared_ptr<cuda_impl::DeviceAUCCache> d_cache_;
 
  public:
-  std::pair<double, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
-                                          MetaInfo const &info) {
-    double auc{0};
-    uint32_t valid_groups = 0;
-    auto n_threads = ctx_->Threads();
-    if (ctx_->IsCUDA()) {
-      std::tie(auc, valid_groups) =
-          cuda_impl::RankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
-    } else {
-      std::tie(auc, valid_groups) =
-          RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
-    }
-    return std::make_pair(auc, valid_groups);
+  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const& preds,
+                                                MetaInfo const& info) {
+    return common::DispatchKernel<BinaryAUCKernel<AUCCurve::kROC>>(ctx_, preds, info, &d_cache_);
   }
 
-  double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
-                        size_t n_classes) {
-    double auc{0};
-    auto n_threads = ctx_->Threads();
-    CHECK_NE(n_classes, 0);
-    if (ctx_->IsCUDA()) {
-      auc = cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes,
-                                   MultiAUCType::kMultiClass);
-    } else {
-      auc = MultiAUC(ctx_, predts.ConstHostVector(), info, n_classes, n_threads,
-                     MultiAUCType::kMultiClass, BinaryROCAUC);
-    }
-    return auc;
+  double EvalMultiClass(HostDeviceVector<float> const& preds, MetaInfo const& info,
+                        std::size_t n_classes) {
+    return common::DispatchKernel<MultiAUCKernel<AUCCurve::kROC>>(
+        ctx_, preds, info, &d_cache_, n_classes, MultiAUCType::kMultiClass);
   }
 
-  double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
-                        size_t n_targets) {
-    if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_,
-                                    n_targets, MultiAUCType::kMultiLabel);
-    } else {
-      return MultiAUC(ctx_, predts.ConstHostVector(), info, n_targets, ctx_->Threads(),
-                      MultiAUCType::kMultiLabel, BinaryROCAUC);
-    }
+  double EvalMultiLabel(HostDeviceVector<float> const& preds, MetaInfo const& info,
+                        std::size_t n_targets) {
+    return common::DispatchKernel<MultiAUCKernel<AUCCurve::kROC>>(
+        ctx_, preds, info, &d_cache_, n_targets, MultiAUCType::kMultiLabel);
   }
 
-  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
-                                                MetaInfo const &info) {
-    double fp, tp, auc;
-    if (ctx_->IsCUDA()) {
-      std::tie(fp, tp, auc) =
-          cuda_impl::BinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
-    } else {
-      std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
-                                           info.labels.HostView().Slice(linalg::All(), 0),
-                                           common::OptionalWeights{info.weights_.ConstHostSpan()});
-    }
-    return std::make_tuple(fp, tp, auc);
+  std::pair<double, std::uint32_t> EvalRanking(HostDeviceVector<float> const& preds,
+                                               MetaInfo const& info) {
+    return common::DispatchKernel<RankingAUCKernel<AUCCurve::kROC>>(ctx_, preds, info, &d_cache_);
   }
 
- public:
-  [[nodiscard]] char const *Name() const override { return "auc"; }
+  [[nodiscard]] char const* Name() const override { return "auc"; }
 };
 
 XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
     .describe("Receiver Operating Characteristic Area Under the Curve.")
-    .set_body([](const char *) { return new EvalROCAUC(); });
-
-#if !defined(XGBOOST_USE_CUDA)
-namespace cuda_impl {
-std::tuple<double, double, double> BinaryROCAUC(Context const *, common::Span<float const>,
-                                                MetaInfo const &,
-                                                std::shared_ptr<DeviceAUCCache> *) {
-  common::AssertGPUSupport();
-  return {};
-}
-
-double MultiROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                   std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
-  common::AssertGPUSupport();
-  return 0.0;
-}
-
-std::pair<double, std::uint32_t> RankingAUC(Context const *, common::Span<float const>,
-                                            MetaInfo const &, std::shared_ptr<DeviceAUCCache> *) {
-  common::AssertGPUSupport();
-  return {};
-}
-struct DeviceAUCCache {};
-}  // namespace cuda_impl
-#endif  // !defined(XGBOOST_USE_CUDA)
+    .set_body([](const char*) { return new EvalROCAUC(); });
 
 class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::shared_ptr<cuda_impl::DeviceAUCCache> d_cache_;
 
  public:
-  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
-                                                MetaInfo const &info) {
-    double pr, re, auc;
-    if (ctx_->IsCUDA()) {
-      std::tie(pr, re, auc) =
-          cuda_impl::BinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
-    } else {
-      std::tie(pr, re, auc) =
-          BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
-                      common::OptionalWeights{info.weights_.ConstHostSpan()});
-    }
-    return std::make_tuple(pr, re, auc);
+  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const& preds,
+                                                MetaInfo const& info) {
+    return common::DispatchKernel<BinaryAUCKernel<AUCCurve::kPR>>(ctx_, preds, info, &d_cache_);
   }
 
-  double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
-                        size_t n_classes) {
-    if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes,
-                                   MultiAUCType::kMultiClass);
-    } else {
-      auto n_threads = this->ctx_->Threads();
-      return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads,
-                      MultiAUCType::kMultiClass, BinaryPRAUC);
-    }
+  double EvalMultiClass(HostDeviceVector<float> const& preds, MetaInfo const& info,
+                        std::size_t n_classes) {
+    return common::DispatchKernel<MultiAUCKernel<AUCCurve::kPR>>(
+        ctx_, preds, info, &d_cache_, n_classes, MultiAUCType::kMultiClass);
   }
 
-  double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
-                        size_t n_targets) {
-    if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_targets,
-                                   MultiAUCType::kMultiLabel);
-    } else {
-      return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_targets, ctx_->Threads(),
-                      MultiAUCType::kMultiLabel, BinaryPRAUC);
-    }
+  double EvalMultiLabel(HostDeviceVector<float> const& preds, MetaInfo const& info,
+                        std::size_t n_targets) {
+    return common::DispatchKernel<MultiAUCKernel<AUCCurve::kPR>>(
+        ctx_, preds, info, &d_cache_, n_targets, MultiAUCType::kMultiLabel);
   }
 
-  std::pair<double, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
-                                          MetaInfo const &info) {
-    double auc{0};
-    uint32_t valid_groups = 0;
-    auto n_threads = ctx_->Threads();
-    if (ctx_->IsCUDA()) {
-      std::tie(auc, valid_groups) =
-          cuda_impl::RankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
-    } else {
-      auto labels = info.labels.Data()->ConstHostSpan();
-      if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
-        InvalidLabels();
-      }
-      std::tie(auc, valid_groups) =
-          RankingAUC<false>(ctx_, predts.ConstHostVector(), info, n_threads);
-    }
-    return std::make_pair(auc, valid_groups);
+  std::pair<double, std::uint32_t> EvalRanking(HostDeviceVector<float> const& preds,
+                                               MetaInfo const& info) {
+    return common::DispatchKernel<RankingAUCKernel<AUCCurve::kPR>>(ctx_, preds, info, &d_cache_);
   }
 
- public:
-  [[nodiscard]] const char *Name() const override { return "aucpr"; }
+  [[nodiscard]] char const* Name() const override { return "aucpr"; }
 };
 
 XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .describe("Area under PR curve for both classification and rank.")
-    .set_body([](char const *) { return new EvalPRAUC{}; });
+    .set_body([](char const*) { return new EvalPRAUC{}; });
 
-#if !defined(XGBOOST_USE_CUDA)
-namespace cuda_impl {
-std::tuple<double, double, double> BinaryPRAUC(Context const *, common::Span<float const>,
-                                               MetaInfo const &,
-                                               std::shared_ptr<DeviceAUCCache> *) {
-  common::AssertGPUSupport();
-  return {};
-}
-
-double MultiPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                  std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
-  common::AssertGPUSupport();
-  return {};
-}
-
-std::pair<double, std::uint32_t> RankingPRAUC(Context const *, common::Span<float const>,
-                                              MetaInfo const &, std::shared_ptr<DeviceAUCCache> *) {
-  common::AssertGPUSupport();
-  return {};
-}
-}  // namespace cuda_impl
-#endif
 }  // namespace xgboost::metric
