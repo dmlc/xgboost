@@ -470,6 +470,22 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   auto const n_samples = batch.Size();
   auto const n_features = model.n_features;
 
+  if constexpr (kBlockOfRowsSize > 1) {
+    if (n_samples <= kBlockOfRowsSize) {
+      auto const tree_threads = SmallBatchTreeThreads(model, n_samples, n_threads);
+      if (tree_threads > 1) {
+        common::Range1d const block{0, n_samples};
+        auto fvec_tloc = fvec.ThreadBuffer(block.Size());
+
+        batch.FVecFill(block, n_features, fvec_tloc);
+        PredictSmallBatchByTrees(model, batch.base_rowid, fvec_tloc, out_predt, tree_weights,
+                                 tree_threads);
+        batch.FVecDrop(fvec_tloc);
+        return;
+      }
+    }
+  }
+
   /* Precalculate depth for each tree.
    * These values are required only for the ArrayLayout optimization,
    * so we don't need them if kBlockOfRowsSize == 1. They are equally unused
@@ -490,22 +506,6 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
       });
     }
   }
-  if constexpr (kBlockOfRowsSize > 1) {
-    if (n_samples <= kBlockOfRowsSize) {
-      auto const tree_threads = SmallBatchTreeThreads(model, n_samples, n_threads);
-      if (tree_threads > 1) {
-        common::Range1d const block{0, n_samples};
-        auto fvec_tloc = fvec.ThreadBuffer(block.Size());
-
-        batch.FVecFill(block, n_features, fvec_tloc);
-        PredictSmallBatchByTrees(model, batch.base_rowid, fvec_tloc, out_predt, tree_weights,
-                                 tree_threads);
-        batch.FVecDrop(fvec_tloc);
-        return;
-      }
-    }
-  }
-
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
