@@ -12,7 +12,6 @@
 #include <xgboost/host_device_vector.h>
 
 #include <functional>  // for function
-#include <memory>      // for shared_ptr
 #include <string>
 #include <vector>
 
@@ -54,23 +53,6 @@ class Predictor {
                             gbm::GBTreeModel const& model, bst_tree_t tree_begin,
                             bst_tree_t tree_end = 0,
                             std::vector<float> const* tree_weights_override = nullptr) const = 0;
-
-  /**
-   * \brief Inplace prediction.
-   *
-   * \param           p_fmat                 A proxy DMatrix that contains the data and related
-   *                                         meta info.
-   * \param           model                  The model to predict from.
-   * \param           missing                Missing value in the data.
-   * \param [in,out]  out_preds              The output preds.
-   * \param           tree_begin (Optional) Beginning of boosted trees used for prediction.
-   * \param           tree_end   (Optional) End of booster trees. 0 means do not limit trees.
-   *
-   * \return True if the data can be handled by current predictor, false otherwise.
-   */
-  virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
-                              float missing, HostDeviceVector<float>* out_preds,
-                              bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
 
   /**
    * \brief Creates a new Predictor*.
