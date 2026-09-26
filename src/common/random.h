@@ -139,6 +139,14 @@ class ColumnSampler {
     feature_set_level_.clear();
   }
 
+  /** @brief Tree-wide feature set, without level/node sampling or advancing the RNG.
+   *  @note Call after Init. Contents are valid until Init or Reset.
+   */
+  [[nodiscard]] std::shared_ptr<HostDeviceVector<bst_feature_t> const> GetTreeFeatureSet() const {
+    CHECK(feature_set_tree_);
+    return feature_set_tree_;
+  }
+
   /**
    * @brief Samples a feature set.
    *

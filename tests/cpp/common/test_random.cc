@@ -58,10 +58,49 @@ TEST(ColumnSampler, Test) {
   TestBasic(&ctx);
 }
 
+void TestTreeFeatureSet(Context const* ctx) {
+  ColumnSampler sampler;
+  HostDeviceVector<float> weights;
+  for (bool weighted : {false, true}) {
+    if (weighted) {
+      weights.Resize(128);
+      std::iota(weights.HostVector().begin(), weights.HostVector().end(), 1.0f);
+    }
+    for (auto by_level : {0.5f, 1.0f}) {
+      for (auto by_node : {0.5f, 1.0f}) {
+        sampler.Init(ctx, 128, weights, by_node, by_level, 0.5f);
+        auto rng = ctx->Rng();
+        auto tree_features = sampler.GetTreeFeatureSet()->ConstHostVector();
+        ASSERT_EQ(tree_features.size(), 64);
+        ASSERT_EQ(ctx->Rng(), rng);
+        for (auto depth : {0, 1, 0, 2}) {
+          auto node_features = sampler.GetFeatureSet(ctx, depth)->ConstHostVector();
+          ASSERT_EQ(node_features.size(), 64 * by_level * by_node);
+          ASSERT_TRUE(std::includes(tree_features.begin(), tree_features.end(),
+                                    node_features.begin(), node_features.end()));
+          rng = ctx->Rng();
+          ASSERT_EQ(sampler.GetTreeFeatureSet()->ConstHostVector(), tree_features);
+          ASSERT_EQ(ctx->Rng(), rng);
+        }
+      }
+    }
+  }
+}
+
+TEST(ColumnSampler, TreeFeatureSet) {
+  Context ctx;
+  TestTreeFeatureSet(&ctx);
+}
+
 #if defined(XGBOOST_USE_CUDA)
 TEST(ColumnSampler, GPUTest) {
   auto ctx = MakeCUDACtx(0);
   TestBasic(&ctx);
+}
+
+TEST(ColumnSampler, GPUTreeFeatureSet) {
+  auto ctx = MakeCUDACtx(0);
+  TestTreeFeatureSet(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
