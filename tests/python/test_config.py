@@ -1,5 +1,6 @@
 import multiprocessing
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import List
 
 import pytest
 
@@ -7,8 +8,8 @@ import xgboost as xgb
 
 
 @pytest.mark.parametrize("verbosity_level", [0, 1, 2, 3])
-def test_global_config_verbosity(verbosity_level):
-    def get_current_verbosity():
+def test_global_config_verbosity(verbosity_level: int) -> None:
+    def get_current_verbosity() -> int:
         return xgb.get_config()["verbosity"]
 
     old_verbosity = get_current_verbosity()
@@ -20,8 +21,8 @@ def test_global_config_verbosity(verbosity_level):
 
 
 @pytest.mark.parametrize("use_rmm", [False, True])
-def test_global_config_use_rmm(use_rmm):
-    def get_current_use_rmm_flag():
+def test_global_config_use_rmm(use_rmm: bool) -> None:
+    def get_current_use_rmm_flag() -> bool:
         return xgb.get_config()["use_rmm"]
 
     old_use_rmm_flag = get_current_use_rmm_flag()
@@ -59,9 +60,9 @@ def test_nested_config() -> None:
     assert verbosity == 1
 
 
-def test_thread_safety():
+def test_thread_safety() -> None:
     n_threads = multiprocessing.cpu_count()
-    futures = []
+    futures: List[Future[None]] = []
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
         for i in range(256):
             f = executor.submit(test_nested_config)

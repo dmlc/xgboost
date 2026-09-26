@@ -23,6 +23,8 @@ class TypeCheckPaths:
         "tests/python/test_model_io.py",
         "tests/python/test_ordinal.py",
         "tests/python/test_interaction_constraints.py",
+        "tests/python/test_config.py",
+        "tests/python/test_tree_regularization.py",
         "tests/python-gpu/",
         "tests/test_distributed/test_with_dask/",
         "tests/test_distributed/test_with_spark/test_data.py",
