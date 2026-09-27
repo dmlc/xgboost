@@ -96,6 +96,16 @@ class TestArrowTable:
         assert bst2.feature_names == ["A", "B", "C"]
         assert bst2.feature_types == ["int", "float", "int"]
 
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_arrow_unsupported_dtype(self, DMatrixT):
+        table = pa.table({"a": [1.0, 2.0], "b": ["x", "y"], "c": [1, 2]})
+        with pytest.raises(ValueError, match="Invalid columns:b: string$"):
+            DMatrixT(table)
+
+        table = pa.table({"a": pa.array([1, 2], pa.date32())})
+        with pytest.raises(ValueError, match="Invalid columns:a: date32"):
+            DMatrixT(table)
+
     def test_arrow_survival(self):
         data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
         table = pc.read_csv(data)
