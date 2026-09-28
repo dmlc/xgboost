@@ -889,7 +889,11 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
 
     def is_valid(name: str) -> bool:
         col_type = table.column(name).type
-        return isinstance(col_type, pa.DictionaryType) or col_type in _arrow_dtype()
+        if isinstance(col_type, pa.DictionaryType):
+            return pa.types.is_string(col_type.value_type) or pa.types.is_large_string(
+                col_type.value_type
+            )
+        return col_type in _arrow_dtype()
 
     bad_fields = [
         f"{name}: {table.column(name).type}" for name in names if not is_valid(name)

@@ -106,6 +106,12 @@ class TestArrowTable:
         with pytest.raises(ValueError, match="Invalid columns:a: date32"):
             DMatrixT(table)
 
+        table = pa.table({"a": pa.array([1, 2]).dictionary_encode()})
+        with pytest.raises(
+            ValueError, match="Invalid columns:a: dictionary<values=int64"
+        ):
+            DMatrixT(table, enable_categorical=True)
+
     def test_arrow_survival(self):
         data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
         table = pc.read_csv(data)
