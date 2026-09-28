@@ -16,7 +16,6 @@
 #include "../common/math.h"           // for CheckNAN
 #include "../data/cat_container.h"    // for NoOpAccessor
 #include "../data/gradient_index.h"   // for GHistIndexMatrix
-#include "predict_fn.h"               // for IsNaN
 #include "xgboost/data.h"             // for HostSparsePageView
 #include "xgboost/span.h"             // for Span
 #include "xgboost/tree_model.h"       // for RegTree::FVec
@@ -154,7 +153,7 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
             }
           }
         }
-        if (!IsNaN(fvalue)) {
+        if (!common::CheckNAN(fvalue)) {
           out[fidx] = acc_(fvalue, fidx);
           n_non_missings++;
         }
@@ -182,7 +181,7 @@ class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
     bst_idx_t n_non_missings = 0;
     for (size_t c = 0; c < row.Size(); ++c) {
       auto e = row.GetElement(c);
-      if (missing_ != e.value && !IsNaN(e.value)) {
+      if (missing_ != e.value && !common::CheckNAN(e.value)) {
         auto fvalue = this->acc_(e);
         out[e.column_idx] = fvalue;
         n_non_missings++;
