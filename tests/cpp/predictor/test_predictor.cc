@@ -8,7 +8,6 @@
 #include <xgboost/data.h>                // for DMatrix, BatchIterator, BatchSet, MetaInfo
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json
-#include <xgboost/predictor.h>           // for Predictor
 #include <xgboost/string_view.h>         // for StringView
 
 #include <limits>         // for numeric_limits
@@ -68,8 +67,6 @@ void TestInitOutPredictions(Context const *ctx) {
 }
 
 void TestBasic(DMatrix *dmat, Context const *ctx) {
-  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
-
   size_t const kCols = dmat->Info().num_col_;
 
   LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
@@ -80,7 +77,8 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   // Test predict batch
   HostDeviceVector<float> out_predictions;
   predictor::InitOutPredictions(ctx, dmat->Info(), &out_predictions, model);
-  predictor->PredictBatch(dmat, &out_predictions, model, 0);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat, &out_predictions, model, 0, 0,
+                                                        nullptr);
 
   std::vector<float> &out_predictions_h = out_predictions.HostVector();
   for (size_t i = 0; i < out_predictions.Size(); i++) {
@@ -129,7 +127,6 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
 void TestBatchPredictionWithWeights(Context const *ctx) {
   size_t constexpr kRows = 5, kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
   LearnerModelState mparam{MakeMP(kCols, .0, 1, ctx->Device())};
   auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
@@ -151,7 +148,8 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
 
   HostDeviceVector<float> weighted_predictions;
   predictor::InitOutPredictions(ctx, dmat->Info(), &weighted_predictions, *model);
-  predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat.get(), &weighted_predictions,
+                                                        *model, 0, 0, nullptr);
 
   auto const &h_predt = weighted_predictions.ConstHostVector();
   for (auto v : h_predt) {
@@ -160,12 +158,25 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
 
   HostDeviceVector<float> ranged_predictions;
   predictor::InitOutPredictions(ctx, dmat->Info(), &ranged_predictions, *model);
-  predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat.get(), &ranged_predictions,
+                                                        *model, 1, 2, nullptr);
 
   auto const &h_ranged = ranged_predictions.ConstHostVector();
   for (auto v : h_ranged) {
     ASSERT_EQ(v, 4.0f);
   }
+
+  std::vector<float> override_weights{2.0f, 0.5f};
+  HostDeviceVector<float> override_predictions;
+  predictor::InitOutPredictions(ctx, dmat->Info(), &override_predictions, *model);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat.get(), &override_predictions,
+                                                        *model, 0, 1, &override_weights);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat.get(), &override_predictions,
+                                                        *model, 1, 2, &override_weights);
+  for (auto v : override_predictions.ConstHostVector()) {
+    ASSERT_EQ(v, 4.0f);
+  }
+  EXPECT_EQ(model->weight_drop, (std::vector<float>{0.5f, 2.0f}));
 }
 
 void TestInplacePredictionWithWeights(Context const *ctx) {
@@ -433,6 +444,28 @@ void TestPredictionDeviceAccess() {
   for (size_t i = 0; i < h_cpu.size(); ++i) {
     ASSERT_NEAR(h_cpu[i], h_gpu[i], kRtEps);
   }
+  // A cold training cache must not move host data to CUDA just to initialize predictions.
+  Json saved_model{Object{}};
+  learner->SaveModel(&saved_model);
+  auto host_data = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(false);
+  auto const &page = *host_data->GetBatches<SparsePage>().begin();
+  ASSERT_FALSE(page.data.DeviceCanRead());
+  HostDeviceVector<float> training_predictions;
+  HostDeviceVector<float> inference_predictions;
+  for (bool training : {true, false}) {
+    std::unique_ptr<Learner> restored{Learner::Create({})};
+    restored->LoadModel(saved_model);
+    restored->Configure({{"device", "cuda:0"}});
+    auto *predictions = training ? &training_predictions : &inference_predictions;
+    restored->Predict(host_data, true, predictions, 0, 0, training);
+    EXPECT_EQ(page.data.DeviceCanRead(), !training);
+  }
+  auto const &h_training = training_predictions.ConstHostVector();
+  auto const &h_inference = inference_predictions.ConstHostVector();
+  ASSERT_EQ(h_training.size(), h_inference.size());
+  for (std::size_t i = 0; i < h_training.size(); ++i) {
+    EXPECT_NEAR(h_training[i], h_inference[i], kRtEps);
+  }
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
@@ -474,8 +507,6 @@ void TestCategoricalPrediction(bool use_gpu) {
   gbm::GBTreeModel model(&mparam, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(&ctx)};
-
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
@@ -484,7 +515,8 @@ void TestCategoricalPrediction(bool use_gpu) {
   m->Info().feature_types.HostVector() = types;
 
   predictor::InitOutPredictions(&ctx, m->Info(), &out_predictions, model);
-  predictor->PredictBatch(m.get(), &out_predictions, model, 0);
+  common::DispatchKernel<predictor::PredictBatchKernel>(&ctx, m.get(), &out_predictions, model, 0,
+                                                        0, nullptr);
   auto score = mparam.BaseScore(DeviceOrd::CPU())(0);
   ASSERT_EQ(out_predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.HostVector()[0],
@@ -494,7 +526,8 @@ void TestCategoricalPrediction(bool use_gpu) {
   m = GetDMatrixFromData(row, 1, kCols);
 
   predictor::InitOutPredictions(&ctx, m->Info(), &out_predictions, model);
-  predictor->PredictBatch(m.get(), &out_predictions, model, 0);
+  common::DispatchKernel<predictor::PredictBatchKernel>(&ctx, m.get(), &out_predictions, model, 0,
+                                                        0, nullptr);
   ASSERT_EQ(out_predictions.HostVector()[0], left_weight + score);
 }
 
@@ -621,8 +654,6 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   }
 }
 void TestVectorLeafPrediction(Context const *ctx) {
-  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
-
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
 
@@ -655,7 +686,8 @@ void TestVectorLeafPrediction(Context const *ctx) {
     HostDeviceVector<float> predt_cache;
     predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
     ASSERT_EQ(predt_cache.Size(), kRows * mparam.LeafLength());
-    predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+    common::DispatchKernel<predictor::PredictBatchKernel>(ctx, p_fmat.get(), &predt_cache, model, 0,
+                                                          1, nullptr);
     auto const &h_predt = predt_cache.HostVector();
     for (auto v : h_predt) {
       ASSERT_EQ(v, expected);
@@ -712,7 +744,8 @@ void TestVectorLeafPrediction(Context const *ctx) {
                                                  std::numeric_limits<float>::quiet_NaN(), 0, 256);
 
     predictor::InitOutPredictions(ctx, p_fmat->Info(), &predt_cache, model);
-    predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+    common::DispatchKernel<predictor::PredictBatchKernel>(ctx, p_fmat.get(), &predt_cache, model, 0,
+                                                          1, nullptr);
     auto const &h_predt = predt_cache.HostVector();
     // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
     // during prediction.

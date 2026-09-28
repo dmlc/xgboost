@@ -18,7 +18,6 @@
 #include "../filesystem.h"  // TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/predictor.h"
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
