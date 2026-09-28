@@ -118,8 +118,8 @@ struct DeviceAdapterLoader {
       dh::BlockFill(smem, shared_elements, std::numeric_limits<float>::quiet_NaN());
       __syncthreads();
       if (global_idx < n_samples) {
-        auto beg = global_idx * n_features;
-        auto end = (global_idx + 1) * n_features;
+        auto beg = static_cast<size_t>(global_idx) * n_features;
+        auto end = beg + n_features;
         for (size_t i = beg; i < end; ++i) {
           data::COOTuple const& e = this->batch_.GetElement(i);
           if (is_valid(e)) {
