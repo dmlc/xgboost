@@ -108,9 +108,9 @@ common::KernelRegistration<xgboost::predictor::PredictFromLeafIdsKernel> const
 
 class DeviceModel {
  public:
-  HostDeviceVector<Node> nodes;
-  HostDeviceVector<size_t> first_node_position;
-  HostDeviceVector<int> tree_group;
+  HostDeviceVector<Node> nodes{};
+  HostDeviceVector<size_t> first_node_position{};
+  HostDeviceVector<int> tree_group{};
 
   void SetDevice(DeviceOrd device) {
     nodes.SetDevice(device);
