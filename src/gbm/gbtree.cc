@@ -84,6 +84,21 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
                     });
 }
 
+bool UseCPUPrediction(Context const* ctx, bool is_training, HostDeviceVector<float> const& out_pred,
+                      bst_tree_t n_trees, DMatrix* dmat) {
+  // External-memory pages can be copied incrementally. Only continued training with an
+  // empty prediction cache needs to avoid copying an entire host dataset to the device.
+  if (ctx->IsCPU() || !is_training || !out_pred.Empty() || n_trees == 0 ||
+      !dmat->SingleColBlock()) {
+    return false;
+  }
+
+  auto is_ellpack = dmat->PageExists<EllpackPage>() && !dmat->PageExists<SparsePage>();
+  auto is_from_device = dmat->PageExists<SparsePage>() &&
+                        (*dmat->GetBatches<SparsePage>().begin()).data.DeviceCanRead();
+  return !is_ellpack && !is_from_device;
+}
+
 }  // namespace
 
 std::set<std::string> GBTree::Configure(Args const& cfg) {
@@ -674,7 +689,8 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
   }
 
   std::optional<Context> cpu_ctx;
-  if (UseCPUPrediction(is_training, cache->predictions, p_fmat.get())) {
+  if (UseCPUPrediction(ctx_, is_training, cache->predictions, model_.param.num_trees,
+                       p_fmat.get())) {
     cpu_ctx.emplace(ctx_->MakeCPU());
   }
   auto const* pred_ctx = cpu_ctx ? &*cpu_ctx : ctx_;
@@ -728,21 +744,6 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     CHECK(proxy) << error::InplacePredictProxy();
     LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
   }
-}
-
-bool GBTree::UseCPUPrediction(bool is_training, HostDeviceVector<float> const& out_pred,
-                              DMatrix* dmat) const {
-  // External-memory pages can be copied incrementally. Only continued training with an
-  // empty prediction cache needs to avoid copying an entire host dataset to the device.
-  if (ctx_->IsCPU() || !is_training || !out_pred.Empty() || model_.param.num_trees == 0 ||
-      !dmat->SingleColBlock()) {
-    return false;
-  }
-
-  auto is_ellpack = dmat->PageExists<EllpackPage>() && !dmat->PageExists<SparsePage>();
-  auto is_from_device = dmat->PageExists<SparsePage>() &&
-                        (*dmat->GetBatches<SparsePage>().begin()).data.DeviceCanRead();
-  return !is_ellpack && !is_from_device;
 }
 
 // register the objective functions

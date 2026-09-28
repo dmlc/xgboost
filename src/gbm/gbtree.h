@@ -377,9 +377,6 @@ class GBTree : public GradientBooster {
 
   std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
 
-  [[nodiscard]] bool UseCPUPrediction(bool is_training, HostDeviceVector<float> const& out_pred,
-                                      DMatrix* dmat) const;
-
   // commit new trees all at once
   virtual void CommitModel(TreesOneIter&& new_trees);
 
