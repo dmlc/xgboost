@@ -4,6 +4,7 @@
 #ifndef XGBOOST_PREDICTOR_PREDICTION_KERNEL_H_
 #define XGBOOST_PREDICTOR_PREDICTION_KERNEL_H_
 
+#include <memory>  // for shared_ptr
 #include <vector>  // for vector
 
 #include "xgboost/base.h"    // for bst_node_t, bst_tree_t
@@ -22,6 +23,18 @@ struct GBTreeModel;
 }  // namespace gbm
 
 namespace predictor {
+/**
+ * \brief Initialize predictions and predict directly from a proxy's data adapter.
+ *
+ * Zero tree_end selects all trees. Uses model tree weights and returns false for
+ * an unsupported adapter type. Backends without an implementation fall back to CPU.
+ */
+struct InplacePredictKernel {
+  using Signature = bool(Context const*, std::shared_ptr<DMatrix>, gbm::GBTreeModel const&,
+                         float missing, HostDeviceVector<float>*, bst_tree_t tree_begin,
+                         bst_tree_t tree_end);
+};
+
 /** \brief Initialize predictions from base margins or the model base score. */
 void InitOutPredictions(Context const* ctx, MetaInfo const& info,
                         HostDeviceVector<float>* out_preds, gbm::GBTreeModel const& model);

@@ -259,13 +259,6 @@ class Predictor : public xgboost::Predictor {
     }
   }
 
-  bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
-                      HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
-                      bst_tree_t tree_end) const override {
-    LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
-    return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
-  }
-
  private:
   // 8KB fits EU registers
   static constexpr int kMaxFeatureBufferSize = 2048;

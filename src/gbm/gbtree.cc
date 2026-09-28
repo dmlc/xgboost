@@ -716,9 +716,8 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     return;
   }
 
-  auto predictor = this->CreatePredictor(false);
-  bool known_type =
-      predictor->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end);
+  bool known_type = common::DispatchKernel<predictor::InplacePredictKernel>(
+      ctx_, p_m, model_, missing, out_preds, tree_begin, tree_end);
   if (!known_type) {
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
