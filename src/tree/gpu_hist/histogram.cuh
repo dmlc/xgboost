@@ -153,10 +153,10 @@ class DeviceHistogramStorage {
   }
 };
 
-struct DeviceHistogramBuilderImpl;
+struct HistKernel;
 
 class DeviceHistogramBuilder {
-  std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;
+  std::unique_ptr<HistKernel> p_impl_;
   DeviceHistogramStorage hist_;
   common::Monitor monitor_;
 

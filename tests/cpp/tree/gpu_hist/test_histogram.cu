@@ -610,8 +610,8 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
-  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg,
-                         input.gpair.View(ctx.Device()), ridxs, hists);
+  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg, input.gpair.View(ctx.Device()),
+                         ridxs, hists);
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     std::vector<GradientPairInt64> got(hists[i].size());
