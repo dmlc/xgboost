@@ -12,7 +12,7 @@
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "feature_groups.cuh"               // for FeatureGroupsAccessor
+#include "feature_groups.cuh"               // for FeatureGroups
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
@@ -168,7 +168,7 @@ class DeviceHistogramBuilder {
              bool force_global_memory);
   // Build histogram for single target and single node, a wrapper of the batched version.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
                       common::Span<GradientPairInt64> histogram);
@@ -179,7 +179,7 @@ class DeviceHistogramBuilder {
    * @param hists One histogram for each node, must match `ridxs`.
    */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
                       std::vector<common::Span<std::uint32_t const>> const& ridxs,
                       std::vector<common::Span<GradientPairInt64>> const& hists);
