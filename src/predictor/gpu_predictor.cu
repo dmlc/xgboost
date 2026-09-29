@@ -150,9 +150,8 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader*
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
     float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
-    bool is_missing = has_missing && common::CheckNAN(fvalue);
-    auto next = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing,
-                                                          tree.GetCategoriesMatrix());
+    auto next =
+        GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, tree.GetCategoriesMatrix());
     assert(nidx < next);
     nidx = next;
   }

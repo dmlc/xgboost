@@ -99,8 +99,7 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
   auto const &cats = tree.GetCategoriesMatrix();
   while (!tree.IsLeaf(nidx)) {
     split_index = tree.SplitIndex(nidx);
-    nidx = predictor::GetNextNode<true, true>(tree, nidx, feats.GetFvalue(split_index),
-                                              feats.IsMissing(split_index), cats);
+    nidx = predictor::GetNextNode<true, true>(tree, nidx, feats.GetFvalue(split_index), cats);
     auto new_value = (*mean_values)[nidx];
     (*out_contribs)[split_index] += new_value - node_value;
     node_value = new_value;
@@ -354,8 +353,7 @@ struct QuadratureTreeShapRunner {
   [[nodiscard]] bool EvaluateGoesLeft(bst_node_t nidx) const {
     auto split_index = tree.SplitIndex(nidx);
     auto const &cats = tree.GetCategoriesMatrix();
-    auto next = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index),
-                                                   feat.IsMissing(split_index), cats);
+    auto next = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index), cats);
     return next == tree.LeftChild(nidx);
   }
 
