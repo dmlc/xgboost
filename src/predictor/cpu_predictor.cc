@@ -67,8 +67,7 @@ bst_node_t GetLeafIndex(TreeView const &tree, const RegTree::FVec &feat,
   while (!tree.IsLeaf(nidx)) {
     bst_feature_t split_index = tree.SplitIndex(nidx);
     auto fvalue = feat.GetFvalue(split_index);
-    nidx = GetNextNode<has_missing, has_categorical>(
-        tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
+    nidx = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, cats);
   }
   return nidx;
 }

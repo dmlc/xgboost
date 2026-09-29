@@ -396,12 +396,6 @@ class RegTree : public Model {
      * \return the i-th feature value
      */
     [[nodiscard]] bst_float GetFvalue(size_t i) const;
-    /*!
-     * \brief check whether i-th entry is missing
-     * \param i feature index.
-     * \return whether i-th value is missing.
-     */
-    [[nodiscard]] bool IsMissing(size_t i) const;
     [[nodiscard]] bool HasMissing() const;
     void HasMissing(bool has_missing) { this->has_missing_ = has_missing; }
 
@@ -572,19 +566,6 @@ inline void RegTree::FVec::Drop() { this->Init(this->Size()); }
 inline size_t RegTree::FVec::Size() const { return data_.size(); }
 
 inline float RegTree::FVec::GetFvalue(size_t i) const { return data_[i]; }
-
-inline bool RegTree::FVec::IsMissing(size_t i) const {
-#if defined(_MSC_VER)
-  // MSVC lowers std::isnan to an out-of-line CRT call, which dominates tree traversal on
-  // data with missing values. Test the IEEE-754 bits instead: NaN has an all-ones exponent
-  // and a non-zero mantissa.
-  std::uint32_t bits;
-  std::memcpy(&bits, &data_[i], sizeof(bits));
-  return (bits & 0x7fffffffu) > 0x7f800000u;
-#else
-  return std::isnan(data_[i]);
-#endif  // defined(_MSC_VER)
-}
 
 inline bool RegTree::FVec::HasMissing() const { return has_missing_; }
 

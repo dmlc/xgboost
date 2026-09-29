@@ -126,7 +126,7 @@ class TreeRefresher : public TreeUpdater {
     while (!sc_tree.IsLeaf(pid)) {
       unsigned split_index = sc_tree.SplitIndex(pid);
       pid = predictor::GetNextNode<true, true>(sc_tree, pid, feat.GetFvalue(split_index),
-                                               feat.IsMissing(split_index), sc_tree.cats);
+                                               sc_tree.cats);
       gstats[pid].Add(gpair[ridx]);
     }
     return pid;
