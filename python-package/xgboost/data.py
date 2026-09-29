@@ -887,6 +887,23 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
     table: "pa.Table" = data
     names = table.column_names
 
+    def is_valid(name: str) -> bool:
+        col_type = table.column(name).type
+        if isinstance(col_type, pa.DictionaryType):
+            return pa.types.is_string(col_type.value_type) or pa.types.is_large_string(
+                col_type.value_type
+            )
+        return col_type in _arrow_dtype()
+
+    bad_fields = [
+        f"{name}: {table.column(name).type}" for name in names if not is_valid(name)
+    ]
+    if bad_fields:
+        raise ValueError(
+            "DataFrame.dtypes for data must be int, float, bool or category."
+            " Invalid columns:" + ", ".join(bad_fields)
+        )
+
     def map_type(name: str) -> str:
         col = table.column(name)
         if isinstance(col.type, pa.DictionaryType):
