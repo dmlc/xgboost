@@ -309,7 +309,8 @@ __device__ HistSegment FindSegment(bst_idx_t row_stride,
  * @param d_ridx_iters    Pointer to row index spans. One span per node.
  * @param sizes_csum      Cumulative sum of the number of rows in each node.
  * @param node_hists      Pointer to histograms. One histogram per node.
- * @param blk_ptr         The first entry of each block for a target
+ * @param blk_ptr         The first entry of each block for a target, followed by the end of
+ *                        the last block.
  *
  * The entries of all (node, feature group) segments are concatenated in this order, and
  * block `i` processes the entries in `[blk_ptr[i], blk_ptr[i + 1])` for one target. The
@@ -393,7 +394,7 @@ struct HistKernel {
    * first.
    *
    * @param n_items                    The number of items for each target, including the
-   *                                   padding.
+   *                                   cost of the flushes.
    * @param n_resident_blks_per_target The number of blocks for each target that the device
    *                                   can run concurrently.
    *
@@ -423,6 +424,7 @@ struct HistKernel {
    *
    * @param h_sizes_csum Cumulative sum of the number of rows in each node.
    * @param h_fs         Feature segments of the feature groups.
+   * @param n_items      The number of items for each target, must match the segments.
    *
    * @return The first entry of each block for a target, followed by the end of the last
    *         block.
@@ -430,11 +432,11 @@ struct HistKernel {
   template <typename Policy>
   static std::vector<std::size_t> ItemsToEntries(std::vector<std::size_t> const& h_sizes_csum,
                                                  common::Span<bst_feature_t const> h_fs,
-                                                 bst_idx_t row_stride, bst_idx_t n_items_per_blk,
+                                                 bst_idx_t row_stride, bst_idx_t n_items,
+                                                 bst_idx_t n_items_per_blk,
                                                  std::size_t n_blks_per_target) {
     constexpr bst_idx_t kSegCost = Policy::kSegmentCost;
-    // The sparse layout has a single group.
-    bst_feature_t const n_groups = Policy::kCompressed ? h_fs.size() - 1 : 1;
+    bst_feature_t const n_groups = h_fs.size() - 1;
     std::vector<std::size_t> blk_ptr;
     blk_ptr.reserve(n_blks_per_target + 1);
     // The first item and the first entry of the current segment.
@@ -456,6 +458,7 @@ struct HistKernel {
         entry_beg += n_entries;
       }
     }
+    CHECK_EQ(seg_beg, n_items);
     CHECK_EQ(blk_ptr.size(), n_blks_per_target);
     blk_ptr.push_back(entry_beg);
     return blk_ptr;
@@ -498,11 +501,11 @@ struct HistKernel {
         force_global{force_global} {}
 
   template <bool kDense, bool kCompressed, typename Accessor, typename RidxIterSpan>
-  void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
-                         FeatureGroups const& h_feature_groups,
-                         linalg::MatrixView<GradientPairInt64 const> gpair,
-                         std::vector<RidxIterSpan> const& h_ridx_iters,
-                         std::vector<common::Span<GradientPairInt64>> const& h_hists) {
+  void DispatchHist(Context const* ctx, Accessor const& matrix,
+                    FeatureGroups const& h_feature_groups,
+                    linalg::MatrixView<GradientPairInt64 const> gpair,
+                    std::vector<RidxIterSpan> const& h_ridx_iters,
+                    std::vector<common::Span<GradientPairInt64>> const& h_hists) {
     CHECK(gpair.FContiguous());
     CHECK_EQ(h_ridx_iters.size(), h_hists.size());
     auto feature_groups = h_feature_groups.DeviceAccessor(ctx->Device());
@@ -538,7 +541,6 @@ struct HistKernel {
       using Policy = common::GetValueT<decltype(policy)>;
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
-      // Must match `ItemsToEntries`.
       bst_idx_t n_segments = (h_sizes_csum.size() - 1) * feature_groups.NumGroups();
       bst_idx_t n_items =
           h_sizes_csum.back() * matrix.row_stride + n_segments * Policy::kSegmentCost;
@@ -549,7 +551,7 @@ struct HistKernel {
       CHECK_LE(n_blks, std::numeric_limits<std::uint32_t>::max());
       auto h_blk_ptr =
           ItemsToEntries<Policy>(h_sizes_csum, h_feature_groups.feature_segments.ConstHostSpan(),
-                                 matrix.row_stride, n_items_per_blk, n_blks_per_target);
+                                 matrix.row_stride, n_items, n_items_per_blk, n_blks_per_target);
 
       // Copy the row counts and the block pointers together.
       std::vector<std::size_t> h_offsets{h_sizes_csum};
@@ -581,79 +583,43 @@ struct HistKernel {
     }
   }
 
-  template <typename Accessor, typename... Args>
-  void Dispatch(Context const* ctx, Accessor const& matrix, Args&&... args) {
-    if (matrix.IsDense()) {
-      DispatchHistShmem<true, true>(ctx, matrix, std::forward<Args>(args)...);
-    } else if (matrix.IsDenseCompressed()) {
-      DispatchHistShmem<false, true>(ctx, matrix, std::forward<Args>(args)...);
-    } else {
-      DispatchHistShmem<false, false>(ctx, matrix, std::forward<Args>(args)...);
-    }
-  }
-};
-
-template <typename Accessor>
-class DeviceHistogramDispatchAccessor {
-  std::unique_ptr<HistKernel> kernel_{nullptr};
-
- public:
-  void Reset(Context const* ctx, bool force_global_memory) {
-    this->kernel_ = std::make_unique<HistKernel>(ctx, force_global_memory);
-  }
-
+  // Dispatch the layout of the matrix and the type of the row index.
+  template <typename Accessor>
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
                       FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
                       std::vector<common::Span<cuda_impl::RowIndexT const>> const& ridxs,
                       std::vector<common::Span<GradientPairInt64>> const& hists) {
+    auto dispatch = [&](auto const& ridx_iters) {
+      if (matrix.IsDense()) {
+        this->DispatchHist<true, true>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+      } else if (matrix.IsDenseCompressed()) {
+        this->DispatchHist<false, true>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+      } else {
+        this->DispatchHist<false, false>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+      }
+    };
     if (ridxs.size() == 1 && ridxs.front().size() == matrix.n_rows) {
       // Special optimization for the root node, the row index is the identity mapping.
       using RidxIter = dh::counting_iterator<cuda_impl::RowIndexT>;
       CHECK_LT(matrix.base_rowid, std::numeric_limits<cuda_impl::RowIndexT>::max());
-      std::vector<common::IterSpan<RidxIter>> ridx_iters{common::IterSpan{
+      dispatch(std::vector<common::IterSpan<RidxIter>>{common::IterSpan{
           dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
-          matrix.n_rows}};
-      this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+          matrix.n_rows}});
     } else {
-      this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs, hists);
+      dispatch(ridxs);
     }
   }
 };
 
-// Dispatch between single buffer accessor and double buffer accessor.
-struct DeviceHistogramBuilderImpl {
-  DeviceHistogramDispatchAccessor<EllpackDeviceAccessor> simpl;
-  DeviceHistogramDispatchAccessor<DoubleEllpackAccessor> dimpl;
-
-  template <typename... Args>
-  void Reset(Args&&... args) {
-    this->simpl.Reset(std::forward<Args>(args)...);
-    this->dimpl.Reset(std::forward<Args>(args)...);
-  }
-
-  template <typename Accessor, typename... Args>
-  void BuildHistogram(Context const* ctx, Accessor const& matrix, Args&&... args) {
-    if constexpr (std::is_same_v<Accessor, EllpackDeviceAccessor>) {
-      this->simpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
-    } else {
-      static_assert(std::is_same_v<Accessor, DoubleEllpackAccessor>);
-      this->dimpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
-    }
-  }
-};
-
-DeviceHistogramBuilder::DeviceHistogramBuilder()
-    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
-  monitor_.Init(__func__);
-}
+DeviceHistogramBuilder::DeviceHistogramBuilder() { monitor_.Init(__func__); }
 
 DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
 
 void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
                                    bst_bin_t n_total_bins, bool force_global_memory) {
   this->monitor_.Start(__func__);
-  this->p_impl_->Reset(ctx, force_global_memory);
+  this->p_impl_ = std::make_unique<HistKernel>(ctx, force_global_memory);
   this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
   this->monitor_.Stop(__func__);
 }
