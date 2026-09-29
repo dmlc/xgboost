@@ -19,16 +19,17 @@
 
 namespace xgboost::tree {
 namespace {
+/**
+ * @brief The index of an entry in `matrix.gidx_iter`.
+ *
+ * Each Ellpack row has `row_stride` entries, and `ridx` is global while the batch starts at
+ * `base_rowid`. With the dense layout (`kCompressed`), the entries of a row are its
+ * features, and `fidx` is a feature index. With the sparse layout, `fidx` is an entry in the
+ * padded row, and the bin stored there identifies the feature.
+ */
 template <typename IterT>
 XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
-  // # Row index local to each batch
-  // ridx_local = ridx - base_rowid
-  // # Starting entry index for this row in the matrix
-  // entry_idx = ridx_local * row_stride
-  // # Final index, `fidx` is the column in the row, the caller resolves it from the index
-  // # local to the feature group.
-  // entry_idx += fidx
   return (ridx - matrix.base_rowid) * matrix.row_stride + fidx;
 }
 }  // anonymous namespace
@@ -98,12 +99,14 @@ struct StHistBound {
   static constexpr std::int32_t kBlockThreads = 1024;
 };
 
-// The multi-target tuning is for full occupancy.
-constexpr std::int32_t kMaxThreadsPerSm = MtHistBound::kBlockThreads * MtHistBound::kMinBlocks;
-// As many blocks as the threads of an SM allow, asking for more only tightens the register
-// cap. Must match `HistMinBlocks` on the host.
-constexpr std::int32_t kStMinBlocks = std::max(1, kMaxThreadsPerSm / StHistBound::kBlockThreads);
-using StHistDeviceBound = HistTuning<StHistBound::kBlockThreads, kStMinBlocks>;
+// The number of co-resident single-target blocks: as many as the threads of an SM allow,
+// asking for more only tightens the register cap. The multi-target tuning of the arch is for
+// full occupancy, so it has the threads of an SM.
+template <typename Arch>
+constexpr std::int32_t StMinBlocks() {
+  return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistBound::kBlockThreads);
+}
+using StHistDeviceBound = HistTuning<StHistBound::kBlockThreads, StMinBlocks<MtHistBound>()>;
 
 template <typename HistArchPolicy, std::int32_t ItemsPerThread, bool Dense, bool Compressed,
           bool SharedMem>
@@ -125,20 +128,19 @@ template <typename Policy>
 using HistBound = std::conditional_t<Policy::kSingleTarget, StHistDeviceBound, MtHistBound>;
 
 template <typename Fn>
-void DispatchCudaSm(std::int32_t device, Fn&& fn) {
+decltype(auto) DispatchCudaSm(std::int32_t device, Fn&& fn) {
   std::int32_t version = 0;
   dh::safe_cuda(cub::SmVersion(version, device));
   if (version >= 1100) {
-    fn(HistSm110{});
+    return fn(HistSm110{});
   } else if (version >= 900) {
-    fn(HistSm90{});
+    return fn(HistSm90{});
   } else if (version >= 860) {
-    fn(HistSm86{});
+    return fn(HistSm86{});
   } else if (version >= 800) {
-    fn(HistSm80{});
-  } else {
-    fn(HistSm75{});
+    return fn(HistSm80{});
   }
+  return fn(HistSm75{});
 }
 
 // Only sm_90 and sm_100 reach the cap, and a larger budget (113KB) is slower on H200.
@@ -150,8 +152,7 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
  * @brief The shared memory budget for a block when `min_blocks` blocks are co-resident.
  *
  * The launch bounds cap the registers so that `min_blocks` blocks fit an SM, the shared
- * memory of the SM is split between the same number of blocks. A smaller budget requires
- * more feature groups, a larger one costs a co-resident block.
+ * memory of the SM is split between the same number of blocks.
  */
 [[nodiscard]] std::size_t HistShmemBytes(std::int32_t device, std::int32_t min_blocks) {
   CHECK_GT(min_blocks, 0);
@@ -163,32 +164,23 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
 
   // Each block is additionally charged a fixed driver reservation. Round down to the
   // allocation granularity, otherwise the last block does not fit.
-  auto per_block =
+  auto n_bytes_per_block =
       (smem_per_sm / min_blocks / kShmemAllocGranularity) * kShmemAllocGranularity - reserved;
-  CHECK_GT(per_block, 0);
-  return std::min({static_cast<std::size_t>(per_block), optin, kMaxShmemBytes});
-}
-
-// Host version of `kStMinBlocks`.
-[[nodiscard]] std::int32_t HistMinBlocks(std::int32_t device, std::int32_t block_threads) {
-  std::int32_t max_threads_per_sm = 0;
-  dh::safe_cuda(
-      cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, device));
-  return std::max(1, max_threads_per_sm / block_threads);
+  CHECK_GT(n_bytes_per_block, 0);
+  return std::min({static_cast<std::size_t>(n_bytes_per_block), optin, kMaxShmemBytes});
 }
 }  // anonymous namespace
 
 std::size_t DftStHistShmemBytes(std::int32_t device) {
-  return HistShmemBytes(device, HistMinBlocks(device, StHistBound::kBlockThreads));
+  return DispatchCudaSm(device, [&](auto arch) {
+    return HistShmemBytes(device, StMinBlocks<common::GetValueT<decltype(arch)>>());
+  });
 }
 
 std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  std::size_t bytes = 0;
-  DispatchCudaSm(device, [&](auto arch) {
-    using Arch = common::GetValueT<decltype(arch)>;
-    bytes = HistShmemBytes(device, Arch::kMinBlocks);
+  return DispatchCudaSm(device, [&](auto arch) {
+    return HistShmemBytes(device, common::GetValueT<decltype(arch)>::kMinBlocks);
   });
-  return bytes;
 }
 
 namespace {
@@ -263,6 +255,9 @@ struct HistSegment {
 
 // The largest index `i` in [0, n) with `begin(i) <= pos`, `begin` must be non-decreasing.
 // Taking the largest index skips empty entries.
+//
+// Same as `std::upper_bound() - 1`. The branchy `upper_bound` of thrust and libcu++ adds
+// local memory accesses to the accumulation loop of some kernels on sm_80 and sm_90.
 template <typename Fn>
 XGBOOST_DEV_INLINE std::size_t UpperBoundIdx(std::size_t n, bst_idx_t pos, Fn&& begin) {
   std::size_t base = 0;
@@ -282,19 +277,18 @@ XGBOOST_DEV_INLINE HistSegment FindSegment(Accessor const& matrix,
                                            common::Span<std::size_t const> sizes_csum,
                                            bst_idx_t pos, bst_idx_t last) {
   constexpr bst_idx_t kSegCost = Policy::kSegmentCost;
-  auto const n_groups = feature_groups.NumGroups();
+  // The sparse layout has a single group, replace the variable with a constant here.
+  auto const n_groups = Policy::kCompressed ? feature_groups.NumGroups() : 1;
   auto const* XGBOOST_RESTRICT p_sizes = sizes_csum.data();
-  // Number of items in a row. Without compression, each group scans the entire row.
-  bst_idx_t const row_items =
-      Policy::kCompressed ? matrix.row_stride : matrix.row_stride * n_groups;
 
+  // The groups of a node split the entries of its rows.
   HistSegment seg;
   seg.nidx_in_set = UpperBoundIdx(sizes_csum.size() - 1, pos, [&](std::size_t i) {
-    return p_sizes[i] * row_items + i * n_groups * kSegCost;
+    return p_sizes[i] * matrix.row_stride + i * n_groups * kSegCost;
   });
   auto nidx = seg.nidx_in_set;
   bst_idx_t const n_rows = p_sizes[nidx + 1] - p_sizes[nidx];
-  bst_idx_t offset = pos - (p_sizes[nidx] * row_items + nidx * n_groups * kSegCost);
+  bst_idx_t offset = pos - (p_sizes[nidx] * matrix.row_stride + nidx * n_groups * kSegCost);
   bst_idx_t group_size;
   if constexpr (Policy::kCompressed) {
     auto const* XGBOOST_RESTRICT p_fs = feature_groups.feature_segments.data();
@@ -305,9 +299,8 @@ XGBOOST_DEV_INLINE HistSegment FindSegment(Accessor const& matrix,
     offset -= group_begin(seg.gidx);
     group_size = p_fs[seg.gidx + 1] - p_fs[seg.gidx];
   } else {
+    seg.gidx = 0;
     group_size = matrix.row_stride;
-    seg.gidx = offset / (n_rows * group_size + kSegCost);
-    offset -= seg.gidx * (n_rows * group_size + kSegCost);
   }
   bst_idx_t const n_valid = n_rows * group_size;
   seg.begin = offset;
@@ -479,6 +472,9 @@ struct HistKernel {
                          std::vector<common::Span<GradientPairInt64>> const& h_hists) {
     CHECK(gpair.FContiguous());
     CHECK_EQ(h_ridx_iters.size(), h_hists.size());
+    // The kernel scans the entire row for sparse data, it doesn't filter out the bins of
+    // other groups.
+    CHECK(kCompressed || feature_groups.NumGroups() == 1);
     auto n_samples = gpair.Shape(0);
     auto n_targets = gpair.Shape(1);
     auto d_gpair = gpair.Values().data();
@@ -510,10 +506,9 @@ struct HistKernel {
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blocks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       // Must match the kernel.
-      bst_idx_t row_items =
-          Policy::kCompressed ? matrix.row_stride : matrix.row_stride * feature_groups.NumGroups();
       bst_idx_t n_segments = (h_sizes_csum.size() - 1) * feature_groups.NumGroups();
-      bst_idx_t n_items = h_sizes_csum.back() * row_items + n_segments * Policy::kSegmentCost;
+      bst_idx_t n_items =
+          h_sizes_csum.back() * matrix.row_stride + n_segments * Policy::kSegmentCost;
       // One block for each target in a range.
       auto n_resident_ranges = std::max<std::size_t>(n_blocks_per_mp * n_mps / n_targets, 1);
       auto [items_per_block, n_ranges] = SliceItems<Policy>(n_items, n_resident_ranges);
@@ -526,22 +521,20 @@ struct HistKernel {
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
-    // Single target maximizes the number of threads, multi-target tunes for occupancy.
-    auto dispatch_arch = [&](auto&& fn) {
-      if (n_targets == 1) {
-        fn(StHistBound{});
-      } else {
-        DispatchCudaSm(ctx->Ordinal(), fn);
-      }
-    };
-    dispatch_arch([&](auto arch) {
+    auto launch_arch = [&](auto arch) {
       using Arch = common::GetValueT<decltype(arch)>;
       if (use_shared) {
         launch(HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>{});
       } else {
         launch(HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>{});
       }
-    });
+    };
+    // Single target maximizes the number of threads, multi-target tunes for occupancy.
+    if (n_targets == 1) {
+      launch_arch(StHistBound{});
+    } else {
+      DispatchCudaSm(ctx->Ordinal(), launch_arch);
+    }
   }
 
   template <typename Accessor, typename... Args>
