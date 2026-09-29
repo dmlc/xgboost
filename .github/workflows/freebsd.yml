@@ -25,7 +25,7 @@ jobs:
           submodules: 'true'
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@v1.5.7
+        uses: vmactions/freebsd-vm@v1.5.8
         with:
           usesh: true
           prepare: |
