@@ -117,7 +117,8 @@ struct HistPolicy : public HistArchPolicy {
   static constexpr bool kDense = Dense;
   static constexpr bool kCompressed = Compressed;
   static constexpr bool kSharedMem = SharedMem;
-  // The cost of zeroing and flushing the privatized histogram for a segment, in items.
+  // An approximation of the cost (time) of zeroing and flushing the privatized histogram
+  // for a segment, modeled as items.
   static constexpr std::int32_t kSegmentCost = SharedMem ? kTileSize : 0;
   static constexpr bool kSingleTarget = std::is_same_v<HistArchPolicy, StHistBound>;
 };
@@ -184,7 +185,6 @@ std::size_t DftMtHistShmemBytes(std::int32_t device) {
 }
 
 namespace {
-
 __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
   static_assert(sizeof(int4) == sizeof(GradientPairInt64));
   auto g = *reinterpret_cast<int4 const*>(gpairs);
@@ -318,13 +318,13 @@ XGBOOST_DEV_INLINE HistSegment FindSegment(Accessor const& matrix,
  * @param d_ridx_iters    Pointer to row index spans. One span per node.
  * @param sizes_csum      Cumulative sum of the number of rows in each node.
  * @param node_hists      Pointer to histograms. One histogram per node.
- * @param items_per_block The number of items processed by each block.
+ * @param n_items_per_blk The number of items processed by each block.
  * @param n_items         The total number of items for each target.
  *
  * The items of all (node, feature group) segments are concatenated in this order, and each
- * block processes a contiguous range of items for one target. The block flushes its
- * privatized histogram once for each segment in its range. The blocks of all targets for the
- * same range are adjacent, they run concurrently and share the bin indices read in L2.
+ * block processes `n_items_per_blk` contiguous items for one target. The block flushes its
+ * privatized histogram once for each segment in its items. The blocks of all targets for the
+ * same items are adjacent, they run concurrently and share the bin indices read in L2.
  *
  * Each segment is padded with the cost of its flush. Otherwise, a block can receive many
  * small segments and flush them sequentially while other blocks are idle.
@@ -340,7 +340,7 @@ __global__ __launch_bounds__(
                                                             node_hists,
                                                         GradientPairInt64 const* d_gpair,
                                                         bst_idx_t n_samples, bst_target_t n_targets,
-                                                        bst_idx_t items_per_block,
+                                                        bst_idx_t n_items_per_blk,
                                                         bst_idx_t n_items) {
   if constexpr (Policy::kSingleTarget) {
     // Constant propagation removes the target indexing and saves registers.
@@ -352,8 +352,8 @@ __global__ __launch_bounds__(
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
 
   auto find_segment = [&](bst_idx_t pos) {
-    // The end of the range for this block.
-    bst_idx_t last = cuda::std::min(pos - pos % items_per_block + items_per_block, n_items);
+    // The end of the items for this block.
+    bst_idx_t last = cuda::std::min(pos - pos % n_items_per_blk + n_items_per_blk, n_items);
     return FindSegment<Policy>(matrix, feature_groups, sizes_csum, pos, last);
   };
   bst_target_t const target_idx = blockIdx.x % n_targets;
@@ -366,17 +366,16 @@ __global__ __launch_bounds__(
     return gmem_hist;
   };
 
-  // The block ends its range at the next multiple of `items_per_block`. The position is the
-  // only state carried between segments, `volatile` keeps it out of the registers during
-  // the accumulation.
-  volatile bst_idx_t pos = (blockIdx.x / n_targets) * items_per_block;
+  // The first item of the block. The block ends at the next multiple of `n_items_per_blk`.
+  // `volatile` keeps the only long-lived position out of the registers
+  // during the accumulation.
+  volatile bst_idx_t pos = (blockIdx.x / n_targets) * n_items_per_blk;
   do {
     auto seg = find_segment(pos);
     if (seg.begin < seg.end) {
       auto group = feature_groups[seg.gidx];
       if constexpr (Policy::kSharedMem) {
-        // Each thread zeroes the same bins it flushes, no barrier is needed after the flush
-        // of the previous segment.
+        // Each thread zeroes the same bins it flushes, no barrier is needed.
         dh::BlockFill(smem_hist, group.num_bins, GradientPairInt64{});
         __syncthreads();
       }
@@ -396,37 +395,38 @@ __global__ __launch_bounds__(
       }
     }
     pos += seg.step;
-  } while (pos < n_items && pos % items_per_block != 0);
+  } while (pos < n_items && pos % n_items_per_blk != 0);
 }
 
 // Dispatcher for the histogram kernel.
 struct HistKernel {
   /**
-   * @brief Split the items into equal ranges of whole tiles, one range for each block of a
-   *        target.
+   * @brief Split the items of a target into equal parts of whole tiles, one for each block.
    *
    * A block needs enough tiles to amortize the zeroing and flushing of its histogram, while
    * multiple waves of blocks balance the load between SMs. Small inputs fill the device
    * first.
    *
-   * @param n_items           The number of items for each target, including the padding.
-   * @param n_resident_ranges The number of ranges that the device can run concurrently.
+   * @param n_items                    The number of items for each target, including the
+   *                                   padding.
+   * @param n_resident_blks_per_target The number of blocks for each target that the device
+   *                                   can run concurrently.
    *
-   * @return The number of items for each range and the number of ranges.
+   * @return The number of items for each block and the number of blocks for each target.
    */
   template <typename Policy>
-  static auto SliceItems(bst_idx_t n_items, std::size_t n_resident_ranges) {
+  static auto SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target) {
     CHECK_GT(n_items, 0);
-    CHECK_GT(n_resident_ranges, 0);
+    CHECK_GT(n_resident_blks_per_target, 0);
     constexpr std::size_t kMaxWaves = 32;
     constexpr std::size_t kMinTiles = 32;
     auto n_tiles = common::DivRoundUp(n_items, Policy::kTileSize);
-    auto min_tiles = std::min(kMinTiles, common::DivRoundUp(n_tiles, n_resident_ranges));
-    auto tiles_per_range =
-        std::max(common::DivRoundUp(n_tiles, n_resident_ranges * kMaxWaves), min_tiles);
-    auto n_ranges = common::DivRoundUp(n_tiles, tiles_per_range);
-    return std::make_pair(static_cast<bst_idx_t>(tiles_per_range * Policy::kTileSize),
-                          static_cast<std::uint64_t>(n_ranges));
+    auto min_tiles = std::min(kMinTiles, common::DivRoundUp(n_tiles, n_resident_blks_per_target));
+    auto n_tiles_per_blk =
+        std::max(common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMaxWaves), min_tiles);
+    auto n_blks_per_target = common::DivRoundUp(n_tiles, n_tiles_per_blk);
+    return std::make_pair(static_cast<bst_idx_t>(n_tiles_per_blk * Policy::kTileSize),
+                          static_cast<std::uint64_t>(n_blks_per_target));
   }
 
   // Maps kernel instantiations to the number of resident blocks per MP. This is a mutable
@@ -506,20 +506,20 @@ struct HistKernel {
     auto launch = [&](auto policy) {
       using Policy = common::GetValueT<decltype(policy)>;
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
-      auto n_blocks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
+      auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       // Must match the kernel.
       bst_idx_t n_segments = (h_sizes_csum.size() - 1) * feature_groups.NumGroups();
       bst_idx_t n_items =
           h_sizes_csum.back() * matrix.row_stride + n_segments * Policy::kSegmentCost;
-      // One block for each target in a range.
-      auto n_resident_ranges = std::max<std::size_t>(n_blocks_per_mp * n_mps / n_targets, 1);
-      auto [items_per_block, n_ranges] = SliceItems<Policy>(n_items, n_resident_ranges);
-      auto n_blocks = static_cast<std::uint64_t>(n_ranges) * n_targets;
-      CHECK_LE(n_blocks, std::numeric_limits<std::uint32_t>::max());
-      dh::LaunchKernel(static_cast<std::uint32_t>(n_blocks), Policy::kBlockThreads, shmem_bytes,
+      auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
+      auto [n_items_per_blk, n_blks_per_target] =
+          SliceItems<Policy>(n_items, n_resident_blks_per_target);
+      auto n_blks = static_cast<std::uint64_t>(n_blks_per_target) * n_targets;
+      CHECK_LE(n_blks, std::numeric_limits<std::uint32_t>::max());
+      dh::LaunchKernel(static_cast<std::uint32_t>(n_blks), Policy::kBlockThreads, shmem_bytes,
                        ctx->CUDACtx()->Stream())(
           kernel, matrix, feature_groups, ridx_iters.data().get(), dh::ToSpan(sizes_csum),
-          hists.data().get(), d_gpair, n_samples, n_targets, items_per_block, n_items);
+          hists.data().get(), d_gpair, n_samples, n_targets, n_items_per_blk, n_items);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
