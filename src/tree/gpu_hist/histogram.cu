@@ -416,6 +416,7 @@ struct HistKernel {
    */
   template <typename Policy>
   static auto SliceItems(bst_idx_t n_items, std::size_t n_resident_ranges) {
+    CHECK_GT(n_items, 0);
     CHECK_GT(n_resident_ranges, 0);
     constexpr std::size_t kMaxWaves = 32;
     constexpr std::size_t kMinTiles = 32;
@@ -485,7 +486,8 @@ struct HistKernel {
     for (auto const& ridx : h_ridx_iters) {
       h_sizes_csum.push_back(h_sizes_csum.back() + ridx.size());
     }
-    if (h_sizes_csum.back() == 0) {
+    // No entry to accumulate, for example all values are missing.
+    if (h_sizes_csum.back() == 0 || matrix.row_stride == 0) {
       return;
     }
 
