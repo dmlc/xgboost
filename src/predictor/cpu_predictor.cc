@@ -38,7 +38,6 @@
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
 #include "xgboost/logging.h"                  // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_NE
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree
-#include "xgboost/predictor.h"                // for Predictor, PredictorReg
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree, MTNotImplemented, RTreeNodeStat
 
@@ -56,9 +55,6 @@ struct CopyViews {
 
 template <typename T>
 using Vec = std::vector<T, std::allocator<T>>;
-// The input device should be DeviceOrd::CPU() instead of Context::Device(). The GBTree
-// has an optimization to use CPU predictor when the DMatrix SparsePage is on CPU, even if
-// the context is a CUDA context.
 using HostModel = GBTreeModelView<Vec, TreeViewVar, CopyViews>;
 
 template <bool has_missing, bool has_categorical, typename TreeView>
@@ -565,56 +561,44 @@ common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCP
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCPU{DeviceOrd::kCPU,
                                                                     &PredictLeafCPU};
 
+void PredictBatchCPU(Context const *ctx, DMatrix *dmat, HostDeviceVector<float> *out_preds,
+                     gbm::GBTreeModel const &model, bst_tree_t tree_begin, bst_tree_t tree_end,
+                     std::vector<float> const *tree_weights_override) {
+  // This is actually already handled in gbm, but large amount of tests rely on the
+  // behaviour.
+  if (tree_end == 0) {
+    tree_end = model.trees.size();
+  }
+  auto const *tree_weights =
+      tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
+  auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
+                                         : common::OptionalWeights{common::Span<float const>{
+                                               tree_weights->data() + tree_begin,
+                                               static_cast<std::size_t>(tree_end - tree_begin)}};
+
+  auto const n_threads = ctx->Threads();
+
+  // Create a writable view on the output prediction vector.
+  bst_idx_t n_groups = model.learner_model_state->OutputLength();
+  bst_idx_t n_samples = dmat->Info().num_row_;
+  CHECK_EQ(out_preds->Size(), n_samples * n_groups);
+  auto out_predt = linalg::MakeTensorView(ctx, out_preds->HostVector(), n_samples, n_groups);
+  bool any_missing = !(dmat->IsDense());
+  auto const h_model = HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
+
+  LaunchPredict(ctx, dmat, model, [&](auto &&policy) {
+    using Policy = common::GetValueT<decltype(policy)>;
+    ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
+    policy.ForEachBatch([&](auto &&batch) {
+      PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, h_model, &feat_vecs, n_threads,
+                                                          any_missing, out_predt, weights);
+    });
+  });
+}
+
+common::KernelRegistration<PredictBatchKernel> const kPredictBatchCPU{DeviceOrd::kCPU,
+                                                                      &PredictBatchCPU};
+
 }  // anonymous namespace
 
-class CPUPredictor : public Predictor {
- protected:
-  void PredictDMatrix(DMatrix *p_fmat, std::vector<float> *out_preds, gbm::GBTreeModel const &model,
-                      bst_tree_t tree_begin, bst_tree_t tree_end,
-                      common::OptionalWeights tree_weights) const {
-    auto const n_threads = this->ctx_->Threads();
-
-    // Create a writable view on the output prediction vector.
-    bst_idx_t n_groups = model.learner_model_state->OutputLength();
-    bst_idx_t n_samples = p_fmat->Info().num_row_;
-    CHECK_EQ(out_preds->size(), n_samples * n_groups);
-    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
-    bool any_missing = !(p_fmat->IsDense());
-    auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
-
-    LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
-      using Policy = common::GetValueT<decltype(policy)>;
-      ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
-      policy.ForEachBatch([&](auto &&batch) {
-        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, h_model, &feat_vecs, n_threads,
-                                                            any_missing, out_predt, tree_weights);
-      });
-    });
-  }
-
- public:
-  explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
-
-  void PredictBatch(DMatrix *dmat, HostDeviceVector<float> *out_preds,
-                    gbm::GBTreeModel const &model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const *tree_weights_override = nullptr) const override {
-    // This is actually already handled in gbm, but large amount of tests rely on the
-    // behaviour.
-    if (tree_end == 0) {
-      tree_end = model.trees.size();
-    }
-    auto const *tree_weights =
-        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
-    auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
-                                           : common::OptionalWeights{common::Span<float const>{
-                                                 tree_weights->data() + tree_begin,
-                                                 static_cast<std::size_t>(tree_end - tree_begin)}};
-    this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end, weights);
-  }
-};
-
-XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
-    .describe("Make predictions using CPU.")
-    .set_body([](Context const *ctx) { return new CPUPredictor(ctx); });
 }  // namespace xgboost::predictor

@@ -24,6 +24,17 @@ struct GBTreeModel;
 
 namespace predictor {
 /**
+ * \brief Add batch predictions to an initialized output vector.
+ *
+ * Zero tree_end selects all trees. A non-null weights override replaces the model's weights.
+ */
+struct PredictBatchKernel {
+  using Signature = void(Context const*, DMatrix*, HostDeviceVector<float>*,
+                         gbm::GBTreeModel const&, bst_tree_t tree_begin, bst_tree_t tree_end,
+                         std::vector<float> const* tree_weights_override);
+};
+
+/**
  * \brief Initialize predictions and predict directly from a proxy's data adapter.
  *
  * Zero tree_end selects all trees. Uses model tree weights and returns false for

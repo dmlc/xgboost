@@ -31,7 +31,6 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
-#include "xgboost/predictor.h"
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {
@@ -377,10 +376,6 @@ class GBTree : public GradientBooster {
                      std::vector<std::unique_ptr<RegTree>>* ret);
 
   std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
-
-  [[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(
-      bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
-      DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
   virtual void CommitModel(TreesOneIter&& new_trees);
