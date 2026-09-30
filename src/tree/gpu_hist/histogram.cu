@@ -4,6 +4,7 @@
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
+#include <vector>                // for vector
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
@@ -424,17 +425,30 @@ struct HistKernel {
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,
                          linalg::MatrixView<GradientPairInt64 const> gpair,
-                         RidxIterSpan* ridx_iters,
-                         common::Span<common::Span<GradientPairInt64>> hists,
-                         std::vector<std::size_t> const& h_sizes_csum) {
+                         std::vector<RidxIterSpan> const& h_ridx_iters,
+                         std::vector<common::Span<GradientPairInt64>> const& h_hists) {
     CHECK(gpair.FContiguous());
+    CHECK_EQ(h_ridx_iters.size(), h_hists.size());
     auto n_samples = gpair.Shape(0);
     auto n_targets = gpair.Shape(1);
     auto d_gpair = gpair.Values().data();
 
+    // Cumulative sum of the number of rows in each node.
+    std::vector<std::size_t> h_sizes_csum{0};
+    h_sizes_csum.reserve(h_ridx_iters.size() + 1);
+    for (auto const& ridx : h_ridx_iters) {
+      h_sizes_csum.push_back(h_sizes_csum.back() + ridx.size());
+    }
+
     std::size_t shmem_bytes = feature_groups.ShmemSize();
     bool use_shared = !force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
+
+    dh::TemporaryArray<RidxIterSpan> ridx_iters(h_ridx_iters.size());
+    dh::TemporaryArray<common::Span<GradientPairInt64>> hists(h_hists.size());
+    auto stream = ctx->CUDACtx()->Stream();
+    dh::CopyTo(h_ridx_iters, &ridx_iters, stream);
+    dh::CopyTo(h_hists, &hists, stream);
 
     auto launch = [&](auto policy, auto kernel) {
       auto const& v = this->cfg.at(reinterpret_cast<void*>(kernel));
@@ -444,11 +458,11 @@ struct HistKernel {
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
                                             v.n_blocks_per_mp * n_mps, n_targets, &n_blocks);
-      CHECK_GE(n_blocks, hists.size());
+      CHECK_GE(n_blocks, h_hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
-      dh::LaunchKernel(conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream())(
-          kernel, matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), d_gpair,
-          n_samples, n_targets);
+      dh::LaunchKernel(conf, Policy::kBlockThreads, shmem_bytes, stream)(
+          kernel, matrix, feature_groups, ridx_iters.data().get(), dh::ToSpan(blk_ptr),
+          hists.data().get(), d_gpair, n_samples, n_targets);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
@@ -499,33 +513,34 @@ class DeviceHistogramDispatchAccessor {
   }
 
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
-                      common::Span<GradientPairInt64 const> gpair,
-                      common::Span<cuda_impl::RowIndexT const> ridx,
-                      common::Span<GradientPairInt64> hist) {
-    this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx, hist);
-  }
-
-  void BuildHistogram(Context const* ctx, Accessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& h_feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
-                      common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
-                      common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum) {
-    std::size_t n_total_samples = h_sizes_csum.back();
-    if (ridxs.size() == 1 && n_total_samples == matrix.n_rows) {
-      // Special optimization for the root node.
+                      std::vector<common::Span<cuda_impl::RowIndexT const>> const& ridxs,
+                      std::vector<common::Span<GradientPairInt64>> const& hists) {
+    CHECK_EQ(ridxs.size(), hists.size());
+    if (ridxs.empty()) {
+      return;
+    }
+    auto feature_groups = h_feature_groups.DeviceAccessor(ctx->Device());
+    if (gpair.Shape(1) == 1) {
+      // Single target, one kernel launch for each node.
+      for (std::size_t i = 0; i < ridxs.size(); ++i) {
+        this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair.Values(), ridxs[i], hists[i]);
+      }
+      return;
+    }
+    if (ridxs.size() == 1 && ridxs.front().size() == matrix.n_rows) {
+      // Special optimization for the root node, the row index is the identity mapping.
       using RidxIter = dh::counting_iterator<cuda_impl::RowIndexT>;
       CHECK_LT(matrix.base_rowid, std::numeric_limits<cuda_impl::RowIndexT>::max());
-      auto iter = common::IterSpan{
-          dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
-          matrix.n_rows};
-      dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(hists.size(), iter);
-      this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,
-                              h_sizes_csum);
+      this->kernel_->Dispatch(
+          ctx, matrix, feature_groups, gpair,
+          std::vector<common::IterSpan<RidxIter>>{common::IterSpan{
+              dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
+              matrix.n_rows}},
+          hists);
     } else {
-      this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs.data(), hists,
-                              h_sizes_csum);
+      this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs, hists);
     }
   }
 };
@@ -568,31 +583,27 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hi
 }
 
 void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                                            FeatureGroupsAccessor const& feature_groups,
+                                            FeatureGroups const& feature_groups,
                                             common::Span<GradientPairInt64 const> gpair,
                                             common::Span<cuda_impl::RowIndexT const> ridx,
                                             common::Span<GradientPairInt64> histogram) {
-  this->monitor_.Start(__func__);
-  std::visit(
-      [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram);
-      },
-      matrix);
-  this->monitor_.Stop(__func__);
+  this->BuildHistogram(ctx, matrix, feature_groups,
+                       linalg::MakeTensorView(ctx, linalg::kF, gpair, gpair.size(), 1), {ridx},
+                       {histogram});
 }
 
 void DeviceHistogramBuilder::BuildHistogram(
-    Context const* ctx, EllpackAccessor const& matrix, FeatureGroupsAccessor const& feature_groups,
+    Context const* ctx, EllpackAccessor const& matrix, FeatureGroups const& feature_groups,
     linalg::MatrixView<GradientPairInt64 const> gpair,
-    common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
-    common::Span<common::Span<GradientPairInt64>> hists,
-    std::vector<std::size_t> const& h_sizes_csum) {
+    std::vector<common::Span<cuda_impl::RowIndexT const>> const& ridxs,
+    std::vector<common::Span<GradientPairInt64>> const& hists) {
+  this->monitor_.Start(__func__);
   std::visit(
       [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists,
-                                      h_sizes_csum);
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists);
       },
       matrix);
+  this->monitor_.Stop(__func__);
 }
 
 void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, bst_node_t nidx,

@@ -113,8 +113,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, force_global);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
-                             gpair.View(ctx.Device()).Values(), ridx, d_histogram);
+      builder.BuildHistogram(&ctx, acc, feature_groups, gpair.View(ctx.Device()).Values(), ridx,
+                             d_histogram);
     });
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
@@ -128,8 +128,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, force_global);
       page->Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
-                               gpair.View(ctx.Device()).Values(), ridx, d_new_histogram);
+        builder.BuildHistogram(&ctx, acc, feature_groups, gpair.View(ctx.Device()).Values(), ridx,
+                               d_new_histogram);
       });
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
@@ -152,8 +152,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       // Single group must use global memory.
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, /*force_global=*/true);
       page->Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
-                               gpair.View(ctx.Device()).Values(), ridx, dh::ToSpan(baseline));
+        builder.BuildHistogram(&ctx, acc, single_group, gpair.View(ctx.Device()).Values(), ridx,
+                               dh::ToSpan(baseline));
       });
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
@@ -231,8 +231,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_categories, false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
-                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(cat_hist));
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
+                             dh::ToSpan(cat_hist));
     });
   }
 
@@ -248,8 +248,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), encode_hist.size(), false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
-                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(encode_hist));
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
+                             dh::ToSpan(encode_hist));
     });
   }
 
@@ -441,8 +441,8 @@ class HistogramExternalMemoryTest
         builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                       force_global);
         impl->Visit(&ctx, {}, [&](auto&& acc) {
-          builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
-                                 gpair.View(ctx.Device()).Values(), ridx, d_histogram);
+          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
+                                 d_histogram);
         });
         ++k;
       }
@@ -469,8 +469,8 @@ class HistogramExternalMemoryTest
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                     force_global);
       concat.Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
-                               gpair.View(ctx.Device()).Values(), ridx, d_histogram);
+        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
+                               d_histogram);
       });
     }
 

@@ -282,14 +282,29 @@ struct GPUHistMakerDevice {
     this->monitor.Stop(__func__);
   }
 
-  void BuildHist(EllpackPage const& page, std::int32_t k, bst_bin_t nidx) {
+  // Build histograms for all the nodes with one call to the histogram builder.
+  void BuildHist(EllpackPage const& page, std::int32_t k,
+                 std::vector<bst_node_t> const& build_nidx) {
     monitor.Start(__func__);
-    auto d_node_hist = histogram_.GetNodeHistogram(nidx);
-    auto d_ridx = partitioners_.At(k)->GetRows(nidx);
+    std::vector<common::Span<GradientPairInt64>> h_hists;
+    std::vector<common::Span<cuda_impl::RowIndexT const>> h_ridxs;
+    for (auto nidx : build_nidx) {
+      auto d_ridx = partitioners_.At(k)->GetRows(nidx);
+      if (d_ridx.empty()) {
+        // An external memory page or a row-split worker can have no rows for a node.
+        continue;
+      }
+      h_ridxs.push_back(d_ridx);
+      h_hists.push_back(histogram_.GetNodeHistogram(nidx));
+    }
+    if (h_ridxs.empty()) {
+      monitor.Stop(__func__);
+      return;
+    }
+
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     auto gpair = this->d_gpair.View(this->ctx_->Device());
-    this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
-                                    gpair.Values(), d_ridx, d_node_hist);
+    this->histogram_.BuildHistogram(ctx_, acc, *feature_groups_, gpair, h_ridxs, h_hists);
     monitor.Stop(__func__);
   }
 
@@ -314,9 +329,7 @@ struct GPUHistMakerDevice {
     // Build the nodes that can not obtain the histogram using subtraction. This is the slow path.
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      for (auto nidx : need_build) {
-        this->BuildHist(page, k, nidx);
-      }
+      this->BuildHist(page, k, need_build);
       ++k;
     }
     for (auto nidx : need_build) {
@@ -415,9 +428,7 @@ struct GPUHistMakerDevice {
         monitor.Stop("UpdatePositionBatch");
 
         // Build histograms.
-        for (auto nidx : build_nidx) {
-          this->BuildHist(page, k, nidx);
-        }
+        this->BuildHist(page, k, build_nidx);
       });
       ++k;
     }
@@ -565,7 +576,7 @@ struct GPUHistMakerDevice {
     std::int32_t k = 0;
     CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.Size());
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      this->BuildHist(page, k, kRootNIdx);
+      this->BuildHist(page, k, {kRootNIdx});
       ++k;
     }
     this->histogram_.AllReduceHist(ctx_, kRootNIdx, 1);

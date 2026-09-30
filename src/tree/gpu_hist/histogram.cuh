@@ -6,12 +6,13 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <memory>   // for unique_ptr
+#include <vector>   // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "feature_groups.cuh"               // for FeatureGroupsAccessor
+#include "feature_groups.cuh"               // for FeatureGroups
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
@@ -180,19 +181,24 @@ class DeviceHistogramBuilder {
   // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
   void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
              bool force_global_memory);
-  // Build histogram for single target and single node.
+  // Build histogram for single target and single node, a wrapper of the batched version.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
                       common::Span<GradientPairInt64> histogram);
-  // Build histograms for multiple nodes and multiple targets
+  /**
+   * @brief Build histograms for multiple nodes and multiple targets.
+   *
+   * @param ridxs One span of row indices for each node. Empty nodes are only allowed for
+   *              single-target.
+   * @param hists One histogram for each node, must match `ridxs`.
+   */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
-                      common::Span<common::Span<const std::uint32_t>> ridxs,
-                      common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum);
+                      std::vector<common::Span<std::uint32_t const>> const& ridxs,
+                      std::vector<common::Span<GradientPairInt64>> const& hists);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 
