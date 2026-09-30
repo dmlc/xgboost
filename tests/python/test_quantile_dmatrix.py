@@ -62,6 +62,13 @@ class TestQuantileDMatrix:
     def test_categorical_strings(self) -> None:
         check_categorical_strings("cpu")
 
+    def test_masked_array(self) -> None:
+        data = np.array([[1.0, 2.0], [3.0, 999.0]])
+        mask = np.array([[False, False], [False, True]])
+        X = np.ma.array(data, mask=mask)
+        with pytest.raises(ValueError, match="Masked array is not supported"):
+            xgb.QuantileDMatrix(X)
+
     def test_error(self):
         from sklearn.model_selection import train_test_split
 
