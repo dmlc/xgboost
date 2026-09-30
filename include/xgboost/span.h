@@ -33,6 +33,7 @@
 
 #include <cstddef>  // size_t
 #include <cstdio>
+#include <exception>  // for terminate
 #include <iterator>
 #include <limits>  // numeric_limits
 #include <type_traits>
