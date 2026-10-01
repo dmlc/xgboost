@@ -62,7 +62,7 @@ class TestQuantileDMatrix:
     def test_categorical_strings(self) -> None:
         check_categorical_strings("cpu")
 
-    def test_error(self):
+    def test_error(self) -> None:
         from sklearn.model_selection import train_test_split
 
         rng = np.random.default_rng(1994)
@@ -156,6 +156,7 @@ class TestQuantileDMatrix:
         from_it = xgb.train(parameters, Xy_it)
 
         X, y, w = it.as_arrays()
+        assert w is not None
         w_it = Xy_it.get_weight()
         np.testing.assert_allclose(w_it, w)
 
