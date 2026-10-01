@@ -311,11 +311,19 @@ external launcher is needed.
 
 ### 5.3 Research validation
 
-```
-PYTHONPATH=python-package python research/validate_xgboost_exact.py
-python research/exact_multiclass_hessian.py
-python research/reproduce_issue_12278.py      # needs scikit-learn
-```
+Per §5.5, `validate_xgboost_exact.py`, `exact_multiclass_hessian.py` and
+`reproduce_issue_12278.py` are development material kept out of the PR tree, not shipped
+here. What each validated, for the record:
+
+- `validate_xgboost_exact.py` cross-checked production's exact-mode intercept-only fixed
+  point against the empirical class proportions and against an independent Newton solve.
+- `exact_multiclass_hessian.py` derived and verified the multinomial gradient/Hessian from
+  scratch, independent of this repository's C++ assumptions.
+- `reproduce_issue_12278.py` reproduced the upstream issue's own experiment faithfully,
+  including its known objective-expression inconsistency (needs scikit-learn).
+
+Their content is now covered by the committed C++ and Python test suites (§5.2); their
+derivations live in the issue thread and PR description, per §5.5.
 
 ### 5.4 Environment requirements and known limitations
 
@@ -325,7 +333,7 @@ python research/reproduce_issue_12278.py      # needs scikit-learn
 | OpenMP | present |
 | `numpy`, `pytest` | present |
 | `pandas` | present — the categorical rejection test skips without it |
-| `scikit-learn` | needed only by `reproduce_issue_12278.py` |
+| `scikit-learn` | needed only by `reproduce_issue_12278.py` (kept out of the PR tree, see §5.5) |
 | `hypothesis` | **absent** — `tests/python/test_updaters.py` and `tests/python/test_multi_target.py` cannot be collected. Those suites were therefore not run; the C++ suite covers the same updaters. |
 | CUDA toolkit | **absent** — no GPU code was compiled. GPU support is rejected at configuration time, which is verified, but nothing GPU-side was built or run. |
 | Multiple hosts | **absent** — distributed testing is in-process on one machine only. |
@@ -347,14 +355,15 @@ the patch a reviewer has to read without helping them judge the change. The spli
 | `benchmark_v2.py` | The PR's central claim is a cost/benefit trade-off. A reviewer must be able to re-run it. Selection, early stopping and all targets use validation; the test split is evaluated once, after selection; the search phase never constructs a test DMatrix, so test leakage is structurally impossible. |
 | `summarize_v2.py` | Derives every table from the raw JSONL alone, re-deriving the selection rather than trusting a stored label. No number is typed by hand. |
 | `benchmark_k_scaling.py` | Backs the documented `O(K^2)` / `O(K^3)` cost statement with measurements. |
+| `benchmark_phase3d_evidence.py` | A small, bounded sanity sweep (K/N/max_bin/thread scaling, loss curves, peak memory) that a reviewer can re-run in well under a minute, distinct from `benchmark_v2.py`'s rigorous protocol. |
 | `EXACT_HESSIAN_STATUS.md` | The support/rejection/unverified matrix, condensed into `doc/` for users but kept in full here for reviewers. |
 
-**Keep out of the PR** — link from the issue instead:
+**Kept out of the PR** — their content lives in the issue thread and PR description instead:
 
 | File | Why |
 |---|---|
 | `multinomial.py`, `exact_multiclass_hessian.py` | Standalone numpy Newton experiments. They justify the mathematics but are not XGBoost code and would need their own maintenance story. |
-| `reproduce_issue_12278.py` | A faithful reproduction of the issue's own setup, including the objective-expression inconsistency documented in `README.md` §9. Valuable in the issue thread; out of place in the tree. |
+| `reproduce_issue_12278.py` | A faithful reproduction of the issue's own setup, including a known objective-expression inconsistency in the upstream issue. Valuable in the issue thread; out of place in the tree. |
 | `validate_xgboost_exact.py` | Useful during development; its content is now covered by the committed C++ and Python tests. |
 | `design_exact_leaf_objective.md`, `README.md` | Derivations. The load-bearing parts are already in the header comments where the code is. |
 

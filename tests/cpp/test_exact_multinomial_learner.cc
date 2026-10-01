@@ -310,10 +310,10 @@ TEST(ExactMultinomialLearner, RejectsUnsupportedConfigurations) {
  * Intercept-only validation against the research mathematics.
  *
  * With a single constant feature no split is possible, so every tree is a stump and the leaf
- * is exactly the joint Newton step over the whole dataset -- the same problem
- * `research/exact_multiclass_hessian.py` solves. The fitted probabilities must therefore
- * converge to the empirical class proportions, which is the optimum of an intercept-only
- * multinomial model.
+ * is exactly the joint Newton step over the whole dataset -- an intercept-only multinomial
+ * model, independently validated during development against a from-scratch Newton solve.
+ * The fitted probabilities must therefore converge to the empirical class proportions, which
+ * is the optimum of an intercept-only multinomial model.
  *
  * This is a comparison of the *solution*, not of iteration counts: XGBoost applies a
  * learning rate and boosts additively, so its trajectory differs from a pure Newton solve

@@ -128,10 +128,11 @@ TEST(ExactEvaluator, ReducesToScalarGainForTwoClassesUnderRawRegularization) {
 /**
  * K=2 under the CENTERED gauge -- the one `multi_hessian=exact` actually uses by default --
  * does NOT reduce to CalcGain at the configured lambda. It reduces to CalcGain at lambda/2,
- * because ExactL2::Centered(lambda, 2).Diagonal() == lambda * (1 - 1/2) == lambda/2 (see
- * research/design_exact_leaf_objective.md section 3/4). This is the statement the previous
- * test's name implied but did not check: that one validates the solver under a gauge
- * production never selects.
+ * because for the centered regularizer R = lambda*(I - 11^T/K), the single K=2 free
+ * coordinate's diagonal entry is lambda*(1 - 1/K) = lambda*(1 - 1/2) = lambda/2 -- matching
+ * ExactL2::Centered(lambda, 2).Diagonal(). This is the statement the previous test's name
+ * implied but did not check: that one validates the solver under a gauge production never
+ * selects.
  */
 TEST(ExactEvaluator, ReducesToScalarGainForTwoClassesUnderCenteredRegularization) {
   bst_target_t constexpr kNumClasses = 2;
