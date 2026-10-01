@@ -121,6 +121,43 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     dh::safe_cuda(cudaMemcpy(histogram_h.data(), d_histogram.data(),
                              num_bins * sizeof(GradientPairInt64), cudaMemcpyDeviceToHost));
 
+    // A tree-wide mask leaves selected bins unchanged and excluded bins zero.
+    // Sparse ELLPACK slots are not feature IDs, so that path must ignore the mask.
+    std::vector<std::uint8_t> mask_h(kCols);
+    for (std::size_t f = 0; f < kCols; ++f) {
+      mask_h[f] = f % 5 == 0;
+    }
+    std::vector<bst_feature_t> selected_h;
+    for (bst_feature_t f = 0; f < kCols; ++f) {
+      if (mask_h[f]) {
+        selected_h.push_back(f);
+      }
+    }
+    std::vector<bst_feature_t> group_ptr_h;
+    for (auto f : feature_groups.feature_segments.ConstHostVector()) {
+      group_ptr_h.push_back(std::lower_bound(selected_h.begin(), selected_h.end(), f) -
+                            selected_h.begin());
+    }
+    dh::device_vector<bst_feature_t> selected(selected_h.begin(), selected_h.end());
+    dh::device_vector<bst_feature_t> group_ptr(group_ptr_h.begin(), group_ptr_h.end());
+    dh::device_vector<GradientPairInt64> masked(num_bins);
+    page->Visit(&ctx, {}, [&](auto&& acc) {
+      builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
+                             gpair.View(ctx.Device()).Values(), ridx, dh::ToSpan(masked),
+                             {dh::ToSpan(selected), dh::ToSpan(group_ptr)});
+    });
+    std::vector<GradientPairInt64> masked_h(num_bins);
+    dh::safe_cuda(cudaMemcpy(masked_h.data(), masked.data().get(),
+                             num_bins * sizeof(GradientPairInt64), cudaMemcpyDeviceToHost));
+    auto const& ptr = page->Cuts().Ptrs();
+    for (std::size_t f = 0; f < kCols; ++f) {
+      for (auto b = ptr[f]; b < ptr[f + 1]; ++b) {
+        auto expected =
+            !page->IsDenseCompressed() || mask_h[f] ? histogram_h[b] : GradientPairInt64{};
+        ASSERT_EQ(masked_h[b], expected);
+      }
+    }
+
     for (std::size_t i = 0; i < kRounds; ++i) {
       dh::device_vector<GradientPairInt64> new_histogram(num_bins);
       auto d_new_histogram = dh::ToSpan(new_histogram);

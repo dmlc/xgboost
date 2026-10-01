@@ -169,6 +169,13 @@ class DeviceHistogramStorage {
 
 struct DeviceHistogramBuilderImpl;
 
+// Sorted tree-wide sampled features, with offsets for the existing feature groups.
+// Empty features select the original full-feature traversal.
+struct HistogramFeatureSelection {
+  common::Span<bst_feature_t const> features;
+  common::Span<bst_feature_t const> group_ptr;
+};
+
 class DeviceHistogramBuilder {
   std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;
   DeviceHistogramStorage hist_;
@@ -185,7 +192,8 @@ class DeviceHistogramBuilder {
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
-                      common::Span<GradientPairInt64> histogram);
+                      common::Span<GradientPairInt64> histogram,
+                      HistogramFeatureSelection selection = {});
   // Build histograms for multiple nodes and multiple targets
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
