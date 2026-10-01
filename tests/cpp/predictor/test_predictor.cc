@@ -177,6 +177,18 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
     ASSERT_EQ(v, 4.0f);
   }
   EXPECT_EQ(model->weight_drop, (std::vector<float>{0.5f, 2.0f}));
+
+  // Summing these leaves before adding the base prediction changes the rounding.
+  // Accumulate onto the base prediction, as incremental training does.
+  std::vector<float> small_weights{2.0e-8f, 1.5e-8f};
+  HostDeviceVector<float> small_predictions;
+  predictor::InitOutPredictions(ctx, dmat->Info(), &small_predictions, *model);
+  small_predictions.Fill(1.0f);
+  common::DispatchKernel<predictor::PredictBatchKernel>(ctx, dmat.get(), &small_predictions, *model,
+                                                        0, 0, &small_weights);
+  for (auto v : small_predictions.ConstHostVector()) {
+    ASSERT_EQ(v, 1.0f);
+  }
 }
 
 void TestInplacePredictionWithWeights(Context const *ctx) {
@@ -444,21 +456,22 @@ void TestPredictionDeviceAccess() {
   for (size_t i = 0; i < h_cpu.size(); ++i) {
     ASSERT_NEAR(h_cpu[i], h_gpu[i], kRtEps);
   }
-  // A cold training cache must not move host data to CUDA just to initialize predictions.
+  // Both training and inference must use the configured device, even with a cold cache.
   Json saved_model{Object{}};
   learner->SaveModel(&saved_model);
-  auto host_data = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(false);
-  auto const &page = *host_data->GetBatches<SparsePage>().begin();
-  ASSERT_FALSE(page.data.DeviceCanRead());
   HostDeviceVector<float> training_predictions;
   HostDeviceVector<float> inference_predictions;
   for (bool training : {true, false}) {
+    auto host_data = RandomDataGenerator(kRows, kTrainCols, 0.5).Seed(0).GenerateDMatrix(false);
+    auto const &page = *host_data->GetBatches<SparsePage>().begin();
+    ASSERT_FALSE(page.data.DeviceCanRead());
     std::unique_ptr<Learner> restored{Learner::Create({})};
     restored->LoadModel(saved_model);
     restored->Configure({{"device", "cuda:0"}});
     auto *predictions = training ? &training_predictions : &inference_predictions;
     restored->Predict(host_data, true, predictions, 0, 0, training);
-    EXPECT_EQ(page.data.DeviceCanRead(), !training);
+    EXPECT_TRUE(page.data.DeviceCanRead());
+    EXPECT_EQ(predictions->Device(), DeviceOrd::CUDA(0));
   }
   auto const &h_training = training_predictions.ConstHostVector();
   auto const &h_inference = inference_predictions.ConstHostVector();

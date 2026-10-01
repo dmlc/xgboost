@@ -13,7 +13,6 @@
 #include <algorithm>  // for equal, any_of
 #include <cstdint>    // for uint32_t
 #include <memory>
-#include <optional>  // for optional
 #include <string>
 #include <utility>
 #include <vector>
@@ -82,21 +81,6 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
                     [](std::string const& name, std::unique_ptr<TreeUpdater> const& up) {
                       return name == up->Name();
                     });
-}
-
-bool UseCPUPrediction(Context const* ctx, bool is_training, HostDeviceVector<float> const& out_pred,
-                      bst_tree_t n_trees, DMatrix* dmat) {
-  // External-memory pages can be copied incrementally. Only continued training with an
-  // empty prediction cache needs to avoid copying an entire host dataset to the device.
-  if (ctx->IsCPU() || !is_training || !out_pred.Empty() || n_trees == 0 ||
-      !dmat->SingleColBlock()) {
-    return false;
-  }
-
-  auto is_ellpack = dmat->PageExists<EllpackPage>() && !dmat->PageExists<SparsePage>();
-  auto is_from_device = dmat->PageExists<SparsePage>() &&
-                        (*dmat->GetBatches<SparsePage>().begin()).data.DeviceCanRead();
-  return !is_ellpack && !is_from_device;
 }
 
 }  // namespace
@@ -688,12 +672,6 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     CHECK_EQ(cache->version, 0);
   }
 
-  std::optional<Context> cpu_ctx;
-  if (UseCPUPrediction(ctx_, is_training, cache->predictions, model_.param.num_trees,
-                       p_fmat.get())) {
-    cpu_ctx.emplace(ctx_->MakeCPU());
-  }
-  auto const* pred_ctx = cpu_ctx ? &*cpu_ctx : ctx_;
   if (initialize_output) {
     // cache->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -703,9 +681,9 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    common::DispatchKernel<predictor::PredictBatchKernel>(pred_ctx, p_fmat.get(),
-                                                          &cache->predictions, model_, tree_begin,
-                                                          tree_end, tree_weights_override);
+    common::DispatchKernel<predictor::PredictBatchKernel>(ctx_, p_fmat.get(), &cache->predictions,
+                                                          model_, tree_begin, tree_end,
+                                                          tree_weights_override);
   }
 
   if (!preserve_cache) {
