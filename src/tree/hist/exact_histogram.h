@@ -247,11 +247,27 @@ class ExactHistThreadBuffer {
   std::int32_t n_threads_{0};
 
  public:
-  /** @param n_records Records per node: one per bin plus the node total. */
+  /**
+   * @param n_records Records per node: one per bin plus the node total.
+   *
+   * Called once per node build. `n_threads * stride` is the same for every call within a
+   * tree (and, in practice, for the whole training run, since it depends only on the number
+   * of classes and the fixed bin layout), so `resize` reallocates on the first call only. The
+   * zero below is still unconditional -- every call reuses the same buffer, which holds the
+   * previous node's accumulated values -- but it is spread across threads instead of done by
+   * one thread, since a thread zeroing its own block is exactly as parallel as a thread later
+   * accumulating into it.
+   */
   void Reset(std::int32_t n_threads, std::size_t n_records, std::size_t record_size) {
     n_threads_ = n_threads;
     stride_ = n_records * record_size;
-    data_.assign(static_cast<std::size_t>(n_threads) * stride_, 0.0);
+    auto total = static_cast<std::size_t>(n_threads) * stride_;
+    if (data_.size() != total) {
+      data_.resize(total);
+    }
+    common::ParallelForBlock(total, n_threads, [&](common::Range1d r) {
+      std::fill(data_.data() + r.begin(), data_.data() + r.end(), 0.0);
+    });
   }
 
   [[nodiscard]] std::size_t Stride() const { return stride_; }
@@ -263,15 +279,26 @@ class ExactHistThreadBuffer {
 
   void Zero() { std::fill(data_.begin(), data_.end(), 0.0); }
 
-  /** @brief Sum every thread's block into @p out. */
+  /**
+   * @brief Sum every thread's block into @p out.
+   *
+   * Parallelized over the output range rather than left serial: each worker owns a disjoint
+   * slice of `out` and walks every thread's block for just that slice, so there is no
+   * cross-worker write and no need for atomics or a second reduction pass.
+   */
   void ReduceTo(common::Span<double> out) const {
     CHECK_EQ(out.size(), stride_);
-    for (std::int32_t tid = 0; tid < n_threads_; ++tid) {
-      auto const* block = data_.data() + static_cast<std::size_t>(tid) * stride_;
-      for (std::size_t i = 0; i < stride_; ++i) {
-        out[i] += block[i];
+    auto const* data = data_.data();
+    auto stride = stride_;
+    auto n_threads = n_threads_;
+    common::ParallelForBlock(stride, n_threads, [&](common::Range1d r) {
+      for (std::int32_t tid = 0; tid < n_threads; ++tid) {
+        auto const* block = data + static_cast<std::size_t>(tid) * stride;
+        for (std::size_t i = r.begin(); i < r.end(); ++i) {
+          out[i] += block[i];
+        }
       }
-    }
+    });
   }
 };
 
