@@ -86,10 +86,13 @@ TEST(ExactEvaluator, CenteredRegularizerIsPositiveDefinite) {
 }
 
 /**
- * K=2 must reduce exactly to the scalar path. This is the strongest available cross-check:
- * the dense gain is compared against XGBoost's own CalcGain on the same statistics.
+ * K=2 reduces exactly to the scalar path under the RAW gauge, R = lambda*I. This is a sanity
+ * check on the LDLT solver machinery itself, not a claim about the shipped feature: production
+ * never selects the raw gauge (see CenteredGaugeIsReferenceClassInvariant and
+ * ReducesToScalarGainForTwoClassesUnderCenteredRegularization below for what `multi_hessian
+ * =exact` actually computes).
  */
-TEST(ExactEvaluator, ReducesToScalarGainForTwoClasses) {
+TEST(ExactEvaluator, ReducesToScalarGainForTwoClassesUnderRawRegularization) {
   bst_target_t constexpr kNumFree = 1;
   common::ExactMultinomialLeafSolver solver{kNumFree};
 
@@ -117,6 +120,51 @@ TEST(ExactEvaluator, ReducesToScalarGainForTwoClasses) {
         ASSERT_TRUE(solver.Solve(view, common::ExactL2::Raw(lambda),
                                  common::Span<double>{w.data(), w.size()}));
         EXPECT_NEAR(w[0], tree::CalcWeight(param, g, h), 1e-12);
+      }
+    }
+  }
+}
+
+/**
+ * K=2 under the CENTERED gauge -- the one `multi_hessian=exact` actually uses by default --
+ * does NOT reduce to CalcGain at the configured lambda. It reduces to CalcGain at lambda/2,
+ * because ExactL2::Centered(lambda, 2).Diagonal() == lambda * (1 - 1/2) == lambda/2 (see
+ * research/design_exact_leaf_objective.md section 3/4). This is the statement the previous
+ * test's name implied but did not check: that one validates the solver under a gauge
+ * production never selects.
+ */
+TEST(ExactEvaluator, ReducesToScalarGainForTwoClassesUnderCenteredRegularization) {
+  bst_target_t constexpr kNumClasses = 2;
+  bst_target_t constexpr kNumFree = 1;
+  common::ExactMultinomialLeafSolver solver{kNumFree};
+
+  for (double lambda : {0.0, 0.5, 2.0}) {
+    // The scalar path's own regularizer must be lambda/2 to match the centered reduction.
+    auto halved_param = MakeParam(lambda / 2.0);
+    for (double p0 : {0.1, 0.5, 0.9}) {
+      for (std::size_t label : {0ul, 1ul}) {
+        Stats stats{kNumFree};
+        stats.AddRow({p0, 1.0 - p0}, label, 1.0);
+
+        auto view = stats.ConstView();
+        auto g = view.GetGradient(0);
+        auto h = view.GetHessian(0, 0);
+
+        auto reg = common::ExactL2::Centered(lambda, kNumClasses);
+        ASSERT_DOUBLE_EQ(reg.Diagonal(), lambda / 2.0);
+
+        auto out = EvaluateExactGain(&solver, view, reg);
+        ASSERT_TRUE(out.valid) << "p0=" << p0 << " lambda=" << lambda;
+
+        auto expected = tree::CalcGain(halved_param, g, h);
+        EXPECT_NEAR(out.gain, expected, 1e-12)
+            << "p0=" << p0 << " label=" << label << " lambda=" << lambda
+            << ": centered K=2 gain must equal CalcGain at lambda/2, not at lambda";
+
+        std::vector<double> w(1, 0.0);
+        ASSERT_TRUE(
+            solver.Solve(view, reg, common::Span<double>{w.data(), w.size()}));
+        EXPECT_NEAR(w[0], tree::CalcWeight(halved_param, g, h), 1e-12);
       }
     }
   }

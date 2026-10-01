@@ -75,10 +75,20 @@ Gain = Σ_i z_i² / d_i
 This form is **provably non-negative** whenever `H+R` is positive definite (all `d_i > 0`),
 costs nothing beyond the solve already being performed, and never forms an inverse.
 
-**Reduction check (K = 2).** Then `n_free = 1`, `H = Σ w·p₀(1−p₀)` is a scalar, `R = λ`, and
-`Gain = G²/(H+λ)` — *identical* to `CalcGain` at `param.h:272`. The dense path therefore
-degenerates exactly onto the existing scalar path, which is the cross-check Milestone 3B
-requires.
+**Reduction check (K = 2), raw gauge.** Then `n_free = 1`, `H = Σ w·p₀(1−p₀)` is a scalar,
+and under the *raw* gauge `R = λ`, giving `Gain = G²/(H+λ)` — *identical* to `CalcGain` at
+`param.h:272`. This is a check on the solver machinery, not on the shipped feature: §4 below
+settles on the *centered* gauge as the one this implementation actually uses, and the raw
+gauge is never selected in production.
+
+**Reduction check (K = 2), centered gauge (the one actually shipped).** §4 derives
+`R = λ(I − 11ᵀ/K)` for the centered gauge; at `K = 2` this has no off-diagonal (`n_free = 1`),
+and its single entry is `R = λ(1 − 1/2) = λ/2`. So the exact path's real, default K = 2 gain
+is `Gain = G²/(H + λ/2)` — the scalar `CalcGain` formula evaluated with *half* the configured
+`lambda`, not `CalcGain` at the configured `lambda` directly. The two reductions coincide only
+where raw and centered agree, i.e. `λ = 0`. Treat the raw-gauge reduction above as a sanity
+check on the LDLᵀ machinery, and this one as the statement about what `multi_hessian=exact`
+actually computes at `num_class = 2`.
 
 **Degenerate curvature.** If the LDLᵀ factorization encounters a non-positive pivot, the
 matrix is not positive definite. Matching `param.h:254/267`, the policy is **weight 0,
