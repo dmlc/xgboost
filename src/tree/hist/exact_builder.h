@@ -170,10 +170,8 @@ class ExactMultiTargetHistBuilder {
     this->SolveCentered(node_total_.ConstView(),
                         common::Span<float>{weight.data(), weight.size()});
     auto root_curvature = ExactChildCurvature(node_total_.ConstView(), n_classes_);
-    // SetRoot takes the final output, so eta is applied here; Expand applies it to children.
-    for (auto& w : weight) {
-      w *= param_->learning_rate;
-    }
+    // SetRoot takes the unscaled base weight; FinalizeLeaves applies eta when the root (or
+    // any other node) is turned into a prediction leaf.
     linalg::Tensor<float, 1> root_weight{weight.cbegin(), weight.cend(), {n_classes_},
                                          DeviceOrd::CPU()};
     p_tree->SetRoot(root_weight.HostView(), static_cast<float>(root_curvature));
@@ -329,13 +327,18 @@ class ExactMultiTargetHistBuilder {
     auto left_curvature = ExactChildCurvature(left_stats.ConstView(), n_classes_);
     auto right_curvature = ExactChildCurvature(right_stats.ConstView(), n_classes_);
 
-    ExpandBatch batch{param_->learning_rate};
-    batch.Push(candidate.nid, fidx, candidate.split.split_value, default_left,
-               common::Span<float const>{base_weight.data(), base_weight.size()},
-               common::Span<float const>{left_weight.data(), left_weight.size()},
-               common::Span<float const>{right_weight.data(), right_weight.size()},
-               candidate.split.loss_chg, left_curvature, right_curvature);
-    p_tree->Expand(ctx_, batch);
+    // Expand takes unscaled parent/child weights; FinalizeLeaves applies eta for whichever of
+    // these nodes ends up a prediction leaf.
+    p_tree->Expand(
+        ctx_,
+        ExpandBatch{{SplitInfo{candidate.nid, fidx, candidate.split.split_value, default_left},
+                     {common::Span<float const>{base_weight.data(), base_weight.size()},
+                      left_curvature + right_curvature},
+                     {common::Span<float const>{left_weight.data(), left_weight.size()},
+                      left_curvature},
+                     {common::Span<float const>{right_weight.data(), right_weight.size()},
+                      right_curvature},
+                     candidate.split.loss_chg}});
     CHECK(p_tree->IsMultiTarget());
     interaction_constraints_.Split(candidate.nid, fidx, p_tree->LeftChild(candidate.nid),
                                    p_tree->RightChild(candidate.nid));

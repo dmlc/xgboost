@@ -661,7 +661,6 @@ class QuantileHistMaker : public TreeUpdater {
         p_exactimpl_->SetExactHessian(&exact_sample_);
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_exactimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
-        (*tree_it)->GetMultiTargetTree()->SetLeaves();
       } else if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
