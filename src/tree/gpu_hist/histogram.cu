@@ -1,16 +1,21 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <algorithm>             // for min, max
+#include <algorithm>             // for min, max, copy_n
+#include <cstddef>               // for byte, size_t
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
+#include <tuple>                 // for tuple
+#include <type_traits>           // for remove_reference_t
 #include <utility>               // for pair
+#include <vector>                // for vector
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for GetMpCnt
+#include "../../common/cuda_stream.h"     // for Event, StreamRef
 #include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
@@ -384,6 +389,69 @@ __global__ __launch_bounds__(
   }
 }
 
+namespace {
+/**
+ * @brief Copies host arrays to the device through a pinned buffer.
+ *
+ * A copy from pageable memory can block the host thread until the transfers of other streams
+ * finish. With external memory, the histogram build would wait for the page fetches.
+ */
+class PinnedStaging {
+  // Each array starts at a multiple of this.
+  static constexpr std::size_t kAlign = 16;
+
+  dh::PinnedMemory h_buf_;
+  // Recorded after the last copy, the buffer can't be overwritten before the copy finishes.
+  curt::Event copied_;
+
+  [[nodiscard]] static std::size_t AlignUp(std::size_t n_bytes) {
+    return common::DivRoundUp(n_bytes, kAlign) * kAlign;
+  }
+
+ public:
+  ~PinnedStaging() { this->copied_.Sync(); }
+
+  // The size of the device buffer for the arrays.
+  template <typename... T>
+  [[nodiscard]] static std::size_t Bytes(std::vector<T> const&... h_arrays) {
+    return (AlignUp(h_arrays.size() * sizeof(T)) + ...);
+  }
+
+  /**
+   * @brief Copy the arrays to the device with a single copy.
+   *
+   * @param d_buf The destination, the size must be `Bytes(h_arrays...)`.
+   *
+   * @return The device pointer of each array.
+   */
+  template <typename... T>
+  [[nodiscard]] std::tuple<T const*...> CopyToDevice(curt::StreamRef stream,
+                                                     dh::TemporaryArray<std::byte>* d_buf,
+                                                     std::vector<T> const&... h_arrays) {
+    static_assert(((kAlign % alignof(T) == 0) && ...));
+    auto n_bytes = Bytes(h_arrays...);
+    CHECK_EQ(d_buf->size(), n_bytes);
+    this->copied_.Sync();
+    auto h_buf = this->h_buf_.GetSpan<std::byte>(n_bytes);
+    std::size_t offset = 0;
+    auto stage = [&](auto const& h_array) {
+      using V = typename std::remove_reference_t<decltype(h_array)>::value_type;
+      auto n = h_array.size() * sizeof(V);
+      std::copy_n(reinterpret_cast<std::byte const*>(h_array.data()), n, h_buf.data() + offset);
+      auto d_ptr = reinterpret_cast<V const*>(d_buf->data().get() + offset);
+      offset += AlignUp(n);
+      return d_ptr;
+    };
+    // The initializers in braces are evaluated in order.
+    std::tuple<T const*...> d_ptrs{stage(h_arrays)...};
+    dh::safe_cuda(
+        cudaMemcpyAsync(d_buf->data().get(), h_buf.data(), n_bytes, cudaMemcpyDefault, stream));
+    this->copied_.Record(stream);
+    return d_ptrs;
+  }
+};
+}  // anonymous namespace
+
 // Dispatcher for the histogram kernel.
 struct HistKernel {
   /**
@@ -473,6 +541,8 @@ struct HistKernel {
   std::size_t const max_shared_bytes;
   // Use global memory for testing
   bool const force_global;
+  // Copies the arrays of the kernel arguments.
+  PinnedStaging staging;
 
   // Obtain the (cached) number of resident blocks per MP for a kernel.
   template <typename Policy, typename Kernel>
@@ -530,12 +600,7 @@ struct HistKernel {
     std::size_t shmem_bytes = feature_groups.ShmemSize();
     bool use_shared = !force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
-
-    dh::TemporaryArray<RidxIterSpan> ridx_iters(h_ridx_iters.size());
-    dh::TemporaryArray<common::Span<GradientPairInt64>> hists(h_hists.size());
     auto stream = ctx->CUDACtx()->Stream();
-    dh::CopyTo(h_ridx_iters, &ridx_iters, stream);
-    dh::CopyTo(h_hists, &hists, stream);
 
     auto launch = [&](auto policy) {
       using Policy = common::GetValueT<decltype(policy)>;
@@ -553,17 +618,15 @@ struct HistKernel {
           ItemsToEntries<Policy>(h_sizes_csum, h_feature_groups.feature_segments.ConstHostSpan(),
                                  matrix.row_stride, n_items, n_items_per_blk, n_blks_per_target);
 
-      // Copy the row counts and the block pointers together.
-      std::vector<std::size_t> h_offsets{h_sizes_csum};
-      h_offsets.insert(h_offsets.cend(), h_blk_ptr.cbegin(), h_blk_ptr.cend());
-      dh::TemporaryArray<std::size_t> offsets(h_offsets.size());
-      dh::CopyTo(h_offsets, &offsets, stream);
-      auto sizes_csum = dh::ToSpan(offsets).subspan(0, h_sizes_csum.size());
-      auto blk_ptr = offsets.data().get() + h_sizes_csum.size();
+      dh::TemporaryArray<std::byte> d_args(
+          PinnedStaging::Bytes(h_ridx_iters, h_hists, h_sizes_csum, h_blk_ptr));
+      auto [ridx_iters, hists, sizes_csum, blk_ptr] = this->staging.CopyToDevice(
+          stream, &d_args, h_ridx_iters, h_hists, h_sizes_csum, h_blk_ptr);
 
       dh::LaunchKernel(static_cast<std::uint32_t>(n_blks), Policy::kBlockThreads, shmem_bytes,
-                       stream)(kernel, matrix, feature_groups, ridx_iters.data().get(), sizes_csum,
-                               hists.data().get(), d_gpair, n_samples, n_targets, blk_ptr);
+                       stream)(kernel, matrix, feature_groups, ridx_iters,
+                               common::Span<std::size_t const>{sizes_csum, h_sizes_csum.size()},
+                               hists, d_gpair, n_samples, n_targets, blk_ptr);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
