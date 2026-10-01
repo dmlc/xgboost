@@ -357,6 +357,7 @@ the patch a reviewer has to read without helping them judge the change. The spli
 | `benchmark_k_scaling.py` | Backs the documented `O(K^2)` / `O(K^3)` cost statement with measurements. |
 | `benchmark_phase3d_evidence.py` | A small, bounded sanity sweep (K/N/max_bin/thread scaling, loss curves, peak memory) that a reviewer can re-run in well under a minute, distinct from `benchmark_v2.py`'s rigorous protocol. |
 | `EXACT_HESSIAN_STATUS.md` | The support/rejection/unverified matrix, condensed into `doc/` for users but kept in full here for reviewers. |
+| `FINAL_DESIGN_SUMMARY.md` | The design, what this recovery changed and why, the evidence behind it, and known limitations -- the document a reviewer reads first. |
 
 **Kept out of the PR** — their content lives in the issue thread and PR description instead:
 

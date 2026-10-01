@@ -51,7 +51,6 @@ avoided. `research/summarize_v2.py` derives every table from the raw JSONL alone
 
 | File | What it is |
 |---|---|
-| `RETRACTED_run_log.txt` | stdout of the last contaminated run, kept for debugging only |
 
 The raw JSONL from that run does not exist: it was written only at the end of `main()`, which
 never completed.

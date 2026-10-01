@@ -144,7 +144,7 @@ multinomial Hessian is dense,
 
 .. math::
 
-   g = p - y, \qquad H = \mathrm{diag}(p) - p p^{	op}
+   g = p - y, \qquad H = \mathrm{diag}(p) - p p^{\top}
 
 and its off-diagonal entries :math:`-p_i p_j` are exactly that discarded coupling. Setting
 ``multi_hessian=exact`` uses the dense matrix and solves one joint Newton system per leaf.
@@ -153,7 +153,7 @@ Because softmax is invariant to adding a constant to every logit, :math:`H` is s
 (:math:`H \mathbf{1} = 0`). XGBoost removes that direction by pinning the last class to logit
 zero, solving in :math:`K-1` free coordinates, and writing the mean-centred representative of
 the resulting step back to the :math:`K` leaf outputs. The L2 penalty is applied to that
-centred leaf, :math:`R = \lambda (I - \mathbf{1}\mathbf{1}^{	op}/K)`, which makes the fitted
+centred leaf, :math:`R = \lambda (I - \mathbf{1}\mathbf{1}^{\top}/K)`, which makes the fitted
 model independent of which class is used as the reference.
 
 **Cost.** Histogram storage per bin grows from :math:`O(K)` to :math:`O(K^2)` and each leaf

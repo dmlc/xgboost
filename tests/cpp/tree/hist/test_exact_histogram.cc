@@ -6,10 +6,9 @@
 #include <xgboost/context.h>
 #include <xgboost/gradient.h>
 
-#include <chrono>   // for steady_clock
+#include <algorithm>  // for any_of
 #include <cmath>    // for fabs
 #include <cstddef>  // for size_t
-#include <cstdio>   // for printf
 #include <numeric>  // for accumulate, iota
 #include <utility>  // for pair
 #include <vector>   // for vector
@@ -567,63 +566,113 @@ TEST(ExactHistogram, ThreadLocalReduction) {
 }
 
 /**
- * Structural performance guard.
- *
- * A correct build visits each row once and writes one contiguous record per touched bin, so
- * the cost should track the record size: K=3 stores 5 doubles per bin and K=7 stores 27, a
- * ratio of 5.4x. An implementation that re-traversed the rows once per Hessian entry would
- * instead scale with the square of the record size, roughly 29x. The bound below is loose
- * enough not to be timing-flaky while still catching that class of mistake.
+ * `BuildExactHist`'s cost is `n_calls * record_size` only because each call to
+ * `AddRowToExactHist` touches exactly its own target bin's record -- `record_size` contiguous
+ * doubles -- and nothing else. A regression that re-traverses a row once per Hessian entry
+ * (instead of once per bin) would write into, or read past, memory outside that record. This
+ * checks that structural bound directly -- neighbouring bins are untouched, and the written
+ * bin receives exactly `record_size` values, each the row's own contribution -- rather than
+ * inferring it from a wall-clock timing ratio, which is not deterministic across machines or
+ * CI load.
  */
-TEST(ExactHistogram, BuildCostTracksRecordSize) {
-  Context ctx;
-  std::size_t constexpr kRows = 4096, kCols = 16;
+TEST(ExactHistogram, AddRowTouchesExactlyOneRecord) {
+  for (bst_target_t n_classes : {3u, 7u}) {
+    auto n_free = static_cast<bst_target_t>(n_classes - 1);
+    auto record_size = ExactHistRecordSize(n_free);
+
+    auto rows = MakeRows(UniformProbabilities(1, n_classes), {1.0f}, {0});
+    auto gpair_row = rows.gpair.HostView().Slice(0, linalg::All());
+    auto hessian_row = rows.hessian.HostRow(0);
+    ASSERT_EQ(static_cast<std::size_t>(n_free) + hessian_row.size(), record_size)
+        << "K=" << n_classes;
+
+    // Three bins' worth of storage, filled with a sentinel AddRowToExactHist can never
+    // produce on its own (it only ever adds gradients/Hessian entries to what's already there).
+    double constexpr kSentinel = -1e9;
+    std::vector<double> buffer(3 * record_size, kSentinel);
+    bst_bin_t constexpr kTargetBin = 1;
+
+    AddRowToExactHist(common::Span<double>{buffer}, record_size, n_free, kTargetBin, gpair_row,
+                      hessian_row);
+
+    // Neighbouring bins must be completely untouched.
+    for (std::size_t i = 0; i < record_size; ++i) {
+      EXPECT_EQ(buffer[i], kSentinel)
+          << "K=" << n_classes << ": bin 0 entry " << i << " was touched by a write to bin 1";
+      EXPECT_EQ(buffer[2 * record_size + i], kSentinel)
+          << "K=" << n_classes << ": bin 2 entry " << i << " was touched by a write to bin 1";
+    }
+
+    // The target bin's record is exactly record_size entries: sentinel plus the row's own
+    // gradient and Hessian-triangle contribution, never left untouched, nothing written past it.
+    for (bst_target_t i = 0; i < n_free; ++i) {
+      auto expected = kSentinel + static_cast<double>(gpair_row(i).GetGrad());
+      EXPECT_DOUBLE_EQ(buffer[record_size + i], expected) << "K=" << n_classes << " grad " << i;
+    }
+    for (std::size_t k = 0; k < hessian_row.size(); ++k) {
+      auto expected = kSentinel + static_cast<double>(hessian_row[k]);
+      EXPECT_DOUBLE_EQ(buffer[record_size + n_free + k], expected)
+          << "K=" << n_classes << " hessian " << k;
+    }
+  }
+}
+
+/**
+ * `BuildExactHist`'s result must not depend on how the row-accumulation work is split across
+ * threads. Each thread reduces whichever disjoint row range `ParallelFor` assigns it into its
+ * own block, and `ExactHistThreadBuffer::ReduceTo` sums those blocks back together; different
+ * thread counts assign rows differently, which reorders floating-point addition (not
+ * associative in general), so results are compared with a tight numerical tolerance rather
+ * than bit-for-bit. They must still agree to ordinary double-precision rounding, on the same
+ * input, regardless of thread count -- this is deterministic (no timing involved) and is what
+ * `ThreadLocalReduction` above does not cover: that test checks `ReduceTo`'s arithmetic in
+ * isolation for one fixed thread count, not that a real build gives the same answer across
+ * different ones.
+ */
+TEST(ExactHistogram, ThreadCountDoesNotChangeResult) {
+  std::size_t constexpr kRows = 512, kCols = 8;
   bst_bin_t constexpr kMaxBins = 16;
-  auto p_fmat = RandomDataGenerator(kRows, kCols, 0.0).Seed(5).GenerateDMatrix();
+  bst_target_t constexpr kNumClasses = 5;
+  auto n_free = static_cast<bst_target_t>(kNumClasses - 1);
+
+  auto p_fmat = RandomDataGenerator(kRows, kCols, 0.0).Seed(11).GenerateDMatrix();
+  Context binning_ctx;
   auto const& gmat =
-      *(p_fmat->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{kMaxBins, 0.5}).begin());
+      *(p_fmat->GetBatches<GHistIndexMatrix>(&binning_ctx, BatchParam{kMaxBins, 0.5}).begin());
 
   std::vector<bst_idx_t> row_indices(kRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
 
-  auto measure = [&](std::size_t n_classes) {
-    auto n_free = static_cast<bst_target_t>(n_classes - 1);
-    auto probabilities = UniformProbabilities(kRows, n_classes);
-    std::vector<float> weights(kRows, 1.0f);
-    std::vector<std::size_t> labels(kRows, 0);
-    auto rows = MakeRows(probabilities, weights, labels);
+  auto rows = MakeRows(UniformProbabilities(kRows, kNumClasses),
+                       std::vector<float>(kRows, 1.0f), std::vector<std::size_t>(kRows, 0));
 
+  auto build_with = [&](std::int32_t n_threads) {
+    Context ctx;
+    ctx.InitAllowUnknown(Args{{"nthread", std::to_string(n_threads)}});
     ExactHistCollection hist;
-    hist.Reset(gmat.cut.TotalBins(), n_free, 8);
+    hist.Reset(gmat.cut.TotalBins(), n_free, 2);
     hist.AllocateHistograms(std::vector<bst_node_t>{0});
     ExactHistThreadBuffer buffer;
-
-    // One warm-up pass so the comparison is not dominated by first-touch page faults.
     ZeroExactHist(hist[0]);
     BuildExactHist(&ctx, hist[0], n_free, gmat, common::Span<bst_idx_t const>{row_indices},
                    rows.gpair.HostView(), rows.hessian, &buffer);
-
-    auto start = std::chrono::steady_clock::now();
-    int constexpr kRepeats = 5;
-    for (int i = 0; i < kRepeats; ++i) {
-      ZeroExactHist(hist[0]);
-      BuildExactHist(&ctx, hist[0], n_free, gmat, common::Span<bst_idx_t const>{row_indices},
-                     rows.gpair.HostView(), rows.hessian, &buffer);
-    }
-    auto elapsed = std::chrono::steady_clock::now() - start;
-    return std::chrono::duration<double, std::milli>(elapsed).count() / kRepeats;
+    auto h = hist[0];
+    return std::vector<double>{h.begin(), h.end()};
   };
 
-  auto ms_k3 = measure(3);
-  auto ms_k7 = measure(7);
-  std::printf("  exact histogram build: K=3 %.3f ms, K=7 %.3f ms, ratio %.2fx\n", ms_k3, ms_k7,
-              ms_k7 / ms_k3);
+  auto reference = build_with(1);
+  ASSERT_FALSE(reference.empty());
+  ASSERT_TRUE(std::any_of(reference.begin(), reference.end(), [](double v) { return v != 0.0; }))
+      << "reference histogram is all zero; this test would prove nothing";
 
-  ASSERT_GT(ms_k3, 0.0);
-  // Record size ratio is 27/5 = 5.4x; a per-entry re-traversal would be ~29x.
-  EXPECT_LT(ms_k7, ms_k3 * 12.0)
-      << "K=7 build cost grew far beyond the record-size ratio, which suggests the row loop "
-         "is being repeated per Hessian entry";
+  for (std::int32_t n_threads : {2, 4}) {
+    auto actual = build_with(n_threads);
+    ASSERT_EQ(actual.size(), reference.size()) << "nthread=" << n_threads;
+    for (std::size_t i = 0; i < reference.size(); ++i) {
+      EXPECT_NEAR(actual[i], reference[i], 1e-9 * std::max(1.0, std::fabs(reference[i])))
+          << "nthread=" << n_threads << " entry " << i;
+    }
+  }
 }
 
 /** Zeroing and the empty state. */
