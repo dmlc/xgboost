@@ -7,10 +7,13 @@
 
 #include <algorithm>  // for max
 #include <cmath>      // for fabs, isfinite
+#include <cstdint>  // for int32_t
 #include <memory>   // for unique_ptr
 #include <string>   // for string, to_string
 #include <vector>   // for vector
 
+#include "../../src/collective/communicator-inl.h"  // for GetRank
+#include "./collective/test_worker.h"                // for TestDistributedGlobal
 #include "helpers.h"
 
 namespace xgboost {
@@ -643,5 +646,57 @@ TEST(ExactMultinomialLearner, ContinuedTrainingMatchesStraightThrough) {
   for (std::size_t i = 0; i < expected.size(); ++i) {
     EXPECT_FLOAT_EQ(expected[i], actual[i]) << "entry " << i;
   }
+}
+
+/**
+ * A distributed worker can legitimately own zero rows while multi_hessian=exact is still
+ * requested: the empty exact-Hessian sidecar must not be mistaken for exact mode being off.
+ * Mode selection is keyed off the explicit request (GradientContainer::
+ * HasExactHessianRequested), not off sidecar/data presence, specifically so that this worker
+ * takes the same exact builder and collective sequence as its non-empty peer. If mode
+ * selection ever regresses to inferring from HasExactHessian() again, the empty worker falls
+ * back to the diagonal/multi-target builder while its peer takes the exact path, and the
+ * mismatched collective sequence either CHECK-fails or hangs until TestDistributedGlobal's
+ * timeout fires.
+ */
+TEST(ExactMultinomialLearner, DistributedExactWithEmptyWorker) {
+  bst_target_t constexpr kNumClasses = 3;
+  std::int32_t constexpr kWorkers = 2;
+  collective::TestDistributedGlobal(kWorkers, [] {
+    auto empty = collective::GetRank() == kWorkers - 1;
+    auto dmat = RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}
+                    .Seed(17)
+                    .Classes(kNumClasses)
+                    .GenerateDMatrix(!empty);
+
+    std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+    learner->Configure(
+        ExactArgs(kNumClasses, "exact", {{"max_depth", "1"}, {"min_child_weight", "0"}}));
+    learner->UpdateOneIter(0, dmat);
+    learner->UpdateOneIter(1, dmat);
+
+    // Every rank -- including the empty one -- must have gone through the exact builder:
+    // the shared multi-output model has one group per class, and the requested mode survives
+    // both rounds rather than silently reverting.
+    ASSERT_EQ(learner->Groups(), kNumClasses);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto const& learner_cfg = get<Object const>(config["learner"]);
+    auto const& train_param = get<Object const>(learner_cfg.at("learner_train_param"));
+    EXPECT_EQ(get<String const>(train_param.at("multi_hessian")), "exact");
+
+    // Training continuation can hand the empty worker a new, still label-less DMatrix.
+    auto next = RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}
+                    .Seed(29)
+                    .Classes(kNumClasses)
+                    .GenerateDMatrix(!empty);
+    learner->UpdateOneIter(2, next);
+
+    auto predt = Predict(learner.get(), dmat);
+    ASSERT_EQ(predt.size(), dmat->Info().num_row_ * kNumClasses);
+    for (auto v : predt) {
+      EXPECT_TRUE(std::isfinite(v));
+    }
+  });
 }
 }  // namespace xgboost
