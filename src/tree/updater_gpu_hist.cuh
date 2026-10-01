@@ -151,8 +151,6 @@ class MultiTargetHistMaker {
 
     std::vector<common::Span<GradientPairInt64>> h_hists;
     std::vector<common::Span<RowIndexT const>> h_ridxs;
-    std::vector<std::size_t> h_sizes_csum{0};
-    std::size_t nidx_in_set = 0;
     // TODO(jiamingy): We can assume the histogram buffers contiguous if we don't skip
     // nodes here.
     for (auto nidx : build_nodes) {
@@ -163,20 +161,11 @@ class MultiTargetHistMaker {
         continue;
       }
       h_ridxs.push_back(d_ridx);
-      auto d_hist = histogram_.GetNodeHistogram(nidx);
-      h_hists.push_back(d_hist);
-
-      h_sizes_csum.push_back(d_ridx.size() + h_sizes_csum[nidx_in_set]);
-
-      ++nidx_in_set;
+      h_hists.push_back(histogram_.GetNodeHistogram(nidx));
     }
 
-    dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
-    dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
-
-    this->histogram_.BuildHistogram(this->ctx_, acc,
-                                    this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
-                                    d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum);
+    this->histogram_.BuildHistogram(this->ctx_, acc, *this->feature_groups_, d_gpair, h_ridxs,
+                                    h_hists);
   }
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
