@@ -662,7 +662,7 @@ TEST(ExactMultinomialLearner, ContinuedTrainingMatchesStraightThrough) {
 TEST(ExactMultinomialLearner, DistributedExactWithEmptyWorker) {
   bst_target_t constexpr kNumClasses = 3;
   std::int32_t constexpr kWorkers = 2;
-  collective::TestDistributedGlobal(kWorkers, [] {
+  collective::TestDistributedGlobal(kWorkers, [=] {
     auto empty = collective::GetRank() == kWorkers - 1;
     auto dmat = RandomDataGenerator{empty ? 0ul : 8ul, 2, 0.0f}
                     .Seed(17)

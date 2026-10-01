@@ -47,6 +47,9 @@ ExactProblem MakeProblem(std::size_t n_rows, bst_target_t n_classes, double sign
 
   out.gpair.gpair.Reshape(n_rows, n_classes);
   out.gpair.exact_hessian.Reshape(n_rows, n_free);
+  // The updater selects the exact builder from this explicit flag, not from sidecar presence,
+  // so a hand-built container must request it the same way LearnerImpl::GetGradient does.
+  out.gpair.SetExactHessianRequested(true);
   auto h_gpair = out.gpair.gpair.HostView();
 
   for (std::size_t r = 0; r < n_rows; ++r) {
@@ -267,6 +270,57 @@ TEST(ExactBuilder, OffDiagonalTermsChangeTraining) {
   EXPECT_TRUE(differs)
       << "dropping the off-diagonal Hessian left the trained leaves unchanged, so the dense "
          "Hessian is not reaching live training";
+}
+
+/**
+ * The learning rate must be applied exactly once between the Newton solve and the stored
+ * leaf weight.
+ *
+ * `SetRoot`/`Expand` store unscaled base weights and `FinalizeLeaves` applies `eta` once, when
+ * a node becomes a prediction leaf. A regression that drops this scaling, or applies it twice
+ * (e.g. once more inside the exact builder itself), would still pass every centering or
+ * finiteness check above, because scaling a centered vector by any constant leaves it
+ * centered. Only a direct ratio check against a second, differently-scaled run catches it.
+ */
+TEST(ExactBuilder, LearningRateAppliedExactlyOnce) {
+  bst_target_t constexpr kNumClasses = 3;
+  Context ctx;
+  double constexpr kEta = 0.4;
+
+  auto TrainWithEta = [&](double eta) {
+    auto problem = MakeProblem(256, kNumClasses);
+    TrainParam param;
+    param.UpdateAllowUnknown(Args{{"max_depth", "1"},
+                                  {"max_bin", "16"},
+                                  {"lambda", "1.0"},
+                                  {"gamma", "0"},
+                                  {"min_child_weight", "0"},
+                                  {"subsample", "1.0"},
+                                  {"learning_rate", std::to_string(eta)}});
+    auto tree = TrainExact(&ctx, &problem, param);
+    return LeafWeights(*tree, kNumClasses);
+  };
+
+  auto unit_leaves = TrainWithEta(1.0);
+  auto scaled_leaves = TrainWithEta(kEta);
+  ASSERT_EQ(unit_leaves.size(), scaled_leaves.size());
+  ASSERT_FALSE(unit_leaves.empty());
+
+  bool any_nonzero = false;
+  for (std::size_t l = 0; l < unit_leaves.size(); ++l) {
+    ASSERT_EQ(unit_leaves[l].size(), scaled_leaves[l].size());
+    for (std::size_t t = 0; t < unit_leaves[l].size(); ++t) {
+      if (std::fabs(unit_leaves[l][t]) > 1e-6) {
+        any_nonzero = true;
+      }
+      EXPECT_NEAR(scaled_leaves[l][t], kEta * unit_leaves[l][t], 1e-4)
+          << "leaf " << l << " target " << t
+          << ": leaf weight does not scale linearly with eta, so learning rate is applied the "
+             "wrong number of times";
+    }
+  }
+  EXPECT_TRUE(any_nonzero) << "every eta=1.0 leaf was zero, so this problem cannot distinguish "
+                              "a scaling bug";
 }
 
 /** Sampling keeps gradient and Hessian aligned inside live training. */
@@ -588,6 +642,9 @@ TEST(ExactBuilder, MultiPageNodeTotalMatchesGroundTruth) {
   GradientContainer gc;
   gc.gpair.Reshape(kRows, kNumClasses);
   gc.exact_hessian.Reshape(kRows, n_free);
+  // The updater below selects the exact builder from this explicit flag, not from sidecar
+  // presence, so this hand-built container must request it the same way Learner does.
+  gc.SetExactHessianRequested(true);
   auto h_gpair = gc.gpair.HostView();
   for (std::size_t r = 0; r < kRows; ++r) {
     std::vector<double> p(kNumClasses, 1.0);

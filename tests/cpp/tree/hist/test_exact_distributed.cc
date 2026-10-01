@@ -163,6 +163,9 @@ std::unique_ptr<RegTree> Train(Context* ctx, Slice* slice, TrainParam const& par
     auto src = slice->gpair.exact_hessian.HostValues();
     auto dst = container.exact_hessian.HostValues();
     std::copy(src.cbegin(), src.cend(), dst.begin());
+    // The updater selects the exact builder from this explicit flag, not from sidecar
+    // presence, so this hand-built container must request it the same way Learner does.
+    container.SetExactHessianRequested(true);
   }
   updater->Update(&param, &container, slice->fmat.get(),
                   common::Span<HostDeviceVector<bst_node_t>>{position.data(), position.size()},
