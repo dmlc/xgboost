@@ -276,8 +276,11 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
     // caller believed otherwise. That cannot happen today because the learner rejects
     // multi_hessian=exact together with multi_strategy=one_output_per_tree, but the guard
     // lives there and this is the place that would break. Assert it locally so relaxing the
-    // rejection fails loudly instead of silently changing the model.
-    CHECK(!in_gpair->HasExactHessian())
+    // rejection fails loudly instead of silently changing the model. Checked against the
+    // explicit request rather than sidecar presence: a distributed worker with zero rows can
+    // have an empty sidecar while exact mode is still requested, and the check must still fire
+    // for it.
+    CHECK(!in_gpair->HasExactHessianRequested())
         << "An exact Hessian sidecar reached the scalar-leaf boosting path, which cannot use "
            "it. This is an internal inconsistency: multi_hessian=exact requires "
            "multi_strategy=multi_output_tree and should have been rejected earlier.";
