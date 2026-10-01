@@ -101,7 +101,10 @@ struct GradientContainer {
 
   [[nodiscard]] bool HasValueGrad() const noexcept { return !value_gpair.Empty(); }
   [[nodiscard]] bool HasExactHessian() const noexcept { return !exact_hessian.Empty(); }
-
+  [[nodiscard]] bool HasExactHessianRequested() const noexcept {
+    return exact_hessian_requested_;
+  }
+  void SetExactHessianRequested(bool requested) noexcept { exact_hessian_requested_ = requested; }
   /**
    * @brief Invalidate the exact Hessian.
    *
@@ -110,8 +113,10 @@ struct GradientContainer {
    * gradient computation calls this; the objective cannot, because it is handed the
    * gradient matrix rather than the container and does not own the sidecar's lifetime.
    */
-  void ClearExactHessian() { this->exact_hessian.Clear(); }
-
+  void ClearExactHessian() {
+    exact_hessian_requested_ = false;
+    this->exact_hessian.Clear();
+  }
   [[nodiscard]] std::size_t NumSplitTargets() const noexcept { return gpair.Shape(1); }
   [[nodiscard]] std::size_t NumTargets() const noexcept {
     return HasValueGrad() ? value_gpair.Shape(1) : this->gpair.Shape(1);
@@ -139,5 +144,8 @@ struct GradientContainer {
     }
     return this->Grad();
   }
+
+ private:
+  bool exact_hessian_requested_{false};
 };
 }  // namespace xgboost

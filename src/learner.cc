@@ -1352,6 +1352,7 @@ class LearnerImpl : public LearnerIO {
     out->gpair.Reshape(info.num_row_, this->model_state_.OutputLength());
     if (this->UseExactHessian()) {
       this->ValidateExactHessian();
+      out->SetExactHessianRequested(true);
       obj_->GetGradientAndExactHessian(preds, info, iter, &out->gpair, &out->exact_hessian);
     } else {
       obj_->GetGradient(preds, info, iter, &out->gpair);

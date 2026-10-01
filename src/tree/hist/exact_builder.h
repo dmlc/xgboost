@@ -98,7 +98,7 @@ class ExactMultiTargetHistBuilder {
     monitor_->Start(__func__);
     CheckExactTrainParam(*param_);
     CHECK(hessian_) << "Exact multinomial training requires the exact Hessian sidecar.";
-    CHECK(!hessian_->Empty()) << "The exact Hessian sidecar is empty.";
+
     CHECK_EQ(hessian_->NumRows(), gpair.Shape(0))
         << "The exact Hessian does not describe the current gradient.";
 

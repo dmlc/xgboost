@@ -591,10 +591,9 @@ class QuantileHistMaker : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
-    // Exact multinomial mode is selected by the presence of the exact Hessian sidecar, which
-    // only the native multinomial objective produces and only when explicitly asked. Any
-    // other run takes the untouched scalar or multi-target path below.
-    bool const use_exact = in_gpair->HasExactHessian();
+    // Exact multinomial mode is selected explicitly by the learner. The sidecar can be
+    // empty on a distributed worker with zero rows, so data presence cannot determine mode.
+    bool const use_exact = in_gpair->HasExactHessianRequested();
     if (use_exact) {
       CHECK(trees.front()->IsMultiTarget())
           << "multi_hessian=exact requires a shared multi-output tree. Set "

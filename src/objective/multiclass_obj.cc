@@ -243,9 +243,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     CHECK(ctx_->IsCPU())
         << "multi_hessian=exact is implemented for the CPU only, but the objective runs on "
         << ctx_->Device().Name() << ". Set device=cpu, or use multi_hessian=diagonal.";
-    if (info.labels.Size() == 0) {
-      return;
-    }
+
     auto n_classes = static_cast<std::int64_t>(param_.num_class);
     auto kernel_ctx = this->MakeKernelCtx(preds, info, iter, n_classes);
     common::DispatchKernel<MulticlassExactGradientKernel>(&kernel_ctx, preds, info, n_classes,
