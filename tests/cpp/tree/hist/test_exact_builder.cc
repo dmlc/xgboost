@@ -95,11 +95,12 @@ TrainParam MakeParam(std::string const& max_depth = "2", std::string const& lamb
 }
 
 /** @brief Run one round of exact training and return the grown tree. */
-std::unique_ptr<RegTree> TrainExact(Context* ctx, ExactProblem* problem, TrainParam const& param) {
+std::unique_ptr<RegTree> TrainExact(Context* ctx, ExactProblem* problem, TrainParam const& param,
+                                    Args const& updater_args = {}) {
   ObjInfo task{ObjInfo::kClassification, false, true};
   auto updater =
       std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", ctx, &task)};
-  updater->Configure(Args{});
+  updater->Configure(updater_args);
 
   auto tree = std::make_unique<RegTree>(problem->n_classes,
                                         static_cast<bst_feature_t>(problem->fmat->Info().num_col_));
@@ -730,6 +731,52 @@ TEST(ExactBuilder, MultiPageNodeTotalMatchesGroundTruth) {
       sum += v;
     }
     EXPECT_NEAR(sum, 0.0, 1e-4) << "leaf weight is not centered";
+  }
+}
+
+/**
+ * `max_cached_hist_node` must be honoured by the exact builder, and honouring it must not
+ * change the trained model: eviction forces some right children to be fully rebuilt instead
+ * of derived by subtraction from their (now evicted) parent, but that is a different way to
+ * compute the same histogram, not an approximation of it. Train the same problem with a cache
+ * so small it forces repeated eviction, and with the (effectively unbounded) default, and
+ * require the two trees to agree.
+ *
+ * Also a regression for CodeRabbit's finding on the closed upstream PR: the exact builder used
+ * to call ExactHistCollection::AllocateHistograms directly, never consulting CanHost / Clear /
+ * HasExceeded, so this parameter was silently inert for multi_hessian=exact regardless of its
+ * documented memory-bound contract.
+ */
+TEST(ExactBuilder, HonoursMaxCachedHistNode) {
+  bst_target_t constexpr kNumClasses = 3;
+  Context ctx;
+  // Depth 4 grows up to 31 nodes; a cache of 2 forces eviction (and therefore a full rebuild
+  // in place of subtraction) on almost every level.
+  auto param = MakeParam("4", "1.0", "1.0");
+
+  auto bounded_problem = MakeProblem(512, kNumClasses);
+  auto bounded_tree =
+      TrainExact(&ctx, &bounded_problem, param, Args{{"max_cached_hist_node", "2"}});
+
+  auto unbounded_problem = MakeProblem(512, kNumClasses);
+  auto unbounded_tree =
+      TrainExact(&ctx, &unbounded_problem, param, Args{{"max_cached_hist_node", "4096"}});
+
+  ASSERT_GT(bounded_tree->Size(), 1u) << "the fixture did not split; this test would prove "
+                                         "nothing about eviction";
+
+  auto bounded_leaves = LeafWeights(*bounded_tree, kNumClasses);
+  auto unbounded_leaves = LeafWeights(*unbounded_tree, kNumClasses);
+  ASSERT_FALSE(bounded_leaves.empty());
+  ASSERT_EQ(bounded_leaves.size(), unbounded_leaves.size())
+      << "a tight cache budget changed the tree structure, not just how it was computed";
+  for (std::size_t l = 0; l < bounded_leaves.size(); ++l) {
+    ASSERT_EQ(bounded_leaves[l].size(), unbounded_leaves[l].size());
+    for (std::size_t t = 0; t < bounded_leaves[l].size(); ++t) {
+      EXPECT_NEAR(bounded_leaves[l][t], unbounded_leaves[l][t], 1e-6)
+          << "leaf " << l << " target " << t
+          << ": eviction-forced rebuild disagrees with subtraction for the same histogram";
+    }
   }
 }
 }  // namespace xgboost::tree

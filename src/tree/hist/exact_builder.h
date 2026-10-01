@@ -203,17 +203,48 @@ class ExactMultiTargetHistBuilder {
       to_build.push_back(p_tree->LeftChild(candidate.nid));
       to_subtract.push_back(p_tree->RightChild(candidate.nid));
     }
+
+    // Mirrors HistogramBuilder::AddHistRows (histogram.h). `can_host` asks whether this
+    // specific batch fits; `has_exceeded_` instead persists for the rest of the tree once any
+    // earlier batch did not fit, because a clear drops every histogram cached before it,
+    // including some candidates' own (parent) histograms, so subtraction can no longer be
+    // assumed safe for any later batch either -- only for a candidate whose parent happens to
+    // have been (re)built since the most recent clear. So the per-candidate "is the parent
+    // still cached" check below must run whenever the cache is not provably still intact
+    // (`!can_host`, or it was exceeded at some earlier node of this same tree), not only on the
+    // call that triggers the clear.
+    bool can_host = hist_.CanHost(common::Span<bst_node_t const>{to_build},
+                                  common::Span<bst_node_t const>{to_subtract});
+    bool cache_is_valid = can_host && !hist_.HasExceeded();
+    if (!can_host) {
+      hist_.Clear(true);
+    }
+    if (!cache_is_valid) {
+      std::vector<bst_node_t> can_subtract;
+      for (auto const& candidate : valid_candidates) {
+        if (hist_.HistogramExists(candidate.nid)) {
+          can_subtract.push_back(p_tree->RightChild(candidate.nid));
+        } else {
+          to_build.push_back(p_tree->RightChild(candidate.nid));
+        }
+      }
+      to_subtract = std::move(can_subtract);
+    }
     hist_.AllocateHistograms(common::Span<bst_node_t const>{to_build},
                              common::Span<bst_node_t const>{to_subtract});
 
-    for (auto const& candidate : valid_candidates) {
-      this->BuildNodeHist(p_fmat, p_tree->LeftChild(candidate.nid), gpair);
+    for (auto nidx : to_build) {
+      this->BuildNodeHist(p_fmat, nidx, gpair);
     }
-    // Reduce the locally built children first, then derive each sibling by subtraction. The
-    // parent is already global, so `parent - global_left` is the global right and needs no
-    // second round of communication -- the same ordering the scalar path uses.
+    // Reduce the locally built children first, then derive each still-subtractable sibling by
+    // subtraction. The parent is already global, so `parent - global_left` is the global right
+    // and needs no second round of communication -- the same ordering the scalar path uses.
     this->AllreduceHist(to_build);
     for (auto const& candidate : valid_candidates) {
+      if (!hist_.HistogramExists(candidate.nid)) {
+        // The right child was fully built above instead; nothing to derive.
+        continue;
+      }
       auto left = p_tree->LeftChild(candidate.nid);
       auto right = p_tree->RightChild(candidate.nid);
       SubtractExactHist(hist_[right], common::Span<double const>{hist_[candidate.nid]},
