@@ -296,11 +296,11 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   }
   std::size_t block_size = space_in_l1_for_rows / l1_row_foot_print;
 
-  /* Minimum block size = 8 rows.
-   * This ensures that a full cache line is utilized when loading gradient pairs.
+  /* Minimum block size = one cache line worth of gradient pairs.
+   * This ensures that a full cache line is utilized when loading gradient pairs, and that
+   * neighbouring blocks, which are processed by different threads, do not share one.
    */
-  constexpr std::size_t kCacheLineSize = 64;
-  constexpr std::size_t kMinBlockSize = kCacheLineSize / sizeof(GradientPair);
+  constexpr std::size_t kMinBlockSize = common::kCacheLineSize / sizeof(GradientPair);
   block_size = std::max<std::size_t>(kMinBlockSize, block_size);
 
   common::BlockedSpace2d space{nodes_to_build.size(),
