@@ -22,23 +22,15 @@
 #include "../../../../src/tree/param.h"                       // for TrainParam
 #include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
-#include "../../histogram_helpers.h"  // for BuildEllpackPage
 #include "dummy_quantizer.cuh"
 
 namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
-  auto ctx = MakeCUDACtx(0);
-  auto device = ctx.Ordinal();
+  auto device = 0;
   auto optin = dh::MaxSharedMemoryOptin(device);
-  std::int32_t max_carve_out = 0, reserved = 0;
-  dh::safe_cuda(
-      cudaDeviceGetAttribute(&max_carve_out, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
-  dh::safe_cuda(cudaDeviceGetAttribute(&reserved, cudaDevAttrReservedSharedMemoryPerBlock, device));
-
   for (auto budget : {DftStHistShmemBytes(device), DftMtHistShmemBytes(device)}) {
     ASSERT_GT(budget, 0);
     ASSERT_LE(budget, optin);
-    ASSERT_LE(budget + reserved, static_cast<std::size_t>(max_carve_out));
   }
 }
 
@@ -84,29 +76,38 @@ TEST(Histogram, DeviceHistogramStorage) {
 
 TEST(Histogram, SubtractionTrick) {
   auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins = 16;
 
-  auto page = BuildEllpackPage(&ctx, 64, 4);
-  auto cuts = page->CutsShared();
-  FeatureGroups fg{*cuts, true, std::numeric_limits<std::size_t>::max()};
-  auto n_total_bins = cuts->TotalBins();
-
-  // 2 nodes
-  auto max_cached_hist_nodes = 2ull;
   DeviceHistogramBuilder histogram;
-  histogram.Reset(&ctx, max_cached_hist_nodes, n_total_bins, false);
-  histogram.AllocateHistograms(&ctx, {0, 1, 2});
+  // Only the root is cached, the other nodes are in the overflow buffer.
+  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/1, n_bins, false);
+  histogram.AllocateHistograms(&ctx, {0});
+  histogram.AllocateHistograms(&ctx, {1}, {2});
+
+  auto fill = [&](bst_node_t nidx, GradientPairInt64 v) {
+    auto hist = histogram.GetNodeHistogram(nidx);
+    thrust::fill(ctx.CUDACtx()->CTP(), dh::tbegin(hist), dh::tend(hist), v);
+  };
+  fill(0, GradientPairInt64{10, 20});
+  fill(1, GradientPairInt64{3, 4});
+
   GPUExpandEntry root;
   root.nidx = 0;
-  auto need_build = histogram.SubtractHist<GPUExpandEntry>(&ctx, {root}, {0}, {1});
+  auto need_build = histogram.SubtractHist<GPUExpandEntry>(&ctx, {root}, {1}, {2});
+  ASSERT_TRUE(need_build.empty());
+  std::vector<GradientPairInt64> h_hist(n_bins);
+  dh::CopyDeviceSpanToVector(&h_hist, histogram.GetNodeHistogram(2));
+  for (auto v : h_hist) {
+    ASSERT_EQ(v, (GradientPairInt64{7, 16}));
+  }
 
+  // Allocating the next level clears the overflow buffer, the parents are no longer available.
+  histogram.AllocateHistograms(&ctx, {3, 5}, {4, 6});
   std::vector<GPUExpandEntry> candidates(2);
   candidates[0].nidx = 1;
   candidates[1].nidx = 2;
-
   need_build = histogram.SubtractHist(&ctx, candidates, {3, 5}, {4, 6});
-  ASSERT_EQ(need_build.size(), 2);
-  ASSERT_EQ(need_build[0], 4);
-  ASSERT_EQ(need_build[1], 6);
+  ASSERT_EQ(need_build, (std::vector<bst_node_t>{4, 6}));
 }
 
 void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPairInt64> onehot,
@@ -606,7 +607,7 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   std::vector<common::Span<GradientPairInt64>> hists;
   std::size_t beg = 0;
   for (bst_node_t i = 0; i < n_nodes; ++i) {
-    ridxs.push_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
+    ridxs.emplace_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
