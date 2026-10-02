@@ -308,6 +308,38 @@ class TestCallbacks:
         assert clf.best_iteration > 50
         assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
 
+    @pytest.mark.parametrize("metric", ["interval-regression-accuracy", "ams@0.15"])
+    def test_early_stopping_maximize_inferred(self, metric: str) -> None:
+        # Higher-is-better built-in metrics should be maximized when `maximize` is not
+        # specified.
+        rng = np.random.default_rng(1994)
+        n_samples = 512
+        X = rng.normal(size=(n_samples, 4))
+        if metric.startswith("ams"):
+            y = (X[:, 0] + rng.normal(scale=0.5, size=n_samples) > 0).astype(np.float32)
+            Xy = xgb.DMatrix(X, y)
+            objective = "binary:logistic"
+        else:
+            y = np.exp(X[:, 0] + rng.normal(scale=0.3, size=n_samples))
+            Xy = xgb.DMatrix(X)
+            Xy.set_float_info("label_lower_bound", y * 0.8)
+            Xy.set_float_info("label_upper_bound", y * 1.25)
+            objective = "survival:aft"
+
+        evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+        booster = xgb.train(
+            {"objective": objective, "eval_metric": metric},
+            Xy,
+            num_boost_round=32,
+            evals=[(Xy, "Train")],
+            evals_result=evals_result,
+            early_stopping_rounds=4,
+            verbose_eval=False,
+        )
+        history = evals_result["Train"][metric]
+        assert booster.best_iteration == int(np.argmax(history))
+        assert booster.best_score == pytest.approx(max(history))
+
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_eta_decay(self, tree_method: str) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
