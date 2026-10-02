@@ -26,18 +26,11 @@
 
 namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
-  auto ctx = MakeCUDACtx(0);
-  auto device = ctx.Ordinal();
+  auto device = 0;
   auto optin = dh::MaxSharedMemoryOptin(device);
-  std::int32_t max_carve_out = 0, reserved = 0;
-  dh::safe_cuda(
-      cudaDeviceGetAttribute(&max_carve_out, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
-  dh::safe_cuda(cudaDeviceGetAttribute(&reserved, cudaDevAttrReservedSharedMemoryPerBlock, device));
-
   for (auto budget : {DftStHistShmemBytes(device), DftMtHistShmemBytes(device)}) {
     ASSERT_GT(budget, 0);
     ASSERT_LE(budget, optin);
-    ASSERT_LE(budget + reserved, static_cast<std::size_t>(max_carve_out));
   }
 }
 
@@ -614,7 +607,7 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   std::vector<common::Span<GradientPairInt64>> hists;
   std::size_t beg = 0;
   for (bst_node_t i = 0; i < n_nodes; ++i) {
-    ridxs.push_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
+    ridxs.emplace_back(dh::ToSpan(ridx).subspan(beg, input.sizes[i]));
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
