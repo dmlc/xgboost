@@ -67,6 +67,22 @@ def test_predict_proba_logitraw():
     raw = clf.get_booster().inplace_predict(X)
     np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
 
+    # `predict` used to threshold the raw margin at 0.5 instead of the correct
+    # boundary of 0 (sigmoid(margin) > 0.5 iff margin > 0), misclassifying margins in
+    # (0, 0.5] as class 0. Shift one row's margin into that range with `base_margin`
+    # (computed from its unshifted margin) so the test deterministically exercises
+    # it, rather than relying on where an untouched `clf.fit` happens to land.
+    base_margin = np.zeros(X.shape[0])
+    base_margin[0] = 0.25 - raw[0]
+    raw_shifted = clf.get_booster().inplace_predict(X, base_margin=base_margin)
+    assert 0 < raw_shifted[0] <= 0.5
+
+    proba_shifted = expit(raw_shifted)
+    preds = clf.predict(X, base_margin=base_margin)
+    np.testing.assert_array_equal(
+        preds, (proba_shifted > 0.5).astype(preds.dtype)
+    )
+
 
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
