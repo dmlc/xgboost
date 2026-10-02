@@ -707,6 +707,18 @@ xgb.cb.early.stop <- function(
           if (NROW(best_score)) env$best_score <- as.numeric(best_score)
           best_iteration <- xgb.attr(model, 'best_iteration')
           if (NROW(best_iteration)) env$best_iteration <- as.numeric(best_iteration) + 1
+          if (env$verbose && NROW(best_iteration)) {
+            # A saved model might only retain the selected metric's best score.
+            best_eval <- setNames(env$best_score, names(iter_feval)[env$metric_idx])
+            previous_log <- as.data.frame(attr(model, "evaluation_log"))
+            best_row <- previous_log[previous_log$iter == env$best_iteration, , drop = FALSE]
+            if (nrow(best_row) == 1L && all(eval_names %in% names(best_row))) {
+              best_eval <- setNames(
+                unlist(best_row[, eval_names, drop = FALSE], use.names = FALSE), names(iter_feval)
+              )
+            }
+            env$best_msg <- .format_eval_string(env$best_iteration, best_eval)
+          }
         }
 
         env$checked_evnames <- TRUE
@@ -718,6 +730,9 @@ xgb.cb.early.stop <- function(
 
         env$best_score <- score
         env$best_iteration <- iteration
+        if (env$verbose) {
+          env$best_msg <- .format_eval_string(iteration, iter_feval, sds)
+        }
         # save the property to attributes, so they will occur in checkpoint
         if (inherits(model, "xgb.Booster")) {
           xgb.attributes(model) <- list(
@@ -727,8 +742,12 @@ xgb.cb.early.stop <- function(
         }
       } else if (iteration - env$best_iteration >= env$stopping_rounds) {
         if (env$verbose) {
-          best_msg <- .format_eval_string(iteration, iter_feval, sds)
-          cat("Stopping. Best iteration:\n", best_msg, "\n\n", sep = '')
+          if (is.null(env$best_msg)) {
+            env$best_msg <- .format_eval_string(
+              env$best_iteration, setNames(env$best_score, names(iter_feval)[env$metric_idx])
+            )
+          }
+          cat("Stopping. Best iteration:\n", env$best_msg, "\n\n", sep = '')
         }
         env$stopped_by_max_rounds <- TRUE
         return(TRUE)
