@@ -14,6 +14,19 @@ from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 
+def test_inplace_predict_masked_array() -> None:
+    data = np.array([[1.0, 2.0], [3.0, 999.0], [5.0, 6.0]], dtype=np.float32)
+    dtrain = xgb.DMatrix(data, label=[0.0, 1.0, 0.0])
+    booster = xgb.train({"tree_method": "hist", "max_depth": 1}, dtrain, 1)
+    masked = np.ma.array(data, mask=[[False, False], [False, True], [False, False]])
+    with pytest.raises(ValueError, match="Masked array is not supported"):
+        booster.inplace_predict(masked)
+
+    np.testing.assert_array_equal(
+        booster.inplace_predict(np.ma.array(data)), booster.inplace_predict(data)
+    )
+
+
 def run_threaded_predict(X, rows, predict_func):
     results = []
     per_thread = 20

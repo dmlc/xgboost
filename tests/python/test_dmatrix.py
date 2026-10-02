@@ -63,6 +63,26 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             xgb.DMatrix(data)
 
+    @pytest.mark.parametrize("dtype", ["float32", "float16", "bool", ">f4"])
+    def test_dmatrix_numpy_masked_array(self, dtype):
+        data = np.array([[1.0, 2.0], [3.0, 999.0], [5.0, 6.0]], dtype=dtype)
+        mask = np.array([[False, False], [False, True], [False, False]])
+        X = np.ma.array(data, mask=mask)
+        with pytest.raises(ValueError, match="Masked array is not supported"):
+            xgb.DMatrix(X)
+
+        X_plain = np.array([[1.0], [2.0], [3.0]])
+        y = np.ma.array([0.0, 1.0, 999.0], mask=[False, False, True], dtype=dtype)
+        for field in ["label", "weight", "base_margin"]:
+            with pytest.raises(ValueError, match="Masked array is not supported"):
+                xgb.DMatrix(X_plain, **{field: y})
+
+        # A MaskedArray with nothing actually masked carries no corruption risk
+        # and should be accepted like a plain array.
+        X_nomask = np.ma.array(data)
+        dm = xgb.DMatrix(X_nomask)
+        np.testing.assert_array_equal(dm.get_data().toarray(), data)
+
     def test_dmatrix_numpy_non_native_byte_order(self):
         data = np.arange(1, 7, dtype=np.float32).reshape(2, 3)
         labels = np.arange(1, 3, dtype=np.float32)
