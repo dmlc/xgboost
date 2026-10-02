@@ -120,52 +120,64 @@ def cuda_array_interface(data: _CudaArrayLikeArg) -> bytes:
     return interface_str
 
 
+class _ArrayInterfaceProxy:
+    """Wrapper type for communicating with numpy and cupy.
+
+    Defined at module scope rather than inside :py:func:`from_array_interface` on
+    purpose. A class defined in a function body is a brand-new object on every call
+    and participates in reference cycles (via ``__dict__``, ``__mro__`` and its
+    property descriptors), so it cannot be reclaimed by reference counting alone.
+    Since ``from_array_interface`` runs on every prediction, recreating the class
+    per call produces cyclic garbage that only the cyclic GC can free, leading to
+    unbounded memory growth in long-running services that disable the GC. Hoisting
+    the class here means it is created once at import; the per-call instance is not
+    part of a cycle and is freed immediately by reference counting.
+    """
+
+    _interface: Optional[ArrayInf] = None
+
+    @property
+    def __array_interface__(self) -> Optional[ArrayInf]:
+        return self._interface
+
+    @__array_interface__.setter
+    def __array_interface__(self, interface: ArrayInf) -> None:
+        self._interface = copy.copy(interface)
+        # Convert some fields to tuple as required by numpy
+        self._interface["shape"] = tuple(self._interface["shape"])
+        self._interface["data"] = (
+            self._interface["data"][0],
+            self._interface["data"][1],
+        )
+        strides = self._interface.get("strides", None)
+        if strides is not None:
+            self._interface["strides"] = tuple(strides)
+
+    @property
+    def __cuda_array_interface__(self) -> Optional[ArrayInf]:
+        return self.__array_interface__
+
+    @__cuda_array_interface__.setter
+    def __cuda_array_interface__(self, interface: ArrayInf) -> None:
+        self.__array_interface__ = interface
+
+    @property
+    def shape(self) -> Tuple[int, ...]:
+        """Shape of the input array."""
+        aif = self.__array_interface__
+        assert aif is not None
+        return aif["shape"]
+
+    @property
+    def size(self) -> np.signedinteger:
+        """Total size of the input array."""
+        return np.prod(self.shape)
+
+
 def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyOrCupy:
     """Convert array interface to numpy or cupy array"""
 
-    class Array:
-        """Wrapper type for communicating with numpy and cupy."""
-
-        _interface: Optional[ArrayInf] = None
-
-        @property
-        def __array_interface__(self) -> Optional[ArrayInf]:
-            return self._interface
-
-        @__array_interface__.setter
-        def __array_interface__(self, interface: ArrayInf) -> None:
-            self._interface = copy.copy(interface)
-            # Convert some fields to tuple as required by numpy
-            self._interface["shape"] = tuple(self._interface["shape"])
-            self._interface["data"] = (
-                self._interface["data"][0],
-                self._interface["data"][1],
-            )
-            strides = self._interface.get("strides", None)
-            if strides is not None:
-                self._interface["strides"] = tuple(strides)
-
-        @property
-        def __cuda_array_interface__(self) -> Optional[ArrayInf]:
-            return self.__array_interface__
-
-        @__cuda_array_interface__.setter
-        def __cuda_array_interface__(self, interface: ArrayInf) -> None:
-            self.__array_interface__ = interface
-
-        @property
-        def shape(self) -> Tuple[int, ...]:
-            """Shape of the input array."""
-            aif = self.__array_interface__
-            assert aif is not None
-            return aif["shape"]
-
-        @property
-        def size(self) -> np.signedinteger:
-            """Total size of the input array."""
-            return np.prod(self.shape)
-
-    arr = Array()
+    arr = _ArrayInterfaceProxy()
 
     # Cupy and numpy might run into issue when constructing an empty array from an array
     # interface. we explicitly check for emptiness.
