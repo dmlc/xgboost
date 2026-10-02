@@ -434,4 +434,8 @@ namespace xgboost::sycl::predictor {
 DMLC_REGISTRY_LINK_TAG(predictor_sycl);
 }  // namespace xgboost::sycl::predictor
 
+namespace xgboost::sycl::obj {
+DMLC_REGISTRY_LINK_TAG(hinge_kernel_sycl);
+}  // namespace xgboost::sycl::obj
+
 #endif  // XGBOOST_USE_SYCL
