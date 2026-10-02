@@ -273,8 +273,6 @@ def _from_numpy_array(
     feature_types: Optional[FeatureTypes],
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a 2-D numpy matrix."""
-    if np.ma.is_masked(data):
-        raise ValueError("Masked array is not supported.")
     _check_data_shape(data)
     data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
@@ -1509,8 +1507,6 @@ def _meta_from_numpy(
     dtype: Optional[NumpyDType],
     handle: ctypes.c_void_p,
 ) -> None:
-    if np.ma.is_masked(data):
-        raise ValueError("Masked array is not supported.")
     data, dtype = _ensure_np_dtype(data, dtype)
     interface_str = array_interface(data)
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
@@ -1634,8 +1630,6 @@ def _proxy_transform(
     if _is_list(data) or _is_tuple(data):
         data = np.array(data)
     if _is_np_array_like(data):
-        if np.ma.is_masked(data):
-            raise ValueError("Masked array is not supported.")
         data, _ = _ensure_np_dtype(data, data.dtype)
         return data, feature_names, feature_types
     if is_scipy_csr(data):
