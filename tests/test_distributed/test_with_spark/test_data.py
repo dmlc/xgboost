@@ -13,6 +13,7 @@ from xgboost.spark.data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
     create_dmatrix_from_partitions,
+    make_qdm,
     stack_series,
 )
 
@@ -163,3 +164,75 @@ def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
     np.testing.assert_array_equal(sm.indptr, [0, 2, 5, 8, 10])
     np.testing.assert_array_equal(sm.indices, [0, 2, 0, 1, 2, 0, 1, 2, 1, 2])
     assert sm.shape == (4, 3)
+
+
+def _unwrapped_sparse_partition(
+    X: np.ndarray, y: np.ndarray, valid: np.ndarray
+) -> pd.DataFrame:
+    """Build a partition in the unwrapped Spark sparse-vector layout.
+
+    Each row is encoded as a dense vector (``featureVectorType == 1``) so it can
+    be consumed by ``_read_csr_matrix_from_unwrapped_spark_vec`` while still
+    exercising the sparse ``append_m_sparse`` code path.
+    """
+    n = X.shape[0]
+    return pd.DataFrame(
+        {
+            "featureVectorType": [1] * n,
+            "featureVectorSize": [None] * n,
+            "featureVectorIndices": [None] * n,
+            "featureVectorValues": [np.asarray(row, dtype=np.float64) for row in X],
+            alias.label: y,
+            alias.valid: valid,
+        }
+    )
+
+
+def test_sparse_dmatrix_ctor_empty_validation_slice() -> None:
+    # A batch whose rows are all training leaves an empty validation slice.
+    # ``append_m_sparse`` used to forward it to
+    # ``_read_csr_matrix_from_unwrapped_spark_vec`` and raise
+    # ``ValueError: need at least one array to concatenate``.
+    rng = np.random.default_rng(0)
+    n_features = 4
+
+    Xa = rng.normal(size=(8, n_features))
+    part_all_train = _unwrapped_sparse_partition(
+        Xa, rng.normal(size=8), np.zeros(8, dtype=np.bool_)
+    )
+
+    Xb = rng.normal(size=(8, n_features))
+    valid_b = np.array([i % 2 == 0 for i in range(8)], dtype=np.bool_)
+    part_mixed = _unwrapped_sparse_partition(Xb, rng.normal(size=8), valid_b)
+
+    train_Xy, valid_Xy = create_dmatrix_from_partitions(
+        iterator=iter([part_all_train, part_mixed]),
+        feature_cols=None,
+        dev_ordinal=None,
+        use_qdm=True,
+        kwargs={"missing": 0.0},
+        enable_sparse_data_optim=True,
+        has_validation_col=True,
+    )
+
+    assert valid_Xy is not None
+    assert train_Xy.num_row() == 8 + int((~valid_b).sum())
+    assert valid_Xy.num_row() == int(valid_b.sum())
+    assert train_Xy.num_col() == n_features
+    assert valid_Xy.num_col() == n_features
+
+
+def test_make_qdm_empty_partition_forwards_max_bin() -> None:
+    # The empty-partition QuantileDMatrix must adopt the configured ``max_bin``
+    # so it stays consistent with the populated ones. Before the fix it fell
+    # back to the default (256) and tripped the
+    # ``param.max_bin == init.max_bin`` check across workers.
+    rng = np.random.default_rng(1)
+    max_bin = 32
+
+    empty = make_qdm({}, None, {}, None, {"max_bin": max_bin, "missing": 0.0})
+
+    X = rng.normal(size=(64, 4))
+    populated = QuantileDMatrix(X, max_bin=max_bin, ref=empty)
+
+    assert populated.num_row() == 64
