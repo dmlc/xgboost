@@ -254,6 +254,222 @@ test_that("xgb.cb.save.model works as expected", {
   for (f in files) if (file.exists(f)) file.remove(f)
 })
 
+test_that("early stopping prints the complete evaluation at the best iteration", {
+  # Deliberately give the metrics different best iterations and stop later than either.
+  metrics <- cbind(
+    "test-auc" = c(0.6, 0.8, 0.7, 0.65, 0.6),
+    "test-rmse" = c(1.4, 1.3, 1.1, 1.2, 1.3)
+  )
+  for (metric_name in list(NULL, "test_rmse", "test-auc")) {
+    maximize <- identical(metric_name, "test-auc")
+    best <- if (maximize) 2L else 3L
+    for (begin_iteration in c(1L, 7L)) {
+      for (verbose in c(TRUE, FALSE)) {
+        cb <- xgb.cb.early.stop(2, maximize, metric_name, verbose)
+        cb$f_before_training(cb$env, list(), NULL, NULL, begin_iteration, begin_iteration + 4L)
+        stopped <- logical()
+        output <- capture.output({
+          for (i in seq_len(best + 2L)) {
+            iteration <- begin_iteration + i - 1L
+            stopped[i] <- cb$f_after_iter(cb$env, list(), NULL, NULL, iteration, metrics[i, ])
+          }
+        })
+        result <- cb$f_after_training(cb$env, list(), NULL, NULL, iteration, metrics[i, ], NULL)
+        expect_equal(which(stopped), best + 2L)
+        expect_equal(result$best_iteration, begin_iteration + best - 1L)
+        expect_equal(unname(result$best_score), metrics[best, if (maximize) 1L else 2L])
+        expect_true(result$stopped_by_max_rounds)
+        if (verbose) {
+          best_line <- output[match("Stopping. Best iteration:", output) + 1L]
+          expect_equal(
+            best_line,
+            sprintf(
+              "[%d]\ttest-auc:%f\ttest-rmse:%f",
+              result$best_iteration, metrics[best, 1L], metrics[best, 2L]
+            )
+          )
+        } else {
+          expect_length(output, 0L)
+        }
+      }
+    }
+  }
+})
+
+test_that("early stopping prints the stored best state when the metric never improves", {
+  for (begin_iteration in c(1L, 7L)) {
+    cb <- xgb.cb.early.stop(2, maximize = FALSE, metric_name = "test_rmse")
+    cb$f_before_training(cb$env, list(), NULL, NULL, begin_iteration, begin_iteration + 4L)
+    stopped <- logical()
+    output <- capture.output({
+      for (i in seq_len(3L)) {
+        iteration <- begin_iteration + i - 1L
+        metrics <- c("train-rmse" = i, "test-rmse" = Inf)
+        if (i == 3L) {
+          expect_null(cb$env$best_msg)
+        }
+        stopped[i] <- cb$f_after_iter(cb$env, list(), NULL, NULL, iteration, metrics)
+      }
+    })
+    result <- cb$f_after_training(cb$env, list(), NULL, NULL, iteration, metrics, NULL)
+    expect_equal(stopped, c(FALSE, FALSE, TRUE))
+    expect_equal(result$best_iteration, begin_iteration)
+    expect_equal(result$best_score, Inf)
+    expect_true(result$stopped_by_max_rounds)
+    expect_equal(cb$env$best_msg, sprintf("[%d]\ttest-rmse:Inf", begin_iteration))
+    expect_equal(output[match("Stopping. Best iteration:", output) + 1L], cb$env$best_msg)
+  }
+})
+
+test_that("early stopping prints standard deviations from the best CV iteration", {
+  cb <- xgb.cb.early.stop(2)
+  cb$f_before_training(cb$env, list(), NULL, NULL, 1L, 4L)
+  output <- capture.output({
+    for (i in seq_len(4L)) {
+      values <- c(2, 1, 3, 4)[i]
+      metrics <- rbind("train-rmse" = c(values, values + 0.2), "test-rmse" = c(values, values + 0.4))
+      stopped <- cb$f_after_iter(cb$env, list(), NULL, NULL, i, metrics)
+    }
+  })
+  expect_true(stopped)
+  expect_equal(cb$env$best_iteration, 2L)
+  expect_equal(
+    output[match("Stopping. Best iteration:", output) + 1L],
+    sprintf("[2]\ttrain-rmse:1.100000\u00b1%f\ttest-rmse:1.200000\u00b1%f", sd(c(1, 1.2)), sd(c(1, 1.4)))
+  )
+})
+
+test_that("verbose RMSE early stopping reports the best evaluation (issue #12643)", {
+  set.seed(1)
+  x <- matrix(rnorm(400), ncol = 2)
+  y <- x[, 1] + rnorm(200)
+  dtr <- xgb.DMatrix(x[1:100, ], label = y[1:100], nthread = 1)
+  dte <- xgb.DMatrix(x[101:200, ], label = y[101:200], nthread = 1)
+  output <- capture.output({
+    bst <- xgb.train(
+      list(eta = 0.2, max_depth = 6, nthread = 1), dtr, nrounds = 50,
+      evals = list(test = dte), early_stopping_rounds = 10, verbose = TRUE
+    )
+  })
+  log <- attributes(bst)$evaluation_log
+  best <- which.min(log$test_rmse)
+  expect_equal(xgb.attr(bst, "best_iteration"), best - 1L)
+  expect_equal(attributes(bst)$early_stop$best_iteration, best)
+  expect_lt(best, nrow(log))
+  expect_equal(
+    output[match("Stopping. Best iteration:", output) + 1L],
+    sprintf("[%d]\ttest-rmse:%f", log$iter[best], log$test_rmse[best])
+  )
+})
+
+test_that("verbose AUC early stopping preserves attributes and save_best", {
+  for (save_best in c(FALSE, TRUE)) {
+    output <- capture.output({
+      bst <- xgb.train(
+        list(objective = "binary:logistic", eval_metric = "auc", eta = 0, base_score = 0.5, nthread = n_threads),
+        dtrain, nrounds = 5, evals = list(test = dtest),
+        callbacks = list(xgb.cb.early.stop(2, maximize = TRUE, save_best = save_best))
+      )
+    })
+    log <- attributes(bst)$evaluation_log
+    best <- which.max(log$test_auc)
+    expect_equal(best, 1L)
+    expect_equal(nrow(log), 3L)
+    expect_equal(xgb.attr(bst, "best_iteration"), best - 1L)
+    expect_equal(xgb.attr(bst, "best_score"), log$test_auc[best])
+    expect_equal(attributes(bst)$early_stop$best_iteration, best)
+    expect_equal(xgb.get.num.boosted.rounds(bst), if (save_best) best else nrow(log))
+    expect_equal(
+      output[match("Stopping. Best iteration:", output) + 1L],
+      sprintf("[%d]\ttest-auc:%f", log$iter[best], log$test_auc[best])
+    )
+  }
+})
+
+test_that("verbose early stopping uses the previous best evaluation when resuming", {
+  p <- list(
+    objective = "binary:logistic", eval_metric = "auc", eval_metric = "error",
+    eta = 0, base_score = 0.5, nthread = n_threads
+  )
+  bst <- xgb.train(
+    p, dtrain, nrounds = 2, evals = list(test = dtest), verbose = FALSE,
+    callbacks = list(xgb.cb.early.stop(3, maximize = TRUE, metric_name = "test-auc", verbose = FALSE))
+  )
+  log <- attributes(bst)$evaluation_log
+  without_history <- xgb.copy.Booster(bst)
+  attr(without_history, "evaluation_log") <- NULL
+  # R serialization uses the native memory serialization hooks; xgb.save.raw saves model bytes.
+  for (previous_model in list(bst, without_history, xgb.save.raw(bst), unserialize(serialize(bst, NULL)))) {
+    keep_history <- !is.null(attr(previous_model, "evaluation_log"))
+    output <- capture.output({
+      resumed <- xgb.train(
+        p, dtrain, nrounds = 5, evals = list(test = dtest), xgb_model = previous_model,
+        callbacks = list(xgb.cb.early.stop(3, maximize = TRUE, metric_name = "test-auc"))
+      )
+    })
+    expect_equal(xgb.attr(resumed, "best_iteration"), 0L)
+    expect_equal(xgb.attr(resumed, "best_score"), log$test_auc[1L])
+    expect_equal(attributes(resumed)$early_stop$best_iteration, 1L)
+    expect_equal(xgb.get.num.boosted.rounds(resumed), 4L)
+    expected <- sprintf("[1]\ttest-auc:%f", log$test_auc[1L])
+    if (keep_history) {
+      expected <- paste0(expected, sprintf("\ttest-error:%f", log$test_error[1L]))
+    }
+    expect_equal(output[match("Stopping. Best iteration:", output) + 1L], expected)
+  }
+})
+
+test_that("early stopping replaces the previous best message after a new best when resuming", {
+  p <- list(objective = "binary:logistic", eta = 0, base_score = 0.5, nthread = n_threads)
+  bst <- xgb.train(
+    p, dtrain, nrounds = 2, evals = evals, verbose = FALSE, maximize = FALSE,
+    custom_metric = function(preds, data) list(metric = "rmse", value = 2),
+    callbacks = list(xgb.cb.early.stop(2, metric_name = "test_rmse", verbose = FALSE))
+  )
+  expect_equal(xgb.attr(bst, "best_iteration"), 0L)
+  expect_equal(xgb.attr(bst, "best_score"), 2)
+  for (previous_model in list(bst, xgb.save.raw(bst))) {
+    values <- cbind(train = c(1.2, 1.0, 0.9, 0.8), test = c(1.0, 0.8, 0.9, 1.0))
+    calls <- 0L
+    metric <- function(preds, data) {
+      calls <<- calls + 1L
+      round <- (calls - 1L) %/% 2L + 1L
+      dataset <- (calls - 1L) %% 2L + 1L
+      return(list(metric = "rmse", value = values[round, dataset]))
+    }
+    cb <- xgb.cb.early.stop(2, metric_name = "test_rmse")
+    output <- capture.output({
+      resumed <- xgb.train(
+        p, dtrain, nrounds = 4, evals = evals, xgb_model = previous_model,
+        custom_metric = metric, maximize = FALSE, callbacks = list(cb)
+      )
+    })
+    expect_equal(calls, 8L)
+    expect_equal(xgb.attr(resumed, "best_iteration"), 3L)
+    expect_equal(xgb.attr(resumed, "best_score"), 0.8)
+    expect_equal(attributes(resumed)$early_stop$best_iteration, 4L)
+    expect_true(attributes(resumed)$early_stop$stopped_by_max_rounds)
+    expect_equal(xgb.get.num.boosted.rounds(resumed), 6L)
+    expect_equal(cb$env$best_msg, "[4]\ttrain-rmse:1.000000\ttest-rmse:0.800000")
+    expect_equal(output[match("Stopping. Best iteration:", output) + 1L], cb$env$best_msg)
+  }
+})
+
+test_that("verbose early stopping leaves training without a stop unchanged", {
+  cb <- xgb.cb.early.stop(2)
+  cb$f_before_training(cb$env, list(), NULL, NULL, 1L, 3L)
+  output <- capture.output({
+    for (i in seq_len(3L)) {
+      stopped <- cb$f_after_iter(cb$env, list(), NULL, NULL, i, c("test-rmse" = 4 - i))
+      expect_false(stopped)
+    }
+  })
+  expect_false(any(grepl("Stopping. Best iteration:", output, fixed = TRUE)))
+  expect_equal(cb$env$best_iteration, 3L)
+  expect_equal(unname(cb$env$best_score), 1)
+  expect_false(cb$env$stopped_by_max_rounds)
+})
+
 test_that("early stopping xgb.train works", {
   params <- c(params, list(learning_rate = 0.3))
   set.seed(11)
@@ -344,23 +560,29 @@ test_that("early stopping works with titanic", {
 
 test_that("early stopping xgb.cv works", {
   set.seed(11)
-  expect_output(
-    {
-      cv <- xgb.cv(
-        c(params, list(learning_rate = 0.3)),
-        dtrain,
-        nfold = 5,
-        nrounds = 20,
-        early_stopping_rounds = 3,
-        maximize = FALSE
-      )
-    },
-    "Stopping. Best iteration"
-  )
+  output <- capture.output({
+    cv <- xgb.cv(
+      c(params, list(learning_rate = 0.3)),
+      dtrain,
+      nfold = 5,
+      nrounds = 20,
+      early_stopping_rounds = 3,
+      maximize = FALSE
+    )
+  })
   expect_false(is.null(cv$early_stop$best_iteration))
   expect_lt(cv$early_stop$best_iteration, 19)
   # the best error is min error:
   expect_true(cv$evaluation_log[, test_error_mean[cv$early_stop$best_iteration] == min(test_error_mean)])
+  best_row <- cv$evaluation_log[cv$early_stop$best_iteration]
+  expect_equal(
+    output[match("Stopping. Best iteration:", output) + 1L],
+    sprintf(
+      "[%d]\ttrain-error:%f\u00b1%f\ttest-error:%f\u00b1%f",
+      best_row$iter, best_row$train_error_mean, best_row$train_error_std,
+      best_row$test_error_mean, best_row$test_error_std
+    )
+  )
 })
 
 test_that("prediction in xgb.cv works", {
