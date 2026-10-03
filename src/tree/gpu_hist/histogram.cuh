@@ -81,6 +81,30 @@ std::size_t constexpr DftReserveSize() { return 1 << 22; }
 [[nodiscard]] std::pair<std::size_t, std::uint64_t> SliceTiles(
     bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
     bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t entry_bits);
+
+/** @brief Shape of the rectangular grid of chunks for the histogram kernel. */
+struct ChunkGrid {
+  /** @brief Entries processed by each block, raised if the grid would overflow. */
+  bst_idx_t n_entries_per_chunk;
+  /** @brief Chunks the grid holds for each `(node, feature group)` segment. */
+  std::uint32_t n_chunks_per_segment;
+  /** @brief The total number of blocks. */
+  std::uint32_t n_blks;
+};
+
+/**
+ * @brief Shape the grid of the histogram kernel.
+ *
+ * The grid is rectangular in `(node, feature group, chunk, target)` and covers the largest
+ * segment, so uneven segments leave empty blocks, which exit before touching shared memory.
+ * The chunk is lengthened if the grid would overflow; that needs a very large number of
+ * nodes, feature groups and targets together.
+ *
+ * Exposed for testing.
+ */
+[[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
+                                      std::uint32_t n_groups, bst_target_t n_targets,
+                                      std::size_t n_nodes);
 }  // namespace cuda_impl
 
 /**

@@ -137,6 +137,39 @@ TEST(Histogram, SliceTilesBounds) {
   }
 }
 
+// The grid is rectangular over (node, feature group, chunk, target), and lengthens the chunk
+// rather than overflowing.
+TEST(Histogram, MakeChunkGrid) {
+  {
+    // Even segments: no empty block.
+    auto grid = cuda_impl::MakeChunkGrid(/*max_segment_entries=*/1024, /*chunk=*/256,
+                                         /*n_groups=*/4, /*n_targets=*/2, /*n_nodes=*/3);
+    ASSERT_EQ(grid.n_entries_per_chunk, 256u);
+    ASSERT_EQ(grid.n_chunks_per_segment, 4u);
+    ASSERT_EQ(grid.n_blks, 4u * 4u * 2u * 3u);
+  }
+  {
+    // A chunk longer than the largest segment still gets one block per segment.
+    auto grid = cuda_impl::MakeChunkGrid(10, 4096, 1, 1, 7);
+    ASSERT_EQ(grid.n_chunks_per_segment, 1u);
+    ASSERT_EQ(grid.n_blks, 7u);
+  }
+  {
+    // The grid would overflow, so the chunk is lengthened instead.
+    std::uint32_t constexpr kGroups = 512;
+    bst_target_t constexpr kTargets = 32;
+    std::size_t constexpr kNodes = 1024;
+    bst_idx_t constexpr kSegment = bst_idx_t{1} << 40;
+    auto grid = cuda_impl::MakeChunkGrid(kSegment, /*chunk=*/1024, kGroups, kTargets, kNodes);
+    ASSERT_GT(grid.n_entries_per_chunk, 1024u);
+    ASSERT_EQ(grid.n_chunks_per_segment, common::DivRoundUp(kSegment, grid.n_entries_per_chunk));
+    // Fits, and covers the largest segment.
+    ASSERT_LE(static_cast<std::uint64_t>(grid.n_blks), std::numeric_limits<std::uint32_t>::max());
+    ASSERT_GE(static_cast<bst_idx_t>(grid.n_chunks_per_segment) * grid.n_entries_per_chunk,
+              kSegment);
+  }
+}
+
 TEST(Histogram, DeviceHistogramStorage) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   auto ctx = MakeCUDACtx(0);
@@ -548,7 +581,12 @@ std::ostream& operator<<(std::ostream& os, Layout layout) {
 struct HistInput {
   bst_idx_t n_samples;
   bst_feature_t n_features;
-  bst_bin_t n_bins;  // per feature
+  bst_bin_t n_bins;  // per feature, the largest when the counts are uneven
+  // Bins of each feature. Uniform unless `skewed`, which makes `FeatureGroups` produce groups
+  // of very different widths, since it packs features by bin count.
+  std::vector<bst_bin_t> feature_bins;
+  // Exclusive scan of `feature_bins`.
+  std::vector<bst_bin_t> bin_ptrs;
   bst_target_t n_targets;
   // Bin index local to the feature, -1 for missing values. Row-major.
   std::vector<bst_bin_t> bins;
@@ -558,19 +596,34 @@ struct HistInput {
   std::vector<std::size_t> sizes;
 
   HistInput(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins, bst_target_t n_targets,
-            Layout layout, bool root)
+            Layout layout, bool root, bool skewed = false)
       : n_samples{n_samples},
         n_features{n_features},
         n_bins{n_bins},
+        feature_bins(n_features, n_bins),
+        bin_ptrs(n_features + 1, 0),
         n_targets{n_targets},
         bins(n_samples * n_features),
         gpair{{n_samples, static_cast<bst_idx_t>(n_targets)}, DeviceOrd::CPU(), linalg::kF},
         ridx(n_samples) {
+    if (skewed) {
+      // The first half of the features have many bins, the second half have few. A group fits
+      // a fixed number of bins, so the groups over the second half hold many more features.
+      // The halves must not be interleaved, or every group would mix the two and the widths
+      // would even out.
+      for (bst_feature_t f = n_features / 2; f < n_features; ++f) {
+        this->feature_bins[f] = std::max(bst_bin_t{2}, n_bins / 32);
+      }
+    }
+    for (bst_feature_t f = 0; f < n_features; ++f) {
+      this->bin_ptrs[f + 1] = this->bin_ptrs[f] + this->feature_bins[f];
+    }
+
     std::mt19937 rng{2026};
-    std::uniform_int_distribution<bst_bin_t> bin_dist{0, n_bins - 1};
     std::bernoulli_distribution missing_dist{0.3};
     for (bst_idx_t r = 0; r < n_samples; ++r) {
       for (bst_feature_t f = 0; f < n_features; ++f) {
+        std::uniform_int_distribution<bst_bin_t> bin_dist{0, this->feature_bins[f] - 1};
         bool missing = false;
         switch (layout) {
           case Layout::kDense:
@@ -614,8 +667,8 @@ struct HistInput {
     std::vector<std::uint32_t> ptrs(this->n_features + 1);
     std::vector<float> cut_values;
     for (bst_feature_t f = 0; f < this->n_features; ++f) {
-      ptrs[f + 1] = (f + 1) * this->n_bins;
-      for (bst_bin_t b = 0; b < this->n_bins; ++b) {
+      ptrs[f + 1] = this->bin_ptrs[f + 1];
+      for (bst_bin_t b = 0; b < this->feature_bins[f]; ++b) {
         cut_values.push_back(b + 1.0f);
       }
     }
@@ -643,7 +696,7 @@ struct HistInput {
 
   // One target-major histogram for each node.
   [[nodiscard]] std::vector<std::vector<GradientPairInt64>> Expected() {
-    auto n_total_bins = this->n_features * this->n_bins;
+    auto n_total_bins = this->bin_ptrs.back();
     auto h_gpair = this->gpair.HostView();
     std::vector<std::vector<GradientPairInt64>> hists;
     std::size_t beg = 0;
@@ -657,7 +710,7 @@ struct HistInput {
             continue;
           }
           for (bst_target_t t = 0; t < this->n_targets; ++t) {
-            hist[t * n_total_bins + f * this->n_bins + b] += h_gpair(r, t);
+            hist[t * n_total_bins + this->bin_ptrs[f] + b] += h_gpair(r, t);
           }
         }
       }
@@ -671,13 +724,16 @@ struct HistInput {
 struct BuildInfo {
   bst_idx_t n_symbols{0};
   std::size_t n_groups{0};
+  // The narrowest and widest feature group.
+  bst_feature_t min_group_features{0};
+  bst_feature_t max_group_features{0};
 };
 
 void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins,
                         bst_target_t n_targets, Layout layout, bool root, bool force_global,
-                        bool small_groups, BuildInfo* info = nullptr) {
+                        bool small_groups, BuildInfo* info = nullptr, bool skewed = false) {
   auto ctx = MakeCUDACtx(0);
-  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root};
+  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root, skewed};
   auto expected = input.Expected();
 
   auto page = input.MakeEllpack(&ctx);
@@ -695,7 +751,13 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     ASSERT_GT(fg.feature_segments.Size(), 3);
   }
   if (info) {
-    *info = BuildInfo{page->NumSymbols(), fg.feature_segments.Size() - 1};
+    auto const& h_fs = fg.feature_segments.ConstHostVector();
+    bst_feature_t min_w = std::numeric_limits<bst_feature_t>::max(), max_w = 0;
+    for (std::size_t i = 1; i < h_fs.size(); ++i) {
+      min_w = std::min(min_w, h_fs[i] - h_fs[i - 1]);
+      max_w = std::max(max_w, h_fs[i] - h_fs[i - 1]);
+    }
+    *info = BuildInfo{page->NumSymbols(), h_fs.size() - 1, min_w, max_w};
   }
 
   bst_node_t n_nodes = input.sizes.size();
@@ -779,6 +841,28 @@ TEST(Histogram, BuildWide) {
           ASSERT_GT(info.n_symbols, 1 << 16);
         } else {
           ASSERT_GT(info.n_groups, 1);
+        }
+      }
+    }
+  }
+}
+
+// `FeatureGroups` packs features until the bin budget is full, so uneven bin counts give
+// groups of very different widths. The grid covers the widest, and a block's chunk is a number
+// of entries, so the work of a block is the same in every group.
+TEST(Histogram, BuildSkewedGroups) {
+  for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
+    for (bst_target_t n_targets : {1, 3}) {
+      for (auto force_global : {false, true}) {
+        BuildInfo info;
+        ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 192, 256, n_targets, layout,
+                                                   /*root=*/false, force_global,
+                                                   /*small_groups=*/false, &info,
+                                                   /*skewed=*/true));
+        if (layout != Layout::kSparse) {
+          ASSERT_GT(info.n_groups, 1);
+          // The point of the test: the groups are not all the same width.
+          ASSERT_GT(info.max_group_features, info.min_group_features * 2);
         }
       }
     }

@@ -1,6 +1,6 @@
 # GPU histogram launch policy: implementation plan
 
-Status: **Phase 1 implemented** (§6). Phases 2–4 proposed.
+Status: **Phases 1 and 2 implemented** (§6, §7). Phases 3–4 pending.
 Target file: `src/tree/gpu_hist/histogram.cu`.
 
 ## 1. Problem
@@ -299,94 +299,126 @@ improve or be neutral, and in-core timings must be unchanged. Also sweep `kMaxFl
 there, since it and `kMinWaves` are the two declared budgets and small pages are where they
 bind.
 
-## 7. Phase 2 — decomposition and ordering
+## 7. Phase 2 — decomposition and ordering — IMPLEMENTED
 
-### 7.1 Host side, `HistKernel::DispatchHist`
+### 7.1 Work unit and ordering
 
-```cpp
-// from h_feature_groups.feature_segments.HostVector(); FeatureGroups itself is not modified
-bst_feature_t max_group_features = max adjacent difference, or matrix.row_stride when !kCompressed;
-bst_idx_t     max_node_rows      = max over h_ridx_iters of .size();
+A block accumulates one chunk of one `(node, feature group)` segment into one target. Chunks
+are `n_entries_per_chunk` **entries** inside a segment, so no block spans two segments. The
+block index decodes as
 
-// Phase 1 bounds, now in entries, rounded to kBlockThreads
-bst_idx_t entries_per_chunk = /* min(max(cap_balance, floor_flush), cap_one_wave) */;
-auto n_chunks_per_segment = DivRoundUp(max_node_rows * max_group_features, entries_per_chunk);
-
-// grid guard: raise entries_per_chunk until the grid fits
-std::uint64_t n_blks = n_nodes * n_groups * n_chunks_per_segment * n_targets;
-while (n_blks > kMaxGridX) { entries_per_chunk *= 2; /* recompute */ }
-CHECK_LE(n_blks, std::numeric_limits<std::uint32_t>::max());
+```
+((nidx_in_set * n_chunks_per_segment + chunk) * n_groups + group) * n_targets + target
 ```
 
-Delete the `sizes_csum` `TemporaryArray` and its `dh::CopyTo`. Keep `h_sizes_csum` host-side for
-the `back() == 0` early-out.
-
-### 7.2 Kernel
+— target fastest, group next. The grid is rectangular and covers the largest segment of the
+launch, so uneven segments leave empty blocks, which return before touching shared memory.
 
 ```cpp
-template <typename Policy, typename Accessor, typename RidxIterSpan>
-__global__ __launch_bounds__(...) void HistogramKernel(
-    Accessor const matrix, FeatureGroupsAccessor const feature_groups,
-    RidxIterSpan const* d_ridx_iters, common::Span<GradientPairInt64> const* node_hists,
-    GradientPairInt64 const* d_gpair, bst_idx_t n_samples, bst_target_t n_targets,
-    bst_idx_t entries_per_chunk, std::uint32_t n_chunks_per_segment) {
-  if constexpr (Policy::kSingleTarget) { n_targets = 1; }
-  auto const n_groups = feature_groups.NumGroups();
+std::uint32_t blk = blockIdx.x;
+bst_target_t const target_idx = blk % n_targets;       blk /= n_targets;
+bst_feature_t const gidx = blk % n_groups;             blk /= n_groups;
+std::uint32_t const chunk_idx = blk % n_chunks_per_segment;
+std::size_t const nidx_in_set = blk / n_chunks_per_segment;
 
-  auto target_idx = blockIdx.x % n_targets;
-  auto group_idx  = (blockIdx.x / n_targets) % n_groups;
-  auto chunk_idx  = (blockIdx.x / (n_targets * n_groups)) % n_chunks_per_segment;
-  auto node_idx   =  blockIdx.x / (n_targets * n_groups * n_chunks_per_segment);
+bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
+bst_idx_t const n_entries = d_ridx.size() * feature_stride;
+bst_idx_t const begin = chunk_idx * n_entries_per_chunk;
+if (begin >= n_entries) { return; }   // the grid covers the largest segment
+bst_idx_t const end = min(begin + n_entries_per_chunk, n_entries);
+```
 
-  auto group  = feature_groups[group_idx];
-  auto d_ridx = d_ridx_iters[node_idx];
-  bst_feature_t feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
-  bst_idx_t n_entries = d_ridx.size() * feature_stride;
-  bst_idx_t begin = chunk_idx * entries_per_chunk;
-  if (begin >= n_entries) { return; }                      // empty slot
-  bst_idx_t end = min(begin + entries_per_chunk, n_entries);
+`HistKernelSegment` is reused unchanged: it takes the full row-index span with segment-local
+`begin`/`end` and derives `ridx_in_set = idx / feature_stride` itself.
 
-  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
-  auto smem_hist   = reinterpret_cast<GradientPairInt64*>(shmem);
-  auto d_node_hist = node_hists[node_idx];
-  auto gmem_hist   = d_node_hist.data() + target_idx * (d_node_hist.size() / n_targets);
-  __builtin_assume(__isGlobal(gmem_hist));
+Chunking in entries rather than rows is deliberate. `FeatureGroups` packs features until the bin
+budget is full, so uneven per-feature bin counts give groups of very different widths. With
+entry chunks the work of a non-empty block is `n_entries_per_chunk` in every group, so the width
+skew creates no tail. The cost is that front alignment is exact only within a group-width class,
+which is where it matters: wide groups (`>= kSectorBytes / bytes_per_entry` features) fill
+sectors alone, and narrow groups are the bin-limited ones, which share a width.
 
-  if constexpr (Policy::kSharedMem) {
-    dh::BlockFill(smem_hist, group.num_bins, GradientPairInt64{});
-    __syncthreads();
-  }
-  HistKernelSegment<Policy>(matrix, group, d_ridx, d_gpair + n_samples * target_idx,
-                            smem_hist, gmem_hist, begin, end);
-  if constexpr (Policy::kSharedMem) {
-    __syncthreads();
-    for (auto bin : dh::BlockStrideRange(0, group.num_bins)) {
-      AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin, smem_hist[bin]);
-    }
-  }
+### 7.2 Grid shape
+
+`cuda_impl::MakeChunkGrid`, declared in `histogram.cuh` so it can be unit tested, returns
+`{n_entries_per_chunk, n_chunks_per_segment, n_blks}` and lengthens the chunk rather than
+overflowing a 32-bit grid:
+
+```cpp
+auto n_blks_per_chunk = n_groups * n_targets * n_nodes;
+CHECK_LE(n_blks_per_chunk, kMaxGrid);
+auto n_chunks = DivRoundUp(max_segment_entries, n_entries_per_chunk);
+while (n_chunks > kMaxGrid / n_blks_per_chunk) {   // longer chunks for fewer blocks
+  n_entries_per_chunk *= 2;
+  n_chunks = DivRoundUp(max_segment_entries, n_entries_per_chunk);
 }
 ```
 
-`HistKernelSegment` is called with the **full** row-index span and segment-local `begin`/`end`;
-it already derives `ridx_in_set = idx / feature_stride`, so it needs no change and no
-`subspan`.
+Host side, `max_segment_entries = max_node_rows * max_group_features`, both derived from data
+already present: node row counts from `h_ridx_iters`, group widths from
+`h_feature_groups.feature_segments` (the sparse layout has a single group spanning the row).
 
-### 7.3 Deleted
+### 7.3 Invariants obtained
 
-`HistSegment`, `FindSegment`, `UpperBoundIdx` (only user), the `while (pos < last())` loop, the
-post-barrier `find_segment` recompute, `volatile bst_idx_t pos` and its 8-byte stack frame, the
-`sizes_csum` kernel parameter and copy, and `kItemsPerThread` / `HistPolicy::kTileSize` (the
-chunk is rounded to `kBlockThreads` instead).
+| quantity | before | after |
+|---|---|---|
+| co-resident feature groups | `min(n_groups, n_resident_chunks * chunk / segment_g)` — 1.3 at level 1, 42 at level 6, and varying per group under width skew | `min(n_groups, n_resident_blocks / n_targets)` — **independent of chunk size and of depth** |
+| work per non-empty block | `n_items_per_blk` entries, chunk may span segments | exactly `n_entries_per_chunk` entries, one segment |
+| device arrays per launch | `ridx_iters`, `hists`, `sizes_csum` (40 KB at `n_nodes = 1024`) | `ridx_iters`, `hists` (**32 KB**) |
+| flushes per block | 1 per segment visited | exactly 1 |
 
-### 7.4 Unchanged
+### 7.4 Removed
 
-`FeatureGroups` / `feature_groups.cu`, `HistShmemBytes`, `Dft{St,Mt}HistShmemBytes`,
-`HistTuning` / launch bounds, the rest of `HistPolicy`, `BlocksPerMp`, `DispatchCudaSm`,
-`HistKernelSegment`, `IterIdx`, `LoadGpair`, the atomics, `DeviceHistogramStorage`,
-`AllReduceHist`, `SubtractionTrick`, both `BuildHistogram` overloads in `histogram.cuh`, and
-both call sites in `updater_gpu_hist.cu{,h}`.
+`HistSegment`, `FindSegment`, `UpperBoundIdx` (its only user), the `while (pos < last())` loop,
+the post-barrier `find_segment` recompute, `volatile bst_idx_t pos`, the `sizes_csum` kernel
+parameter and its `TemporaryArray`/`dh::CopyTo`, and `kItemsPerThread` with
+`HistPolicy::kTileSize`. `SliceTiles` is now called with `Policy::kBlockThreads` as the tile
+size — one block-stride pass — which leaves `n_entries_per_chunk` numerically unchanged, since
+both the flush floor and the load-balance target scale with the unit.
 
----
+### 7.5 Unchanged
+
+`FeatureGroups` and `feature_groups.cu`, `HistShmemBytes`, `Dft{St,Mt}HistShmemBytes`,
+`HistTuning` and the launch bounds, `BlocksPerMp`, `DispatchCudaSm`, `HistKernelSegment`,
+`IterIdx`, `LoadGpair`, the atomics, `DeviceHistogramStorage`, `AllReduceHist`,
+`SubtractionTrick`, both `BuildHistogram` overloads, and both call sites in
+`updater_gpu_hist.cu{,h}`.
+
+### 7.6 Verification performed
+
+- `testxgboost --gtest_filter='*Histogram*:*GpuHist*:*GPUHist*:*Ellpack*:*Driver*:*QuantileDMatrix*'`
+  — **246 passed**, 3 pre-existing skips. The pre-existing `HistogramBuildTest` matrix
+  (dense / dense-missing / sparse × 1,3 targets × root/nodes × shared/global × `small_groups`)
+  passes unmodified, including its uneven node sizes `{0, 1, 7, 0, 1000, …}`, which exercise
+  empty rectangular slots and segments shorter than one chunk.
+- **Bitwise identical results** versus the Phase 1 build, in-core and external memory
+  (`rmse` sequences match to all digits).
+- Registers, `regcheck.sh` + per-kernel parse: sm_120 **0 spills**, max 48 registers (the
+  single-target bound allows 64). sm_80 and sm_90 sit at the 32-register cap of their
+  `(1024, 2)` launch bounds and show small spills (4–28 bytes) in some instantiations:
+  32/96 on sm_80 and 36/96 on sm_90, against a Phase 1 baseline of **27/96 and 42/96**. So
+  sm_90 improves, sm_80 is slightly worse, and the condition is pre-existing rather than
+  introduced. Worth a follow-up on those two arches.
+- Local 46 SM sm_120 part, 4 M rows, 256 features, 4 targets, depthwise — histogram kernel
+  time from the nsys trace, and whole-training time over 3 interleaved repetitions:
+
+  | | hist kernel | train (min of 3) | train (median) |
+  |---|---:|---:|---:|
+  | in-core, Phase 1 | 2.306 s | 3.555 s | 3.749 s |
+  | in-core, Phase 2 | **1.854 s (−19.6 %)** | **2.899 s** | **2.951 s** |
+  | extmem, Phase 1 | 2.188 s | 3.560 s | 3.601 s |
+  | extmem, Phase 2 | **1.833 s (−16.2 %)** | **2.977 s** | **2.998 s** |
+
+  Grid sizes are comparable (node levels 2584 → 2728 in-core, 648 → 704 external memory), so
+  the gain is not from fewer blocks. On this part `n_resident_blocks / n_targets = 23` against
+  `n_groups = 22`, so group co-residency goes from ~1.3 at shallow levels to all 22 groups at
+  every level, which is the predicted mechanism.
+
+### 7.7 Gate before Phase 3
+
+The four regressing configurations on the RTX PRO 6000, against master and against the
+pre-Phase-1 branch. The sharp prediction to check is 8.4: the optimum `n_entries_per_chunk`
+should **stop moving with tree depth**.
 
 ## 8. Phase 3 — measurement gate
 
@@ -435,16 +467,21 @@ dense / dense-missing / sparse × 1,3 targets × root/nodes × shared/global × 
 
 Add:
 
-1. **Skewed group widths.** A `HistInput` variant where half the features get `n_bins` and half
-   get 4 bins, so `FeatureGroups` produces widths spanning >10×. Asserts correctness and mixed
-   widths in `feature_segments`. No current test or benchmark exercises this.
+1. **Skewed group widths** — *added in Phase 2*: `HistInput` takes a `skewed` flag giving the
+   first half of the features `n_bins` and the second half `n_bins / 32`, in contiguous runs so
+   the groups do not mix the two and even out. `Histogram.BuildSkewedGroups` covers
+   dense / dense-missing / sparse × 1,3 targets × shared/global and asserts
+   `max_group_features > 2 * min_group_features`. `HistInput` now carries per-feature bin counts
+   throughout (`feature_bins`, `bin_ptrs`), so `MakeEllpack` and `Expected` handle uneven cuts.
 2. **Empty-slot coverage.** Deliberately uneven node sizes (e.g. `{1, 1024, 7, 65536}`) so many
    rectangular slots are empty, including a node with fewer rows than `n_chunks_per_segment`.
-3. **Chunk-boundary coverage.** Parametrize `entries_per_chunk` over
-   `{kBlockThreads, 2 * kBlockThreads, segment_size - 1, segment_size, segment_size + 1}`
-   through a test-only override, to hit the `begin >= n_entries` and partial-last-chunk paths.
-4. **Grid guard.** `n_nodes = 1024`, many groups, 32 targets — assert the grid stays under
-   `UINT32_MAX` and that `entries_per_chunk` was raised.
+3. **Chunk-boundary coverage.** Covered by the existing `HistogramBuildTest` node sizes
+   `{0, 1, 7, 0, 1000, …}` (segments far shorter than a chunk, hence the `begin >= n_entries`
+   path) together with `Histogram.BuildLarge` (several chunks per segment).
+4. **Grid guard** — *added in Phase 2*: `Histogram.MakeChunkGrid` pins the even case, the
+   chunk-longer-than-segment case, and the overflow case (512 groups × 32 targets × 1024 nodes
+   over a 2^40-entry segment), asserting the chunk is lengthened, the grid fits, and the chunks
+   still cover the largest segment.
 5. **Derived floor** — *added in Phase 1*: `Histogram.SliceTilesFlushFloor` asserts the floor is
    proportional to `n_targets`, to `ShmemSize()`, and inversely proportional to `entry_bits`, and
    that the declared budget is met without being over-spent.
@@ -468,6 +505,7 @@ the regression baseline.
 | alignment lost across group-width classes | bounded by the width-class analysis; test 1 makes it visible |
 | `kMaxFlushRatio = 0.25` is a declared budget, not a measured optimum | the resulting flush volume is computable exactly on the host; 8.6 sweeps it where it matters |
 | the cost model behind §4 is unvalidated except for 8.5 | the ordering change follows from the indexing, not from a fitted constant; that is why it lands before any L2 term |
+| sm_80 / sm_90 spill a few bytes under their 32-register cap | pre-existing (27/96 and 42/96 before, 32/96 and 36/96 after); sm_120 is spill-free. Follow-up on the `(1024, 2)` arches |
 
 Phases 1 and 2 are separate commits with independent gates. Phase 1 is a ~10-line change to one
 function and is reversible on its own. Phase 2 is confined to `HistogramKernel` and
