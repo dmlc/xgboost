@@ -128,7 +128,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
       default:
         LOG(FATAL) << "Unknown probability distribution";
     }
-    used.merge(metric_->Configure(args));
+    auto const merged_args = param_.__DICT__();
+    metric_->Configure(Args{merged_args.cbegin(), merged_args.cend()});
     return used;
   }
 
