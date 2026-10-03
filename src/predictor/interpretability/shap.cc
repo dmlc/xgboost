@@ -168,7 +168,7 @@ struct DenseInteractionMatrixView {
 struct QuadraturePathFeature {
   bst_feature_t split_index;
   // Gamma in Alg.1 of the QuadratureTreeSHAP paper.
-  // alpha / (1 + alpha t) for the feature's current q, with alpha = q - 1. 
+  // alpha / (1 + alpha t) for the feature's current q, with alpha = q - 1.
   QuadratureBuffer partner_factor;
 };
 
@@ -255,7 +255,7 @@ struct QuadratureTreeShapRunner {
   void SetPartnerFactor(bst_feature_t split_index, float q) {
     auto p = n_path_features;
     while (path_features[--p].split_index != split_index) {
-      // Search the p of the current feature on the path. 
+      // Search the p of the current feature on the path.
     }
     auto &partner_factor = path_features[p].partner_factor;
     auto const alpha = q - 1.0f;
