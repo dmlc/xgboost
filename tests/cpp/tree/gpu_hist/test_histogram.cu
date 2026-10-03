@@ -34,6 +34,109 @@ TEST(Histogram, HistShmemBytes) {
   }
 }
 
+namespace {
+// Mirrors the constants of `cuda_impl::SliceTiles`.
+constexpr std::size_t kTargetWaves = 32;
+constexpr std::size_t kMinWaves = 4;
+constexpr std::size_t kMaxFlushPercent = 25;
+
+// The flush volume implied by a slice, as a fraction of the gradient index bytes read.
+[[nodiscard]] double FlushRatio(std::size_t n_tiles_per_blk, std::size_t tile_size,
+                                bst_target_t n_targets, std::size_t shmem_bytes,
+                                std::uint32_t entry_bits) {
+  auto flush = static_cast<double>(n_targets) * static_cast<double>(shmem_bytes);
+  auto entries = static_cast<double>(n_tiles_per_blk) * static_cast<double>(tile_size) *
+                 static_cast<double>(entry_bits) / 8.0;
+  return flush / entries;
+}
+}  // anonymous namespace
+
+// The flush floor scales with the number of targets and the size of the privatized
+// histogram. The constant it replaced did not.
+TEST(Histogram, SliceTilesFlushFloor) {
+  std::size_t constexpr kTileSize = 768 * 8;
+  std::size_t constexpr kShmem = 12 * 256 * sizeof(GradientPairInt64);  // 49152
+  std::uint32_t constexpr kEntryBits = 8;
+  std::size_t constexpr kResident = 32;
+
+  for (bst_target_t n_targets : {1, 2, 4, 8, 32}) {
+    // Sized so that the flush floor is the binding bound: above the load-balance target and
+    // below the one-wave cap.
+    auto n_tiles = kResident * kTargetWaves * 16 * n_targets;
+    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
+    auto [tiles, blks] =
+        cuda_impl::SliceTiles(n_items, kTileSize, kResident, n_targets, kShmem, kEntryBits);
+
+    // 100 * 8 * n_targets * kShmem / (kMaxFlushPercent * kTileSize * kEntryBits)
+    ASSERT_EQ(tiles, 32u * n_targets) << "n_targets:" << n_targets;
+    ASSERT_EQ(blks, common::DivRoundUp(n_tiles, tiles));
+    // The declared budget is met, and not over-spent.
+    auto ratio = FlushRatio(tiles, kTileSize, n_targets, kShmem, kEntryBits);
+    ASSERT_LE(ratio, static_cast<double>(kMaxFlushPercent) / 100.0 + 1e-9);
+    ASSERT_GT(ratio, static_cast<double>(kMaxFlushPercent) / 100.0 * 0.5);
+  }
+
+  // Proportional to the size of the privatized histogram as well. Sized so the floor binds
+  // for every variant below: above the load-balance target, below the one-wave cap.
+  auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 8) * kTileSize;
+  auto [small, _s] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, kEntryBits);
+  auto [large, _l] =
+      cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem * 2, kEntryBits);
+  ASSERT_EQ(large, small * 2);
+
+  // A wider gradient index carries more bytes per entry, so the flush is relatively cheaper.
+  auto [narrow, _n] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, 8);
+  auto [wide, _w] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, 16);
+  ASSERT_EQ(narrow, wide * 2);
+}
+
+// The three bounds and their priority.
+TEST(Histogram, SliceTilesBounds) {
+  std::size_t constexpr kTileSize = 768 * 8;
+  std::size_t constexpr kShmem = 12 * 256 * sizeof(GradientPairInt64);
+  std::uint32_t constexpr kEntryBits = 8;
+  bst_target_t constexpr kTargets = 4;
+  std::size_t constexpr kResident = 94;
+
+  {
+    // Large launch: the load-balance target binds, giving exactly kTargetWaves waves.
+    auto n_tiles = kResident * kTargetWaves * 1024;
+    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
+    auto [tiles, blks] =
+        cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets, kShmem, kEntryBits);
+    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kTargetWaves));
+    ASSERT_EQ(blks, kResident * kTargetWaves);
+  }
+  {
+    // Small launch: the flush floor would ask for longer blocks than kMinWaves allows, so
+    // the cap wins and the tail stays bounded.
+    auto n_tiles = kResident * kMinWaves * 8;
+    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
+    auto [tiles, blks] =
+        cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets, kShmem, kEntryBits);
+    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kMinWaves));
+    ASSERT_EQ(blks, kResident * kMinWaves);
+    // The budget cannot be met at this size; the cap is what limits it.
+    ASSERT_GT(FlushRatio(tiles, kTileSize, kTargets, kShmem, kEntryBits),
+              static_cast<double>(kMaxFlushPercent) / 100.0);
+  }
+  {
+    // Global memory: no privatized histogram, so no flush and no floor.
+    auto n_tiles = kResident * kTargetWaves * 8;
+    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
+    auto [tiles, blks] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets,
+                                               /*shmem_bytes=*/0, kEntryBits);
+    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kTargetWaves));
+    ASSERT_EQ(blks, kResident * kTargetWaves);
+  }
+  {
+    // Never zero.
+    auto [tiles, blks] = cuda_impl::SliceTiles(1, kTileSize, 1, 1, kShmem, kEntryBits);
+    ASSERT_EQ(tiles, 1u);
+    ASSERT_EQ(blks, 1u);
+  }
+}
+
 TEST(Histogram, DeviceHistogramStorage) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   auto ctx = MakeCUDACtx(0);

@@ -1,6 +1,7 @@
 # GPU histogram launch policy: implementation plan
 
-Status: proposal. Target file: `src/tree/gpu_hist/histogram.cu`.
+Status: **Phase 1 implemented** (§6). Phases 2–4 proposed.
+Target file: `src/tree/gpu_hist/histogram.cu`.
 
 ## 1. Problem
 
@@ -151,10 +152,14 @@ The plan reduces the constant count from three to two, and lands with **no fitte
 
 **Declared budgets — free, but exactly verifiable on the host before every launch**
 
-- `kMinWaves` — how much tail is acceptable. Observable as `blocks / n_resident_blocks`.
-- `kMaxFlushRatio` — how much flush is acceptable. `flush_bytes` is computable exactly as
-  `total_entries * n_targets * ShmemSize() / entries_per_chunk`, so the budget can be asserted,
-  not guessed.
+- `kTargetWaves = 32` — the wave count to aim for. Observable as `blocks / n_resident_blocks`.
+- `kMinWaves = 4` — the wave count never to go below. Bounds the cost of letting the flush
+  budget lengthen blocks: the blocks of a launch are of equal length, so the waste is the
+  partially filled last wave, about `1 / (2 * kMinWaves)`.
+- `kMaxFlushPercent = 25` — how much flush is acceptable, as a percentage of the gradient
+  index bytes a block reads. `flush_bytes` is computable exactly as
+  `n_items * n_targets * ShmemSize() / entries_per_blk`, so the budget can be asserted, not
+  guessed.
 
 **Fitted constants — need measurement, can be wrong invisibly**
 
@@ -177,8 +182,10 @@ The plan reduces the constant count from three to two, and lands with **no fitte
 block-stride loop, so they only serve as a rounding unit. Round `entries_per_chunk` to
 `kBlockThreads` instead and delete both.
 
-Net: today `kMaxWaves`, `kMinTiles`, `kItemsPerThread` → proposal `kMinWaves`,
-`kMaxFlushRatio`, both generalised.
+Net: today `kMaxWaves`, `kMinTiles`, `kItemsPerThread` → `kTargetWaves`, `kMinWaves`,
+`kMaxFlushPercent`, all generalised, with `kItemsPerThread` to be removed in Phase 2. `kMinWaves`
+is new and exists only to bound the downside of the flush floor; it replaces an implicit
+one-wave cap.
 
 ### 5.3 Rejected: collapsing to one parameter
 
@@ -207,57 +214,90 @@ constant. Revisit only if the Phase 3 external-memory sweep shows the optimum sc
 
 ---
 
-## 6. Phase 1 — bound priority in `SliceItems` (standalone)
+## 6. Phase 1 — bound priority in `SliceItems` — IMPLEMENTED
 
 Independent of the ordering change. Helps external memory on master and the branch alike.
-Land and measure first.
 
-Today's
+Before, the floor was *lowered* for small launches in order to fill the device:
 
 ```cpp
 min_tiles = std::min(kMinTiles, DivRoundUp(n_tiles, n_resident_blks_per_target));
+n_tiles_per_blk = std::max(DivRoundUp(n_tiles, res * kMaxWaves), min_tiles);
 ```
 
-**lowers** the flush floor for small launches in order to fill the device. With external memory
-each page is its own launch, so this is exactly the regime where it hurts: at a 1 M-row page the
-kernel spends as many bytes on flushes as on reading the data.
+With external memory each page is its own launch, so this is exactly the regime where it hurts:
+at a 1 M-row page the kernel spends as many bytes on flushes as on reading the data.
+
+### 6.1 What was implemented
+
+`cuda_impl::SliceTiles` in `histogram.cu`, declared in `histogram.cuh` so it can be unit
+tested. Three bounds with an explicit priority:
 
 ```cpp
-// src/tree/gpu_hist/histogram.cu, HistKernel::SliceItems
-static constexpr double      kMaxFlushRatio = 0.25;
-static constexpr std::size_t kMinWaves      = 32;   // was kMaxWaves; it was always a lower bound
+auto n_tiles = DivRoundUp(n_items, tile_size);
+// flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
+//   flush_bytes = n_targets * shmem_bytes
+//   entry_bytes = n_tiles_per_blk * tile_size * entry_bits / 8
+auto tiles_flush  = DivRoundUp(100 * 8 * n_targets * shmem_bytes,
+                               kMaxFlushPercent * tile_size * entry_bits);
+auto tiles_target = DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
+auto tiles_cap    = DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
 
-// derived floor, replaces the literal kMinTiles
-auto floor_flush  = DivRoundUp(n_targets * shmem_bytes_per_block,
-                               static_cast<std::size_t>(kMaxFlushRatio * Policy::kTileSize * bpe));
-auto cap_balance  = std::max<std::size_t>(1, DivRoundUp(n_tiles, res * kMinWaves));
-auto cap_one_wave = std::max<std::size_t>(1, DivRoundUp(n_tiles * n_targets, n_resident_blocks));
-
-auto n_tiles_per_blk = std::min(std::max(cap_balance, floor_flush), cap_one_wave);
+auto n_tiles_per_blk = std::max(1, std::min(std::max(tiles_target, tiles_flush), tiles_cap));
 ```
 
-Thread `shmem_bytes_per_block` (= `feature_groups.ShmemSize()`), `n_targets` and
-`bytes_per_entry` into `SliceItems`. Phase 1 stays in tiles to keep the diff minimal; Phase 2
-converts to entries and drops `kTileSize`.
+`shmem_bytes` is `feature_groups.ShmemSize()`, and is zero on the global-memory path, where
+there is no flush and hence no floor. `entry_bits` comes from the new `EntryBits(matrix)`,
+which recovers the symbol count from the accessor (`NullValue()` is the symbol count for a
+fully dense page, one less otherwise) and takes `common::detail::SymbolBits` of it — so a wider
+gradient index correctly makes the flush relatively cheaper.
 
-Effect, 512 features / 4 targets / 188 SMs:
+`HistKernel::SliceItems` is now a thin wrapper that converts tiles to entries.
 
-| rows per launch | today t/blk | blocks | waves | flush | after t/blk | blocks | waves | flush | binding |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 0.03 M | 30 | 368 | 1.0 | 107 % | 30 | 368 | 1.0 | 107 % | one-wave |
-| 0.26 M | 32 | 2,732 | 7.3 | **100 %** | 128 | 684 | 1.8 | **25 %** | flush floor |
-| 1.05 M | 32 | 10,924 | 29.1 | **100 %** | 128 | 2,732 | 7.3 | **25 %** | flush floor |
-| 4.19 M | 117 | 11,952 | 31.8 | 27 % | 128 | 10,924 | 29.1 | 25 % | flush floor |
-| 16.78 M | 465 | 12,028 | 32.0 | 7 % | 465 | 12,028 | 32.0 | 7 % | balance |
-| 33.55 M | 930 | 12,028 | 32.0 | 3 % | 930 | 12,028 | 32.0 | 3 % | balance |
+### 6.2 Effect
 
-In-core is unchanged (`floor_flush = 128` tiles never binds against `cap_balance = 930`). Single
-target also improves on small launches, since its derived floor is 8 tiles rather than 32.
+512 features, 4 targets, 188 SMs:
 
-**Gate:** external-memory benchmarks (`ext-qdm-iter`, varying `--n_batches`) improve or are
-neutral; in-core timings unchanged.
+| rows per launch | before t/blk | waves | flush | after t/blk | waves | flush |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.03 M | 30 | 1.0 | 107 % | 8 | 3.6 | 400 % |
+| 0.26 M | 32 | 7.3 | **100 %** | 59 | 3.9 | **54 %** |
+| 0.52 M | 32 | 14.5 | **100 %** | 117 | 4.0 | **27 %** |
+| 1.05 M | 32 | 29.1 | **100 %** | 128 | 7.3 | **25 %** |
+| 4.19 M | 117 | 31.8 | 27 % | 128 | 29.1 | 25 % |
+| 16.78 M | 465 | 32.0 | 7 % | 465 | 32.0 | 7 % |
+| 33.55 M | 930 | 32.0 | 3 % | 930 | 32.0 | 3 % |
 
----
+Large in-core launches are unchanged — the floor never binds against the target. Very small
+launches (first row) now get more waves and more flush: `kMinWaves` is a cap on chunk length, so
+it can only raise the block count. At that size the absolute volumes are tiny (16 MB of
+gradient index), and the utilisation gain is real, but it is a behaviour change.
+
+### 6.3 Verification performed
+
+- `testxgboost --gtest_filter='*Histogram*:*GpuHist*:*GPUHist*:*Ellpack*:*Driver*:*QuantileDMatrix*'`
+  — 244 passed, 3 pre-existing skips.
+- `pytest tests/python-gpu/test_gpu_updaters.py` — 30 passed.
+  `test_gpu_data_iterator.py`, `test_gpu_prediction.py` — 46 passed, 3 failures that reproduce
+  on the un-patched branch build (`test_predict_leaf_basic`, unrelated).
+- **Bitwise identical results**, in-core and external memory: the per-round RMSE sequences match
+  the un-patched build exactly, as expected from integer atomics.
+- Local 46 SM sm_120 part, external memory, 4 × 1 M-row pages, 256 features, 4 targets: the
+  policy is active (histogram grid 2588 → 648 blocks for node levels, 2916 → 1368 for the root,
+  i.e. **4× less flush**) and the total histogram kernel time is **unchanged**: 1.097 s vs
+  1.101 s over 90 launches. Whole-training wall time differs by less than the noise of this
+  power-capped part.
+
+So locally the trade is free: 4× less flush traffic for the same kernel time. The regime this
+is aimed at — enough waves that the reduced block count costs nothing — needs the RTX PRO 6000
+to confirm.
+
+### 6.4 Gate before Phase 2
+
+External-memory benchmarks (`ext-qdm-iter`, varying `--n_batches`) on the RTX PRO 6000 must
+improve or be neutral, and in-core timings must be unchanged. Also sweep `kMaxFlushPercent`
+there, since it and `kMinWaves` are the two declared budgets and small pages are where they
+bind.
 
 ## 7. Phase 2 — decomposition and ordering
 
@@ -405,8 +445,12 @@ Add:
    through a test-only override, to hit the `begin >= n_entries` and partial-last-chunk paths.
 4. **Grid guard.** `n_nodes = 1024`, many groups, 32 targets — assert the grid stays under
    `UINT32_MAX` and that `entries_per_chunk` was raised.
-5. **Derived floor.** Assert `floor_flush` scales with `n_targets` (8 / 32 / 256 tiles at
-   1 / 4 / 32 targets for a 49 KB group), which the old literal `kMinTiles` did not.
+5. **Derived floor** — *added in Phase 1*: `Histogram.SliceTilesFlushFloor` asserts the floor is
+   proportional to `n_targets`, to `ShmemSize()`, and inversely proportional to `entry_bits`, and
+   that the declared budget is met without being over-spent.
+6. **Bound priority** — *added in Phase 1*: `Histogram.SliceTilesBounds` pins all three bounds —
+   the target binds on large launches, the `kMinWaves` cap wins over the flush floor on small
+   ones, the global-memory path has no floor, and the result is never zero.
 
 ## 11. Benchmarks
 

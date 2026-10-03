@@ -10,9 +10,10 @@
 #include <vector>                // for vector
 
 #include "../../collective/aggregator.h"
-#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
-#include "../../common/cuda_context.cuh"  // for CUDAContext
-#include "../../common/cuda_rt_utils.h"   // for GetMpCnt
+#include "../../common/compressed_iterator.h"  // for SymbolBits
+#include "../../common/cuda_compat.cuh"        // for CUDA compatibility
+#include "../../common/cuda_context.cuh"       // for CUDAContext
+#include "../../common/cuda_rt_utils.h"        // for GetMpCnt
 #include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
@@ -384,34 +385,85 @@ __global__ __launch_bounds__(
   }
 }
 
+namespace {
+/**
+ * @brief The number of waves of blocks to aim for, for load balance.
+ *
+ * More waves hide the imbalance between blocks better, at the cost of shorter blocks, which
+ * amortize the flush of the privatized histogram over less work.
+ */
+constexpr std::size_t kTargetWaves = 32;
+/**
+ * @brief The number of waves never to go below.
+ *
+ * The flush budget can ask for blocks longer than the target wave count allows, which is the
+ * right trade for external memory, where each page is a separate and smaller launch. This
+ * bounds how much tail that may cost: the blocks of a launch are of equal length, so the
+ * waste is the partially filled last wave, about `1 / (2 * kMinWaves)` of the kernel.
+ */
+constexpr std::size_t kMinWaves = 4;
+/**
+ * @brief The flush of the privatized histogram may cost this fraction of the entries read
+ *        by a block, expressed in percent.
+ *
+ * A declared budget, not a fitted constant: the resulting volume is
+ * `n_items * n_targets * shmem_bytes / entries_per_blk` and is known before the launch. The
+ * flush is an L2-resident read-modify-write while the entries come from DRAM, so the budget
+ * can be generous.
+ */
+constexpr std::size_t kMaxFlushPercent = 25;
+
+/**
+ * @brief The number of bits used by each entry of the gradient index.
+ */
+template <typename Accessor>
+[[nodiscard]] std::uint32_t EntryBits(Accessor const& matrix) {
+  // `NullValue` is the number of symbols for a fully dense page, one less otherwise.
+  auto n_symbols = matrix.IsDense() ? matrix.NullValue() : matrix.NullValue() + 1;
+  return common::detail::SymbolBits(n_symbols);
+}
+}  // anonymous namespace
+
+namespace cuda_impl {
+std::pair<std::size_t, std::uint64_t> SliceTiles(bst_idx_t n_items, std::size_t tile_size,
+                                                 std::size_t n_resident_blks_per_target,
+                                                 bst_target_t n_targets, std::size_t shmem_bytes,
+                                                 std::uint32_t entry_bits) {
+  CHECK_GT(n_items, 0);
+  CHECK_GT(tile_size, 0);
+  CHECK_GT(n_resident_blks_per_target, 0);
+  CHECK_GT(n_targets, 0);
+  CHECK_GT(entry_bits, 0);
+
+  auto n_tiles = common::DivRoundUp(n_items, tile_size);
+  // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
+  //   flush_bytes = n_targets * shmem_bytes
+  //   entry_bytes = n_tiles_per_blk * tile_size * entry_bits / 8
+  // Zero when the kernel accumulates into global memory, there is then no flush.
+  auto tiles_flush =
+      common::DivRoundUp(100 * 8 * static_cast<std::size_t>(n_targets) * shmem_bytes,
+                         kMaxFlushPercent * tile_size * static_cast<std::size_t>(entry_bits));
+  auto tiles_target = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
+  auto tiles_cap = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
+
+  auto n_tiles_per_blk =
+      std::max<std::size_t>(1, std::min(std::max(tiles_target, tiles_flush), tiles_cap));
+  auto n_blks_per_target = common::DivRoundUp(n_tiles, n_tiles_per_blk);
+  return {n_tiles_per_blk, static_cast<std::uint64_t>(n_blks_per_target)};
+}
+}  // namespace cuda_impl
+
 // Dispatcher for the histogram kernel.
 struct HistKernel {
-  /**
-   * @brief Split the items of a target into equal parts of whole tiles, one for each block.
-   *
-   * A block needs enough tiles to amortize the zeroing and flushing of its histogram, while
-   * multiple waves of blocks balance the load between SMs. Small inputs fill the device
-   * first.
-   *
-   * @param n_items                    The number of entries for each target.
-   * @param n_resident_blks_per_target The number of blocks for each target that the device
-   *                                   can run concurrently.
-   *
-   * @return The number of items for each block and the number of blocks for each target.
-   */
+  // Thin wrapper over `cuda_impl::SliceTiles` that converts tiles into entries.
   template <typename Policy>
-  static auto SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target) {
-    CHECK_GT(n_items, 0);
-    CHECK_GT(n_resident_blks_per_target, 0);
-    constexpr std::size_t kMaxWaves = 32;
-    constexpr std::size_t kMinTiles = 32;
-    auto n_tiles = common::DivRoundUp(n_items, Policy::kTileSize);
-    auto min_tiles = std::min(kMinTiles, common::DivRoundUp(n_tiles, n_resident_blks_per_target));
-    auto n_tiles_per_blk =
-        std::max(common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMaxWaves), min_tiles);
-    auto n_blks_per_target = common::DivRoundUp(n_tiles, n_tiles_per_blk);
+  static auto SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target,
+                         bst_target_t n_targets, std::size_t shmem_bytes,
+                         std::uint32_t entry_bits) {
+    auto [n_tiles_per_blk, n_blks_per_target] = cuda_impl::SliceTiles(
+        n_items, Policy::kTileSize, n_resident_blks_per_target, n_targets, shmem_bytes, entry_bits);
     return std::make_pair(static_cast<bst_idx_t>(n_tiles_per_blk * Policy::kTileSize),
-                          static_cast<std::uint64_t>(n_blks_per_target));
+                          n_blks_per_target);
   }
 
   // Maps kernel instantiations to the number of resident blocks per MP. This is a mutable
@@ -490,13 +542,14 @@ struct HistKernel {
     dh::CopyTo(h_sizes_csum, &sizes_csum, stream);
 
     bst_idx_t n_items = h_sizes_csum.back() * matrix.row_stride;
+    auto entry_bits = EntryBits(matrix);
     auto launch = [&](auto policy) {
       using Policy = common::GetValueT<decltype(policy)>;
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
-      auto [n_items_per_blk, n_blks_per_target] =
-          SliceItems<Policy>(n_items, n_resident_blks_per_target);
+      auto [n_items_per_blk, n_blks_per_target] = SliceItems<Policy>(
+          n_items, n_resident_blks_per_target, n_targets, shmem_bytes, entry_bits);
       auto n_blks = static_cast<std::uint64_t>(n_blks_per_target) * n_targets;
       CHECK_LE(n_blks, std::numeric_limits<std::uint32_t>::max());
 

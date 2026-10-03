@@ -47,6 +47,40 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
+
+/**
+ * @brief Split the entries of a target into equal parts of whole tiles, one for each block.
+ *
+ * Three bounds, in order of priority:
+ *
+ * - an upper bound of `kMinWaves` waves: bounds the partially filled last wave.
+ * - a lower bound from the flush budget: a block needs enough tiles to amortize the zeroing
+ *   and flushing of its privatized histogram. Scales with `n_targets` and the size of the
+ *   histogram.
+ * - the target: as large as `kTargetWaves` allows, for the fewest flushes.
+ *
+ * The flush bound wins over the load-balance target. With external memory each page is a
+ * separate, smaller launch, and sacrificing the amortization to fill the device makes the
+ * flush cost as much as reading the data.
+ *
+ * Exposed for testing.
+ *
+ * @param n_items                    The number of entries for each target.
+ * @param tile_size                  The number of entries in a tile.
+ * @param n_resident_blks_per_target The number of blocks for each target that the device
+ *                                   can run concurrently.
+ * @param n_targets                  The number of targets, one block for each.
+ * @param shmem_bytes                The privatized histogram of a block. Zero when the
+ *                                   kernel accumulates into global memory, as there is then
+ *                                   no flush to amortize.
+ * @param entry_bits                 The number of bits used by each entry of the gradient
+ *                                   index.
+ *
+ * @return The number of tiles for each block, and the number of blocks for each target.
+ */
+[[nodiscard]] std::pair<std::size_t, std::uint64_t> SliceTiles(
+    bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
+    bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t entry_bits);
 }  // namespace cuda_impl
 
 /**
