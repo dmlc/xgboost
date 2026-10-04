@@ -323,33 +323,6 @@ __global__ __launch_bounds__(
 
 namespace {
 /**
- * @brief The number of waves of blocks to aim for, for load balance.
- *
- * More waves hide the imbalance between blocks better, at the cost of shorter blocks, which
- * amortize the flush of the privatized histogram over less work.
- */
-constexpr std::size_t kTargetWaves = 32;
-/**
- * @brief The number of waves never to go below.
- *
- * The flush budget can ask for blocks longer than the target wave count allows, which is the
- * right trade for external memory, where each page is a separate and smaller launch. This
- * bounds how much tail that may cost: the blocks of a launch are of equal length, so the
- * waste is the partially filled last wave, about `1 / (2 * kMinWaves)` of the kernel.
- */
-constexpr std::size_t kMinWaves = 4;
-/**
- * @brief The flush of the privatized histogram may cost this fraction of the entries read
- *        by a block, expressed in percent.
- *
- * A declared budget, not a fitted constant: the resulting volume is
- * `n_items * n_targets * shmem_bytes / entries_per_blk` and is known before the launch. The
- * flush is an L2-resident read-modify-write while the entries come from DRAM, so the budget
- * can be generous.
- */
-constexpr std::size_t kMaxFlushPercent = 25;
-
-/**
  * @brief The number of bits used by each entry of the gradient index.
  */
 template <typename Accessor>
@@ -385,6 +358,9 @@ std::pair<std::size_t, std::uint64_t> SliceTiles(bst_idx_t n_items, std::size_t 
   auto n_tiles_per_blk =
       std::max<std::size_t>(1, std::min(std::max(tiles_target, tiles_flush), tiles_cap));
   auto n_blks_per_target = common::DivRoundUp(n_tiles, n_tiles_per_blk);
+  // Every tile is covered, and there is at least one block.
+  CHECK_GE(n_tiles_per_blk * n_blks_per_target, n_tiles);
+  CHECK_GE(n_blks_per_target, 1);
   return {n_tiles_per_blk, static_cast<std::uint64_t>(n_blks_per_target)};
 }
 
@@ -406,8 +382,12 @@ ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_c
     n_entries_per_chunk *= 2;
     n_chunks = common::DivRoundUp(max_segment_entries, n_entries_per_chunk);
   }
+  auto n_blks = n_chunks * n_blks_per_chunk;
+  // The chunks cover the largest segment, and the grid fits.
+  CHECK_GE(n_chunks * n_entries_per_chunk, max_segment_entries);
+  CHECK_LE(n_blks, kMaxGrid);
   return {n_entries_per_chunk, static_cast<std::uint32_t>(n_chunks),
-          static_cast<std::uint32_t>(n_chunks * n_blks_per_chunk)};
+          static_cast<std::uint32_t>(n_blks)};
 }
 }  // namespace cuda_impl
 

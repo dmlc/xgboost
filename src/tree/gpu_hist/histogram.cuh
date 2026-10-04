@@ -49,6 +49,33 @@ namespace cuda_impl {
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
 
 /**
+ * @brief The number of waves of blocks to aim for, for load balance.
+ *
+ * More waves hide the imbalance between blocks better, at the cost of shorter blocks, which
+ * amortize the flush of the privatized histogram over less work.
+ */
+inline constexpr std::size_t kTargetWaves = 32;
+/**
+ * @brief The number of waves never to go below.
+ *
+ * The flush budget can ask for blocks longer than the target wave count allows, which is the
+ * right trade for external memory, where each page is a separate and smaller launch. This
+ * bounds how much tail that may cost: the blocks of a launch are of equal length, so the waste
+ * is the partially filled last wave, about `1 / (2 * kMinWaves)` of the kernel.
+ */
+inline constexpr std::size_t kMinWaves = 4;
+/**
+ * @brief The flush of the privatized histogram may cost this fraction of the entries read by a
+ *        block, expressed in percent.
+ *
+ * A declared budget, not a fitted constant: the resulting volume is
+ * `n_items * n_targets * shmem_bytes / entries_per_blk` and is known before the launch. The
+ * flush is an L2-resident read-modify-write while the entries come from DRAM, so the budget can
+ * be generous.
+ */
+inline constexpr std::size_t kMaxFlushPercent = 25;
+
+/**
  * @brief Split the entries of a target into equal parts of whole tiles, one for each block.
  *
  * Three bounds, in order of priority:

@@ -393,12 +393,25 @@ both the flush floor and the load-balance target scale with the unit.
   empty rectangular slots and segments shorter than one chunk.
 - **Bitwise identical results** versus the Phase 1 build, in-core and external memory
   (`rmse` sequences match to all digits).
-- Registers, `regcheck.sh` + per-kernel parse: sm_120 **0 spills**, max 48 registers (the
-  single-target bound allows 64). sm_80 and sm_90 sit at the 32-register cap of their
-  `(1024, 2)` launch bounds and show small spills (4–28 bytes) in some instantiations:
-  32/96 on sm_80 and 36/96 on sm_90, against a Phase 1 baseline of **27/96 and 42/96**. So
-  sm_90 improves, sm_80 is slightly worse, and the condition is pre-existing rather than
-  introduced. Worth a follow-up on those two arches.
+- Registers and local memory, `regcheck.sh` with `scratch/spills.py` (attributes every
+  `LDL`/`STL` to its innermost enclosing backward branch via `nvdisasm -g`). sm_120 is
+  **completely clean**. On sm_80 and sm_90 all spilling instantiations are the
+  **`DoubleEllpackAccessor`** ones (`Single = 0/48` on every arch), which sit at the
+  32-register cap of their `(1024, 2)` launch bounds; `DoubleCompressedIter` carries two
+  buffer pointers where `CompressedIterator` carries one. Measured as local-memory ops
+  **inside** the accumulation loop — which is what costs time:
+
+  | in-loop local-memory ops | Phase 1 | Phase 2 |
+  |---|---:|---:|
+  | sm_90, accumulation loop | 80 | 74 |
+  | sm_90, outer `while (pos < last())` loop | **902** | **0 (loop removed)** |
+  | sm_90 total | 982 | **74** |
+  | sm_80 total | 667 | **38** |
+  | instantiations with in-loop local traffic | 96/96, both accessors | 27/96, double only |
+
+  The 902 ops were the deliberate `volatile bst_idx_t pos`, not spills, but real traffic all
+  the same. So Phase 2 is 13× better on sm_90 and 17× better on sm_80, and clean for the
+  single accessor. The residual 2–4 ops per iteration are Phase 5 below.
 - Local 46 SM sm_120 part, 4 M rows, 256 features, 4 targets, depthwise — histogram kernel
   time from the nsys trace, and whole-training time over 3 interleaved repetitions:
 
@@ -425,10 +438,17 @@ should **stop moving with tree depth**.
 All variants are bitwise identical (integer atomics), so sweeps carry no correctness risk.
 
 1. **Correctness:** `testxgboost --gtest_filter=*Histogram*` plus `tests/python-gpu`.
-2. **Registers:** `./regcheck.sh {75,80,86,90,100,120}` with `parse_regs.py`. Expect ≤ 40
-   registers, no spills, and the 8-byte stack frame gone.
-3. **In-core:** the four regressing configurations on the RTX PRO 6000, versus master and
-   versus the branch.
+2. **Registers:** `./regcheck.sh {75,80,86,90,100,120}` with `scratch/spills.py`. Expect the
+   8-byte stack frame gone, sm_120 clean, and no *new* in-loop local-memory traffic beyond the
+   double-accessor residual recorded in 7.6. Done; see 7.6.
+3. **In-core, the full matrix:** all eight configurations of
+   `benchmark-training-comparison.md` (256/512 features × 1/4 targets × depthwise/lossguide),
+   versus master and versus the branch. **Not yet done, even locally** — only
+   256 features / 4 targets / depthwise has been measured. The single-target and lossguide rows
+   are the ones that must not regress, so they are the point of the exercise.
+   `scratch/matrix.sh` runs the matrix but needs a fix first: it replaces
+   `libxgboost.so` with `cp` while the file may still be mapped, which gives a `SIGBUS`.
+   Copy to a temporary path and `mv` (atomic rename, new inode) instead.
 4. **Per level:** paired in-process A/B over `entries_per_chunk`. The ordering claim predicts
    the optimum **stops moving with tree depth**; under the current ordering the cost model puts
    it 128× apart between levels 1 and 6.
@@ -505,13 +525,30 @@ the regression baseline.
 | alignment lost across group-width classes | bounded by the width-class analysis; test 1 makes it visible |
 | `kMaxFlushRatio = 0.25` is a declared budget, not a measured optimum | the resulting flush volume is computable exactly on the host; 8.6 sweeps it where it matters |
 | the cost model behind §4 is unvalidated except for 8.5 | the ordering change follows from the indexing, not from a fitted constant; that is why it lands before any L2 term |
-| sm_80 / sm_90 spill a few bytes under their 32-register cap | pre-existing (27/96 and 42/96 before, 32/96 and 36/96 after); sm_120 is spill-free. Follow-up on the `(1024, 2)` arches |
+| sm_80 / sm_90 keep 2–4 in-loop local-memory ops in the double-accessor instantiations | 13–17× less in-loop local traffic than Phase 1, and sm_120 is clean; addressed by Phase 5 |
 
 Phases 1 and 2 are separate commits with independent gates. Phase 1 is a ~10-line change to one
 function and is reversible on its own. Phase 2 is confined to `HistogramKernel` and
 `DispatchHist` and leaves every public signature and every other file unchanged.
 
-## 13. Out of scope
+## 13. Phase 5 — double-accessor register pressure (optional, independent)
+
+Every remaining spill is in the `DoubleEllpackAccessor` instantiations on sm_80 and sm_90, 2–4
+local-memory ops per iteration of the accumulation loop. Cause: `(1024, 2)` launch bounds cap
+registers at `65536 / (1024 * 2) = 32`, and `DoubleCompressedIter` needs more live state than
+`CompressedIterator`. sm_120's `(768, 2)` gives a 42-register cap and is clean.
+
+Two independent options:
+
+- Give the double-accessor instantiations their own launch bounds. `(1024, 1)` on sm_80 and
+  sm_90 raises the cap to 64 registers. The double accessor is the external-memory path, where
+  the page fetch dominates and occupancy matters less.
+- Shrink the live state of `DoubleCompressedIter::operator[]`.
+
+Independent of Phases 3 and 4, and measurable with `scratch/spills.py` plus an external-memory
+benchmark. Not required for the regression this plan addresses.
+
+## 14. Out of scope
 
 - `targets_per_block > 1` (one block owning several targets' histograms, removing the target
   axis entirely at the cost of narrowing `features_per_group`).

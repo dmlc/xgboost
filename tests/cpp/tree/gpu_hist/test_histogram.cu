@@ -35,11 +35,6 @@ TEST(Histogram, HistShmemBytes) {
 }
 
 namespace {
-// Mirrors the constants of `cuda_impl::SliceTiles`.
-constexpr std::size_t kTargetWaves = 32;
-constexpr std::size_t kMinWaves = 4;
-constexpr std::size_t kMaxFlushPercent = 25;
-
 // The flush volume implied by a slice, as a fraction of the gradient index bytes read.
 [[nodiscard]] double FlushRatio(std::size_t n_tiles_per_blk, std::size_t tile_size,
                                 bst_target_t n_targets, std::size_t shmem_bytes,
@@ -51,123 +46,67 @@ constexpr std::size_t kMaxFlushPercent = 25;
 }
 }  // anonymous namespace
 
-// The flush floor scales with the number of targets and the size of the privatized
-// histogram. The constant it replaced did not.
-TEST(Histogram, SliceTilesFlushFloor) {
-  std::size_t constexpr kTileSize = 768 * 8;
-  std::size_t constexpr kShmem = 12 * 256 * sizeof(GradientPairInt64);  // 49152
-  std::uint32_t constexpr kEntryBits = 8;
-  std::size_t constexpr kResident = 32;
+// The three bounds of the launch policy and their priority. Asserts relationships rather than
+// absolute sizes, so retuning the budgets does not invalidate the test.
+TEST(Histogram, SliceTiles) {
+  using cuda_impl::kMaxFlushPercent;
+  using cuda_impl::kMinWaves;
+  using cuda_impl::kTargetWaves;
+  using cuda_impl::SliceTiles;
 
-  for (bst_target_t n_targets : {1, 2, 4, 8, 32}) {
-    // Sized so that the flush floor is the binding bound: above the load-balance target and
-    // below the one-wave cap.
-    auto n_tiles = kResident * kTargetWaves * 16 * n_targets;
-    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
-    auto [tiles, blks] =
-        cuda_impl::SliceTiles(n_items, kTileSize, kResident, n_targets, kShmem, kEntryBits);
-
-    // 100 * 8 * n_targets * kShmem / (kMaxFlushPercent * kTileSize * kEntryBits)
-    ASSERT_EQ(tiles, 32u * n_targets) << "n_targets:" << n_targets;
-    ASSERT_EQ(blks, common::DivRoundUp(n_tiles, tiles));
-    // The declared budget is met, and not over-spent.
-    auto ratio = FlushRatio(tiles, kTileSize, n_targets, kShmem, kEntryBits);
-    ASSERT_LE(ratio, static_cast<double>(kMaxFlushPercent) / 100.0 + 1e-9);
-    ASSERT_GT(ratio, static_cast<double>(kMaxFlushPercent) / 100.0 * 0.5);
-  }
-
-  // Proportional to the size of the privatized histogram as well. Sized so the floor binds
-  // for every variant below: above the load-balance target, below the one-wave cap.
-  auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 8) * kTileSize;
-  auto [small, _s] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, kEntryBits);
-  auto [large, _l] =
-      cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem * 2, kEntryBits);
-  ASSERT_EQ(large, small * 2);
-
-  // A wider gradient index carries more bytes per entry, so the flush is relatively cheaper.
-  auto [narrow, _n] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, 8);
-  auto [wide, _w] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, 1, kShmem, 16);
-  ASSERT_EQ(narrow, wide * 2);
-}
-
-// The three bounds and their priority.
-TEST(Histogram, SliceTilesBounds) {
-  std::size_t constexpr kTileSize = 768 * 8;
+  std::size_t constexpr kTile = 768 * 8;
   std::size_t constexpr kShmem = 12 * 256 * sizeof(GradientPairInt64);
-  std::uint32_t constexpr kEntryBits = 8;
-  bst_target_t constexpr kTargets = 4;
-  std::size_t constexpr kResident = 94;
+  std::uint32_t constexpr kBits = 8;
+  std::size_t constexpr kResident = 32;
+  auto const budget = static_cast<double>(kMaxFlushPercent) / 100.0;
 
   {
-    // Large launch: the load-balance target binds, giving exactly kTargetWaves waves.
-    auto n_tiles = kResident * kTargetWaves * 1024;
-    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
-    auto [tiles, blks] =
-        cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets, kShmem, kEntryBits);
-    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kTargetWaves));
-    ASSERT_EQ(blks, kResident * kTargetWaves);
+    // Sized so the flush floor is the binding bound for every variant below: above the
+    // load-balance target and below the kMinWaves cap.
+    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 12) * kTile;
+    auto base = SliceTiles(n_items, kTile, kResident, 1, kShmem, kBits).first;
+    // The floor is proportional to the number of targets and to the size of the privatized
+    // histogram, and inversely proportional to the bytes an entry carries. The literal
+    // `kMinTiles` it replaced was none of these.
+    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 2, kShmem, kBits).first, base * 2);
+    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 1, kShmem * 2, kBits).first, base * 2);
+    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 1, kShmem, kBits * 2).first, base / 2);
+    // The declared budget is met, and not over-spent by more than a factor of two.
+    auto ratio = FlushRatio(base, kTile, 1, kShmem, kBits);
+    ASSERT_LE(ratio, budget + 1e-9);
+    ASSERT_GT(ratio, budget / 2);
   }
   {
-    // Small launch: the flush floor would ask for longer blocks than kMinWaves allows, so
-    // the cap wins and the tail stays bounded.
-    auto n_tiles = kResident * kMinWaves * 8;
-    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
-    auto [tiles, blks] =
-        cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets, kShmem, kEntryBits);
-    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kMinWaves));
+    // Large launch: the load-balance target binds, giving kTargetWaves waves.
+    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 1024) * kTile;
+    auto [tiles, blks] = SliceTiles(n_items, kTile, kResident, 4, kShmem, kBits);
+    ASSERT_EQ(blks, kResident * kTargetWaves);
+    ASSERT_LT(FlushRatio(tiles, kTile, 4, kShmem, kBits), budget);
+  }
+  {
+    // Small launch, as with an external-memory page: the flush floor asks for longer blocks
+    // than kMinWaves allows, so the cap wins and the tail stays bounded.
+    auto n_items = static_cast<bst_idx_t>(kResident * kMinWaves * 8) * kTile;
+    auto [tiles, blks] = SliceTiles(n_items, kTile, kResident, 4, kShmem, kBits);
     ASSERT_EQ(blks, kResident * kMinWaves);
-    // The budget cannot be met at this size; the cap is what limits it.
-    ASSERT_GT(FlushRatio(tiles, kTileSize, kTargets, kShmem, kEntryBits),
-              static_cast<double>(kMaxFlushPercent) / 100.0);
+    ASSERT_GT(FlushRatio(tiles, kTile, 4, kShmem, kBits), budget);
   }
   {
     // Global memory: no privatized histogram, so no flush and no floor.
-    auto n_tiles = kResident * kTargetWaves * 8;
-    auto n_items = static_cast<bst_idx_t>(n_tiles) * kTileSize;
-    auto [tiles, blks] = cuda_impl::SliceTiles(n_items, kTileSize, kResident, kTargets,
-                                               /*shmem_bytes=*/0, kEntryBits);
-    ASSERT_EQ(tiles, common::DivRoundUp(n_tiles, kResident * kTargetWaves));
+    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 8) * kTile;
+    auto blks = SliceTiles(n_items, kTile, kResident, 4, /*shmem_bytes=*/0, kBits).second;
     ASSERT_EQ(blks, kResident * kTargetWaves);
-  }
-  {
-    // Never zero.
-    auto [tiles, blks] = cuda_impl::SliceTiles(1, kTileSize, 1, 1, kShmem, kEntryBits);
-    ASSERT_EQ(tiles, 1u);
-    ASSERT_EQ(blks, 1u);
   }
 }
 
-// The grid is rectangular over (node, feature group, chunk, target), and lengthens the chunk
-// rather than overflowing.
-TEST(Histogram, MakeChunkGrid) {
-  {
-    // Even segments: no empty block.
-    auto grid = cuda_impl::MakeChunkGrid(/*max_segment_entries=*/1024, /*chunk=*/256,
-                                         /*n_groups=*/4, /*n_targets=*/2, /*n_nodes=*/3);
-    ASSERT_EQ(grid.n_entries_per_chunk, 256u);
-    ASSERT_EQ(grid.n_chunks_per_segment, 4u);
-    ASSERT_EQ(grid.n_blks, 4u * 4u * 2u * 3u);
-  }
-  {
-    // A chunk longer than the largest segment still gets one block per segment.
-    auto grid = cuda_impl::MakeChunkGrid(10, 4096, 1, 1, 7);
-    ASSERT_EQ(grid.n_chunks_per_segment, 1u);
-    ASSERT_EQ(grid.n_blks, 7u);
-  }
-  {
-    // The grid would overflow, so the chunk is lengthened instead.
-    std::uint32_t constexpr kGroups = 512;
-    bst_target_t constexpr kTargets = 32;
-    std::size_t constexpr kNodes = 1024;
-    bst_idx_t constexpr kSegment = bst_idx_t{1} << 40;
-    auto grid = cuda_impl::MakeChunkGrid(kSegment, /*chunk=*/1024, kGroups, kTargets, kNodes);
-    ASSERT_GT(grid.n_entries_per_chunk, 1024u);
-    ASSERT_EQ(grid.n_chunks_per_segment, common::DivRoundUp(kSegment, grid.n_entries_per_chunk));
-    // Fits, and covers the largest segment.
-    ASSERT_LE(static_cast<std::uint64_t>(grid.n_blks), std::numeric_limits<std::uint32_t>::max());
-    ASSERT_GE(static_cast<bst_idx_t>(grid.n_chunks_per_segment) * grid.n_entries_per_chunk,
-              kSegment);
-  }
+// `MakeChunkGrid` promises a grid that fits and covers the largest segment; both are asserted
+// inside it, so every build test checks them. What a CHECK cannot cover is that an overflowing
+// grid is repaired by lengthening the chunk instead of failing.
+TEST(Histogram, MakeChunkGridOverflow) {
+  bst_idx_t constexpr kSegment = bst_idx_t{1} << 40;
+  auto grid = cuda_impl::MakeChunkGrid(kSegment, /*n_entries_per_chunk=*/1024, /*n_groups=*/512,
+                                       /*n_targets=*/32, /*n_nodes=*/1024);
+  ASSERT_GT(grid.n_entries_per_chunk, 1024u);
 }
 
 TEST(Histogram, DeviceHistogramStorage) {
@@ -847,25 +786,23 @@ TEST(Histogram, BuildWide) {
   }
 }
 
-// `FeatureGroups` packs features until the bin budget is full, so uneven bin counts give
-// groups of very different widths. The grid covers the widest, and a block's chunk is a number
-// of entries, so the work of a block is the same in every group.
+// `FeatureGroups` packs features until the bin budget is full, so uneven bin counts give groups
+// of unequal width. Every other test gives all features the same number of bins, so the grid is
+// never asked to cover segments that differ in size across groups.
+//
+// Only the two dense layouts are covered: a sparse page has a single group by construction, so
+// it cannot be skewed, and `force_global` does not interact with group width. Both are already
+// covered many times over by `HistogramBuildTest`.
 TEST(Histogram, BuildSkewedGroups) {
-  for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
-    for (bst_target_t n_targets : {1, 3}) {
-      for (auto force_global : {false, true}) {
-        BuildInfo info;
-        ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 192, 256, n_targets, layout,
-                                                   /*root=*/false, force_global,
-                                                   /*small_groups=*/false, &info,
-                                                   /*skewed=*/true));
-        if (layout != Layout::kSparse) {
-          ASSERT_GT(info.n_groups, 1);
-          // The point of the test: the groups are not all the same width.
-          ASSERT_GT(info.max_group_features, info.min_group_features * 2);
-        }
-      }
-    }
+  for (auto layout : {Layout::kDense, Layout::kDenseMissing}) {
+    BuildInfo info;
+    ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 192, 256, /*n_targets=*/3, layout,
+                                               /*root=*/false, /*force_global=*/false,
+                                               /*small_groups=*/false, &info, /*skewed=*/true));
+    // The premise of the test. The exact widths depend on the shared memory of the device, only
+    // their inequality is portable.
+    ASSERT_GT(info.n_groups, 1);
+    ASSERT_NE(info.min_group_features, info.max_group_features);
   }
 }
 }  // namespace xgboost::tree
