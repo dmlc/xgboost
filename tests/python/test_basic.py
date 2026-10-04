@@ -272,7 +272,9 @@ class TestBasic:
         cb = Callback()
         xgb.cv(params, dm, num_boost_round=1, nfold=nfold, seed=seed, callbacks=[cb])
         idx = np.random.RandomState(seed).permutation(n_samples)
-        for labels, fold in zip(cb.test_labels, np.array_split(idx, nfold)):
+        for labels, fold in zip(
+            cb.test_labels, np.array_split(idx, nfold), strict=True
+        ):
             np.testing.assert_array_equal(labels, fold)
 
     def test_cv_explicit_fold_indices(self):
