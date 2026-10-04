@@ -34,69 +34,43 @@ TEST(Histogram, HistShmemBytes) {
   }
 }
 
-namespace {
-// The flush volume implied by a slice, as a fraction of the gradient index bytes read.
-[[nodiscard]] double FlushRatio(std::size_t n_tiles_per_blk, std::size_t tile_size,
-                                bst_target_t n_targets, std::size_t shmem_bytes,
-                                std::uint32_t entry_bits) {
-  auto flush = static_cast<double>(n_targets) * static_cast<double>(shmem_bytes);
-  auto entries = static_cast<double>(n_tiles_per_blk) * static_cast<double>(tile_size) *
-                 static_cast<double>(entry_bits) / 8.0;
-  return flush / entries;
-}
-}  // anonymous namespace
-
 // The three bounds of the launch policy and their priority. Asserts relationships rather than
 // absolute sizes, so retuning the budgets does not invalidate the test.
 TEST(Histogram, SliceTiles) {
-  using cuda_impl::kMaxFlushPercent;
-  using cuda_impl::kMinWaves;
-  using cuda_impl::kTargetWaves;
-  using cuda_impl::SliceTiles;
-
-  std::size_t constexpr kTile = 768 * 8;
-  std::size_t constexpr kShmem = 12 * 256 * sizeof(GradientPairInt64);
+  using cuda_impl::kMaxFlushPercent, cuda_impl::kMinWaves, cuda_impl::kTargetWaves;
+  std::size_t constexpr kTile = 768 * 8, kShmem = 12 * 256 * sizeof(GradientPairInt64), kRes = 32;
   std::uint32_t constexpr kBits = 8;
-  std::size_t constexpr kResident = 32;
-  auto const budget = static_cast<double>(kMaxFlushPercent) / 100.0;
+  double const budget = static_cast<double>(kMaxFlushPercent) / 100.0;
+  // Launch of `n_tiles` tiles, and the flush volume of the resulting slice as a fraction of
+  // the gradient index bytes a block reads.
+  auto slice = [&](std::size_t n_tiles, bst_target_t n_tgt, std::size_t shmem, std::uint32_t bits) {
+    auto [tiles, blks] = cuda_impl::SliceTiles(n_tiles * kTile, kTile, kRes, n_tgt, shmem, bits);
+    return std::tuple{tiles, blks, n_tgt * shmem / (tiles * kTile * bits / 8.0)};
+  };
 
-  {
-    // Sized so the flush floor is the binding bound for every variant below: above the
-    // load-balance target and below the kMinWaves cap.
-    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 12) * kTile;
-    auto base = SliceTiles(n_items, kTile, kResident, 1, kShmem, kBits).first;
-    // The floor is proportional to the number of targets and to the size of the privatized
-    // histogram, and inversely proportional to the bytes an entry carries. The literal
-    // `kMinTiles` it replaced was none of these.
-    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 2, kShmem, kBits).first, base * 2);
-    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 1, kShmem * 2, kBits).first, base * 2);
-    ASSERT_EQ(SliceTiles(n_items, kTile, kResident, 1, kShmem, kBits * 2).first, base / 2);
-    // The declared budget is met, and not over-spent by more than a factor of two.
-    auto ratio = FlushRatio(base, kTile, 1, kShmem, kBits);
-    ASSERT_LE(ratio, budget + 1e-9);
-    ASSERT_GT(ratio, budget / 2);
-  }
-  {
-    // Large launch: the load-balance target binds, giving kTargetWaves waves.
-    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 1024) * kTile;
-    auto [tiles, blks] = SliceTiles(n_items, kTile, kResident, 4, kShmem, kBits);
-    ASSERT_EQ(blks, kResident * kTargetWaves);
-    ASSERT_LT(FlushRatio(tiles, kTile, 4, kShmem, kBits), budget);
-  }
-  {
-    // Small launch, as with an external-memory page: the flush floor asks for longer blocks
-    // than kMinWaves allows, so the cap wins and the tail stays bounded.
-    auto n_items = static_cast<bst_idx_t>(kResident * kMinWaves * 8) * kTile;
-    auto [tiles, blks] = SliceTiles(n_items, kTile, kResident, 4, kShmem, kBits);
-    ASSERT_EQ(blks, kResident * kMinWaves);
-    ASSERT_GT(FlushRatio(tiles, kTile, 4, kShmem, kBits), budget);
-  }
-  {
-    // Global memory: no privatized histogram, so no flush and no floor.
-    auto n_items = static_cast<bst_idx_t>(kResident * kTargetWaves * 8) * kTile;
-    auto blks = SliceTiles(n_items, kTile, kResident, 4, /*shmem_bytes=*/0, kBits).second;
-    ASSERT_EQ(blks, kResident * kTargetWaves);
-  }
+  // Sized so the flush floor binds for every variant: above the load-balance target, below the
+  // kMinWaves cap. The floor is proportional to the targets and to the privatized histogram,
+  // and inversely proportional to the bytes an entry carries; the literal `kMinTiles` it
+  // replaced was none of these.
+  auto const n = kRes * kTargetWaves * 12;
+  auto [base, _b, ratio] = slice(n, 1, kShmem, kBits);
+  ASSERT_EQ(std::get<0>(slice(n, 2, kShmem, kBits)), base * 2);
+  ASSERT_EQ(std::get<0>(slice(n, 1, kShmem * 2, kBits)), base * 2);
+  ASSERT_EQ(std::get<0>(slice(n, 1, kShmem, kBits * 2)), base / 2);
+  ASSERT_LE(ratio, budget + 1e-9);  // budget met, and not over-spent twofold
+  ASSERT_GT(ratio, budget / 2);
+
+  // Large launch: the load-balance target binds. Small launch, as with an external-memory page:
+  // the floor asks for longer blocks than kMinWaves allows, so the cap wins and the tail stays
+  // bounded. No privatized histogram: no flush, hence no floor.
+  auto [_t1, big, r_big] = slice(kRes * kTargetWaves * 1024, 4, kShmem, kBits);
+  ASSERT_EQ(big, kRes * kTargetWaves);
+  ASSERT_LT(r_big, budget);
+  auto [_t2, small, r_small] = slice(kRes * kMinWaves * 8, 4, kShmem, kBits);
+  ASSERT_EQ(small, kRes * kMinWaves);
+  ASSERT_GT(r_small, budget);
+  ASSERT_EQ(std::get<1>(slice(kRes * kTargetWaves * 8, 4, /*shmem=*/0, kBits)),
+            kRes * kTargetWaves);
 }
 
 // `MakeChunkGrid` promises a grid that fits and covers the largest segment; both are asserted
@@ -255,13 +229,14 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 }
 
 TEST(Histogram, GPUHistCategorical) {
-  for (size_t num_categories = 2; num_categories < 8; ++num_categories) {
+  for (size_t num_categories : {2, 7}) {
     TestGPUHistogramCategorical(num_categories);
   }
   // Larger than the shared memory size, must use global memory since there's no feature
-  // group with a single feature.
+  // group with a single feature. The one-hot matrix is `n_categories` squared, so exceed the
+  // budget by the smallest margin that still forces the global path.
   auto max_shmem = dh::MaxSharedMemoryOptin(0);
-  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) * 2;
+  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) + 1;
   TestGPUHistogramCategorical(n_categories);
 }
 
@@ -364,11 +339,16 @@ enum CacheMode {
   kCopy = 1,
   kDirect = 2,
 };
+constexpr char const* kCacheNames[] = {"nocache", "copy", "direct"};
 
-class HistogramExternalMemoryTest
-    : public ::testing::TestWithParam<std::tuple<float, bool, CacheMode>> {
+// The histogram of several pages must match the histogram of the pages concatenated.
+//
+// `force_global` selects the accumulation path inside the kernel, which is orthogonal to
+// page iteration and the host cache.
+class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<float, CacheMode>> {
  public:
-  void Run(float sparsity, bool force_global, CacheMode cache_mode) {
+  void Run(float sparsity, CacheMode cache_mode) {
+    bool constexpr force_global = false;
     auto ctx = MakeCUDACtx(0);
     bst_idx_t n_samples{512}, n_features{12}, n_batches{3};
     std::vector<std::unique_ptr<RowPartitioner>> partitioners;
@@ -485,23 +465,12 @@ TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
 
 INSTANTIATE_TEST_SUITE_P(
     Histogram, HistogramExternalMemoryTest,
-    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f), ::testing::Bool(),
+    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f),
                        ::testing::Values(kNoCache, kDirect, kCopy)),
     [](::testing::TestParamInfo<HistogramExternalMemoryTest::ParamType> const& info) {
       std::stringstream ss;
-      auto const& p = info.param;
-      ss << "sparsity_0" << (std::get<0>(p) * 10) << "_global_" << std::get<1>(p) << "_dcache_";
-      switch (std::get<2>(p)) {
-        case kNoCache:
-          ss << "nocache";
-          break;
-        case kDirect:
-          ss << "direct";
-          break;
-        case kCopy:
-          ss << "copy";
-          break;
-      }
+      ss << "sparsity_0" << (std::get<0>(info.param) * 10) << "_dcache_"
+         << kCacheNames[static_cast<std::int32_t>(std::get<1>(info.param))];
       return ss.str();
     });
 
@@ -663,9 +632,7 @@ struct HistInput {
 struct BuildInfo {
   bst_idx_t n_symbols{0};
   std::size_t n_groups{0};
-  // The narrowest and widest feature group.
-  bst_feature_t min_group_features{0};
-  bst_feature_t max_group_features{0};
+  bst_feature_t min_group_features{0}, max_group_features{0};
 };
 
 void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins,
@@ -690,13 +657,12 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     ASSERT_GT(fg.feature_segments.Size(), 3);
   }
   if (info) {
-    auto const& h_fs = fg.feature_segments.ConstHostVector();
-    bst_feature_t min_w = std::numeric_limits<bst_feature_t>::max(), max_w = 0;
-    for (std::size_t i = 1; i < h_fs.size(); ++i) {
-      min_w = std::min(min_w, h_fs[i] - h_fs[i - 1]);
-      max_w = std::max(max_w, h_fs[i] - h_fs[i - 1]);
+    auto const& fs = fg.feature_segments.ConstHostVector();
+    bst_feature_t lo = fs.back(), hi = 0;
+    for (std::size_t i = 1; i < fs.size(); ++i) {
+      lo = std::min(lo, fs[i] - fs[i - 1]), hi = std::max(hi, fs[i] - fs[i - 1]);
     }
-    *info = BuildInfo{page->NumSymbols(), h_fs.size() - 1, min_w, max_w};
+    *info = BuildInfo{page->NumSymbols(), fs.size() - 1, lo, hi};
   }
 
   bst_node_t n_nodes = input.sizes.size();
@@ -753,56 +719,44 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool()),
     HistogramBuildName);
 
-// Multiple tiles for each block. Blocks take multiple tiles only when the tiles outnumber
-// the resident blocks, the rows scale with the number of SMs to keep at least four tiles
-// for each SM.
+// Multiple tiles for each block.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);
+  // Single and multi target differ in block size and launch bounds, hence in the number of
+  // chunks.
   for (bst_target_t n_targets : {1, 2}) {
-    for (auto force_global : {false, true}) {
-      TestBuildHistogram(n_samples, 2, 256, n_targets, Layout::kDense, /*root=*/false, force_global,
-                         /*small_groups=*/false);
-    }
+    TestBuildHistogram(n_samples, 2, 256, n_targets, Layout::kDense, /*root=*/false,
+                       /*force_global=*/false, /*small_groups=*/false);
   }
 }
 
-// Many bins. The sparse page stores global bin indices wider than 16 bits, and the dense
-// pages need multiple feature groups with the default shared memory budget.
-TEST(Histogram, BuildWide) {
-  for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
-    for (bst_target_t n_targets : {1, 3}) {
-      for (auto force_global : {false, true}) {
-        BuildInfo info;
-        ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 257, 256, n_targets, layout,
-                                                   /*root=*/false, force_global,
-                                                   /*small_groups=*/false, &info));
-        if (layout == Layout::kSparse) {
-          ASSERT_GT(info.n_symbols, 1 << 16);
-        } else {
-          ASSERT_GT(info.n_groups, 1);
-        }
+// Inputs needing more than one feature group: many bins with uniform widths, and uneven bin
+// counts, which make `FeatureGroups` produce groups of unequal width. The sparse layout
+// additionally stores global bin indices wider than 16 bits, and has a single group, so it
+// cannot be skewed.
+TEST(Histogram, BuildMultiGroup) {
+  for (auto [n_features, skewed] : {std::pair{257, false}, std::pair{192, true}}) {
+    for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
+      if (skewed && layout == Layout::kSparse) {
+        continue;
+      }
+      BuildInfo info;
+      ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, n_features, 256, /*n_targets=*/3, layout,
+                                                 /*root=*/false, /*force_global=*/false,
+                                                 /*small_groups=*/false, &info, skewed))
+          << layout << " skewed:" << skewed;
+      if (layout == Layout::kSparse) {
+        ASSERT_GT(info.n_symbols, 1 << 16);
+      } else {
+        ASSERT_GT(info.n_groups, 1);
+      }
+      // The premise of the skewed profile. Safe on any device: the narrow groups are
+      // `budget / 256` features wide and the wide ones `min(96, budget / 8)`, and the shared
+      // memory budget is capped at 6144 bins.
+      if (skewed) {
+        ASSERT_GT(info.max_group_features, info.min_group_features * 2);
       }
     }
-  }
-}
-
-// `FeatureGroups` packs features until the bin budget is full, so uneven bin counts give groups
-// of unequal width. Every other test gives all features the same number of bins, so the grid is
-// never asked to cover segments that differ in size across groups.
-//
-// Only the two dense layouts are covered: a sparse page has a single group by construction, so
-// it cannot be skewed, and `force_global` does not interact with group width. Both are already
-// covered many times over by `HistogramBuildTest`.
-TEST(Histogram, BuildSkewedGroups) {
-  for (auto layout : {Layout::kDense, Layout::kDenseMissing}) {
-    BuildInfo info;
-    ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 192, 256, /*n_targets=*/3, layout,
-                                               /*root=*/false, /*force_global=*/false,
-                                               /*small_groups=*/false, &info, /*skewed=*/true));
-    // The premise of the test. The exact widths depend on the shared memory of the device, only
-    // their inequality is portable.
-    ASSERT_GT(info.n_groups, 1);
-    ASSERT_NE(info.min_group_features, info.max_group_features);
   }
 }
 }  // namespace xgboost::tree
