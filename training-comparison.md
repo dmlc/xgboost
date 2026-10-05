@@ -70,7 +70,7 @@ Training times use `timer.Train.Train` and exclude DMatrix construction. Change 
 
 All imbalanced-histogram runs use 4,194,304 samples, 4,080 features including 3,072 binary features (`n_binary=3072`), 128 training rounds, `max_bin=256`, and `data_seed=2026`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
 
-Both archives report the same environment: Linux `x86_64`, a host with 256 CPUs and 8 NVIDIA RTX PRO 6000 Blackwell Server Edition GPUs, driver `595.71.05`, CUDA 13.3, and `dxgb_bench` version `0.1.dev399+ge42cef5c4`. All runs specify `n_workers=1`.
+Both archives report the same environment: Linux `x86_64`, a host with 256 CPUs and 8 NVIDIA RTX PRO 6000 Blackwell Server Edition GPUs, driver `595.71.05`, CUDA 13.3, and `dxgb_bench` version `0.1.dev399+ge42cef5c4`.
 
 Benchmark result archives:
 
@@ -134,3 +134,31 @@ Benchmark result archives:
 Cases are paired by feature count, grow policy, and target configuration. Commit labels come from the archive filenames; the JSON results do not embed a `binfo.GIT_HASH`.
 
 Single-target training time decreases in all four cases (30.11–38.31%). Vector-leaf training time decreases in all four cases (35.30–59.75%). Training RMSE matches exactly at the precision stored in the JSON files at every boosting round for all eight pairs. Each commit has one recorded timing per case, so these results do not measure run-to-run variation.
+
+**A100 (NVIDIA A100 80GB PCIe)**
+
+| Features | Targets | Grow policy | c2ca8c99a (s) | 4161c075a (s) | Change vs c2ca8c99a (%) |
+|---------:|--------:|-------------|--------------:|--------------:|------------------------:|
+|      256 |       1 | depthwise   |         78.19 |         59.17 |                 -24.32% |
+|      256 |       4 | depthwise   |        230.79 |        228.26 |                  -1.09% |
+|      256 |       1 | lossguide   |         78.36 |         59.73 |                 -23.78% |
+|      256 |       4 | lossguide   |        231.46 |        223.94 |                  -3.25% |
+|      512 |       1 | depthwise   |        168.09 |        130.28 |                 -22.49% |
+|      512 |       4 | depthwise   |        508.59 |        528.14 |                  +3.85% |
+|      512 |       1 | lossguide   |        168.35 |        127.61 |                 -24.20% |
+|      512 |       4 | lossguide   |        509.36 |        505.11 |                  -0.83% |
+
+Training times use `timer.Train.Train`, excluding DMatrix construction and data generation. Changes are `100 × (time / reference_time − 1)`, calculated before rounding; each column names its reference. Negative values mean less training time. Commit columns are ordered oldest to newest.
+
+Both archives report the same environment: Linux `x86_64`, a host with 32 CPUs and 2 NVIDIA A100 80GB PCIe GPUs, driver `580.159.04`, CUDA 13.2, and `dxgb_bench` version `0.1.dev410+g97feb1fd5`. Recorded parameters and machine metadata match for every paired case. Build information and versions match except for `binfo.GIT_HASH` and the XGBoost version suffix, which identify `c2ca8c99a` and `4161c075a`, respectively.
+
+All runs use `qdm-iter` with 64 batches of 2^20 samples (67,108,864 samples), 128 training rounds, maximum depth 6, `max_bin=256`, and `n_workers=1`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
+
+Training RMSE matches exactly at every recorded round for 8 of 8 case/revision pairs against `c2ca8c99a`. 0 pairs differ; 0 pairs have missing or incomplete RMSE histories. Each revision has one timing per case; run-to-run variation is not measured.
+
+Benchmark result archives (commit labels confirmed by `binfo.GIT_HASH`):
+
+- `c2ca8c99a`: [a100-c2ca8c99a.zip](</home/jiamingy/ws/xgboost_dev/bench/A100/a100-c2ca8c99a.zip>)
+- `4161c075a`: [a100-4161c075a.zip](</home/jiamingy/ws/xgboost_dev/bench/A100/a100-4161c075a.zip>)
+
+Single-target training time decreases in all four cases (22.49–24.32%). Vector-leaf training time decreases by 0.83–3.25% in three cases; the 512-feature `depthwise` case increases by 3.85%.
