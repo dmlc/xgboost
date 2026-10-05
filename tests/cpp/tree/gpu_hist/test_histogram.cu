@@ -34,18 +34,18 @@ TEST(Histogram, HistShmemBytes) {
   }
 }
 
-// Check how the flush budget and wave targets determine tiles per chunk.
+// Check how the flush budget and wave targets determine tiles per sub-segment.
 TEST(Histogram, SliceTiles) {
   using cuda_impl::SliceTiles;
   std::size_t constexpr kItems = 1 << 22, kTile = 1024, kResident = 32;
   bst_target_t constexpr kTargets = 1;
   std::uint32_t constexpr kBits = 8;
-  // These inputs give bounds of 4 and 32 tiles per chunk under the current wave targets.
-  // No flush: minimum tiles per chunk.
+  // These inputs give bounds of 4 and 32 tiles per sub-segment under the current wave targets.
+  // No flush: minimum tiles per sub-segment.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/0, kBits), 4);
-  // Moderate histogram: the flush budget selects an intermediate number of tiles per chunk.
+  // Moderate histogram: the flush budget selects an intermediate number of tiles per sub-segment.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/2048, kBits), 8);
-  // Large histogram: the maximum tiles per chunk takes priority over the flush budget.
+  // Large histogram: the maximum tiles per sub-segment takes priority over the flush budget.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/16384, kBits), 32);
 }
 
@@ -681,7 +681,7 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool()),
     HistogramBuildName);
 
-// Chunks spanning multiple tiles.
+// Sub-segments spanning multiple tiles.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);
   // Exercise both single-target and multi-target launch settings.

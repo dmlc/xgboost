@@ -169,7 +169,7 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
   return *reinterpret_cast<GradientPairInt64*>(&g);
 }
 
-// Accumulate chunk entries [begin, end) for one target.
+// Accumulate sub-segment entries [begin, end) for one target.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
                                   RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
@@ -223,14 +223,15 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 }  // namespace
 
 /**
- * @brief Each block processes one chunk for one target, stopping at the segment's end.
+ * @brief Each block processes one sub-segment for one target, stopping at the segment's end.
  *
  * Block index:
  *
- *     ((nidx_in_set * n_chunks_per_segment + chunk) * n_groups + group) * n_targets + target
+ *     ((nidx_in_set * n_subsegments_per_segment + subsegment) * n_groups + group) * n_targets + target
  *
  * Targets vary fastest, then feature groups, to encourage cache reuse across blocks.
- * All segments use the largest segment's chunk count. Blocks starting beyond their segment exit.
+ * All segments use the largest segment's sub-segment count.
+ * Blocks starting beyond their segment exit immediately.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(
@@ -242,8 +243,8 @@ __global__ __launch_bounds__(
                                                             node_hists,
                                                         GradientPairInt64 const* d_gpair,
                                                         bst_idx_t n_samples, bst_target_t n_targets,
-                                                        bst_idx_t n_entries_per_chunk,
-                                                        std::uint32_t n_chunks_per_segment) {
+                                                        bst_idx_t n_entries_per_subsegment,
+                                                        std::uint32_t n_subsegments_per_segment) {
   if constexpr (Policy::kSingleTarget) {
     // Constant propagation removes the target indexing and saves registers.
     n_targets = 1;
@@ -256,19 +257,19 @@ __global__ __launch_bounds__(
   blk /= n_targets;
   bst_feature_t const gidx = blk % n_groups;
   blk /= n_groups;
-  std::uint32_t const chunk_idx = blk % n_chunks_per_segment;
-  std::size_t const nidx_in_set = blk / n_chunks_per_segment;
+  std::uint32_t const subsegment_idx = blk % n_subsegments_per_segment;
+  std::size_t const nidx_in_set = blk / n_subsegments_per_segment;
 
   auto const group = feature_groups[gidx];
   auto const d_ridx = d_ridx_iters[nidx_in_set];
   bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
   bst_idx_t const n_entries = d_ridx.size() * feature_stride;
-  bst_idx_t const begin = static_cast<bst_idx_t>(chunk_idx) * n_entries_per_chunk;
+  bst_idx_t const begin = static_cast<bst_idx_t>(subsegment_idx) * n_entries_per_subsegment;
   if (begin >= n_entries) {
-    // This block's chunk begins beyond the segment's entries.
+    // This block's sub-segment begins beyond the segment's entries.
     return;
   }
-  bst_idx_t const end = cuda::std::min(begin + n_entries_per_chunk, n_entries);
+  bst_idx_t const end = cuda::std::min(begin + n_entries_per_subsegment, n_entries);
 
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
   // Privatized histogram
@@ -309,12 +310,12 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
   std::size_t constexpr kPercent = 100, kByte = 8;
   // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
   //   flush_bytes = n_targets * shmem_bytes
-  //   entry_bytes = entries_per_chunk * symbol_bits / 8
+  //   entry_bytes = entries_per_subsegment * symbol_bits / 8
   // Estimate across targets; zero for global accumulation.
   auto tiles_flush =
       common::DivRoundUp(kPercent * kByte * static_cast<std::size_t>(n_targets) * shmem_bytes,
                          kMaxFlushPercent * tile_size * static_cast<std::size_t>(symbol_bits));
-  // Bound tiles per chunk using the desired parallelism:
+  // Bound tiles per sub-segment using the desired parallelism:
   // - kTargetWaves sets the minimum, avoiding unnecessarily frequent flushes.
   // - kMinWaves sets the maximum, keeping work distributed across enough blocks.
   // For small inputs the upper bound wins even if the flush budget cannot be met.
@@ -327,48 +328,48 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
 
 namespace {
 /** @brief Histogram launch dimensions. */
-struct ChunkGrid {
-  /** @brief Entries per full chunk. */
-  bst_idx_t n_entries_per_chunk;
-  /** @brief Number of chunks needed to cover the largest segment. */
-  std::uint32_t n_chunks_per_segment;
+struct Grid {
+  /** @brief Entries per full sub-segment. */
+  bst_idx_t n_entries_per_subsegment;
+  /** @brief Number of sub-segments needed to cover the largest segment. */
+  std::uint32_t n_subsegments_per_segment;
   /** @brief The total number of blocks. */
   std::uint32_t n_blks;
 };
 
-// Use the largest segment's chunk count for every segment and target.
-// Increase entries per chunk if needed to fit the block-count limit.
-[[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
-                                      std::uint32_t n_groups, bst_target_t n_targets,
-                                      std::size_t n_nodes) {
+// Use the largest segment's sub-segment count for every segment and target.
+// Increase entries per sub-segment if needed to fit the block-count limit.
+[[nodiscard]] Grid MakeGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_subsegment,
+                            std::uint32_t n_groups, bst_target_t n_targets, std::size_t n_nodes) {
   CHECK_GT(max_segment_entries, 0);
-  CHECK_GT(n_entries_per_chunk, 0);
+  CHECK_GT(n_entries_per_subsegment, 0);
   CHECK_GT(n_groups, 0);
   CHECK_GT(n_targets, 0);
   CHECK_GT(n_nodes, 0);
 
   constexpr std::uint64_t kMaxGrid = std::numeric_limits<std::uint32_t>::max() - 1;
-  auto n_blks_per_chunk = static_cast<std::uint64_t>(n_groups) * n_targets * n_nodes;
-  CHECK_LE(n_blks_per_chunk, kMaxGrid) << "Too many blocks for the histogram kernel.";
+  // Each group, target, node requires a different block.
+  auto n_unique_blks_per_subsegment = static_cast<std::uint64_t>(n_groups) * n_targets * n_nodes;
+  CHECK_LE(n_unique_blks_per_subsegment, kMaxGrid) << "Too many blocks for the histogram kernel.";
 
-  auto n_chunks = common::DivRoundUp(max_segment_entries, n_entries_per_chunk);
-  // Increase entries per chunk to reduce the block count.
-  while (n_chunks > kMaxGrid / n_blks_per_chunk) {
-    n_entries_per_chunk *= 2;
-    n_chunks = common::DivRoundUp(max_segment_entries, n_entries_per_chunk);
+  auto n_subsegments = common::DivRoundUp(max_segment_entries, n_entries_per_subsegment);
+  // Increase entries per sub-segment to reduce the block count.
+  while (n_subsegments > kMaxGrid / n_unique_blks_per_subsegment) {
+    n_entries_per_subsegment *= 2;
+    n_subsegments = common::DivRoundUp(max_segment_entries, n_entries_per_subsegment);
   }
-  auto n_blks = n_chunks * n_blks_per_chunk;
-  // The chunks cover the largest segment, and the grid fits.
-  CHECK_GE(n_chunks * n_entries_per_chunk, max_segment_entries);
+  auto n_blks = n_subsegments * n_unique_blks_per_subsegment;
+  // The sub-segments cover the largest segment, and the grid fits.
+  CHECK_GE(n_subsegments * n_entries_per_subsegment, max_segment_entries);
   CHECK_LE(n_blks, kMaxGrid);
-  return {n_entries_per_chunk, static_cast<std::uint32_t>(n_chunks),
+  return {n_entries_per_subsegment, static_cast<std::uint32_t>(n_subsegments),
           static_cast<std::uint32_t>(n_blks)};
 }
 }  // anonymous namespace
 
 // Dispatcher for the histogram kernel.
 struct HistKernel {
-  // Convert tiles per chunk to entries per chunk.
+  // Convert tiles per sub-segment to entries per sub-segment.
   template <typename Policy>
   static bst_idx_t SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target,
                               bst_target_t n_targets, std::size_t shmem_bytes,
@@ -430,7 +431,7 @@ struct HistKernel {
     auto n_targets = gpair.Shape(1);
     auto d_gpair = gpair.Values().data();
 
-    // Count all rows for chunk sizing and find the largest node for grid sizing.
+    // Count all rows for sub-segment sizing and find the largest node for grid sizing.
     bst_idx_t n_total_rows = 0, max_node_rows = 0;
     for (auto const& ridx : h_ridx_iters) {
       n_total_rows += ridx.size();
@@ -470,14 +471,14 @@ struct HistKernel {
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
-      auto n_entries_per_chunk = SliceItems<Policy>(n_items, n_resident_blks_per_target, n_targets,
-                                                    shmem_bytes, symbol_bits);
-      auto grid = MakeChunkGrid(max_segment_entries, n_entries_per_chunk, n_groups, n_targets,
-                                h_ridx_iters.size());
+      auto n_entries_per_subsegment = SliceItems<Policy>(n_items, n_resident_blks_per_target,
+                                                         n_targets, shmem_bytes, symbol_bits);
+      auto grid = MakeGrid(max_segment_entries, n_entries_per_subsegment, n_groups, n_targets,
+                           h_ridx_iters.size());
 
       dh::LaunchKernel(grid.n_blks, Policy::kBlockThreads, shmem_bytes, stream)(
           kernel, matrix, feature_groups, ridx_iters.data().get(), hists.data().get(), d_gpair,
-          n_samples, n_targets, grid.n_entries_per_chunk, grid.n_chunks_per_segment);
+          n_samples, n_targets, grid.n_entries_per_subsegment, grid.n_subsegments_per_segment);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 

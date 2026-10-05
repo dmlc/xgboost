@@ -49,24 +49,24 @@ std::size_t constexpr DftReserveSize() { return 1 << 22; }
 
 // An entry is one stored ELLPACK bin index or missing marker.
 // A segment contains one node's entries for one feature group, shared across targets.
-// A chunk is a contiguous range of entries in segment traversal order.
-// Block size counts threads; chunk size counts entries.
+// A sub-segment is a contiguous range of entries in segment traversal order.
+// Block size counts threads; sub-segment size counts entries.
 // A tile contains the entries processed in one loop iteration, at most one per thread.
 // A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
 // A flush adds a block's shared-memory histogram to the global histogram.
 
-// Wave target for load balance; determines the minimum entries per chunk.
+// Wave target for load balance; determines the minimum entries per sub-segment.
 inline constexpr std::size_t kTargetWaves = 32;
-// Minimum wave target; limits entries per chunk even when the flush budget cannot be met.
+// Minimum wave target; limits entries per sub-segment even when the flush budget cannot be met.
 inline constexpr std::size_t kMinWaves = 4;
 // Budget for estimated histogram flush bytes across targets, as a percent of entry bytes.
 inline constexpr std::size_t kMaxFlushPercent = 25;
 
 /**
- * @brief Choose tiles per chunk by clamping the flush-budget estimate to the wave bounds.
+ * @brief Choose tiles per sub-segment by clamping the flush-budget estimate to the wave bounds.
  *
- * Global accumulation has no flush and selects the minimum chunk size. Actual wave counts
- * also depend on segment sizes and any chunk-size increase needed to fit the grid limit.
+ * Global accumulation has no flush and selects the minimum sub-segment size. Actual wave counts
+ * also depend on segment sizes and increases in sub-segment size needed to fit the grid limit.
  *
  * @param n_items                    Total entries across nodes and groups, per target.
  * @param tile_size                  Entries per full tile; equal to the number of threads per block.
