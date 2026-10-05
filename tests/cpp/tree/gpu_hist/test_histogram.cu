@@ -455,7 +455,6 @@ std::ostream& operator<<(std::ostream& os, Layout layout) {
 struct HistInput {
   bst_idx_t n_samples;
   bst_feature_t n_features;
-  bst_bin_t n_bins;  // per feature, the largest when the counts are uneven
   // Bins of each feature. Uniform unless `skewed`, which makes `FeatureGroups` produce groups
   // of very different widths, since it packs features by bin count.
   std::vector<bst_bin_t> feature_bins;
@@ -473,7 +472,6 @@ struct HistInput {
             Layout layout, bool root, bool skewed = false)
       : n_samples{n_samples},
         n_features{n_features},
-        n_bins{n_bins},
         feature_bins(n_features, n_bins),
         bin_ptrs(n_features + 1, 0),
         n_targets{n_targets},
@@ -538,15 +536,13 @@ struct HistInput {
   // Cut values are `b + 1` for bin `b` and the feature values are `b + 0.5`.
   [[nodiscard]] std::unique_ptr<EllpackPageImpl> MakeEllpack(Context const* ctx) const {
     auto p_cuts = std::make_shared<common::HistogramCuts>(this->n_features);
-    std::vector<std::uint32_t> ptrs(this->n_features + 1);
+    p_cuts->cut_ptrs_.HostVector().assign(this->bin_ptrs.cbegin(), this->bin_ptrs.cend());
     std::vector<float> cut_values;
     for (bst_feature_t f = 0; f < this->n_features; ++f) {
-      ptrs[f + 1] = this->bin_ptrs[f + 1];
       for (bst_bin_t b = 0; b < this->feature_bins[f]; ++b) {
         cut_values.push_back(b + 1.0f);
       }
     }
-    p_cuts->cut_ptrs_.HostVector() = std::move(ptrs);
     p_cuts->cut_values_.HostVector() = std::move(cut_values);
 
     auto missing = std::numeric_limits<float>::quiet_NaN();

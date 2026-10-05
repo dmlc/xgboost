@@ -66,7 +66,7 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
  * @brief Choose tiles per chunk by clamping the flush-budget estimate to the wave bounds.
  *
  * Global accumulation has no flush and selects the minimum chunk size. Wave counts are
- * approximate: MakeChunkGrid includes partial and empty chunks and may increase chunk size.
+ * approximate: grid construction includes partial and empty chunks and may increase chunk size.
  *
  * @param n_items                    Total entries across nodes and groups, per target.
  * @param tile_size                  Entries per tile (the kernel's threads per block).
@@ -79,25 +79,6 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
     bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
     bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t symbol_bits);
 
-/** @brief Histogram launch dimensions. */
-struct ChunkGrid {
-  /** @brief Maximum entries per block; the final chunk may contain fewer. */
-  bst_idx_t n_entries_per_chunk;
-  /** @brief Chunk slots per segment, including empty slots. */
-  std::uint32_t n_chunks_per_segment;
-  /** @brief The total number of blocks. */
-  std::uint32_t n_blks;
-};
-
-/**
- * @brief Size the grid for the largest segment, with the same chunk slots per segment and target.
- *
- * Increase entries per chunk if needed to fit the block-count limit. Shorter segments have
- * empty slots whose blocks exit immediately.
- */
-[[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
-                                      std::uint32_t n_groups, bst_target_t n_targets,
-                                      std::size_t n_nodes);
 }  // namespace cuda_impl
 
 /**

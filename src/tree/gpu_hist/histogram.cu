@@ -154,13 +154,13 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
 
 std::size_t DftStHistShmemBytes(std::int32_t device) {
   return DispatchCudaSm(device, [&](auto arch) {
-    return HistShmemBytes(device, StMinBlocks<common::GetValueT<decltype(arch)>>());
+    return HistShmemBytes(device, StMinBlocks<decltype(arch)>());
   });
 }
 
 std::size_t DftMtHistShmemBytes(std::int32_t device) {
   return DispatchCudaSm(device, [&](auto arch) {
-    return HistShmemBytes(device, common::GetValueT<decltype(arch)>::kMinBlocks);
+    return HistShmemBytes(device, decltype(arch)::kMinBlocks);
   });
 }
 
@@ -325,9 +325,24 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
   // Positive inputs and kTargetWaves >= kMinWaves ensure 1 <= min_tiles <= max_tiles.
   return std::clamp(tiles_flush, min_tiles, max_tiles);
 }
+}  // namespace cuda_impl
 
-ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
-                        std::uint32_t n_groups, bst_target_t n_targets, std::size_t n_nodes) {
+namespace {
+/** @brief Histogram launch dimensions. */
+struct ChunkGrid {
+  /** @brief Maximum entries per block; the final chunk may contain fewer. */
+  bst_idx_t n_entries_per_chunk;
+  /** @brief Chunk count per segment, sized for the largest segment. */
+  std::uint32_t n_chunks_per_segment;
+  /** @brief The total number of blocks. */
+  std::uint32_t n_blks;
+};
+
+// Size every segment for the largest one. Increase entries per chunk if needed to fit the
+// block-count limit; blocks beyond a segment's entries exit immediately.
+[[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
+                                      std::uint32_t n_groups, bst_target_t n_targets,
+                                      std::size_t n_nodes) {
   CHECK_GT(max_segment_entries, 0);
   CHECK_GT(n_entries_per_chunk, 0);
   CHECK_GT(n_groups, 0);
@@ -351,7 +366,7 @@ ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_c
   return {n_entries_per_chunk, static_cast<std::uint32_t>(n_chunks),
           static_cast<std::uint32_t>(n_blks)};
 }
-}  // namespace cuda_impl
+}  // anonymous namespace
 
 // Dispatcher for the histogram kernel.
 struct HistKernel {
@@ -453,14 +468,14 @@ struct HistKernel {
     bst_idx_t n_items = n_total_rows * matrix.row_stride;
     auto symbol_bits = matrix.SymbolBits();
     auto launch = [&](auto policy) {
-      using Policy = common::GetValueT<decltype(policy)>;
+      using Policy = decltype(policy);
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
       auto n_entries_per_chunk = SliceItems<Policy>(n_items, n_resident_blks_per_target, n_targets,
                                                     shmem_bytes, symbol_bits);
-      auto grid = cuda_impl::MakeChunkGrid(max_segment_entries, n_entries_per_chunk, n_groups,
-                                           n_targets, h_ridx_iters.size());
+      auto grid = MakeChunkGrid(max_segment_entries, n_entries_per_chunk, n_groups, n_targets,
+                                 h_ridx_iters.size());
 
       dh::LaunchKernel(grid.n_blks, Policy::kBlockThreads, shmem_bytes, stream)(
           kernel, matrix, feature_groups, ridx_iters.data().get(), hists.data().get(), d_gpair,
@@ -469,7 +484,7 @@ struct HistKernel {
     };
 
     auto launch_arch = [&](auto arch) {
-      using Arch = common::GetValueT<decltype(arch)>;
+      using Arch = decltype(arch);
       if (use_shared) {
         launch(HistPolicy<Arch, kDense, kCompressed, true>{});
       } else {
