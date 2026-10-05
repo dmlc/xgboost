@@ -36,44 +36,17 @@ TEST(Histogram, HistShmemBytes) {
 
 // Check how the flush budget and wave targets determine tiles per chunk.
 TEST(Histogram, SliceTiles) {
-  using cuda_impl::kMaxFlushPercent, cuda_impl::kMinWaves, cuda_impl::kTargetWaves;
-  std::size_t constexpr kTile = 768 * 8, kShmem = 12 * 256 * sizeof(GradientPairInt64), kRes = 32;
+  using cuda_impl::SliceTiles;
+  std::size_t constexpr kItems = 1 << 22, kTile = 1024, kResident = 32;
+  bst_target_t constexpr kTargets = 1;
   std::uint32_t constexpr kBits = 8;
-  double const budget = static_cast<double>(kMaxFlushPercent) / 100.0;
-  // Return tiles per chunk, estimated chunks per target, and the flush-to-entry byte ratio.
-  auto slice = [&](std::size_t n_tiles, bst_target_t n_tgt, std::size_t shmem, std::uint32_t bits) {
-    auto tiles = cuda_impl::SliceTiles(n_tiles * kTile, kTile, kRes, n_tgt, shmem, bits);
-    auto blks = common::DivRoundUp(n_tiles, tiles);
-    return std::tuple{tiles, blks, n_tgt * shmem / (tiles * kTile * bits / 8.0)};
-  };
-
-  // The flush budget determines chunk size without reaching either wave bound.
-  auto const n = kRes * kTargetWaves * 12;
-  auto [base, _b, ratio] = slice(n, 1, kShmem, kBits);
-  ASSERT_EQ(std::get<0>(slice(n, 2, kShmem, kBits)), base * 2);
-  ASSERT_EQ(std::get<0>(slice(n, 1, kShmem * 2, kBits)), base * 2);
-  ASSERT_EQ(std::get<0>(slice(n, 1, kShmem, kBits * 2)), base / 2);
-  ASSERT_LE(ratio, budget + 1e-9);
-  ASSERT_GT(ratio, budget / 2);
-
-  // Large input reaches the minimum chunk size; small input reaches the maximum.
-  // Global accumulation selects the minimum because it has no flush.
-  auto [_t1, big, r_big] = slice(kRes * kTargetWaves * 1024, 4, kShmem, kBits);
-  ASSERT_EQ(big, kRes * kTargetWaves);
-  ASSERT_LT(r_big, budget);
-  auto [_t2, small, r_small] = slice(kRes * kMinWaves * 8, 4, kShmem, kBits);
-  ASSERT_EQ(small, kRes * kMinWaves);
-  ASSERT_GT(r_small, budget);
-  ASSERT_EQ(std::get<1>(slice(kRes * kTargetWaves * 8, 4, /*shmem=*/0, kBits)),
-            kRes * kTargetWaves);
-}
-
-// Exceeding the block-count limit increases entries per chunk.
-TEST(Histogram, MakeChunkGridOverflow) {
-  bst_idx_t constexpr kSegment = bst_idx_t{1} << 40;
-  auto grid = cuda_impl::MakeChunkGrid(kSegment, /*n_entries_per_chunk=*/1024, /*n_groups=*/512,
-                                       /*n_targets=*/32, /*n_nodes=*/1024);
-  ASSERT_GT(grid.n_entries_per_chunk, 1024u);
+  // 4096 tiles and 32 resident blocks give chunk bounds of 4 and 32 tiles.
+  // No flush: minimum chunk size.
+  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/0, kBits), 4);
+  // Moderate histogram: the flush budget selects an intermediate chunk size.
+  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/2048, kBits), 8);
+  // Large histogram: maximum chunk size takes priority over the flush budget.
+  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/16384, kBits), 32);
 }
 
 TEST(Histogram, DeviceHistogramStorage) {

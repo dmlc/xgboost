@@ -308,12 +308,13 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
   CHECK_GT(symbol_bits, 0);
 
   auto n_tiles = common::DivRoundUp(n_items, tile_size);
+  std::size_t constexpr kPercent = 100, kByte = 8;
   // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
   //   flush_bytes = n_targets * shmem_bytes
   //   entry_bytes = n_tiles_per_blk * tile_size * symbol_bits / 8
   // Estimate across targets; zero for global accumulation.
   auto tiles_flush =
-      common::DivRoundUp(100 * 8 * static_cast<std::size_t>(n_targets) * shmem_bytes,
+      common::DivRoundUp(kPercent * kByte * static_cast<std::size_t>(n_targets) * shmem_bytes,
                          kMaxFlushPercent * tile_size * static_cast<std::size_t>(symbol_bits));
   // Choose enough work to amortize the flush, bounded by the desired parallelism:
   // - kTargetWaves sets the minimum chunk size, avoiding unnecessarily frequent flushes.
