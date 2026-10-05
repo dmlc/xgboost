@@ -43,15 +43,15 @@ TEST(Histogram, ChooseSubsegmentSize) {
   // These inputs give bounds of 4096 and 32768 entries per sub-segment.
   // No flush: minimum entries per sub-segment.
   ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
-                                 /*hist_bytes_per_block=*/0, kBits),
+                         /*hist_bytes_per_block=*/0, kBits),
             4096);
   // Moderate histogram: the flush budget selects an intermediate sub-segment size.
   ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
-                                 /*hist_bytes_per_block=*/2048, kBits),
+                         /*hist_bytes_per_block=*/2048, kBits),
             8192);
   // Large histogram: the maximum entries per sub-segment takes priority over the flush budget.
   ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
-                                 /*hist_bytes_per_block=*/16384, kBits),
+                         /*hist_bytes_per_block=*/16384, kBits),
             32768);
 }
 
