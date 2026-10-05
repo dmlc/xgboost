@@ -78,17 +78,15 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
 /**
  * @brief Split the entries of a target into equal parts of whole tiles, one for each block.
  *
- * Three bounds, in order of priority:
+ * Choose a chunk large enough to amortize its privatized histogram flush, then clamp it to
+ * the range set by the desired parallelism. `kTargetWaves` sets the minimum chunk size;
+ * `kMinWaves` sets the maximum. The flush budget can lengthen chunks beyond the target,
+ * especially for external-memory pages, but the maximum wins when the input is too small
+ * to satisfy both the flush budget and the minimum wave count. With global accumulation
+ * there is no flush, so the minimum chunk size is selected.
  *
- * - an upper bound of `kMinWaves` waves: bounds the partially filled last wave.
- * - a lower bound from the flush budget: a block needs enough tiles to amortize the zeroing
- *   and flushing of its privatized histogram. Scales with `n_targets` and the size of the
- *   histogram.
- * - the target: as large as `kTargetWaves` allows, for the fewest flushes.
- *
- * The flush bound wins over the load-balance target. With external memory each page is a
- * separate, smaller launch, and sacrificing the amortization to fill the device makes the
- * flush cost as much as reading the data.
+ * These bounds size the chunks; `MakeChunkGrid` constructs the actual grid for the nodes,
+ * feature groups, and targets, including partial and empty chunks.
  *
  * Exposed for testing.
  *
@@ -103,9 +101,9 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
  * @param entry_bits                 The number of bits used by each entry of the gradient
  *                                   index.
  *
- * @return The number of tiles for each block, and the number of blocks for each target.
+ * @return The number of tiles for each block.
  */
-[[nodiscard]] std::pair<std::size_t, std::uint64_t> SliceTiles(
+[[nodiscard]] std::size_t SliceTiles(
     bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
     bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t entry_bits);
 

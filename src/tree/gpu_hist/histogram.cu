@@ -6,7 +6,6 @@
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
-#include <utility>               // for pair
 #include <vector>                // for vector
 
 #include "../../collective/aggregator.h"
@@ -334,10 +333,9 @@ template <typename Accessor>
 }  // anonymous namespace
 
 namespace cuda_impl {
-std::pair<std::size_t, std::uint64_t> SliceTiles(bst_idx_t n_items, std::size_t tile_size,
-                                                 std::size_t n_resident_blks_per_target,
-                                                 bst_target_t n_targets, std::size_t shmem_bytes,
-                                                 std::uint32_t entry_bits) {
+std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
+                       std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                       std::size_t shmem_bytes, std::uint32_t entry_bits) {
   CHECK_GT(n_items, 0);
   CHECK_GT(tile_size, 0);
   CHECK_GT(n_resident_blks_per_target, 0);
@@ -352,16 +350,14 @@ std::pair<std::size_t, std::uint64_t> SliceTiles(bst_idx_t n_items, std::size_t 
   auto tiles_flush =
       common::DivRoundUp(100 * 8 * static_cast<std::size_t>(n_targets) * shmem_bytes,
                          kMaxFlushPercent * tile_size * static_cast<std::size_t>(entry_bits));
-  auto tiles_target = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
-  auto tiles_cap = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
-
-  auto n_tiles_per_blk =
-      std::max<std::size_t>(1, std::min(std::max(tiles_target, tiles_flush), tiles_cap));
-  auto n_blks_per_target = common::DivRoundUp(n_tiles, n_tiles_per_blk);
-  // Every tile is covered, and there is at least one block.
-  CHECK_GE(n_tiles_per_blk * n_blks_per_target, n_tiles);
-  CHECK_GE(n_blks_per_target, 1);
-  return {n_tiles_per_blk, static_cast<std::uint64_t>(n_blks_per_target)};
+  // Choose enough work to amortize the flush, bounded by the desired parallelism:
+  // - kTargetWaves sets the minimum chunk size, avoiding unnecessarily frequent flushes.
+  // - kMinWaves sets the maximum chunk size, keeping enough blocks to limit the tail.
+  // For small inputs the upper bound wins even if the flush budget cannot be met.
+  auto min_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
+  auto max_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
+  // Positive inputs and kTargetWaves >= kMinWaves ensure 1 <= min_tiles <= max_tiles.
+  return std::clamp(tiles_flush, min_tiles, max_tiles);
 }
 
 ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
@@ -401,8 +397,7 @@ struct HistKernel {
                               std::uint32_t entry_bits) {
     auto n_tiles_per_blk =
         cuda_impl::SliceTiles(n_items, Policy::kBlockThreads, n_resident_blks_per_target, n_targets,
-                              shmem_bytes, entry_bits)
-            .first;
+                              shmem_bytes, entry_bits);
     return static_cast<bst_idx_t>(n_tiles_per_blk) * Policy::kBlockThreads;
   }
 

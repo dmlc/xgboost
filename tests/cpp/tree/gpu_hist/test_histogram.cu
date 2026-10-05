@@ -44,7 +44,8 @@ TEST(Histogram, SliceTiles) {
   // Launch of `n_tiles` tiles, and the flush volume of the resulting slice as a fraction of
   // the gradient index bytes a block reads.
   auto slice = [&](std::size_t n_tiles, bst_target_t n_tgt, std::size_t shmem, std::uint32_t bits) {
-    auto [tiles, blks] = cuda_impl::SliceTiles(n_tiles * kTile, kTile, kRes, n_tgt, shmem, bits);
+    auto tiles = cuda_impl::SliceTiles(n_tiles * kTile, kTile, kRes, n_tgt, shmem, bits);
+    auto blks = common::DivRoundUp(n_tiles, tiles);
     return std::tuple{tiles, blks, n_tgt * shmem / (tiles * kTile * bits / 8.0)};
   };
 
