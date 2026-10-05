@@ -40,12 +40,12 @@ TEST(Histogram, SliceTiles) {
   std::size_t constexpr kItems = 1 << 22, kTile = 1024, kResident = 32;
   bst_target_t constexpr kTargets = 1;
   std::uint32_t constexpr kBits = 8;
-  // 4096 tiles and 32 resident blocks give chunk bounds of 4 and 32 tiles.
-  // No flush: minimum chunk size.
+  // These inputs give bounds of 4 and 32 tiles per chunk under the current wave targets.
+  // No flush: minimum tiles per chunk.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/0, kBits), 4);
-  // Moderate histogram: the flush budget selects an intermediate chunk size.
+  // Moderate histogram: the flush budget selects an intermediate number of tiles per chunk.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/2048, kBits), 8);
-  // Large histogram: maximum chunk size takes priority over the flush budget.
+  // Large histogram: the maximum tiles per chunk takes priority over the flush budget.
   ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/16384, kBits), 32);
 }
 
@@ -524,7 +524,7 @@ struct HistInput {
       this->sizes = {n_samples};
     } else {
       std::shuffle(this->ridx.begin(), this->ridx.end(), rng);
-      // Empty nodes and nodes smaller than a tile.
+      // Empty nodes and uneven row counts.
       this->sizes = {0, 1, 7, 0, 1000};
       auto n_used = std::accumulate(this->sizes.cbegin(), this->sizes.cend(), std::size_t{0});
       CHECK_GE(n_samples, n_used);
@@ -611,7 +611,7 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   auto shmem_bytes =
       n_targets == 1 ? DftStHistShmemBytes(ctx.Ordinal()) : DftMtHistShmemBytes(ctx.Ordinal());
   if (small_groups) {
-    // Four features in each group, the nodes are split into many segments.
+    // Budget for four features per group with uniform bin counts.
     shmem_bytes = sizeof(GradientPairInt64) * n_bins * 4;
   }
   FeatureGroups fg{page->Cuts(), page->IsDenseCompressed(), shmem_bytes};
@@ -681,11 +681,10 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool()),
     HistogramBuildName);
 
-// Multiple tiles for each block.
+// Chunks spanning multiple tiles.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);
-  // Single and multi target differ in block size and launch bounds, hence in the number of
-  // chunks.
+  // Exercise both single-target and multi-target launch settings.
   for (bst_target_t n_targets : {1, 2}) {
     TestBuildHistogram(n_samples, 2, 256, n_targets, Layout::kDense, /*root=*/false,
                        /*force_global=*/false, /*small_groups=*/false);

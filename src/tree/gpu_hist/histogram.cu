@@ -20,8 +20,8 @@
 
 namespace xgboost::tree {
 namespace {
-// Convert a global row index and a slot within the row to a page-local ELLPACK entry index.
-// For dense layouts, the slot is a feature index; for sparse layouts, it is a padded-row offset.
+// Convert a global row index and an entry's position within the row to a page-local ELLPACK index.
+// For dense layouts, fidx is a feature index; for sparse layouts, it is a padded-row offset.
 template <typename IterT>
 XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
@@ -223,14 +223,14 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 }  // namespace
 
 /**
- * @brief Process one chunk per block for one target.
+ * @brief Each block processes one chunk for one target, stopping at the segment's end.
  *
  * Block index:
  *
  *     ((nidx_in_set * n_chunks_per_segment + chunk) * n_groups + group) * n_targets + target
  *
  * Targets vary fastest, then feature groups, to encourage cache reuse across blocks.
- * Every segment has the same number of chunk slots; blocks for empty slots exit immediately.
+ * All segments use the largest segment's chunk count. Blocks starting beyond their segment exit.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(
@@ -265,7 +265,7 @@ __global__ __launch_bounds__(
   bst_idx_t const n_entries = d_ridx.size() * feature_stride;
   bst_idx_t const begin = static_cast<bst_idx_t>(chunk_idx) * n_entries_per_chunk;
   if (begin >= n_entries) {
-    // The grid covers the largest segment, this one is shorter.
+    // This block's chunk begins beyond the segment's entries.
     return;
   }
   bst_idx_t const end = cuda::std::min(begin + n_entries_per_chunk, n_entries);
@@ -309,14 +309,14 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
   std::size_t constexpr kPercent = 100, kByte = 8;
   // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
   //   flush_bytes = n_targets * shmem_bytes
-  //   entry_bytes = n_tiles_per_blk * tile_size * symbol_bits / 8
+  //   entry_bytes = entries_per_chunk * symbol_bits / 8
   // Estimate across targets; zero for global accumulation.
   auto tiles_flush =
       common::DivRoundUp(kPercent * kByte * static_cast<std::size_t>(n_targets) * shmem_bytes,
                          kMaxFlushPercent * tile_size * static_cast<std::size_t>(symbol_bits));
-  // Choose enough work to amortize the flush, bounded by the desired parallelism:
-  // - kTargetWaves sets the minimum chunk size, avoiding unnecessarily frequent flushes.
-  // - kMinWaves sets the maximum chunk size, keeping enough blocks to limit the tail.
+  // Bound tiles per chunk using the desired parallelism:
+  // - kTargetWaves sets the minimum, avoiding unnecessarily frequent flushes.
+  // - kMinWaves sets the maximum, keeping work distributed across enough blocks.
   // For small inputs the upper bound wins even if the flush budget cannot be met.
   auto min_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
   auto max_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
@@ -328,16 +328,16 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
 namespace {
 /** @brief Histogram launch dimensions. */
 struct ChunkGrid {
-  /** @brief Maximum entries per block; the final chunk may contain fewer. */
+  /** @brief Entries per full chunk. */
   bst_idx_t n_entries_per_chunk;
-  /** @brief Chunk count per segment, sized for the largest segment. */
+  /** @brief Number of chunks needed to cover the largest segment. */
   std::uint32_t n_chunks_per_segment;
   /** @brief The total number of blocks. */
   std::uint32_t n_blks;
 };
 
-// Size every segment for the largest one. Increase entries per chunk if needed to fit the
-// block-count limit; blocks beyond a segment's entries exit immediately.
+// Use the largest segment's chunk count for every segment and target.
+// Increase entries per chunk if needed to fit the block-count limit.
 [[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
                                       std::uint32_t n_groups, bst_target_t n_targets,
                                       std::size_t n_nodes) {
@@ -424,13 +424,13 @@ struct HistKernel {
     CHECK(gpair.FContiguous());
     CHECK_EQ(h_ridx_iters.size(), h_hists.size());
     auto feature_groups = h_feature_groups.DeviceAccessor(ctx->Device());
-    // Sparse data requires one group because the kernel scans every slot in each row.
+    // Sparse data requires one group because the kernel scans every entry in each padded row.
     CHECK(kCompressed || feature_groups.NumGroups() == 1);
     auto n_samples = gpair.Shape(0);
     auto n_targets = gpair.Shape(1);
     auto d_gpair = gpair.Values().data();
 
-    // Total rows determine chunk size; the largest node determines chunk slots per segment.
+    // Count all rows for chunk sizing and find the largest node for grid sizing.
     bst_idx_t n_total_rows = 0, max_node_rows = 0;
     for (auto const& ridx : h_ridx_iters) {
       n_total_rows += ridx.size();

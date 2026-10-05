@@ -47,11 +47,11 @@ namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
 
-// An entry is one ELLPACK slot (a bin index or missing marker).
-// A segment contains one node's entries for one feature group.
-// A chunk is a contiguous range in segment traversal order, processed by one block per target.
+// An entry is one stored ELLPACK bin index or missing marker.
+// A segment contains one node's entries for one feature group, shared across targets.
+// A chunk is a contiguous range of entries in segment traversal order.
 // Block size counts threads; chunk size counts entries.
-// A tile is one pass of the block: at most one entry per thread.
+// A tile contains the entries processed in one loop iteration, at most one per thread.
 // A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
 // A flush adds a block's shared-memory histogram to the global histogram.
 
@@ -65,11 +65,11 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
 /**
  * @brief Choose tiles per chunk by clamping the flush-budget estimate to the wave bounds.
  *
- * Global accumulation has no flush and selects the minimum chunk size. Wave counts are
- * approximate: grid construction includes partial and empty chunks and may increase chunk size.
+ * Global accumulation has no flush and selects the minimum chunk size. Actual wave counts
+ * also depend on segment sizes and any chunk-size increase needed to fit the grid limit.
  *
  * @param n_items                    Total entries across nodes and groups, per target.
- * @param tile_size                  Entries per tile (the kernel's threads per block).
+ * @param tile_size                  Entries per full tile; equal to the number of threads per block.
  * @param n_resident_blks_per_target Estimated concurrent blocks per target, at least one.
  * @param n_targets                  Number of outputs being trained.
  * @param shmem_bytes                Histogram bytes per block; zero for global accumulation.
