@@ -2,32 +2,23 @@ Training times in seconds from `timer.Train.Train`, excluding DMatrix constructi
 
 **RTX PRO 6000 Blackwell**
 
-| Features | Targets | Grow policy | c2ca8c99a (s) | 05d41a90c (s) | Change vs c2ca8c99a (%) | 4f8b3185c (s) | Change vs 05d41a90c (%) |
-|---------:|--------:|-------------|--------------:|--------------:|------------------------:|--------------:|------------------------:|
-|      256 |       1 | depthwise   |         34.82 |         32.28 |                  -7.29% |         27.57 |                 -14.59% |
-|      256 |       4 | depthwise   |        102.07 |        113.35 |                 +11.06% |         98.85 |                 -12.80% |
-|      256 |       1 | lossguide   |         35.09 |         33.36 |                  -4.93% |         30.30 |                  -9.17% |
-|      256 |       4 | lossguide   |        100.01 |        101.14 |                  +1.13% |        105.42 |                  +4.23% |
-|      512 |       1 | depthwise   |         73.41 |         68.28 |                  -6.99% |         62.99 |                  -7.75% |
-|      512 |       4 | depthwise   |        212.25 |        257.52 |                 +21.33% |        227.29 |                 -11.74% |
-|      512 |       1 | lossguide   |         73.68 |         70.32 |                  -4.56% |         63.61 |                  -9.54% |
-|      512 |       4 | lossguide   |        214.72 |        212.28 |                  -1.14% |        227.07 |                  +6.97% |
+| Features | Targets | Grow policy | c2ca8c99a (s) | 4f8b3185c (s) | Change vs 05d41a90c (%) |
+|---------:|--------:|-------------|--------------:|--------------:|------------------------:|
+|      256 |       1 | depthwise   |         34.82 |         27.57 |                 -14.59% |
+|      256 |       4 | depthwise   |        102.07 |         98.85 |                 -12.80% |
+|      256 |       1 | lossguide   |         35.09 |         30.30 |                  -9.17% |
+|      256 |       4 | lossguide   |        100.01 |        105.42 |                  +4.23% |
+|      512 |       1 | depthwise   |         73.41 |         62.99 |                  -7.75% |
+|      512 |       4 | depthwise   |        212.25 |        227.29 |                 -11.74% |
+|      512 |       1 | lossguide   |         73.68 |         63.61 |                  -9.54% |
+|      512 |       4 | lossguide   |        214.72 |        227.07 |                  +6.97% |
 
 **Change (%)** = `(new_commit_time - previous_commit_time) / previous_commit_time × 100%`, calculated before rounding. Each change column compares the time immediately to its left with the named previous commit. Negative values mean faster training; positive values mean slower training.
-
-RTX PRO 6000 runs use an NVIDIA RTX PRO 6000 Blackwell Server Edition, 67,108,864 samples, and 128 training rounds. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
-
-The `c2ca8c99a` and `05d41a90c` archives report hosts with 16 CPUs and 1 GPU, driver `595.84.01`, and `dxgb_bench` version `0.1.dev407+gb237b63e0`. The `4f8b3185c` archive reports a host with 256 CPUs and 8 GPUs, driver `595.71.05`, and `dxgb_bench` version `0.1.dev399+ge42cef5c4`. All runs specify `n_workers=1`; comparisons involving `4f8b3185c` include these environment differences.
 
 Benchmark result archives:
 
 - Old commit `c2ca8c99a`: [rtxpro6000-c2ca8c99a.zip](../bench/rtxpro6000-c2ca8c99a.zip)
-- Commit `05d41a90c`: [rtxpro6000-05d41a90c.zip](../bench/rtxpro6000-05d41a90c.zip)
 - Latest commit `4f8b3185c`: [rtxpro6000-4f8b3185c.zip](../bench/rtxpro6000-4f8b3185c.zip)
-
-Each row corresponds to the matching `incore-0.json` through `incore-7.json` files in all three archives, in that order.
-
-Commit `4f8b3185c` is identified by its archive filename; its JSON results do not embed a `binfo.GIT_HASH`.
 
 **GH200 (NVIDIA GH200 480GB)**
 
@@ -42,16 +33,10 @@ Commit `4f8b3185c` is identified by its archive filename; its JSON results do no
 |      512 |       1 | lossguide   |         86.21 |         86.42 |                  +0.24% |
 |      512 |       4 | lossguide   |        332.01 |        335.51 |                  +1.05% |
 
-Training times use `timer.Train.Train` and exclude DMatrix construction. Change is `(4f8b3185c_time - c2ca8c99a_time) / c2ca8c99a_time × 100%`, calculated before rounding; negative values mean faster training.
-
-Both archives report the same environment: Linux `aarch64`, 72 CPUs, 1 NVIDIA GH200 480GB GPU, driver `580.95.05`, CUDA 13.3, and `dxgb_bench` version `0.1.dev397+gb8d464d03`. All runs use 67,108,864 samples, 128 training rounds, and `n_workers=1`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
-
 Benchmark result archives:
 
 - Old commit `c2ca8c99a`: [gh200-c2ca8c99a.zip](../bench/gh200-c2ca8c99a.zip)
 - Latest commit `4f8b3185c`: [gh200-4f8b3185c.zip](../bench/gh200-4f8b3185c.zip)
-
-Each row corresponds to the matching `incore-0.json` through `incore-7.json` files in the two GH200 archives, in that order. Commit labels come from the archive filenames; the JSON results do not embed a `binfo.GIT_HASH`.
 
 **RTX PRO 6000 Blackwell (imbalanced histograms)**
 
@@ -66,11 +51,7 @@ Each row corresponds to the matching `incore-0.json` through `incore-7.json` fil
 |     4080 |       4 |         6 | lossguide   |        110.05 |         98.46 |                 -10.53% |
 |     4080 |       4 |         8 | lossguide   |        173.67 |        132.08 |                 -23.95% |
 
-Training times use `timer.Train.Train` and exclude DMatrix construction. Change is `(4f8b3185c_time - c2ca8c99a_time) / c2ca8c99a_time × 100%`, calculated before rounding; negative values mean faster training.
-
 All imbalanced-histogram runs use 4,194,304 samples, 4,080 features including 3,072 binary features (`n_binary=3072`), 128 training rounds, `max_bin=256`, and `data_seed=2026`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
-
-Both archives report the same environment: Linux `x86_64`, a host with 256 CPUs and 8 NVIDIA RTX PRO 6000 Blackwell Server Edition GPUs, driver `595.71.05`, CUDA 13.3, and `dxgb_bench` version `0.1.dev399+ge42cef5c4`.
 
 Benchmark result archives:
 
@@ -92,20 +73,12 @@ Each row corresponds to the matching `incore-0.json` through `incore-7.json` fil
 |      512 |       1 | lossguide   |         47.59 |         37.88 | -20.41%                 |
 |      512 |       4 | lossguide   |        164.33 |        142.12 | -13.52%                 |
 
-Training times use `timer.Train.Train` and exclude DMatrix construction and data generation. Change is `(4161c075a_time - c2ca8c99a_time) / c2ca8c99a_time × 100%`, calculated before rounding; negative values mean faster training. Commit columns are ordered oldest to newest.
-
-Both archives report the same environment: Linux `x86_64`, 24 CPUs, 1 NVIDIA GeForce RTX 4070 Ti SUPER GPU, driver `595.45.04`, CUDA 13.3, and `dxgb_bench` version `0.1.dev396+g93fd73112.d20260924`. Recorded parameters, machine metadata, versions, and build information match for every paired case.
-
 All runs use `qdm-iter` with 16 batches of 2^20 samples (16,777,216 samples), 128 training rounds, maximum depth 6, `max_bin=256`, and `n_workers=1`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
 
 Benchmark result archives:
 
 - Old commit `c2ca8c99a`: [4070tis-c2ca8c99a.zip](/home/jiamingy/ws/xgboost_dev/bench/4070tis/4070tis-c2ca8c99a.zip)
 - New commit `4161c075a`: [4070tis-4161c075a.zip](/home/jiamingy/ws/xgboost_dev/bench/4070tis/4070tis-4161c075a.zip)
-
-Cases are paired by feature count, grow policy, and target configuration. Commit labels come from the archive filenames; the JSON results do not embed a `binfo.GIT_HASH`.
-
-Single-target training time decreases in all four cases (17.33–20.41%). Vector-leaf training time decreases in all four cases (10.91–13.52%). Training RMSE matches exactly at the precision stored in the JSON files at every boosting round for all eight pairs. Each commit has one recorded timing per case, so these results do not measure run-to-run variation.
 
 **DGX Spark (NVIDIA GB10)**
 
@@ -120,20 +93,12 @@ Single-target training time decreases in all four cases (17.33–20.41%). Vector
 |      512 |       1 | lossguide   |        105.80 |         65.26 | -38.31%                 |
 |      512 |       4 | lossguide   |        535.14 |        215.40 | -59.75%                 |
 
-Training times use `timer.Train.Train` and exclude DMatrix construction and data generation. Change is `(4161c075a_time - c2ca8c99a_time) / c2ca8c99a_time × 100%`, calculated before rounding; negative values mean faster training. Commit columns are ordered oldest to newest.
-
-Both archives report the same environment: Linux `aarch64`, 20 CPUs, 1 NVIDIA GB10 GPU, driver `580.173.02`, CUDA 13.3, and `dxgb_bench` version `0.1.dev397+gb8d464d03`. Recorded parameters, machine metadata, versions, and build information match for every paired case.
-
 All runs use `qdm-iter` with 16 batches of 2^20 samples (16,777,216 samples), 128 training rounds, maximum depth 6, `max_bin=256`, and `n_workers=1`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
 
 Benchmark result archives:
 
 - Old commit `c2ca8c99a`: [spark-c2ca8c99a.zip](/home/jiamingy/ws/xgboost_dev/bench/DGX_Spark/spark-c2ca8c99a.zip)
 - New commit `4161c075a`: [spark-4161c075a.zip](/home/jiamingy/ws/xgboost_dev/bench/DGX_Spark/spark-4161c075a.zip)
-
-Cases are paired by feature count, grow policy, and target configuration. Commit labels come from the archive filenames; the JSON results do not embed a `binfo.GIT_HASH`.
-
-Single-target training time decreases in all four cases (30.11–38.31%). Vector-leaf training time decreases in all four cases (35.30–59.75%). Training RMSE matches exactly at the precision stored in the JSON files at every boosting round for all eight pairs. Each commit has one recorded timing per case, so these results do not measure run-to-run variation.
 
 **A100 (NVIDIA A100 80GB PCIe)**
 
@@ -148,17 +113,9 @@ Single-target training time decreases in all four cases (30.11–38.31%). Vector
 |      512 |       1 | lossguide   |        168.35 |        127.61 |                 -24.20% |
 |      512 |       4 | lossguide   |        509.36 |        505.11 |                  -0.83% |
 
-Training times use `timer.Train.Train`, excluding DMatrix construction and data generation. Changes are `100 × (time / reference_time − 1)`, calculated before rounding; each column names its reference. Negative values mean less training time. Commit columns are ordered oldest to newest.
-
-Both archives report the same environment: Linux `x86_64`, a host with 32 CPUs and 2 NVIDIA A100 80GB PCIe GPUs, driver `580.159.04`, CUDA 13.2, and `dxgb_bench` version `0.1.dev410+g97feb1fd5`. Recorded parameters and machine metadata match for every paired case. Build information and versions match except for `binfo.GIT_HASH` and the XGBoost version suffix, which identify `c2ca8c99a` and `4161c075a`, respectively.
-
 All runs use `qdm-iter` with 64 batches of 2^20 samples (67,108,864 samples), 128 training rounds, maximum depth 6, `max_bin=256`, and `n_workers=1`. Four-target runs use `multi_output_tree` with `debug_synchronize=true`; single-target runs use `one_output_per_tree` with `debug_synchronize=false`.
-
-Training RMSE matches exactly at every recorded round for 8 of 8 case/revision pairs against `c2ca8c99a`. 0 pairs differ; 0 pairs have missing or incomplete RMSE histories. Each revision has one timing per case; run-to-run variation is not measured.
 
 Benchmark result archives (commit labels confirmed by `binfo.GIT_HASH`):
 
 - `c2ca8c99a`: [a100-c2ca8c99a.zip](</home/jiamingy/ws/xgboost_dev/bench/A100/a100-c2ca8c99a.zip>)
 - `4161c075a`: [a100-4161c075a.zip](</home/jiamingy/ws/xgboost_dev/bench/A100/a100-4161c075a.zip>)
-
-Single-target training time decreases in all four cases (22.49–24.32%). Vector-leaf training time decreases by 0.83–3.25% in three cases; the 512-feature `depthwise` case increases by 3.85%.
