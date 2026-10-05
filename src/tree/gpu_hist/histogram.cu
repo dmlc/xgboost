@@ -1,6 +1,8 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
+#include <algorithm>             // for min, max
+#include <cstddef>               // for size_t
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
@@ -95,9 +97,18 @@ using MtHistBound = HistSm80;
 using MtHistBound = HistSm75;
 #endif
 
-// Single-target launch bounds
-// Maximize the number of threads instead of tuning for occupancy for single target.
-using StHistBound = HistSm75;
+// Single-target launch bounds.
+struct StHistBound {
+  static constexpr std::int32_t kBlockThreads = 1024;
+};
+
+// Target as many single-target blocks per SM as its thread capacity allows.
+// The architecture's multi-target tuning supplies that thread capacity.
+template <typename Arch>
+constexpr std::int32_t StMinBlocks() {
+  return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistBound::kBlockThreads);
+}
+using StHistDeviceBound = HistTuning<StHistBound::kBlockThreads, StMinBlocks<MtHistBound>()>;
 
 template <typename HistArchPolicy, std::int32_t ItemsPerThread, bool Dense, bool Compressed,
           bool SharedMem>
@@ -110,22 +121,55 @@ struct HistPolicy : public HistArchPolicy {
 };
 
 template <typename Fn>
-void DispatchCudaSm(std::int32_t device, Fn&& fn) {
+decltype(auto) DispatchCudaSm(std::int32_t device, Fn&& fn) {
   std::int32_t version = 0;
   dh::safe_cuda(cub::SmVersion(version, device));
   if (version >= 1100) {
-    fn(HistSm110{});
+    return fn(HistSm110{});
   } else if (version >= 900) {
-    fn(HistSm90{});
+    return fn(HistSm90{});
   } else if (version >= 860) {
-    fn(HistSm86{});
+    return fn(HistSm86{});
   } else if (version >= 800) {
-    fn(HistSm80{});
-  } else {
-    fn(HistSm75{});
+    return fn(HistSm80{});
   }
+  return fn(HistSm75{});
 }
 
+// Only sm_90 and sm_100 reach the cap, and a larger budget (113KB) is slower on H200.
+constexpr std::size_t kMaxShmemBytes = 96 /*kb*/ * 1024;
+// The shared memory of a block is allocated in units of this size.
+constexpr std::int32_t kShmemAllocGranularity = 128;
+
+// Split the SM's shared memory among the same number of blocks targeted by the launch bounds.
+[[nodiscard]] std::size_t HistShmemBytes(std::int32_t device, std::int32_t min_blocks) {
+  CHECK_GT(min_blocks, 0);
+  auto optin = dh::MaxSharedMemoryOptin(device);
+  std::int32_t smem_per_sm = 0, reserved = 0;
+  dh::safe_cuda(
+      cudaDeviceGetAttribute(&smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
+  dh::safe_cuda(cudaDeviceGetAttribute(&reserved, cudaDevAttrReservedSharedMemoryPerBlock, device));
+
+  // Each block is additionally charged a fixed driver reservation. Round down to the
+  // allocation granularity, otherwise the last block does not fit.
+  auto n_bytes_per_block =
+      (smem_per_sm / min_blocks / kShmemAllocGranularity) * kShmemAllocGranularity - reserved;
+  CHECK_GT(n_bytes_per_block, 0);
+  return std::min({static_cast<std::size_t>(n_bytes_per_block), optin, kMaxShmemBytes});
+}
+}  // anonymous namespace
+
+std::size_t DftStHistShmemBytes(std::int32_t device) {
+  return DispatchCudaSm(
+      device, [&](auto arch) { return HistShmemBytes(device, StMinBlocks<decltype(arch)>()); });
+}
+
+std::size_t DftMtHistShmemBytes(std::int32_t device) {
+  return DispatchCudaSm(
+      device, [&](auto arch) { return HistShmemBytes(device, decltype(arch)::kMinBlocks); });
+}
+
+namespace {
 __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
   static_assert(sizeof(int4) == sizeof(GradientPairInt64));
   auto g = *reinterpret_cast<int4 const*>(gpairs);
@@ -225,7 +269,8 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
  * @brief Kernel for the single-target histogram.
  */
 template <typename Policy, typename Accessor>
-__global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks) void StHistKernel(
+__global__ __launch_bounds__(StHistDeviceBound::kBlockThreads,
+                            StHistDeviceBound::kMinBlocks) void StHistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
     common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {

@@ -18,27 +18,11 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Single-target shared memory policy
-[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
-  auto optin = dh::MaxSharedMemoryOptin(device);
-  return std::min(optin, std::size_t{96} * 1024);
-}
+// Shared-memory budget per block for the single-target occupancy target.
+[[nodiscard]] std::size_t DftStHistShmemBytes(std::int32_t device);
 
-// Multi-target shared memory policy
-[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
-  auto max_shared = dh::MaxSharedMemory(device);
-  // Use larger shared memory if available.
-  //
-  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
-  // have large optin size, like the H200. We expand the shared memory size for those
-  // large devices.
-  constexpr std::size_t kThreshold = 4;
-  if (max_shared_optin > max_shared * kThreshold) {
-    return 2 * max_shared;
-  }
-  return max_shared;
-}
+// Same budget rule for the architecture's multi-target block size.
+[[nodiscard]] std::size_t DftMtHistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
