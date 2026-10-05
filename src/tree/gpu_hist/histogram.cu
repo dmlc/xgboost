@@ -153,15 +153,13 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
 }  // anonymous namespace
 
 std::size_t DftStHistShmemBytes(std::int32_t device) {
-  return DispatchCudaSm(device, [&](auto arch) {
-    return HistShmemBytes(device, StMinBlocks<decltype(arch)>());
-  });
+  return DispatchCudaSm(
+      device, [&](auto arch) { return HistShmemBytes(device, StMinBlocks<decltype(arch)>()); });
 }
 
 std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  return DispatchCudaSm(device, [&](auto arch) {
-    return HistShmemBytes(device, decltype(arch)::kMinBlocks);
-  });
+  return DispatchCudaSm(
+      device, [&](auto arch) { return HistShmemBytes(device, decltype(arch)::kMinBlocks); });
 }
 
 namespace {
@@ -475,7 +473,7 @@ struct HistKernel {
       auto n_entries_per_chunk = SliceItems<Policy>(n_items, n_resident_blks_per_target, n_targets,
                                                     shmem_bytes, symbol_bits);
       auto grid = MakeChunkGrid(max_segment_entries, n_entries_per_chunk, n_groups, n_targets,
-                                 h_ridx_iters.size());
+                                h_ridx_iters.size());
 
       dh::LaunchKernel(grid.n_blks, Policy::kBlockThreads, shmem_bytes, stream)(
           kernel, matrix, feature_groups, ridx_iters.data().get(), hists.data().get(), d_gpair,
