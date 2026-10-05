@@ -73,11 +73,11 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
  * @param n_resident_blks_per_target Estimated concurrent blocks per target, at least one.
  * @param n_targets                  Number of outputs being trained.
  * @param shmem_bytes                Histogram bytes per block; zero for global accumulation.
- * @param entry_bits                 Bits per ELLPACK entry.
+ * @param symbol_bits               Bits per ELLPACK symbol.
  */
 [[nodiscard]] std::size_t SliceTiles(
     bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
-    bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t entry_bits);
+    bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t symbol_bits);
 
 /** @brief Histogram launch dimensions. */
 struct ChunkGrid {

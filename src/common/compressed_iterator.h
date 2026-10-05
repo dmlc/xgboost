@@ -225,6 +225,8 @@ class CompressedIterator {
 #endif
   }
 
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE std::uint32_t SymbolBits() const { return this->symbol_bits_; }
+
   XGBOOST_DEVICE reference operator[](std::size_t idx) const {
     constexpr std::int32_t kBitsPerByte = 8;
     // Read 5 bytes - the maximum we will need assuming symbols fit in a 32bit int.
@@ -297,6 +299,8 @@ class DoubleCompressedIter {
   DoubleCompressedIter(CompressedByteT const *XGBOOST_RESTRICT buf0, std::size_t n0_bytes,
                        CompressedByteT const *XGBOOST_RESTRICT buf1, bst_idx_t n_symbols)
       : buf0_{buf0}, buf1_{buf1}, n0_{n0_bytes}, symbol_bits_{detail::SymbolBits(n_symbols)} {}
+
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE std::uint32_t SymbolBits() const { return this->symbol_bits_; }
 
   XGBOOST_DEVICE reference operator[](std::size_t idx) const {
     constexpr std::int32_t kBitsPerByte = 8;

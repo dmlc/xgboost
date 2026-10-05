@@ -9,10 +9,9 @@
 #include <vector>                // for vector
 
 #include "../../collective/aggregator.h"
-#include "../../common/compressed_iterator.h"  // for SymbolBits
-#include "../../common/cuda_compat.cuh"        // for CUDA compatibility
-#include "../../common/cuda_context.cuh"       // for CUDAContext
-#include "../../common/cuda_rt_utils.h"        // for GetMpCnt
+#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
+#include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../common/cuda_rt_utils.h"   // for GetMpCnt
 #include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
@@ -298,36 +297,24 @@ __global__ __launch_bounds__(
   }
 }
 
-namespace {
-/**
- * @brief The number of bits used by each entry of the gradient index.
- */
-template <typename Accessor>
-[[nodiscard]] std::uint32_t EntryBits(Accessor const& matrix) {
-  // `NullValue` is the number of symbols for a fully dense page, one less otherwise.
-  auto n_symbols = matrix.IsDense() ? matrix.NullValue() : matrix.NullValue() + 1;
-  return common::detail::SymbolBits(n_symbols);
-}
-}  // anonymous namespace
-
 namespace cuda_impl {
 std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
                        std::size_t n_resident_blks_per_target, bst_target_t n_targets,
-                       std::size_t shmem_bytes, std::uint32_t entry_bits) {
+                       std::size_t shmem_bytes, std::uint32_t symbol_bits) {
   CHECK_GT(n_items, 0);
   CHECK_GT(tile_size, 0);
   CHECK_GT(n_resident_blks_per_target, 0);
   CHECK_GT(n_targets, 0);
-  CHECK_GT(entry_bits, 0);
+  CHECK_GT(symbol_bits, 0);
 
   auto n_tiles = common::DivRoundUp(n_items, tile_size);
   // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
   //   flush_bytes = n_targets * shmem_bytes
-  //   entry_bytes = n_tiles_per_blk * tile_size * entry_bits / 8
+  //   entry_bytes = n_tiles_per_blk * tile_size * symbol_bits / 8
   // Estimate across targets; zero for global accumulation.
   auto tiles_flush =
       common::DivRoundUp(100 * 8 * static_cast<std::size_t>(n_targets) * shmem_bytes,
-                         kMaxFlushPercent * tile_size * static_cast<std::size_t>(entry_bits));
+                         kMaxFlushPercent * tile_size * static_cast<std::size_t>(symbol_bits));
   // Choose enough work to amortize the flush, bounded by the desired parallelism:
   // - kTargetWaves sets the minimum chunk size, avoiding unnecessarily frequent flushes.
   // - kMinWaves sets the maximum chunk size, keeping enough blocks to limit the tail.
@@ -371,10 +358,10 @@ struct HistKernel {
   template <typename Policy>
   static bst_idx_t SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target,
                               bst_target_t n_targets, std::size_t shmem_bytes,
-                              std::uint32_t entry_bits) {
+                              std::uint32_t symbol_bits) {
     auto n_tiles_per_blk =
         cuda_impl::SliceTiles(n_items, Policy::kBlockThreads, n_resident_blks_per_target, n_targets,
-                              shmem_bytes, entry_bits);
+                              shmem_bytes, symbol_bits);
     return static_cast<bst_idx_t>(n_tiles_per_blk) * Policy::kBlockThreads;
   }
 
@@ -463,14 +450,14 @@ struct HistKernel {
     dh::CopyTo(h_hists, &hists, stream);
 
     bst_idx_t n_items = n_total_rows * matrix.row_stride;
-    auto entry_bits = EntryBits(matrix);
+    auto symbol_bits = matrix.SymbolBits();
     auto launch = [&](auto policy) {
       using Policy = common::GetValueT<decltype(policy)>;
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
       auto n_entries_per_chunk = SliceItems<Policy>(n_items, n_resident_blks_per_target, n_targets,
-                                                    shmem_bytes, entry_bits);
+                                                    shmem_bytes, symbol_bits);
       auto grid = cuda_impl::MakeChunkGrid(max_segment_entries, n_entries_per_chunk, n_groups,
                                            n_targets, h_ridx_iters.size());
 
