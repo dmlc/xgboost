@@ -34,36 +34,30 @@ TEST(Histogram, HistShmemBytes) {
   }
 }
 
-// The three bounds of the launch policy and their priority. Asserts relationships rather than
-// absolute sizes, so retuning the budgets does not invalidate the test.
+// Check how the flush budget and wave targets determine tiles per chunk.
 TEST(Histogram, SliceTiles) {
   using cuda_impl::kMaxFlushPercent, cuda_impl::kMinWaves, cuda_impl::kTargetWaves;
   std::size_t constexpr kTile = 768 * 8, kShmem = 12 * 256 * sizeof(GradientPairInt64), kRes = 32;
   std::uint32_t constexpr kBits = 8;
   double const budget = static_cast<double>(kMaxFlushPercent) / 100.0;
-  // Launch of `n_tiles` tiles, and the flush volume of the resulting slice as a fraction of
-  // the gradient index bytes a block reads.
+  // Return tiles per chunk, estimated chunks per target, and the flush-to-entry byte ratio.
   auto slice = [&](std::size_t n_tiles, bst_target_t n_tgt, std::size_t shmem, std::uint32_t bits) {
     auto tiles = cuda_impl::SliceTiles(n_tiles * kTile, kTile, kRes, n_tgt, shmem, bits);
     auto blks = common::DivRoundUp(n_tiles, tiles);
     return std::tuple{tiles, blks, n_tgt * shmem / (tiles * kTile * bits / 8.0)};
   };
 
-  // Sized so the flush floor binds for every variant: above the load-balance target, below the
-  // kMinWaves cap. The floor is proportional to the targets and to the privatized histogram,
-  // and inversely proportional to the bytes an entry carries; the literal `kMinTiles` it
-  // replaced was none of these.
+  // The flush budget determines chunk size without reaching either wave bound.
   auto const n = kRes * kTargetWaves * 12;
   auto [base, _b, ratio] = slice(n, 1, kShmem, kBits);
   ASSERT_EQ(std::get<0>(slice(n, 2, kShmem, kBits)), base * 2);
   ASSERT_EQ(std::get<0>(slice(n, 1, kShmem * 2, kBits)), base * 2);
   ASSERT_EQ(std::get<0>(slice(n, 1, kShmem, kBits * 2)), base / 2);
-  ASSERT_LE(ratio, budget + 1e-9);  // budget met, and not over-spent twofold
+  ASSERT_LE(ratio, budget + 1e-9);
   ASSERT_GT(ratio, budget / 2);
 
-  // Large launch: the load-balance target binds. Small launch, as with an external-memory page:
-  // the floor asks for longer blocks than kMinWaves allows, so the cap wins and the tail stays
-  // bounded. No privatized histogram: no flush, hence no floor.
+  // Large input reaches the minimum chunk size; small input reaches the maximum.
+  // Global accumulation selects the minimum because it has no flush.
   auto [_t1, big, r_big] = slice(kRes * kTargetWaves * 1024, 4, kShmem, kBits);
   ASSERT_EQ(big, kRes * kTargetWaves);
   ASSERT_LT(r_big, budget);
@@ -74,9 +68,7 @@ TEST(Histogram, SliceTiles) {
             kRes * kTargetWaves);
 }
 
-// `MakeChunkGrid` promises a grid that fits and covers the largest segment; both are asserted
-// inside it, so every build test checks them. What a CHECK cannot cover is that an overflowing
-// grid is repaired by lengthening the chunk instead of failing.
+// Exceeding the block-count limit increases entries per chunk.
 TEST(Histogram, MakeChunkGridOverflow) {
   bst_idx_t constexpr kSegment = bst_idx_t{1} << 40;
   auto grid = cuda_impl::MakeChunkGrid(kSegment, /*n_entries_per_chunk=*/1024, /*n_groups=*/512,

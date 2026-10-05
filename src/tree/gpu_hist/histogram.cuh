@@ -18,11 +18,10 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Single-target shared memory policy. The largest budget for a block that doesn't reduce the
-// number of co-resident blocks.
+// Shared-memory budget per block for the single-target occupancy target.
 [[nodiscard]] std::size_t DftStHistShmemBytes(std::int32_t device);
 
-// Multi-target shared memory policy, same rule with the per-arch block size.
+// Same budget rule for the architecture's multi-target block size.
 [[nodiscard]] std::size_t DftMtHistShmemBytes(std::int32_t device);
 
 /**
@@ -48,84 +47,53 @@ namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
 
-/**
- * @brief The number of waves of blocks to aim for, for load balance.
- *
- * More waves hide the imbalance between blocks better, at the cost of shorter blocks, which
- * amortize the flush of the privatized histogram over less work.
- */
+// An entry is one ELLPACK slot (a bin index or missing marker).
+// A segment contains one node's entries for one feature group.
+// A chunk is a contiguous range in segment traversal order, processed by one block per target.
+// Block size counts threads; chunk size counts entries.
+// A tile is one pass of the block: at most one entry per thread.
+// A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
+// A flush adds a block's shared-memory histogram to the global histogram.
+
+// Wave target for load balance; determines the minimum entries per chunk.
 inline constexpr std::size_t kTargetWaves = 32;
-/**
- * @brief The number of waves never to go below.
- *
- * The flush budget can ask for blocks longer than the target wave count allows, which is the
- * right trade for external memory, where each page is a separate and smaller launch. This
- * bounds how much tail that may cost: the blocks of a launch are of equal length, so the waste
- * is the partially filled last wave, about `1 / (2 * kMinWaves)` of the kernel.
- */
+// Minimum wave target; limits entries per chunk even when the flush budget cannot be met.
 inline constexpr std::size_t kMinWaves = 4;
-/**
- * @brief The flush of the privatized histogram may cost this fraction of the entries read by a
- *        block, expressed in percent.
- *
- * A declared budget, not a fitted constant: the resulting volume is
- * `n_items * n_targets * shmem_bytes / entries_per_blk` and is known before the launch. The
- * flush is an L2-resident read-modify-write while the entries come from DRAM, so the budget can
- * be generous.
- */
+// Budget for estimated histogram flush bytes across targets, as a percent of entry bytes.
 inline constexpr std::size_t kMaxFlushPercent = 25;
 
 /**
- * @brief Split the entries of a target into equal parts of whole tiles, one for each block.
+ * @brief Choose tiles per chunk by clamping the flush-budget estimate to the wave bounds.
  *
- * Choose a chunk large enough to amortize its privatized histogram flush, then clamp it to
- * the range set by the desired parallelism. `kTargetWaves` sets the minimum chunk size;
- * `kMinWaves` sets the maximum. The flush budget can lengthen chunks beyond the target,
- * especially for external-memory pages, but the maximum wins when the input is too small
- * to satisfy both the flush budget and the minimum wave count. With global accumulation
- * there is no flush, so the minimum chunk size is selected.
+ * Global accumulation has no flush and selects the minimum chunk size. Wave counts are
+ * approximate: MakeChunkGrid includes partial and empty chunks and may increase chunk size.
  *
- * These bounds size the chunks; `MakeChunkGrid` constructs the actual grid for the nodes,
- * feature groups, and targets, including partial and empty chunks.
- *
- * Exposed for testing.
- *
- * @param n_items                    The number of entries for each target.
- * @param tile_size                  The number of entries in a tile.
- * @param n_resident_blks_per_target The number of blocks for each target that the device
- *                                   can run concurrently.
- * @param n_targets                  The number of targets, one block for each.
- * @param shmem_bytes                The privatized histogram of a block. Zero when the
- *                                   kernel accumulates into global memory, as there is then
- *                                   no flush to amortize.
- * @param entry_bits                 The number of bits used by each entry of the gradient
- *                                   index.
- *
- * @return The number of tiles for each block.
+ * @param n_items                    Total entries across nodes and groups, per target.
+ * @param tile_size                  Entries per tile (the kernel's threads per block).
+ * @param n_resident_blks_per_target Estimated concurrent blocks per target, at least one.
+ * @param n_targets                  Number of outputs being trained.
+ * @param shmem_bytes                Histogram bytes per block; zero for global accumulation.
+ * @param entry_bits                 Bits per ELLPACK entry.
  */
 [[nodiscard]] std::size_t SliceTiles(
     bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
     bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t entry_bits);
 
-/** @brief Shape of the rectangular grid of chunks for the histogram kernel. */
+/** @brief Histogram launch dimensions. */
 struct ChunkGrid {
-  /** @brief Entries processed by each block, raised if the grid would overflow. */
+  /** @brief Maximum entries per block; the final chunk may contain fewer. */
   bst_idx_t n_entries_per_chunk;
-  /** @brief Chunks the grid holds for each `(node, feature group)` segment. */
+  /** @brief Chunk slots per segment, including empty slots. */
   std::uint32_t n_chunks_per_segment;
   /** @brief The total number of blocks. */
   std::uint32_t n_blks;
 };
 
 /**
- * @brief Shape the grid of the histogram kernel.
+ * @brief Size the grid for the largest segment, with the same chunk slots per segment and target.
  *
- * The grid is rectangular in `(node, feature group, chunk, target)` and covers the largest
- * segment, so uneven segments leave empty blocks, which exit before touching shared memory.
- * The chunk is lengthened if the grid would overflow; that needs a very large number of
- * nodes, feature groups and targets together.
- *
- * Exposed for testing.
+ * Increase entries per chunk if needed to fit the block-count limit. Shorter segments have
+ * empty slots whose blocks exit immediately.
  */
 [[nodiscard]] ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_chunk,
                                       std::uint32_t n_groups, bst_target_t n_targets,

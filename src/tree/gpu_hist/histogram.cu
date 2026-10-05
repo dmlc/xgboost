@@ -21,14 +21,8 @@
 
 namespace xgboost::tree {
 namespace {
-/**
- * @brief The index of an entry in `matrix.gidx_iter`.
- *
- * Each Ellpack row has `row_stride` entries, and `ridx` is global while the batch starts at
- * `base_rowid`. With the dense layout (`kCompressed`), the entries of a row are its
- * features, and `fidx` is a feature index. With the sparse layout, `fidx` is an entry in the
- * padded row, and the bin stored there identifies the feature.
- */
+// Convert a global row index and a slot within the row to a page-local ELLPACK entry index.
+// For dense layouts, the slot is a feature index; for sparse layouts, it is a padded-row offset.
 template <typename IterT>
 XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
@@ -99,9 +93,8 @@ struct StHistBound {
   static constexpr std::int32_t kBlockThreads = 1024;
 };
 
-// The number of co-resident single-target blocks: as many as the threads of an SM allow,
-// asking for more only tightens the register cap. The multi-target tuning of the arch is for
-// full occupancy, so it has the threads of an SM.
+// Target as many single-target blocks per SM as its thread capacity allows.
+// The architecture's multi-target tuning supplies that thread capacity.
 template <typename Arch>
 constexpr std::int32_t StMinBlocks() {
   return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistBound::kBlockThreads);
@@ -142,12 +135,7 @@ constexpr std::size_t kMaxShmemBytes = 96 /*kb*/ * 1024;
 // The shared memory of a block is allocated in units of this size.
 constexpr std::int32_t kShmemAllocGranularity = 128;
 
-/**
- * @brief The shared memory budget for a block when `min_blocks` blocks are co-resident.
- *
- * The launch bounds cap the registers so that `min_blocks` blocks fit an SM, the shared
- * memory of the SM is split between the same number of blocks.
- */
+// Split the SM's shared memory among the same number of blocks targeted by the launch bounds.
 [[nodiscard]] std::size_t HistShmemBytes(std::int32_t device, std::int32_t min_blocks) {
   CHECK_GT(min_blocks, 0);
   auto optin = dh::MaxSharedMemoryOptin(device);
@@ -184,7 +172,7 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
   return *reinterpret_cast<GradientPairInt64*>(&g);
 }
 
-// Build the histogram for the items [begin, end) of a single node, feature group, and target.
+// Accumulate chunk entries [begin, end) for one target.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
                                   RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
@@ -238,24 +226,14 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 }  // namespace
 
 /**
- * @brief Kernel for building histograms of multiple nodes and targets.
+ * @brief Process one chunk per block for one target.
  *
- * A block accumulates one chunk of one `(node, feature group)` segment into one target. The
- * index of a block decodes as
+ * Block index:
  *
  *     ((nidx_in_set * n_chunks_per_segment + chunk) * n_groups + group) * n_targets + target
  *
- * so the target varies fastest and the group next. As a result the `n_targets` blocks that
- * share a chunk's gradient index are adjacent, and the `n_groups` blocks that read the same
- * rows are co-resident, both independently of the chunk size.
- *
- * The grid is rectangular and covers the largest segment of the launch. The segments are
- * uneven, so some blocks have no entries and exit before touching shared memory.
- *
- * @param d_ridx_iters         Pointer to row index spans. One span per node.
- * @param node_hists           Pointer to histograms. One histogram per node.
- * @param n_entries_per_chunk  The number of entries processed by each block.
- * @param n_chunks_per_segment The number of chunks the grid holds for each segment.
+ * Targets vary fastest, then feature groups, to encourage cache reuse across blocks.
+ * Every segment has the same number of chunk slots; blocks for empty slots exit immediately.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(
@@ -313,7 +291,7 @@ __global__ __launch_bounds__(
                             gmem_hist, begin, end);
   if constexpr (Policy::kSharedMem) {
     __syncthreads();
-    // Write shared memory back to global memory
+    // Flush this block's histogram.
     for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
       AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, smem_hist[bin_idx]);
     }
@@ -346,7 +324,7 @@ std::size_t SliceTiles(bst_idx_t n_items, std::size_t tile_size,
   // flush_bytes / entry_bytes <= kMaxFlushPercent / 100, with
   //   flush_bytes = n_targets * shmem_bytes
   //   entry_bytes = n_tiles_per_blk * tile_size * entry_bits / 8
-  // Zero when the kernel accumulates into global memory, there is then no flush.
+  // Estimate across targets; zero for global accumulation.
   auto tiles_flush =
       common::DivRoundUp(100 * 8 * static_cast<std::size_t>(n_targets) * shmem_bytes,
                          kMaxFlushPercent * tile_size * static_cast<std::size_t>(entry_bits));
@@ -368,12 +346,12 @@ ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_c
   CHECK_GT(n_targets, 0);
   CHECK_GT(n_nodes, 0);
 
-  constexpr std::uint64_t kMaxGrid = std::numeric_limits<std::uint32_t>::max();
+  constexpr std::uint64_t kMaxGrid = std::numeric_limits<std::uint32_t>::max() - 1;
   auto n_blks_per_chunk = static_cast<std::uint64_t>(n_groups) * n_targets * n_nodes;
   CHECK_LE(n_blks_per_chunk, kMaxGrid) << "Too many blocks for the histogram kernel.";
 
   auto n_chunks = common::DivRoundUp(max_segment_entries, n_entries_per_chunk);
-  // Longer chunks for fewer blocks.
+  // Increase entries per chunk to reduce the block count.
   while (n_chunks > kMaxGrid / n_blks_per_chunk) {
     n_entries_per_chunk *= 2;
     n_chunks = common::DivRoundUp(max_segment_entries, n_entries_per_chunk);
@@ -389,8 +367,7 @@ ChunkGrid MakeChunkGrid(bst_idx_t max_segment_entries, bst_idx_t n_entries_per_c
 
 // Dispatcher for the histogram kernel.
 struct HistKernel {
-  // Thin wrapper over `cuda_impl::SliceTiles` that converts tiles into entries. A tile is a
-  // single pass of the block over its chunk.
+  // Convert tiles per chunk to entries per chunk.
   template <typename Policy>
   static bst_idx_t SliceItems(bst_idx_t n_items, std::size_t n_resident_blks_per_target,
                               bst_target_t n_targets, std::size_t shmem_bytes,
@@ -446,15 +423,13 @@ struct HistKernel {
     CHECK(gpair.FContiguous());
     CHECK_EQ(h_ridx_iters.size(), h_hists.size());
     auto feature_groups = h_feature_groups.DeviceAccessor(ctx->Device());
-    // The kernel scans the entire row for sparse data, it doesn't filter out the bins of
-    // other groups.
+    // Sparse data requires one group because the kernel scans every slot in each row.
     CHECK(kCompressed || feature_groups.NumGroups() == 1);
     auto n_samples = gpair.Shape(0);
     auto n_targets = gpair.Shape(1);
     auto d_gpair = gpair.Values().data();
 
-    // The number of rows in the largest node, and in all of them. The segments of a launch
-    // are uneven, the grid covers the largest one.
+    // Total rows determine chunk size; the largest node determines chunk slots per segment.
     bst_idx_t n_total_rows = 0, max_node_rows = 0;
     for (auto const& ridx : h_ridx_iters) {
       n_total_rows += ridx.size();
@@ -469,8 +444,7 @@ struct HistKernel {
     bool use_shared = !force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
 
-    // The number of features in the widest group. The sparse layout has a single group and
-    // the kernel scans the whole row.
+    // Maximum entries per row in a segment: the widest group, or the full sparse row.
     bst_feature_t max_group_features = matrix.row_stride;
     if (kCompressed) {
       auto const& h_fs = h_feature_groups.feature_segments.ConstHostVector();
