@@ -298,32 +298,35 @@ __global__ __launch_bounds__(
 }
 
 namespace cuda_impl {
-bst_idx_t SliceItems(bst_idx_t n_total_entries, std::size_t tile_size,
-                     std::size_t n_resident_blks_per_target, bst_target_t n_targets,
-                     std::size_t shmem_bytes, std::uint32_t symbol_bits) {
+bst_idx_t SliceSegment(bst_idx_t n_total_entries, std::size_t entries_per_tile,
+                       std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                       std::size_t hist_bytes_per_block, std::uint32_t symbol_bits) {
   CHECK_GT(n_total_entries, 0);
-  CHECK_GT(tile_size, 0);
+  CHECK_GT(entries_per_tile, 0);
   CHECK_GT(n_resident_blks_per_target, 0);
   CHECK_GT(n_targets, 0);
   CHECK_GT(symbol_bits, 0);
 
-  auto n_tiles = common::DivRoundUp(n_total_entries, tile_size);
-  std::size_t constexpr kPercent = 100, kByte = 8;
-  // flush_bytes / subsegment_bytes <= kMaxFlushPercent / 100, with
-  //   flush_bytes = n_targets * shmem_bytes
-  //   subsegment_bytes = entries_per_subsegment * symbol_bits / 8
-  // Estimate across targets; zero for global accumulation.
-  auto tiles_flush =
-      common::DivRoundUp(kPercent * kByte * static_cast<std::size_t>(n_targets) * shmem_bytes,
-                         kMaxFlushPercent * tile_size * static_cast<std::size_t>(symbol_bits));
-  // Bound tiles per sub-segment using the desired parallelism:
-  // - kTargetWaves sets the minimum, avoiding unnecessarily frequent flushes.
-  // - kMinWaves sets the maximum, keeping work distributed across enough blocks.
-  // For small inputs the upper bound wins even if the flush budget cannot be met.
-  auto min_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kTargetWaves);
-  auto max_tiles = common::DivRoundUp(n_tiles, n_resident_blks_per_target * kMinWaves);
-  // Positive inputs and kTargetWaves >= kMinWaves ensure 1 <= min_tiles <= max_tiles.
-  return static_cast<bst_idx_t>(std::clamp(tiles_flush, min_tiles, max_tiles)) * tile_size;
+  std::size_t constexpr kPercent = 100, kBitsPerByte = 8;
+  // For the same sub-segment, each target's block flushes a separate histogram. Count
+  // ELLPACK entries once, assuming reuse across targets. These are payload estimates.
+  auto flush_bytes_all_targets = static_cast<std::size_t>(n_targets) * hist_bytes_per_block;
+  auto entry_bits_per_tile = entries_per_tile * static_cast<std::size_t>(symbol_bits);
+  // Process enough tiles that flush bytes are at most kMaxFlushPercent of entry bytes:
+  //   flush_bytes_all_targets / (tiles_per_subsegment * entry_bits_per_tile / 8) <= 25 / 100.
+  auto min_tiles_for_flush = common::DivRoundUp(kPercent * kBitsPerByte * flush_bytes_all_targets,
+                                                kMaxFlushPercent * entry_bits_per_tile);
+
+  // Avoid too many small blocks (kTargetWaves), but keep enough blocks for parallelism (kMinWaves).
+  // The maximum sub-segment size takes priority when the flush budget cannot be met.
+  auto n_total_tiles = common::DivRoundUp(n_total_entries, entries_per_tile);
+  auto min_tiles_per_subsegment =
+      common::DivRoundUp(n_total_tiles, n_resident_blks_per_target * kTargetWaves);
+  auto max_tiles_per_subsegment =
+      common::DivRoundUp(n_total_tiles, n_resident_blks_per_target * kMinWaves);
+  auto tiles_per_subsegment =
+      std::clamp(min_tiles_for_flush, min_tiles_per_subsegment, max_tiles_per_subsegment);
+  return static_cast<bst_idx_t>(tiles_per_subsegment) * entries_per_tile;
 }
 }  // namespace cuda_impl
 
@@ -465,15 +468,14 @@ struct HistKernel {
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
       auto n_entries_per_subsegment =
-          cuda_impl::SliceItems(n_total_entries, Policy::kBlockThreads, n_resident_blks_per_target,
-                                n_targets, shmem_bytes, symbol_bits);
+          cuda_impl::SliceSegment(n_total_entries, Policy::kBlockThreads,
+                                  n_resident_blks_per_target, n_targets, shmem_bytes, symbol_bits);
       auto grid = MakeGrid(max_segment_entries, n_entries_per_subsegment, Policy::kBlockThreads,
                            n_groups, n_targets, h_ridx_iters.size());
 
       dh::LaunchKernel(grid.n_blks, Policy::kBlockThreads, shmem_bytes, stream)(
           kernel, matrix, feature_groups, ridx_iters.data().get(), hists.data().get(), d_gpair,
           n_samples, n_targets, grid.n_entries_per_subsegment, grid.n_subsegments_per_segment);
-      dh::safe_cuda(cudaPeekAtLastError());
     };
 
     auto launch_arch = [&](auto arch) {

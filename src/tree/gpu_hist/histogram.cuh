@@ -49,9 +49,7 @@ std::size_t constexpr DftReserveSize() { return 1 << 22; }
 
 // An entry is one stored ELLPACK bin index or missing marker.
 // A segment contains one node's entries for one feature group, shared across targets.
-// A sub-segment is a contiguous range of entries in segment traversal order.
-// Block size counts threads; sub-segment size counts entries.
-// A tile contains the entries processed in one loop iteration, at most one per thread.
+// A sub-segment is a contiguous range of entries processed by a single CUDA block.
 // A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
 // A flush adds a block's shared-memory histogram to the global histogram.
 
@@ -59,24 +57,25 @@ std::size_t constexpr DftReserveSize() { return 1 << 22; }
 inline constexpr std::size_t kTargetWaves = 32;
 // Minimum wave target; limits entries per sub-segment even when the flush budget cannot be met.
 inline constexpr std::size_t kMinWaves = 4;
-// Budget for estimated histogram flush bytes across targets, as a percent of entry bytes.
+// Histogram payload flushed across targets, as a percent of ELLPACK entry bytes counted once.
 inline constexpr std::size_t kMaxFlushPercent = 25;
 
 /**
- * @brief Choose entries per sub-segment, rounded to whole tiles, within the wave bounds.
+ * @brief Choose entries per sub-segment to amortize histogram flushes The result is
+ * rounded to whole tiles.
  *
- * Global accumulation has no flush and selects the minimum sub-segment size. Actual wave counts
- * also depend on segment sizes and increases in sub-segment size needed to fit the grid limit.
- *
- * @param tile_size                  Entries per full tile; equal to the number of threads per block.
- * @param n_resident_blks_per_target Estimated concurrent blocks per target, at least one.
+ * @param n_total_entries            Entries across all nodes and feature groups, counted once for all
+ *                                   targets.
+ * @param entries_per_tile           Entries per full tile; equal to threads per block.
+ * @param n_resident_blks_per_target Estimated share of concurrent GPU blocks per target, at least one.
  * @param n_targets                  Number of outputs being trained.
- * @param shmem_bytes                Histogram bytes per block; zero for global accumulation.
+ * @param hist_bytes_per_block       Largest feature group's bin count times sizeof(GradientPairInt64),
+ *                                   for one target; zero for global accumulation.
  * @param symbol_bits                Bits per ELLPACK symbol.
  */
-[[nodiscard]] bst_idx_t SliceItems(bst_idx_t n_total_entries, std::size_t tile_size,
-                                   std::size_t n_resident_blks_per_target, bst_target_t n_targets,
-                                   std::size_t shmem_bytes, std::uint32_t symbol_bits);
+[[nodiscard]] bst_idx_t SliceSegment(
+    bst_idx_t n_total_entries, std::size_t entries_per_tile, std::size_t n_resident_blks_per_target,
+    bst_target_t n_targets, std::size_t hist_bytes_per_block, std::uint32_t symbol_bits);
 
 }  // namespace cuda_impl
 
