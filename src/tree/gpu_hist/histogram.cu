@@ -269,11 +269,14 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
  * @brief Kernel for the single-target histogram.
  */
 template <typename Policy, typename Accessor>
-__global__ __launch_bounds__(StHistDeviceBound::kBlockThreads,
-                            StHistDeviceBound::kMinBlocks) void StHistKernel(
-    Accessor const matrix, FeatureGroupsAccessor const feature_groups,
-    common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
-    common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {
+__global__ __launch_bounds__(
+    StHistDeviceBound::kBlockThreads,
+    StHistDeviceBound::kMinBlocks) void StHistKernel(Accessor const matrix,
+                                                     FeatureGroupsAccessor const feature_groups,
+                                                     common::Span<cuda_impl::RowIndexT const>
+                                                         d_ridx_iter,
+                                                     common::Span<GradientPairInt64 const> d_gpair,
+                                                     common::Span<GradientPairInt64> node_hist) {
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
