@@ -63,21 +63,20 @@ inline constexpr std::size_t kMinWaves = 4;
 inline constexpr std::size_t kMaxFlushPercent = 25;
 
 /**
- * @brief Choose tiles per sub-segment by clamping the flush-budget estimate to the wave bounds.
+ * @brief Choose entries per sub-segment, rounded to whole tiles, within the wave bounds.
  *
  * Global accumulation has no flush and selects the minimum sub-segment size. Actual wave counts
  * also depend on segment sizes and increases in sub-segment size needed to fit the grid limit.
  *
- * @param n_items                    Total entries across nodes and groups, per target.
  * @param tile_size                  Entries per full tile; equal to the number of threads per block.
  * @param n_resident_blks_per_target Estimated concurrent blocks per target, at least one.
  * @param n_targets                  Number of outputs being trained.
  * @param shmem_bytes                Histogram bytes per block; zero for global accumulation.
- * @param symbol_bits               Bits per ELLPACK symbol.
+ * @param symbol_bits                Bits per ELLPACK symbol.
  */
-[[nodiscard]] std::size_t SliceTiles(
-    bst_idx_t n_items, std::size_t tile_size, std::size_t n_resident_blks_per_target,
-    bst_target_t n_targets, std::size_t shmem_bytes, std::uint32_t symbol_bits);
+[[nodiscard]] bst_idx_t SliceItems(bst_idx_t n_total_entries, std::size_t tile_size,
+                                   std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                                   std::size_t shmem_bytes, std::uint32_t symbol_bits);
 
 }  // namespace cuda_impl
 

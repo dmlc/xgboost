@@ -34,19 +34,19 @@ TEST(Histogram, HistShmemBytes) {
   }
 }
 
-// Check how the flush budget and wave targets determine tiles per sub-segment.
-TEST(Histogram, SliceTiles) {
-  using cuda_impl::SliceTiles;
+// Check how the flush budget and wave targets determine entries per sub-segment.
+TEST(Histogram, SliceItems) {
+  using cuda_impl::SliceItems;
   std::size_t constexpr kItems = 1 << 22, kTile = 1024, kResident = 32;
   bst_target_t constexpr kTargets = 1;
   std::uint32_t constexpr kBits = 8;
-  // These inputs give bounds of 4 and 32 tiles per sub-segment under the current wave targets.
-  // No flush: minimum tiles per sub-segment.
-  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/0, kBits), 4);
-  // Moderate histogram: the flush budget selects an intermediate number of tiles per sub-segment.
-  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/2048, kBits), 8);
-  // Large histogram: the maximum tiles per sub-segment takes priority over the flush budget.
-  ASSERT_EQ(SliceTiles(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/16384, kBits), 32);
+  // These inputs give bounds of 4096 and 32768 entries per sub-segment.
+  // No flush: minimum entries per sub-segment.
+  ASSERT_EQ(SliceItems(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/0, kBits), 4096);
+  // Moderate histogram: the flush budget selects an intermediate sub-segment size.
+  ASSERT_EQ(SliceItems(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/2048, kBits), 8192);
+  // Large histogram: the maximum entries per sub-segment takes priority over the flush budget.
+  ASSERT_EQ(SliceItems(kItems, kTile, kResident, kTargets, /*shmem_bytes=*/16384, kBits), 32768);
 }
 
 TEST(Histogram, DeviceHistogramStorage) {
