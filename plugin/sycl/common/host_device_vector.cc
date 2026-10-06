@@ -429,13 +429,9 @@ template class HostDeviceVector<RTreeNodeStat>;
 }  // namespace xgboost
 
 // Prediction initialization references this translation unit through HostDeviceVector.
-// Retain the plugin's predictor and kernel registrations when linking a static archive.
+// Retain the plugin's predictor registration when linking a static archive.
 namespace xgboost::sycl::predictor {
 DMLC_REGISTRY_LINK_TAG(predictor_sycl);
 }  // namespace xgboost::sycl::predictor
-
-namespace xgboost::sycl::obj {
-DMLC_REGISTRY_LINK_TAG(hinge_kernel_sycl);
-}  // namespace xgboost::sycl::obj
 
 #endif  // XGBOOST_USE_SYCL
