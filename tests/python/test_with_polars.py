@@ -143,6 +143,12 @@ def test_regressor() -> None:
     np.testing.assert_allclose(predt0, predt1)
 
 
+def test_unsupported_dtype() -> None:
+    df = pl.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})
+    with pytest.raises(ValueError, match="Invalid columns:b: large_string"):
+        xgb.DMatrix(df)
+
+
 def test_categorical() -> None:
     cats = ["a", "café", "猫", "🐍", "🐍"]
     df = pl.DataFrame(

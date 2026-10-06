@@ -302,6 +302,141 @@ double Finalize(Context const* ctx, MetaInfo const&, double score, double sw) {
 }
 }  // namespace
 
+namespace {
+PackedReduceResult PreScoreCpu(Context const* ctx, MetaInfo const& info,
+                               HostDeviceVector<float> const& predt,
+                               std::shared_ptr<ltr::PreCache> p_cache) {
+  auto gptr = p_cache->DataGroupPtr(ctx);
+  auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+  auto rank_idx = p_cache->SortedIdx(ctx, predt.ConstHostSpan());
+
+  auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
+  auto pre = p_cache->Pre(ctx);
+
+  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
+    auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+    auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
+
+    auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
+    double n_hits{0.0};
+    for (std::size_t i = 0; i < n; ++i) {
+      n_hits += g_label(g_rank[i]) * weight[g];
+    }
+    pre[g] = n_hits / static_cast<double>(n);
+  });
+
+  auto sw = 0.0;
+  for (std::size_t i = 0; i < pre.size(); ++i) {
+    sw += weight[i];
+  }
+
+  auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);
+  return {sum, sw};
+}
+
+auto const kRegisterPrecisionCpu =
+    common::KernelRegistration<PrecisionEvalKernel>{DeviceOrd::kCPU, &PreScoreCpu};
+
+PackedReduceResult NDCGScoreCpu(Context const* ctx, MetaInfo const& info,
+                                HostDeviceVector<float> const& preds, bool minus,
+                                std::shared_ptr<ltr::NDCGCache> p_cache) {
+  // group local ndcg
+  auto group_ptr = p_cache->DataGroupPtr(ctx);
+  bst_group_t n_groups = group_ptr.size() - 1;
+  auto ndcg_gloc = p_cache->Dcg(ctx);
+  std::fill_n(ndcg_gloc.Values().data(), ndcg_gloc.Size(), 0.0);
+
+  auto h_inv_idcg = p_cache->InvIDCG(ctx);
+  auto p_discount = p_cache->Discount(ctx).data();
+
+  auto h_label = info.labels.HostView();
+  auto h_predt = linalg::MakeTensorView(ctx, &preds, preds.Size());
+  auto weights = common::MakeOptionalWeights(ctx->Device(), info.weights_);
+
+  common::ParallelFor(n_groups, ctx->Threads(), [&](auto g) {
+    auto g_predt = h_predt.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
+    auto g_labels = h_label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]), 0);
+    auto sorted_idx = common::ArgSort<std::size_t>(ctx, linalg::cbegin(g_predt),
+                                                   linalg::cend(g_predt), std::greater<>{});
+    double ndcg{.0};
+    double inv_idcg = h_inv_idcg(g);
+    if (inv_idcg <= 0.0) {
+      ndcg_gloc(g) = minus ? 0.0 : 1.0;
+      return;
+    }
+    std::size_t n{std::min(sorted_idx.size(), static_cast<std::size_t>(p_cache->Param().TopK()))};
+    if (p_cache->Param().ndcg_exp_gain) {
+      for (std::size_t i = 0; i < n; ++i) {
+        ndcg += p_discount[i] * ltr::CalcDCGGain(g_labels(sorted_idx[i])) * inv_idcg;
+      }
+    } else {
+      for (std::size_t i = 0; i < n; ++i) {
+        ndcg += p_discount[i] * g_labels(sorted_idx[i]) * inv_idcg;
+      }
+    }
+    ndcg_gloc(g) += ndcg * weights[g];
+  });
+  double sum_w{0};
+  if (weights.Empty()) {
+    sum_w = n_groups;
+  } else {
+    sum_w = std::accumulate(weights.weights.cbegin(), weights.weights.cend(), 0.0);
+  }
+  auto ndcg = std::accumulate(linalg::cbegin(ndcg_gloc), linalg::cend(ndcg_gloc), 0.0);
+  return {ndcg, sum_w};
+}
+
+auto const kRegisterNDCGCpu =
+    common::KernelRegistration<NDCGEvalKernel>{DeviceOrd::kCPU, &NDCGScoreCpu};
+
+PackedReduceResult MAPScoreCpu(Context const* ctx, MetaInfo const& info,
+                               HostDeviceVector<float> const& predt, bool minus,
+                               std::shared_ptr<ltr::MAPCache> p_cache) {
+  auto gptr = p_cache->DataGroupPtr(ctx);
+  auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+
+  auto map_gloc = p_cache->Map(ctx);
+  std::fill_n(map_gloc.data(), map_gloc.size(), 0.0);
+  auto rank_idx = p_cache->SortedIdx(ctx, predt.ConstHostSpan());
+
+  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
+    auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+    auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
+
+    auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
+    double n_hits{0.0};
+    for (std::size_t i = 0; i < n; ++i) {
+      auto p = g_label(g_rank[i]);
+      n_hits += p;
+      map_gloc[g] += n_hits / static_cast<double>((i + 1)) * p;
+    }
+    for (std::size_t i = n; i < g_label.Size(); ++i) {
+      n_hits += g_label(g_rank[i]);
+    }
+    if (n_hits > 0.0) {
+      map_gloc[g] /= std::min(n_hits, static_cast<double>(p_cache->Param().TopK()));
+    } else {
+      map_gloc[g] = minus ? 0.0 : 1.0;
+    }
+  });
+
+  auto sw = 0.0;
+  auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
+  if (!weight.Empty()) {
+    CHECK_EQ(weight.weights.size(), p_cache->Groups());
+  }
+  for (std::size_t i = 0; i < map_gloc.size(); ++i) {
+    map_gloc[i] = map_gloc[i] * weight[i];
+    sw += weight[i];
+  }
+  auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
+  return {sum, sw};
+}
+
+auto const kRegisterMAPCpu =
+    common::KernelRegistration<MAPEvalKernel>{DeviceOrd::kCPU, &MAPScoreCpu};
+}  // namespace
+
 class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
@@ -313,37 +448,8 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
       CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
     }
 
-    if (ctx_->IsCUDA()) {
-      auto pre = cuda_impl::PreScore(ctx_, info, predt, p_cache);
-      return Finalize(ctx_, info, pre.Residue(), pre.Weights());
-    }
-
-    auto gptr = p_cache->DataGroupPtr(ctx_);
-    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
-    auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
-
-    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    auto pre = p_cache->Pre(ctx_);
-
-    common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
-      auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
-      auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
-
-      auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
-      double n_hits{0.0};
-      for (std::size_t i = 0; i < n; ++i) {
-        n_hits += g_label(g_rank[i]) * weight[g];
-      }
-      pre[g] = n_hits / static_cast<double>(n);
-    });
-
-    auto sw = 0.0;
-    for (std::size_t i = 0; i < pre.size(); ++i) {
-      sw += weight[i];
-    }
-
-    auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);
-    return Finalize(ctx_, info, sum, sw);
+    auto result = common::DispatchKernel<PrecisionEvalKernel>(ctx_, info, predt, p_cache);
+    return Finalize(ctx_, info, result.Residue(), result.Weights());
   }
 };
 
@@ -373,55 +479,8 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
 
   double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
               std::shared_ptr<ltr::NDCGCache> p_cache) override {
-    if (ctx_->IsCUDA()) {
-      auto ndcg = cuda_impl::NDCGScore(ctx_, info, preds, minus_, p_cache);
-      return Finalize(ctx_, info, ndcg.Residue(), ndcg.Weights());
-    }
-
-    // group local ndcg
-    auto group_ptr = p_cache->DataGroupPtr(ctx_);
-    bst_group_t n_groups = group_ptr.size() - 1;
-    auto ndcg_gloc = p_cache->Dcg(ctx_);
-    std::fill_n(ndcg_gloc.Values().data(), ndcg_gloc.Size(), 0.0);
-
-    auto h_inv_idcg = p_cache->InvIDCG(ctx_);
-    auto p_discount = p_cache->Discount(ctx_).data();
-
-    auto h_label = info.labels.HostView();
-    auto h_predt = linalg::MakeTensorView(ctx_, &preds, preds.Size());
-    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-
-    common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
-      auto g_predt = h_predt.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
-      auto g_labels = h_label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]), 0);
-      auto sorted_idx = common::ArgSort<std::size_t>(ctx_, linalg::cbegin(g_predt),
-                                                     linalg::cend(g_predt), std::greater<>{});
-      double ndcg{.0};
-      double inv_idcg = h_inv_idcg(g);
-      if (inv_idcg <= 0.0) {
-        ndcg_gloc(g) = minus_ ? 0.0 : 1.0;
-        return;
-      }
-      std::size_t n{std::min(sorted_idx.size(), static_cast<std::size_t>(param_.TopK()))};
-      if (param_.ndcg_exp_gain) {
-        for (std::size_t i = 0; i < n; ++i) {
-          ndcg += p_discount[i] * ltr::CalcDCGGain(g_labels(sorted_idx[i])) * inv_idcg;
-        }
-      } else {
-        for (std::size_t i = 0; i < n; ++i) {
-          ndcg += p_discount[i] * g_labels(sorted_idx[i]) * inv_idcg;
-        }
-      }
-      ndcg_gloc(g) += ndcg * weights[g];
-    });
-    double sum_w{0};
-    if (weights.Empty()) {
-      sum_w = n_groups;
-    } else {
-      sum_w = std::accumulate(weights.weights.cbegin(), weights.weights.cend(), 0.0);
-    }
-    auto ndcg = std::accumulate(linalg::cbegin(ndcg_gloc), linalg::cend(ndcg_gloc), 0.0);
-    return Finalize(ctx_, info, ndcg, sum_w);
+    auto result = common::DispatchKernel<NDCGEvalKernel>(ctx_, info, preds, minus_, p_cache);
+    return Finalize(ctx_, info, result.Residue(), result.Weights());
   }
 };
 
@@ -431,50 +490,8 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
 
   double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
               std::shared_ptr<ltr::MAPCache> p_cache) override {
-    if (ctx_->IsCUDA()) {
-      auto map = cuda_impl::MAPScore(ctx_, info, predt, minus_, p_cache);
-      return Finalize(ctx_, info, map.Residue(), map.Weights());
-    }
-
-    auto gptr = p_cache->DataGroupPtr(ctx_);
-    auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
-
-    auto map_gloc = p_cache->Map(ctx_);
-    std::fill_n(map_gloc.data(), map_gloc.size(), 0.0);
-    auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
-
-    common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
-      auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
-      auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
-
-      auto n = std::min(static_cast<std::size_t>(param_.TopK()), g_label.Size());
-      double n_hits{0.0};
-      for (std::size_t i = 0; i < n; ++i) {
-        auto p = g_label(g_rank[i]);
-        n_hits += p;
-        map_gloc[g] += n_hits / static_cast<double>((i + 1)) * p;
-      }
-      for (std::size_t i = n; i < g_label.Size(); ++i) {
-        n_hits += g_label(g_rank[i]);
-      }
-      if (n_hits > 0.0) {
-        map_gloc[g] /= std::min(n_hits, static_cast<double>(param_.TopK()));
-      } else {
-        map_gloc[g] = minus_ ? 0.0 : 1.0;
-      }
-    });
-
-    auto sw = 0.0;
-    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    if (!weight.Empty()) {
-      CHECK_EQ(weight.weights.size(), p_cache->Groups());
-    }
-    for (std::size_t i = 0; i < map_gloc.size(); ++i) {
-      map_gloc[i] = map_gloc[i] * weight[i];
-      sw += weight[i];
-    }
-    auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
-    return Finalize(ctx_, info, sum, sw);
+    auto result = common::DispatchKernel<MAPEvalKernel>(ctx_, info, predt, minus_, p_cache);
+    return Finalize(ctx_, info, result.Residue(), result.Weights());
   }
 };
 

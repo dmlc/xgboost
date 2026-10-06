@@ -410,6 +410,8 @@ def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
     """Ensure the np array has correct type and is contiguous."""
+    if np.ma.is_masked(data):
+        raise ValueError("Masked array is not supported.")
     if not data.dtype.isnative:
         data = data.astype(data.dtype.newbyteorder("="), copy=False)
         dtype = data.dtype

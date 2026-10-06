@@ -9,7 +9,9 @@
 #include <xgboost/metric.h>   // for Metric
 
 #include <algorithm>  // for max
+#include <cmath>      // for log2
 #include <memory>     // for unique_ptr
+#include <string>     // for string
 #include <vector>     // for vector
 
 #include "../helpers.h"                  // for GetMetricEval, CreateEmptyGe...
@@ -19,7 +21,35 @@
 
 namespace xgboost::metric {
 
+inline void VerifyRankingKernelCache(DeviceOrd device, std::string const& name, double initial,
+                                     double reordered) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  auto dmat = EmptyDMatrix();
+  auto& info = dmat->Info();
+  info.num_row_ = 6;
+  info.labels = linalg::Matrix<float>{{1, 0, 1, 0, 1, 0}, {6, 1}, device};
+  info.group_ptr_ = {0, 3, 6};
+  info.weights_.HostVector() = {1, 3};
+  HostDeviceVector<float> preds{3, 2, 1, 3, 2, 1};
+  std::unique_ptr<Metric> metric{Metric::Create((name + "@2").c_str(), &ctx)};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), initial, 1e-6);
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), initial, 1e-6);
+
+  // Reuse the same DMatrix cache with a different prediction order.
+  preds.HostVector() = {3, 1, 2, 1, 3, 2};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), reordered, 1e-6);
+
+  // Reloading top-k must reset the cached parameters used by each backend.
+  Json config{Object{}};
+  metric->SaveConfig(&config);
+  config["lambdarank_param"]["lambdarank_num_pair_per_sample"] = String{"1"};
+  metric->LoadConfig(config);
+  preds.HostVector() = {3, 2, 1, 3, 2, 1};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.25, 1e-6);
+}
+
 inline void VerifyPrecision(DeviceOrd device) {
+  VerifyRankingKernelCache(device, "pre", 0.5, 0.625);
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
   ASSERT_STREQ(metric->Name(), "pre");
@@ -42,6 +72,8 @@ inline void VerifyPrecision(DeviceOrd device) {
 }
 
 inline void VerifyNDCG(DeviceOrd device) {
+  auto discount = 1.0 / std::log2(3.0);
+  VerifyRankingKernelCache(device, "ndcg", (1.0 / (1.0 + discount) + 3.0 * discount) / 4.0, 1.0);
   auto ctx = MakeCUDACtx(device.ordinal);
   Metric* metric = xgboost::Metric::Create("ndcg", &ctx);
   ASSERT_STREQ(metric->Name(), "ndcg");
@@ -87,6 +119,7 @@ inline void VerifyNDCG(DeviceOrd device) {
 }
 
 inline void VerifyMAP(DeviceOrd device) {
+  VerifyRankingKernelCache(device, "map", 0.5, 1.0);
   auto ctx = MakeCUDACtx(device.ordinal);
   Metric* metric = xgboost::Metric::Create("map", &ctx);
   ASSERT_STREQ(metric->Name(), "map");

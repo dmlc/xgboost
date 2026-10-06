@@ -5,7 +5,6 @@
 #define TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_
 
 #include <xgboost/context.h>  // for Context
-#include <xgboost/predictor.h>
 
 #include <cstddef>
 #include <memory>
@@ -13,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../src/common/kernel.h"
 #include "../../../src/gbm/gbtree_model.h"  // for GBTreeModel
 #include "../../../src/predictor/prediction_kernel.h"
 #include "../helpers.h"
@@ -35,16 +35,6 @@ inline std::unique_ptr<gbm::GBTreeModel> CreateTestModel(LearnerModelState const
   return model;
 }
 
-inline auto CreatePredictorForTest(Context const* ctx) {
-  if (ctx->IsCPU()) {
-    return Predictor::Create("cpu_predictor", ctx);
-  } else if (ctx->IsSycl()) {
-    return Predictor::Create("sycl_predictor", ctx);
-  } else {
-    return Predictor::Create("gpu_predictor", ctx);
-  }
-}
-
 // fixme: cpu test
 template <typename Page>
 void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t cols,
@@ -54,9 +44,6 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
   LearnerModelState mparam{MakeMP(cols, .5, kClasses, ctx->Device())};
   auto cuda_ctx = MakeCUDACtx(0);
 
-  std::unique_ptr<Predictor> predictor =
-      std::unique_ptr<Predictor>(CreatePredictorForTest(&cuda_ctx));
-
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, kClasses);
   auto const& model = *p_model;
 
@@ -65,11 +52,13 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
 
     HostDeviceVector<float> approx_out_predictions;
     predictor::InitOutPredictions(&cuda_ctx, p_hist->Info(), &approx_out_predictions, model);
-    predictor->PredictBatch(p_hist.get(), &approx_out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(
+        &cuda_ctx, p_hist.get(), &approx_out_predictions, model, 0, 0, nullptr);
 
     HostDeviceVector<float> precise_out_predictions;
     predictor::InitOutPredictions(&cuda_ctx, p_precise->Info(), &precise_out_predictions, model);
-    predictor->PredictBatch(p_precise.get(), &precise_out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(
+        &cuda_ctx, p_precise.get(), &precise_out_predictions, model, 0, 0, nullptr);
 
     for (size_t i = 0; i < rows; ++i) {
       CHECK_EQ(approx_out_predictions.HostVector()[i], precise_out_predictions.HostVector()[i]);
@@ -83,7 +72,8 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
     auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
     HostDeviceVector<float> precise_out_predictions;
     predictor::InitOutPredictions(&cuda_ctx, p_dmat->Info(), &precise_out_predictions, model);
-    predictor->PredictBatch(p_dmat.get(), &precise_out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(
+        &cuda_ctx, p_dmat.get(), &precise_out_predictions, model, 0, 0, nullptr);
     CHECK(!p_dmat->PageExists<Page>());
   }
 }

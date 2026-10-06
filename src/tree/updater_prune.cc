@@ -83,7 +83,7 @@ class TreePruner : public TreeUpdater {
     while (!sc_tree.IsLeaf(nidx)) {
       auto split_index = sc_tree.SplitIndex(nidx);
       nidx = predictor::GetNextNode<true, has_categorical>(
-          sc_tree, nidx, feats.GetFvalue(split_index), feats.IsMissing(split_index), sc_tree.cats);
+          sc_tree, nidx, feats.GetFvalue(split_index), sc_tree.cats);
     }
     return nidx;
   }

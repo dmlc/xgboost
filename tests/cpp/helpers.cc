@@ -24,7 +24,6 @@
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/c_api.h"
-#include "xgboost/predictor.h"
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>

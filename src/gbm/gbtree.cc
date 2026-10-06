@@ -34,7 +34,6 @@
 #include "xgboost/logging.h"
 #include "xgboost/model.h"
 #include "xgboost/objective.h"
-#include "xgboost/predictor.h"
 #include "xgboost/string_view.h"  // for StringView
 #include "xgboost/tree_model.h"   // for RegTree
 #include "xgboost/tree_updater.h"
@@ -673,7 +672,6 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
     CHECK_EQ(cache->version, 0);
   }
 
-  auto predictor = CreatePredictor(is_training, &cache->predictions, p_fmat.get());
   if (initialize_output) {
     // cache->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -683,8 +681,9 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    predictor->PredictBatch(p_fmat.get(), &cache->predictions, model_, tree_begin, tree_end,
-                            tree_weights_override);
+    common::DispatchKernel<predictor::PredictBatchKernel>(ctx_, p_fmat.get(), &cache->predictions,
+                                                          model_, tree_begin, tree_end,
+                                                          tree_weights_override);
   }
 
   if (!preserve_cache) {
@@ -708,82 +707,21 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    auto predictor = CreatePredictor(false, out_preds, p_fmat.get());
     predictor::InitOutPredictions(ctx_, p_fmat->Info(), out_preds, model_);
     if (tree_end > tree_begin) {
-      predictor->PredictBatch(p_fmat.get(), out_preds, model_, tree_begin, tree_end);
+      common::DispatchKernel<predictor::PredictBatchKernel>(ctx_, p_fmat.get(), out_preds, model_,
+                                                            tree_begin, tree_end, nullptr);
     }
     return;
   }
 
-  auto predictor = this->CreatePredictor(false);
-  bool known_type =
-      predictor->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end);
+  bool known_type = common::DispatchKernel<predictor::InplacePredictKernel>(
+      ctx_, p_m, model_, missing, out_preds, tree_begin, tree_end);
   if (!known_type) {
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
   }
-}
-
-[[nodiscard]] std::unique_ptr<Predictor> GBTree::CreatePredictor(
-    bool is_training, HostDeviceVector<float> const* out_pred, DMatrix* f_dmat) const {
-  // Data comes from SparsePageDMatrix. Since we are loading data in pages, no need to
-  // prevent data copy.
-  if (f_dmat && !f_dmat->SingleColBlock()) {
-    if (ctx_->IsCPU()) {
-      return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
-    } else if (ctx_->IsCUDA()) {
-      common::AssertGPUSupport();
-      return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
-    } else {
-#if defined(XGBOOST_USE_SYCL)
-      common::AssertSYCLSupport();
-      return std::unique_ptr<Predictor>{Predictor::Create("sycl_predictor", ctx_)};
-#endif  // defined(XGBOOST_USE_SYCL)
-    }
-  }
-
-  // Data comes from Device DMatrix.
-  auto is_ellpack =
-      f_dmat && f_dmat->PageExists<EllpackPage>() && !f_dmat->PageExists<SparsePage>();
-  // Data comes from device memory, like CuDF or CuPy.
-  auto is_from_device = f_dmat && f_dmat->PageExists<SparsePage>() &&
-                        (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
-  auto on_device = is_ellpack || is_from_device;
-
-  // Use GPU Predictor if data is already on device and gpu_id is set.
-  if (on_device && ctx_->IsCUDA()) {
-    common::AssertGPUSupport();
-    return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
-  }
-
-  // GPU_Hist by default has prediction cache calculated from quantile values,
-  // so GPU Predictor is not used for training dataset.  But when XGBoost
-  // performs continue training with an existing model, the prediction cache is
-  // not available and number of trees doesn't equal zero, the whole training
-  // dataset got copied into GPU for precise prediction.  This condition tries
-  // to avoid such copy by calling CPU Predictor instead.
-  if ((out_pred && out_pred->Size() == 0) && (model_.param.num_trees != 0) &&
-      // FIXME(trivialfis): Implement a better method for testing whether data
-      // is on device after DMatrix refactoring is done.
-      !on_device && is_training) {
-    return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
-  }
-
-  if (ctx_->IsCPU()) {
-    return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
-  } else if (ctx_->IsCUDA()) {
-    common::AssertGPUSupport();
-    return std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx_)};
-  } else {
-#if defined(XGBOOST_USE_SYCL)
-    common::AssertSYCLSupport();
-    return std::unique_ptr<Predictor>{Predictor::Create("sycl_predictor", ctx_)};
-#endif  // defined(XGBOOST_USE_SYCL)
-  }
-
-  return std::unique_ptr<Predictor>{Predictor::Create("cpu_predictor", ctx_)};
 }
 
 // register the objective functions
