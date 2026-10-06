@@ -497,6 +497,26 @@ struct QuadratureSharedState {
   }
 };
 
+// Interactions also enumerate the features on the active path. All rows of a warp share the path,
+// so keep each depth's split feature and whether a deeper split on the same feature shadows it.
+template <int DepthCap>
+struct QuadratureInteractionSharedState : public QuadratureSharedState<DepthCap> {
+  bst_feature_t splits[kGpuQuadratureWarpsPerBlock][DepthCap];
+  std::uint8_t shadowed[kGpuQuadratureWarpsPerBlock][DepthCap];
+
+  [[nodiscard]] XGBOOST_DEV_INLINE bst_feature_t& Split(int warp, int depth) {
+    return splits[warp][depth];
+  }
+
+  [[nodiscard]] XGBOOST_DEV_INLINE bool Shadowed(int warp, int depth) const {
+    return static_cast<bool>(shadowed[warp][depth]);
+  }
+
+  XGBOOST_DEV_INLINE void SetShadowed(int warp, int depth, bool value) {
+    shadowed[warp][depth] = static_cast<std::uint8_t>(value);
+  }
+};
+
 template <typename Loader, typename SubgroupT, typename SharedT>
 struct QuadratureShapTaskRunner {
   Loader loader;
@@ -580,6 +600,9 @@ struct QuadratureShapTaskRunner {
     contrib = subgroup.Sum(contrib);
     this->AddContribution(row_idx, tree_group, node.split_global, contrib);
 
+    // Row subgroups can advance independently in a partial tile. Finish reading the
+    // current path before the warp leader reuses the child node and stage slots.
+    subgroup.Sync();
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
@@ -640,6 +663,8 @@ struct QuadratureShapTaskRunner {
     // stage == 0 explores the left child first. After the return path updates the parent state,
     // the second visit uses the cached go-left decision to push the right child.
     int child = static_cast<int>(shared.Stage(warp, depth) != 0);
+    // All lanes must read the old stage before the warp leader changes it.
+    subgroup.Sync();
     if (child == 0) {
       if (subgroup.is_warp_leader) {
         shared.Stage(warp, depth) = 1;
@@ -772,31 +797,30 @@ struct QuadratureShapInteractionTaskRunner {
     atomicAdd(phis + out_idx, contrib);
   }
 
+  XGBOOST_DEV_INLINE void EnterPathNode(CompressedNode const& node, int depth) {
+    shared.Split(warp, depth) = node.split_global;
+    shared.SetShadowed(warp, depth, false);
+    if (node.prev_same_offset_plus1 != 0) {
+      shared.SetShadowed(warp, depth - static_cast<int>(node.prev_same_offset_plus1) + 1, true);
+    }
+  }
+
+  XGBOOST_DEV_INLINE void ExitPathNode(CompressedNode const& node, int depth) {
+    if (node.prev_same_offset_plus1 == 0) {
+      return;
+    }
+    subgroup.Sync();
+    if (subgroup.is_warp_leader) {
+      shared.SetShadowed(warp, depth - static_cast<int>(node.prev_same_offset_plus1) + 1, false);
+    }
+    subgroup.Sync();
+  }
+
   template <typename Fn>
-  XGBOOST_DEV_INLINE void ForEachUniquePartner(CompressedNode const* nodes_for_tree,
-                                               int current_depth, bst_feature_t current_split,
-                                               Fn&& fn) const {
-    bool skipped_current = false;
-    for (int depth = current_depth; depth >= 0; --depth) {
-      auto const& candidate = nodes_for_tree[shared.Node(warp, depth)];
-      if (candidate.is_leaf) {
-        continue;
-      }
-      auto split = candidate.split_global;
-      if (!skipped_current && split == current_split) {
-        skipped_current = true;
-        continue;
-      }
-      bool shadowed = false;
-      for (int newer = current_depth; newer > depth; --newer) {
-        auto const& newer_node = nodes_for_tree[shared.Node(warp, newer)];
-        if (!newer_node.is_leaf && newer_node.split_global == split) {
-          shadowed = true;
-          break;
-        }
-      }
-      if (!shadowed) {
-        fn(depth, split);
+  XGBOOST_DEV_INLINE void ForEachUniquePartner(int current_depth, Fn&& fn) const {
+    for (int depth = current_depth - 1; depth >= 0; --depth) {
+      if (!shared.Shadowed(warp, depth)) {
+        fn(depth, shared.Split(warp, depth));
       }
     }
   }
@@ -836,21 +860,22 @@ struct QuadratureShapInteractionTaskRunner {
     auto diag_contrib = subgroup.Sum(edge_delta_local);
     this->AddDiagonalContribution(row_idx, tree_group, node.split_global, diag_contrib);
 
-    this->ForEachUniquePartner(
-        nodes_for_tree, parent_depth, node.split_global,
-        [&](int partner_depth, bst_feature_t partner_split) {
-          float q_partner = 1.0f;
-          if (subgroup.is_leader && subgroup.RowActive()) {
-            q_partner = shared.PathProbability(warp, subgroup.row_slot, partner_depth);
-          }
-          q_partner = subgroup.Broadcast(q_partner);
-          auto pair_delta_local =
-              ExtractQuadratureInteractionDeltaLocal(quad_node, edge_delta_local, q_partner);
-          auto pair_contrib = subgroup.Sum(pair_delta_local);
-          this->AddPairContribution(row_idx, tree_group, node.split_global, partner_split,
-                                    pair_contrib);
-        });
+    this->ForEachUniquePartner(parent_depth, [&](int partner_depth, bst_feature_t partner_split) {
+      float q_partner = 1.0f;
+      if (subgroup.is_leader && subgroup.RowActive()) {
+        q_partner = shared.PathProbability(warp, subgroup.row_slot, partner_depth);
+      }
+      q_partner = subgroup.Broadcast(q_partner);
+      auto pair_delta_local =
+          ExtractQuadratureInteractionDeltaLocal(quad_node, edge_delta_local, q_partner);
+      auto pair_contrib = subgroup.Sum(pair_delta_local);
+      this->AddPairContribution(row_idx, tree_group, node.split_global, partner_split,
+                                pair_contrib);
+    });
 
+    // Row subgroups can advance independently in a partial tile. Finish reading the
+    // current path before the warp leader reuses the child node and stage slots.
+    subgroup.Sync();
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
@@ -882,6 +907,7 @@ struct QuadratureShapInteractionTaskRunner {
       (*stack_size)++;
       *have_return = false;
     } else {
+      this->ExitPathNode(node, parent_depth);
       *ret_val += shared.Basis(warp, subgroup.row_slot, parent_depth, subgroup.point);
       (*stack_size)--;
       *have_return = true;
@@ -905,9 +931,12 @@ struct QuadratureShapInteractionTaskRunner {
     }
 
     int child = static_cast<int>(shared.Stage(warp, depth) != 0);
+    // All lanes must read the old stage before the warp leader changes it.
+    subgroup.Sync();
     if (child == 0) {
       if (subgroup.is_warp_leader) {
         shared.Stage(warp, depth) = 1;
+        this->EnterPathNode(node, depth);
       }
       subgroup.Sync();
     }
@@ -1095,7 +1124,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  using SharedT = QuadratureSharedState<DepthCap>;
+  using SharedT = QuadratureInteractionSharedState<DepthCap>;
 
   __shared__ SharedT shared;
 
