@@ -46,17 +46,6 @@ void ValidateTreeWeights(std::vector<float> const *tree_weights, bst_tree_t tree
   CHECK_GE(tree_weights->size(), static_cast<std::size_t>(tree_end));
 }
 
-float LeafValue(tree::ScalarTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
-  CHECK_EQ(target_idx, 0);
-  return tree.LeafValue(nidx);
-}
-
-float LeafValue(tree::MultiTargetTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
-  auto leaf_value = tree.LeafValue(nidx);
-  CHECK_LT(target_idx, leaf_value.Size());
-  return leaf_value(target_idx);
-}
-
 float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
                          std::vector<float> *mean_values) {
   float result;
@@ -169,7 +158,13 @@ template <typename Tree>
 void WriteWeightedLeafReturn(Tree const &tree, QuadratureRule const &rule, bst_node_t nidx,
                              bst_target_t target_idx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
-  auto const leaf_scale = w_prod * LeafValue(tree, nidx, target_idx);
+  float leaf_value;
+  if constexpr (tree::IsScalarTree<Tree>()) {
+    leaf_value = tree.LeafValue(nidx);
+  } else {
+    leaf_value = tree.LeafValue(nidx)(target_idx);
+  }
+  auto const leaf_scale = w_prod * leaf_value;
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
   }
