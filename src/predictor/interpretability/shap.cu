@@ -600,6 +600,9 @@ struct QuadratureShapTaskRunner {
     contrib = subgroup.Sum(contrib);
     this->AddContribution(row_idx, tree_group, node.split_global, contrib);
 
+    // Row subgroups can advance independently in a partial tile. Finish reading the
+    // current path before the warp leader reuses the child node and stage slots.
+    subgroup.Sync();
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
@@ -660,6 +663,8 @@ struct QuadratureShapTaskRunner {
     // stage == 0 explores the left child first. After the return path updates the parent state,
     // the second visit uses the cached go-left decision to push the right child.
     int child = static_cast<int>(shared.Stage(warp, depth) != 0);
+    // All lanes must read the old stage before the warp leader changes it.
+    subgroup.Sync();
     if (child == 0) {
       if (subgroup.is_warp_leader) {
         shared.Stage(warp, depth) = 1;
@@ -868,6 +873,9 @@ struct QuadratureShapInteractionTaskRunner {
                                 pair_contrib);
     });
 
+    // Row subgroups can advance independently in a partial tile. Finish reading the
+    // current path before the warp leader reuses the child node and stage slots.
+    subgroup.Sync();
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
@@ -923,6 +931,8 @@ struct QuadratureShapInteractionTaskRunner {
     }
 
     int child = static_cast<int>(shared.Stage(warp, depth) != 0);
+    // All lanes must read the old stage before the warp leader changes it.
+    subgroup.Sync();
     if (child == 0) {
       if (subgroup.is_warp_leader) {
         shared.Stage(warp, depth) = 1;
