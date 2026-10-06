@@ -1316,8 +1316,8 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                   phis[mirror] = sym;
                 }
               });
-  // Each diagonal entry is the SHAP value minus the row's interactions. The matrix is symmetric now,
-  // so subtract the column instead: neighbouring threads then read neighbouring addresses.
+  // Each diagonal entry is the SHAP value minus the row's interactions. Since the matrix is
+  // symmetric, subtract the column instead: neighbouring threads then read neighbouring addresses.
   dh::LaunchN(n_matrices * ncolumns, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
     auto [m, c] = linalg::UnravelIndex(idx, n_matrices, ncolumns);
     auto matrix = phis.subspan(m * ncolumns * ncolumns, ncolumns * ncolumns);
