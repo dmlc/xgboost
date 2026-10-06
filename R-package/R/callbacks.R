@@ -690,7 +690,7 @@ xgb.cb.early.stop <- function(
         # maximize is usually NULL when not set in xgb.train and built-in metrics
         if (is.null(env$maximize)) {
           # MAPE must be minimized, despite sharing the MAP prefix.
-          env$maximize <- !grepl('_mape$', env$metric_name) &&
+          env$maximize <- !endsWith(env$metric_name, '_mape') &&
             grepl('(_auc|_aupr|_map|_ndcg|_pre|_ams@|_interval_regression_accuracy$)',
                   env$metric_name)
         }
