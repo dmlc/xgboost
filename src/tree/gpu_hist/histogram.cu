@@ -192,7 +192,7 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
     }
   };
 
-  auto process_item = [&](auto idx) {
+  for (bst_idx_t idx = begin + threadIdx.x; idx < end; idx += Policy::kBlockThreads) {
     // unrolled version unravel to save registers:
     // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
     //
@@ -215,10 +215,6 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
       }
       atomic_add(compressed_bin, g);
     }
-  };
-
-  for (bst_idx_t idx = begin + threadIdx.x; idx < end; idx += Policy::kBlockThreads) {
-    process_item(idx);
   }
 }
 
