@@ -1333,29 +1333,34 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
   auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
-  auto n_samples = p_fmat->Info().num_row_;
-  dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
-    auto [ridx, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
-    auto matrix_offset = (static_cast<std::size_t>(ridx) * ngroup + gid) * ncolumns * ncolumns;
-    auto matrix = phis.subspan(matrix_offset, ncolumns * ncolumns);
-    matrix[(ncolumns - 1) * ncolumns + (ncolumns - 1)] +=
-        group_root_mean_sums[gid] + (margin.empty() ? base_score(gid) : margin[idx]);
-    for (bst_feature_t r = 0; r < ncolumns; ++r) {
-      for (bst_feature_t c = r + 1; c < ncolumns; ++c) {
-        auto sym = 0.5f * (matrix[r * ncolumns + c] + matrix[c * ncolumns + r]);
-        matrix[r * ncolumns + c] = sym;
-        matrix[c * ncolumns + r] = sym;
-      }
+  auto n_matrices = p_fmat->Info().num_row_ * ngroup;
+  // Average the two directional estimates of each pair, one thread per pair.
+  dh::LaunchN(n_matrices * ncolumns * ncolumns, ctx->CUDACtx()->Stream(),
+              [=] __device__(std::size_t idx) {
+                auto [m, r, c] = linalg::UnravelIndex(idx, n_matrices, ncolumns, ncolumns);
+                if (r < c) {
+                  auto mirror = (m * ncolumns + c) * ncolumns + r;
+                  auto sym = 0.5f * (phis[idx] + phis[mirror]);
+                  phis[idx] = sym;
+                  phis[mirror] = sym;
+                }
+              });
+  // Each diagonal entry is the SHAP value minus the row's interactions. Since the matrix is
+  // symmetric, subtract the column instead: neighbouring threads then read neighbouring addresses.
+  dh::LaunchN(n_matrices * ncolumns, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
+    auto [m, c] = linalg::UnravelIndex(idx, n_matrices, ncolumns);
+    auto matrix = phis.subspan(m * ncolumns * ncolumns, ncolumns * ncolumns);
+    float value = matrix[c * ncolumns + c];
+    if (c == ncolumns - 1) {
+      auto gid = m % ngroup;
+      value += group_root_mean_sums[gid] + (margin.empty() ? base_score(gid) : margin[m]);
     }
     for (bst_feature_t r = 0; r < ncolumns; ++r) {
-      float value = matrix[r * ncolumns + r];
-      for (bst_feature_t c = 0; c < ncolumns; ++c) {
-        if (c != r) {
-          value -= matrix[r * ncolumns + c];
-        }
+      if (r != c) {
+        value -= matrix[r * ncolumns + c];
       }
-      matrix[r * ncolumns + r] = value;
     }
+    matrix[c * ncolumns + c] = value;
   });
 }
 
