@@ -18,11 +18,8 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Shared-memory budget per block for the single-target occupancy target.
-[[nodiscard]] std::size_t SingleTargetHistShmemBytes(std::int32_t device);
-
-// Same budget rule for the architecture's multi-target block size.
-[[nodiscard]] std::size_t MultiTargetHistShmemBytes(std::int32_t device);
+// Shared-memory budget per block for the architecture's histogram launch bounds.
+[[nodiscard]] std::size_t HistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
@@ -73,9 +70,9 @@ inline constexpr std::size_t kMaxFlushPercent = 25;
  *                                   for one target; zero for global accumulation.
  * @param symbol_bits                Bits per ELLPACK symbol.
  */
-[[nodiscard]] bst_idx_t SliceSegment(
-    bst_idx_t n_total_entries, std::size_t entries_per_tile, std::size_t n_resident_blks_per_target,
-    bst_target_t n_targets, std::size_t hist_bytes_per_block, std::uint32_t symbol_bits);
+[[nodiscard]] bst_idx_t SliceSegment(bst_idx_t n_total_entries, std::size_t entries_per_tile,
+                                     std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                                     std::size_t hist_bytes_per_block, std::uint32_t symbol_bits);
 
 }  // namespace cuda_impl
 

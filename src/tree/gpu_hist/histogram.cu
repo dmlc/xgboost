@@ -74,46 +74,26 @@ using HistSm90 = HistTuning<1024, 2>;
 
 using HistSm110 = HistTuning<768, 2>;
 
-// Multi-target launch bounds for the compilation target.
+// Resolve launch bounds in the device compilation pass, not through template arguments.
 #if __CUDA_ARCH__ >= 1100
-using MtHistLaunchBounds = HistSm110;
+using HistLaunchBounds = HistSm110;
 #elif __CUDA_ARCH__ >= 900
-using MtHistLaunchBounds = HistSm90;
+using HistLaunchBounds = HistSm90;
 #elif __CUDA_ARCH__ >= 860
-using MtHistLaunchBounds = HistSm86;
+using HistLaunchBounds = HistSm86;
 #elif __CUDA_ARCH__ >= 800
-using MtHistLaunchBounds = HistSm80;
+using HistLaunchBounds = HistSm80;
 #else
-using MtHistLaunchBounds = HistSm75;
+using HistLaunchBounds = HistSm75;
 #endif
 
-// Single-target block size and dispatch tag.
-struct StHistTuning {
-  static constexpr std::int32_t kBlockThreads = 1024;
-};
-
-// Target as many single-target blocks per SM as its thread capacity allows.
-// The architecture's multi-target tuning supplies that thread capacity.
-template <typename Arch>
-constexpr std::int32_t StMinBlocks() {
-  return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistTuning::kBlockThreads);
-}
-using StHistLaunchBounds =
-    HistTuning<StHistTuning::kBlockThreads, StMinBlocks<MtHistLaunchBounds>()>;
-
-template <typename HistArchPolicy, bool Dense, bool Compressed, bool SharedMem>
+template <typename HistArchPolicy, bool Dense, bool Compressed, bool SharedMem, bool SingleTarget>
 struct HistPolicy : public HistArchPolicy {
   static constexpr bool kDense = Dense;
   static constexpr bool kCompressed = Compressed;
   static constexpr bool kSharedMem = SharedMem;
-  static constexpr bool kSingleTarget = std::is_same_v<HistArchPolicy, StHistTuning>;
+  static constexpr bool kSingleTarget = SingleTarget;
 };
-
-// The launch bounds depend on `__CUDA_ARCH__`, they must be resolved in the device
-// compilation pass instead of being used as template arguments.
-template <typename Policy>
-using HistLaunchBounds =
-    std::conditional_t<Policy::kSingleTarget, StHistLaunchBounds, MtHistLaunchBounds>;
 
 template <typename Fn>
 decltype(auto) DispatchCudaSm(std::int32_t device, Fn&& fn) {
@@ -135,10 +115,11 @@ decltype(auto) DispatchCudaSm(std::int32_t device, Fn&& fn) {
 constexpr std::size_t kMaxShmemBytes = 96 /*kb*/ * 1024;
 // The shared memory of a block is allocated in units of this size.
 constexpr std::int32_t kShmemAllocGranularity = 128;
+}  // anonymous namespace
 
 // Split the SM's shared memory among the same number of blocks targeted by the launch bounds.
-[[nodiscard]] std::size_t HistShmemBytes(std::int32_t device, std::int32_t min_blocks) {
-  CHECK_GT(min_blocks, 0);
+std::size_t HistShmemBytes(std::int32_t device) {
+  auto min_blocks = DispatchCudaSm(device, [](auto arch) { return decltype(arch)::kMinBlocks; });
   auto optin = dh::MaxSharedMemoryOptin(device);
   std::int32_t smem_per_sm = 0, reserved = 0;
   dh::safe_cuda(
@@ -152,18 +133,6 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
   CHECK_GT(n_bytes_per_block, 0);
   return std::min({static_cast<std::size_t>(n_bytes_per_block), optin, kMaxShmemBytes});
 }
-}  // anonymous namespace
-
-std::size_t SingleTargetHistShmemBytes(std::int32_t device) {
-  return DispatchCudaSm(
-      device, [&](auto arch) { return HistShmemBytes(device, StMinBlocks<decltype(arch)>()); });
-}
-
-std::size_t MultiTargetHistShmemBytes(std::int32_t device) {
-  return DispatchCudaSm(
-      device, [&](auto arch) { return HistShmemBytes(device, decltype(arch)::kMinBlocks); });
-}
-
 namespace {
 __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
   static_assert(sizeof(int4) == sizeof(GradientPairInt64));
@@ -233,16 +202,16 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(
-    HistLaunchBounds<Policy>::kBlockThreads,
-    HistLaunchBounds<
-        Policy>::kMinBlocks) void HistogramKernel(Accessor const matrix,
-                                                  FeatureGroupsAccessor const feature_groups,
-                                                  RidxIterSpan const* d_ridx_iters,
-                                                  common::Span<GradientPairInt64> const* node_hists,
-                                                  GradientPairInt64 const* d_gpair,
-                                                  bst_idx_t n_samples, bst_target_t n_targets,
-                                                  bst_idx_t n_entries_per_subsegment,
-                                                  std::uint32_t n_subsegments_per_segment) {
+    HistLaunchBounds::kBlockThreads,
+    HistLaunchBounds::kMinBlocks) void HistogramKernel(Accessor const matrix,
+                                                       FeatureGroupsAccessor const feature_groups,
+                                                       RidxIterSpan const* d_ridx_iters,
+                                                       common::Span<GradientPairInt64> const*
+                                                           node_hists,
+                                                       GradientPairInt64 const* d_gpair,
+                                                       bst_idx_t n_samples, bst_target_t n_targets,
+                                                       bst_idx_t n_entries_per_subsegment,
+                                                       std::uint32_t n_subsegments_per_segment) {
   if constexpr (Policy::kSingleTarget) {
     // Constant propagation removes the target indexing and saves registers.
     n_targets = 1;
@@ -476,20 +445,22 @@ struct HistKernel {
           n_samples, n_targets, grid.n_entries_per_subsegment, grid.n_subsegments_per_segment);
     };
 
-    auto launch_arch = [&](auto arch) {
+    DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
       using Arch = decltype(arch);
-      if (use_shared) {
-        launch(HistPolicy<Arch, kDense, kCompressed, true>{});
+      if (n_targets == 1) {
+        if (use_shared) {
+          launch(HistPolicy<Arch, kDense, kCompressed, true, /*SingleTarget=*/true>{});
+        } else {
+          launch(HistPolicy<Arch, kDense, kCompressed, false, /*SingleTarget=*/true>{});
+        }
       } else {
-        launch(HistPolicy<Arch, kDense, kCompressed, false>{});
+        if (use_shared) {
+          launch(HistPolicy<Arch, kDense, kCompressed, true, /*SingleTarget=*/false>{});
+        } else {
+          launch(HistPolicy<Arch, kDense, kCompressed, false, /*SingleTarget=*/false>{});
+        }
       }
-    };
-    // Single target maximizes the number of threads, multi-target tunes for occupancy.
-    if (n_targets == 1) {
-      launch_arch(StHistTuning{});
-    } else {
-      DispatchCudaSm(ctx->Ordinal(), launch_arch);
-    }
+    });
   }
 
   // Dispatch the layout of the matrix and the type of the row index.

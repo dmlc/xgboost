@@ -692,8 +692,8 @@ class MultiTargetHistMaker {
         sampler_{batch_ptr_.back(), param_.subsample, param_.sampling_method},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(
-            *cuts_, dense_compressed, MultiTargetHistShmemBytes(ctx_->Ordinal()))},
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
+                                                        HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}

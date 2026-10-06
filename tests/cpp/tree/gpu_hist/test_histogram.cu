@@ -28,10 +28,9 @@ namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
   auto device = 0;
   auto optin = dh::MaxSharedMemoryOptin(device);
-  for (auto budget : {SingleTargetHistShmemBytes(device), MultiTargetHistShmemBytes(device)}) {
-    ASSERT_GT(budget, 0);
-    ASSERT_LE(budget, optin);
-  }
+  auto budget = HistShmemBytes(device);
+  ASSERT_GT(budget, 0);
+  ASSERT_LE(budget, optin);
 }
 
 // Check how the flush budget and wave targets determine entries per sub-segment.
@@ -614,8 +613,7 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   ASSERT_EQ(page->IsDense(), layout == Layout::kDense);
   ASSERT_EQ(page->IsDenseCompressed(), layout != Layout::kSparse);
 
-  auto shmem_bytes = n_targets == 1 ? SingleTargetHistShmemBytes(ctx.Ordinal())
-                                    : MultiTargetHistShmemBytes(ctx.Ordinal());
+  auto shmem_bytes = HistShmemBytes(ctx.Ordinal());
   if (small_groups) {
     // Budget for four features per group with uniform bin counts.
     shmem_bytes = sizeof(GradientPairInt64) * n_bins * 4;
@@ -690,11 +688,8 @@ INSTANTIATE_TEST_SUITE_P(
 // Sub-segments spanning multiple tiles.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);
-  // Exercise both single-target and multi-target launch settings.
-  for (bst_target_t n_targets : {1, 2}) {
-    TestBuildHistogram(n_samples, 2, 256, n_targets, Layout::kDense, /*root=*/false,
-                       /*force_global=*/false, /*small_groups=*/false);
-  }
+  TestBuildHistogram(n_samples, 2, 256, /*n_targets=*/2, Layout::kDense, /*root=*/false,
+                     /*force_global=*/false, /*small_groups=*/false);
 }
 
 // Inputs needing more than one feature group: many bins with uniform widths, and uneven bin
