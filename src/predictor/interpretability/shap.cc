@@ -110,48 +110,25 @@ void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
   }
 }
 
-float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
-                             float p_enter, float p_exit) {
-  float acc = 0.0f;
-  if (p_enter != 1.0f) {
-    auto const alpha_enter = p_enter - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
-    }
-  }
-  if (p_exit != 1.0f) {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
-    }
-  }
-  return acc;
-}
-
-float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
-                                        float p_enter, float p_exit, float q_partner) {
-  if (q_partner == 1.0f) {
-    return 0.0f;
-  }
-
-  auto const alpha_partner = q_partner - 1.0f;
+// Per-point terms of the return-edge extraction. Their sum is the edge's delta; pairwise
+// interactions also weight them by each partner's cached factor.
+QuadratureBuffer ExtractQuadratureEdgeTerms(QuadratureRule const &rule,
+                                            QuadratureBuffer const &h_vals, float p_enter,
+                                            float p_exit) {
+  QuadratureBuffer terms;
   auto const alpha_enter = p_enter - 1.0f;
-
-  float acc = 0.0f;
   if (p_exit == 1.0f) {
     for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+      terms[i] = h_vals[i] * (alpha_enter / (1.0f + alpha_enter * rule.nodes[i]));
     }
   } else {
     auto const alpha_exit = p_exit - 1.0f;
     for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
-                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+      terms[i] = h_vals[i] * (alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
+                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]));
     }
   }
-  return acc;
+  return terms;
 }
 
 template <typename Tree>
@@ -254,9 +231,25 @@ struct LiveQuadraturePathState {
   }
 };
 
+// One distinct feature on the current root-to-node path.
+struct QuadraturePathFeature {
+  bst_feature_t split_index;
+  // Gamma in Alg.1 of the QuadratureTreeSHAP paper.
+  // alpha / (1 + alpha t) for the feature's current q, with alpha = q - 1.
+  QuadratureBuffer partner_factor;
+};
+
+// The distinct features on the current root-to-node path (the active set). The traversal maintains
+// it only for formulations that set kUsesPath.
+struct QuadraturePath {
+  QuadraturePathFeature const *features;
+  std::size_t size;
+};
+
 // Current additive SHAP formulation. It consumes the weighted subtree return and writes one
 // feature contribution per return edge.
 struct AdditiveContributionFormulation {
+  static constexpr bool kUsesPath = false;
   EmptyQuadraturePathState path_state;
   ContributionVectorView<float> phi;
 
@@ -269,15 +262,21 @@ struct AdditiveContributionFormulation {
   void PopPathSplit(bst_feature_t split_index) const { path_state.Pop(split_index); }
 
   void HandleReturn(QuadratureRule const &rule, bst_feature_t split_index,
-                    QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
-    phi[split_index] += ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+                    QuadratureBuffer const &h_vals, float p_enter, float p_exit,
+                    QuadraturePath const &) const {
+    auto const edge_terms = ExtractQuadratureEdgeTerms(rule, h_vals, p_enter, p_exit);
+    float edge_delta = 0.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      edge_delta += edge_terms[i];
+    }
+    phi[split_index] += edge_delta;
   }
 };
 
-// First path-local interaction formulation built on top of the quadrature traversal. It keeps the
-// traversal and weighted subtree return shared with additive SHAP, and only changes how return
-// edges are written into the dense interaction sink.
+// Pairwise interactions: the same edge delta goes to the diagonal, and each other active feature j
+// gets the edge terms weighted by its cached alpha_j / (1 + alpha_j t).
 struct InteractionContributionFormulation {
+  static constexpr bool kUsesPath = true;
   LiveQuadraturePathState path_state;
   ContributionVectorView<float> phi_diag;
   DenseInteractionMatrixView<float> phi_interactions;
@@ -322,15 +321,26 @@ struct InteractionContributionFormulation {
   }
 
   void HandleReturn(QuadratureRule const &rule, bst_feature_t split_index,
-                    QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
-    auto path = path_state.View();
-    phi_diag[split_index] += scale * ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+                    QuadratureBuffer const &h_vals, float p_enter, float p_exit,
+                    QuadraturePath const &path) const {
+    auto const edge_terms = ExtractQuadratureEdgeTerms(rule, h_vals, p_enter, p_exit);
+    float edge_delta = 0.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      edge_delta += edge_terms[i];
+    }
+    phi_diag[split_index] += scale * edge_delta;
 
-    this->ForEachPartner(path, [&](QuadraturePathElement const &partner) {
-      auto pair_delta =
-          ExtractQuadratureInteractionDelta(rule, h_vals, p_enter, p_exit, partner.p_child);
-      this->AccumulatePair(split_index, partner, pair_delta);
-    });
+    for (std::size_t p = 0; p < path.size; ++p) {
+      auto const &partner = path.features[p];
+      if (partner.split_index == split_index) {
+        continue;
+      }
+      float pair_delta = 0.0f;
+      for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+        pair_delta += edge_terms[i] * partner.partner_factor[i];
+      }
+      phi_interactions(split_index, partner.split_index) += scale * pair_delta;
+    }
   }
 };
 
@@ -345,12 +355,27 @@ struct QuadratureTreeShapRunner {
   QuadratureRule const &rule;
   std::vector<float> *path_prob;
   ContributionFormulation formulation;
+  QuadraturePathFeature *path_features{nullptr};  // Per-thread buffer, one slot per feature.
+  std::size_t n_path_features{0};
 
   [[nodiscard]] bool EvaluateGoesLeft(bst_node_t nidx) const {
     auto split_index = tree.SplitIndex(nidx);
     auto const &cats = tree.GetCategoriesMatrix();
     auto next = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index), cats);
     return next == tree.LeftChild(nidx);
+  }
+
+  // Update the cached partner factor for a feature on the path to alpha / (1 + alpha t)
+  void SetPartnerFactor(bst_feature_t split_index, float q) {
+    auto p = n_path_features;
+    while (path_features[--p].split_index != split_index) {
+      // Search the p of the current feature on the path.
+    }
+    auto &partner_factor = path_features[p].partner_factor;
+    auto const alpha = q - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      partner_factor[i] = alpha / (1.0f + alpha * rule.nodes[i]);
+    }
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,
@@ -381,11 +406,23 @@ struct QuadratureTreeShapRunner {
     }
 
     (*path_prob)[split_index] = p_e;
-    formulation.PushPathSplit(split_index, p_e);
+    bool const first_on_path = p_old == kQuadratureTreeShapUnseen;
+    if constexpr (ContributionFormulation::kUsesPath) {
+      if (first_on_path) {
+        path_features[n_path_features++].split_index = split_index;
+      }
+      this->SetPartnerFactor(split_index, p_e);
+    }
     this->RunNode(child_node, c_child, w_prod * child_weight, out_h);
-    formulation.HandleReturn(rule, split_index, *out_h, p_e,
-                             p_old == kQuadratureTreeShapUnseen ? 1.0f : p_old);
-    formulation.PopPathSplit(split_index);
+    formulation.HandleReturn(rule, split_index, *out_h, p_e, first_on_path ? 1.0f : p_old,
+                             QuadraturePath{path_features, n_path_features});
+    if constexpr (ContributionFormulation::kUsesPath) {
+      if (first_on_path) {
+        --n_path_features;
+      } else {
+        this->SetPartnerFactor(split_index, p_old);
+      }
+    }
     (*path_prob)[split_index] = p_old;
   }
 
@@ -410,7 +447,6 @@ struct QuadratureTreeShapRunner {
   }
 
   void Run() {
-    formulation.ResetPath();
     if (tree.IsLeaf(RegTree::kRoot)) {
       return;
     }
@@ -674,6 +710,8 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<QuadraturePathElement>> path_tloc(n_threads);
+  std::vector<std::vector<QuadraturePathFeature>> path_features_tloc(
+      n_threads, std::vector<QuadraturePathFeature>(n_features));
   std::vector<std::vector<float>> path_prob_tloc(
       n_threads, std::vector<float>(n_features, kQuadratureTreeShapUnseen));
   std::vector<std::vector<float>> diag_tloc(n_threads, std::vector<float>(ncolumns));
@@ -689,6 +727,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
         feats.Init(model.learner_model_state->num_feature);
       }
       auto &path = path_tloc[tid];
+      auto &path_features = path_features_tloc[tid];
       auto &path_prob = path_prob_tloc[tid];
       auto &diag = diag_tloc[tid];
       auto row_idx = view.base_rowid + i;
@@ -709,7 +748,8 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
               [&](auto const &tree) {
                 auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
                                                        InteractionContributionFormulation>{
-                    tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
+                    tree, cover_ratios, entry.target_idx, feats,
+                    rule, &path_prob,   formulation,      path_features.data()};
                 runner.Run();
               },
               model_data.trees[entry.tree_idx]);
