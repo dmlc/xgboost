@@ -9,6 +9,8 @@
 
 #include <cuda/std/tuple>  // for make_tuple, get
 
+#include <vector>  // for vector
+
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
@@ -23,6 +25,9 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), 1u};
   has_categoricals_ = cuts.HasCategorical();
+  cat_seg_bin_.clear();
+  cat_seg_ptr_.clear();
+  n_cat_bins_ = 0;
   if (cuts.HasCategorical()) {
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
     auto beg = dh::make_counting_iterator<size_t>(1ul);
@@ -41,6 +46,44 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
           }
           return false;
         });
+
+    auto const &host_ptrs = cuts.Ptrs();
+    std::vector<FeatureType> host_ft(static_cast<std::size_t>(n_features));
+    if (n_features > 0 && !ft.empty()) {
+      auto n_copy = std::min(host_ft.size(), ft.size());
+      dh::safe_cuda(cudaMemcpyAsync(host_ft.data(), ft.data(), sizeof(FeatureType) * n_copy,
+                                    cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+      dh::safe_cuda(cudaStreamSynchronize(ctx->CUDACtx()->Stream()));
+    }
+    std::vector<std::uint32_t> seg_ptr{0};
+    std::vector<std::uint32_t> seg_bin;
+    auto n_scan = n_features;
+    if (!host_ptrs.empty() && static_cast<std::size_t>(n_scan) + 1 > host_ptrs.size()) {
+      n_scan = static_cast<bst_feature_t>(host_ptrs.size() - 1);
+    }
+    auto host_ft_span = common::Span<FeatureType const>{host_ft.data(), host_ft.size()};
+    for (bst_feature_t f = 0; f < n_scan; ++f) {
+      if (!common::IsCat(host_ft_span, f)) {
+        continue;
+      }
+      auto n_bins = host_ptrs[f + 1] - host_ptrs[f];
+      if (n_bins == 0 || common::UseOneHot(n_bins, param.max_cat_to_onehot)) {
+        continue;
+      }
+      seg_bin.push_back(static_cast<std::uint32_t>(host_ptrs[f]));
+      seg_ptr.push_back(seg_ptr.back() + static_cast<std::uint32_t>(n_bins));
+    }
+    if (!seg_bin.empty()) {
+      n_cat_bins_ = seg_ptr.back();
+      cat_seg_ptr_.resize(seg_ptr.size());
+      cat_seg_bin_.resize(seg_bin.size());
+      dh::safe_cuda(cudaMemcpyAsync(cat_seg_ptr_.data().get(), seg_ptr.data(),
+                                    seg_ptr.size() * sizeof(std::uint32_t), cudaMemcpyDefault,
+                                    ctx->CUDACtx()->Stream()));
+      dh::safe_cuda(cudaMemcpyAsync(cat_seg_bin_.data().get(), seg_bin.data(),
+                                    seg_bin.size() * sizeof(std::uint32_t), cudaMemcpyDefault,
+                                    ctx->CUDACtx()->Stream()));
+    }
 
     node_categorical_storage_size_ =
         common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
