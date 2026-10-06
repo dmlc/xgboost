@@ -46,17 +46,6 @@ void ValidateTreeWeights(std::vector<float> const *tree_weights, bst_tree_t tree
   CHECK_GE(tree_weights->size(), static_cast<std::size_t>(tree_end));
 }
 
-float LeafValue(tree::ScalarTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
-  CHECK_EQ(target_idx, 0);
-  return tree.LeafValue(nidx);
-}
-
-float LeafValue(tree::MultiTargetTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
-  auto leaf_value = tree.LeafValue(nidx);
-  CHECK_LT(target_idx, leaf_value.Size());
-  return leaf_value(target_idx);
-}
-
 float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
                          std::vector<float> *mean_values) {
   float result;
@@ -169,7 +158,13 @@ template <typename Tree>
 void WriteWeightedLeafReturn(Tree const &tree, QuadratureRule const &rule, bst_node_t nidx,
                              bst_target_t target_idx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
-  auto const leaf_scale = w_prod * LeafValue(tree, nidx, target_idx);
+  float leaf_value;
+  if constexpr (tree::IsScalarTree<Tree>()) {
+    leaf_value = tree.LeafValue(nidx);
+  } else {
+    leaf_value = tree.LeafValue(nidx)(target_idx);
+  }
+  auto const leaf_scale = w_prod * leaf_value;
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
   }
@@ -344,6 +339,7 @@ struct InteractionContributionFormulation {
 template <typename Tree, typename ContributionFormulation>
 struct QuadratureTreeShapRunner {
   Tree const &tree;
+  float const *cover_ratios;
   bst_target_t target_idx;
   RegTree::FVec const &feat;
   QuadratureRule const &rule;
@@ -355,13 +351,6 @@ struct QuadratureTreeShapRunner {
     auto const &cats = tree.GetCategoriesMatrix();
     auto next = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index), cats);
     return next == tree.LeftChild(nidx);
-  }
-
-  [[nodiscard]] float ChildWeight(bst_node_t parent, bst_node_t child) const {
-    auto parent_cover = tree.SumHess(parent);
-    CHECK_GE(parent_cover, 0.0f);
-    CHECK_GE(tree.SumHess(child), 0.0f);
-    return detail::BranchWeight(tree.SumHess(child), parent_cover);
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,
@@ -409,8 +398,8 @@ struct QuadratureTreeShapRunner {
 
     auto left = tree.LeftChild(nidx);
     auto right = tree.RightChild(nidx);
-    auto left_weight = this->ChildWeight(nidx, left);
-    auto right_weight = this->ChildWeight(nidx, right);
+    auto left_weight = cover_ratios[left];
+    auto right_weight = cover_ratios[right];
     auto goes_left = this->EvaluateGoesLeft(nidx);
 
     QuadratureBuffer right_h{};
@@ -433,6 +422,26 @@ struct QuadratureTreeShapRunner {
   }
 };
 
+template <typename Tree>
+std::vector<float> MakeCoverRatios(Tree const &tree) {
+  // The root has no incoming edge; its slot keeps the neutral weight and is never read.
+  std::vector<float> out(tree.Size(), 1.0f);
+  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
+    if (tree.IsLeaf(nidx)) {
+      continue;
+    }
+    auto const parent_cover = tree.SumHess(nidx);
+    auto const left = tree.LeftChild(nidx);
+    auto const right = tree.RightChild(nidx);
+    CHECK_GE(parent_cover, 0.0f);
+    CHECK_GE(tree.SumHess(left), 0.0f);
+    CHECK_GE(tree.SumHess(right), 0.0f);
+    out[left] = detail::BranchWeight(tree.SumHess(left), parent_cover);
+    out[right] = detail::BranchWeight(tree.SumHess(right), parent_cover);
+  }
+  return out;
+}
+
 struct QuadratureTreeShapModelData {
   struct TreeEntry {
     bst_tree_t tree_idx;
@@ -445,6 +454,7 @@ struct QuadratureTreeShapModelData {
   std::vector<TreeEntry> entries;
   std::vector<std::vector<std::size_t>> entries_by_group;
   std::vector<float> group_root_mean_sums;
+  std::vector<std::vector<float>> cover_ratios;
 };
 
 QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
@@ -463,6 +473,10 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     } else {
       out.trees.emplace_back(model.trees[i]->HostScView());
     }
+  }
+  out.cover_ratios.reserve(n_trees);
+  for (auto const &tree : out.trees) {
+    out.cover_ratios.push_back(std::visit([](auto const &t) { return MakeCoverRatios(t); }, tree));
   }
   for (bst_tree_t i = 0; i < tree_end; ++i) {
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
@@ -601,11 +615,12 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
           auto const &entry = model_data.entries[entry_idx];
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
           auto formulation = AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
+          auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
           std::visit(
               [&](auto const &tree) {
                 auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
                                                        AdditiveContributionFormulation>{
-                    tree, entry.target_idx, feats, rule, &path_prob, formulation};
+                    tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
                 runner.Run();
               },
               model_data.trees[entry.tree_idx]);
@@ -689,11 +704,12 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
           auto const &entry = model_data.entries[entry_idx];
           auto formulation = InteractionContributionFormulation{
               {&path}, {diag.data(), ncolumns}, {matrix.data, matrix.ncolumns}, entry.weight};
+          auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
           std::visit(
               [&](auto const &tree) {
                 auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
                                                        InteractionContributionFormulation>{
-                    tree, entry.target_idx, feats, rule, &path_prob, formulation};
+                    tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
                 runner.Run();
               },
               model_data.trees[entry.tree_idx]);
