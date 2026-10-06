@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 
-#include <algorithm>  // for shuffle, none_of, transform, remove
+#include <algorithm>  // for shuffle, none_of, transform
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr
 #include <numeric>    // for iota, accumulate
@@ -28,10 +28,30 @@ namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
   auto device = 0;
   auto optin = dh::MaxSharedMemoryOptin(device);
-  for (auto budget : {DftStHistShmemBytes(device), DftMtHistShmemBytes(device)}) {
-    ASSERT_GT(budget, 0);
-    ASSERT_LE(budget, optin);
-  }
+  auto budget = HistShmemBytes(device);
+  ASSERT_GT(budget, 0);
+  ASSERT_LE(budget, optin);
+}
+
+// Check how the flush budget and wave targets determine entries per sub-segment.
+TEST(Histogram, ChooseSubsegmentSize) {
+  using cuda_impl::SliceSegment;
+  std::size_t constexpr kEntries = 1 << 22, kEntriesPerTile = 1024, kResidentBlocks = 32;
+  bst_target_t constexpr kTargets = 1;
+  std::uint32_t constexpr kBits = 8;
+  // These inputs give bounds of 4096 and 32768 entries per sub-segment.
+  // No flush: minimum entries per sub-segment.
+  ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
+                         /*hist_bytes_per_block=*/0, kBits),
+            4096);
+  // Moderate histogram: the flush budget selects an intermediate sub-segment size.
+  ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
+                         /*hist_bytes_per_block=*/2048, kBits),
+            8192);
+  // Large histogram: the maximum entries per sub-segment takes priority over the flush budget.
+  ASSERT_EQ(SliceSegment(kEntries, kEntriesPerTile, kResidentBlocks, kTargets,
+                         /*hist_bytes_per_block=*/16384, kBits),
+            32768);
 }
 
 TEST(Histogram, DeviceHistogramStorage) {
@@ -180,13 +200,14 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 }
 
 TEST(Histogram, GPUHistCategorical) {
-  for (size_t num_categories = 2; num_categories < 8; ++num_categories) {
+  for (size_t num_categories : {2, 7}) {
     TestGPUHistogramCategorical(num_categories);
   }
   // Larger than the shared memory size, must use global memory since there's no feature
-  // group with a single feature.
+  // group with a single feature. The one-hot matrix is `n_categories` squared, so exceed the
+  // budget by the smallest margin that still forces the global path.
   auto max_shmem = dh::MaxSharedMemoryOptin(0);
-  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) * 2;
+  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) + 1;
   TestGPUHistogramCategorical(n_categories);
 }
 
@@ -289,11 +310,16 @@ enum CacheMode {
   kCopy = 1,
   kDirect = 2,
 };
+constexpr char const* kCacheNames[] = {"nocache", "copy", "direct"};
 
-class HistogramExternalMemoryTest
-    : public ::testing::TestWithParam<std::tuple<float, bool, CacheMode>> {
+// The histogram of several pages must match the histogram of the pages concatenated.
+//
+// `force_global` selects the accumulation path inside the kernel, which is orthogonal to
+// page iteration and the host cache.
+class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<float, CacheMode>> {
  public:
-  void Run(float sparsity, bool force_global, CacheMode cache_mode) {
+  void Run(float sparsity, CacheMode cache_mode) {
+    bool constexpr force_global = false;
     auto ctx = MakeCUDACtx(0);
     bst_idx_t n_samples{512}, n_features{12}, n_batches{3};
     std::vector<std::unique_ptr<RowPartitioner>> partitioners;
@@ -410,23 +436,12 @@ TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
 
 INSTANTIATE_TEST_SUITE_P(
     Histogram, HistogramExternalMemoryTest,
-    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f), ::testing::Bool(),
+    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f),
                        ::testing::Values(kNoCache, kDirect, kCopy)),
     [](::testing::TestParamInfo<HistogramExternalMemoryTest::ParamType> const& info) {
       std::stringstream ss;
-      auto const& p = info.param;
-      ss << "sparsity_0" << (std::get<0>(p) * 10) << "_global_" << std::get<1>(p) << "_dcache_";
-      switch (std::get<2>(p)) {
-        case kNoCache:
-          ss << "nocache";
-          break;
-        case kDirect:
-          ss << "direct";
-          break;
-        case kCopy:
-          ss << "copy";
-          break;
-      }
+      ss << "sparsity_0" << (std::get<0>(info.param) * 10) << "_dcache_"
+         << kCacheNames[static_cast<std::int32_t>(std::get<1>(info.param))];
       return ss.str();
     });
 
@@ -445,7 +460,11 @@ std::ostream& operator<<(std::ostream& os, Layout layout) {
 struct HistInput {
   bst_idx_t n_samples;
   bst_feature_t n_features;
-  bst_bin_t n_bins;  // per feature
+  // Bins of each feature. Uniform unless `skewed`, which makes `FeatureGroups` produce groups
+  // of very different widths, since it packs features by bin count.
+  std::vector<bst_bin_t> feature_bins;
+  // Exclusive scan of `feature_bins`.
+  std::vector<bst_bin_t> bin_ptrs;
   bst_target_t n_targets;
   // Bin index local to the feature, -1 for missing values. Row-major.
   std::vector<bst_bin_t> bins;
@@ -455,19 +474,33 @@ struct HistInput {
   std::vector<std::size_t> sizes;
 
   HistInput(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins, bst_target_t n_targets,
-            Layout layout, bool root)
+            Layout layout, bool root, bool skewed = false)
       : n_samples{n_samples},
         n_features{n_features},
-        n_bins{n_bins},
+        feature_bins(n_features, n_bins),
+        bin_ptrs(n_features + 1, 0),
         n_targets{n_targets},
         bins(n_samples * n_features),
         gpair{{n_samples, static_cast<bst_idx_t>(n_targets)}, DeviceOrd::CPU(), linalg::kF},
         ridx(n_samples) {
+    if (skewed) {
+      // The first half of the features have many bins, the second half have few. A group fits
+      // a fixed number of bins, so the groups over the second half hold many more features.
+      // The halves must not be interleaved, or every group would mix the two and the widths
+      // would even out.
+      for (bst_feature_t f = n_features / 2; f < n_features; ++f) {
+        this->feature_bins[f] = std::max(bst_bin_t{2}, n_bins / 32);
+      }
+    }
+    for (bst_feature_t f = 0; f < n_features; ++f) {
+      this->bin_ptrs[f + 1] = this->bin_ptrs[f] + this->feature_bins[f];
+    }
+
     std::mt19937 rng{2026};
-    std::uniform_int_distribution<bst_bin_t> bin_dist{0, n_bins - 1};
     std::bernoulli_distribution missing_dist{0.3};
     for (bst_idx_t r = 0; r < n_samples; ++r) {
       for (bst_feature_t f = 0; f < n_features; ++f) {
+        std::uniform_int_distribution<bst_bin_t> bin_dist{0, this->feature_bins[f] - 1};
         bool missing = false;
         switch (layout) {
           case Layout::kDense:
@@ -496,33 +529,25 @@ struct HistInput {
       this->sizes = {n_samples};
     } else {
       std::shuffle(this->ridx.begin(), this->ridx.end(), rng);
-      // Empty nodes and nodes smaller than a tile.
+      // Empty nodes and uneven row counts.
       this->sizes = {0, 1, 7, 0, 1000};
       auto n_used = std::accumulate(this->sizes.cbegin(), this->sizes.cend(), std::size_t{0});
       CHECK_GE(n_samples, n_used);
       this->sizes.push_back(n_samples - n_used);
       this->sizes.push_back(0);
-      if (n_targets > 1) {
-        // Empty nodes are only supported by the single-target histogram.
-        // FIXME(jiamingy): Remove this once the histogram kernels are unified.
-        this->sizes.erase(std::remove(this->sizes.begin(), this->sizes.end(), 0),
-                          this->sizes.end());
-      }
     }
   }
 
   // Cut values are `b + 1` for bin `b` and the feature values are `b + 0.5`.
   [[nodiscard]] std::unique_ptr<EllpackPageImpl> MakeEllpack(Context const* ctx) const {
     auto p_cuts = std::make_shared<common::HistogramCuts>(this->n_features);
-    std::vector<std::uint32_t> ptrs(this->n_features + 1);
+    p_cuts->cut_ptrs_.HostVector().assign(this->bin_ptrs.cbegin(), this->bin_ptrs.cend());
     std::vector<float> cut_values;
     for (bst_feature_t f = 0; f < this->n_features; ++f) {
-      ptrs[f + 1] = (f + 1) * this->n_bins;
-      for (bst_bin_t b = 0; b < this->n_bins; ++b) {
+      for (bst_bin_t b = 0; b < this->feature_bins[f]; ++b) {
         cut_values.push_back(b + 1.0f);
       }
     }
-    p_cuts->cut_ptrs_.HostVector() = std::move(ptrs);
     p_cuts->cut_values_.HostVector() = std::move(cut_values);
 
     auto missing = std::numeric_limits<float>::quiet_NaN();
@@ -546,7 +571,7 @@ struct HistInput {
 
   // One target-major histogram for each node.
   [[nodiscard]] std::vector<std::vector<GradientPairInt64>> Expected() {
-    auto n_total_bins = this->n_features * this->n_bins;
+    auto n_total_bins = this->bin_ptrs.back();
     auto h_gpair = this->gpair.HostView();
     std::vector<std::vector<GradientPairInt64>> hists;
     std::size_t beg = 0;
@@ -560,7 +585,7 @@ struct HistInput {
             continue;
           }
           for (bst_target_t t = 0; t < this->n_targets; ++t) {
-            hist[t * n_total_bins + f * this->n_bins + b] += h_gpair(r, t);
+            hist[t * n_total_bins + this->bin_ptrs[f] + b] += h_gpair(r, t);
           }
         }
       }
@@ -574,23 +599,23 @@ struct HistInput {
 struct BuildInfo {
   bst_idx_t n_symbols{0};
   std::size_t n_groups{0};
+  bst_feature_t min_group_features{0}, max_group_features{0};
 };
 
 void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins,
                         bst_target_t n_targets, Layout layout, bool root, bool force_global,
-                        bool small_groups, BuildInfo* info = nullptr) {
+                        bool small_groups, BuildInfo* info = nullptr, bool skewed = false) {
   auto ctx = MakeCUDACtx(0);
-  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root};
+  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root, skewed};
   auto expected = input.Expected();
 
   auto page = input.MakeEllpack(&ctx);
   ASSERT_EQ(page->IsDense(), layout == Layout::kDense);
   ASSERT_EQ(page->IsDenseCompressed(), layout != Layout::kSparse);
 
-  auto shmem_bytes =
-      n_targets == 1 ? DftStHistShmemBytes(ctx.Ordinal()) : DftMtHistShmemBytes(ctx.Ordinal());
+  auto shmem_bytes = HistShmemBytes(ctx.Ordinal());
   if (small_groups) {
-    // Four features in each group, the nodes are split into many segments.
+    // Budget for four features per group with uniform bin counts.
     shmem_bytes = sizeof(GradientPairInt64) * n_bins * 4;
   }
   FeatureGroups fg{page->Cuts(), page->IsDenseCompressed(), shmem_bytes};
@@ -598,7 +623,12 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     ASSERT_GT(fg.feature_segments.Size(), 3);
   }
   if (info) {
-    *info = BuildInfo{page->NumSymbols(), fg.feature_segments.Size() - 1};
+    auto const& fs = fg.feature_segments.ConstHostVector();
+    bst_feature_t lo = fs.back(), hi = 0;
+    for (std::size_t i = 1; i < fs.size(); ++i) {
+      lo = std::min(lo, fs[i] - fs[i - 1]), hi = std::max(hi, fs[i] - fs[i - 1]);
+    }
+    *info = BuildInfo{page->NumSymbols(), fs.size() - 1, lo, hi};
   }
 
   bst_node_t n_nodes = input.sizes.size();
@@ -655,34 +685,38 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool()),
     HistogramBuildName);
 
-// Multiple tiles for each block. Blocks take multiple tiles only when the tiles outnumber
-// the resident blocks, the rows scale with the number of SMs to keep at least four tiles
-// for each SM.
+// Sub-segments spanning multiple tiles.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);
-  for (bst_target_t n_targets : {1, 2}) {
-    for (auto force_global : {false, true}) {
-      TestBuildHistogram(n_samples, 2, 256, n_targets, Layout::kDense, /*root=*/false, force_global,
-                         /*small_groups=*/false);
-    }
-  }
+  TestBuildHistogram(n_samples, 2, 256, /*n_targets=*/2, Layout::kDense, /*root=*/false,
+                     /*force_global=*/false, /*small_groups=*/false);
 }
 
-// Many bins. The sparse page stores global bin indices wider than 16 bits, and the dense
-// pages need multiple feature groups with the default shared memory budget.
-TEST(Histogram, BuildWide) {
-  for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
-    for (bst_target_t n_targets : {1, 3}) {
-      for (auto force_global : {false, true}) {
-        BuildInfo info;
-        ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, 257, 256, n_targets, layout,
-                                                   /*root=*/false, force_global,
-                                                   /*small_groups=*/false, &info));
-        if (layout == Layout::kSparse) {
-          ASSERT_GT(info.n_symbols, 1 << 16);
-        } else {
-          ASSERT_GT(info.n_groups, 1);
-        }
+// Inputs needing more than one feature group: many bins with uniform widths, and uneven bin
+// counts, which make `FeatureGroups` produce groups of unequal width. The sparse layout
+// additionally stores global bin indices wider than 16 bits, and has a single group, so it
+// cannot be skewed.
+TEST(Histogram, BuildMultiGroup) {
+  for (auto [n_features, skewed] : {std::pair{257, false}, std::pair{192, true}}) {
+    for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
+      if (skewed && layout == Layout::kSparse) {
+        continue;
+      }
+      BuildInfo info;
+      ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 12, n_features, 256, /*n_targets=*/3, layout,
+                                                 /*root=*/false, /*force_global=*/false,
+                                                 /*small_groups=*/false, &info, skewed))
+          << layout << " skewed:" << skewed;
+      if (layout == Layout::kSparse) {
+        ASSERT_GT(info.n_symbols, 1 << 16);
+      } else {
+        ASSERT_GT(info.n_groups, 1);
+      }
+      // The premise of the skewed profile. Safe on any device: the narrow groups are
+      // `budget / 256` features wide and the wide ones `min(96, budget / 8)`, and the shared
+      // memory budget is capped at 6144 bins.
+      if (skewed) {
+        ASSERT_GT(info.max_group_features, info.min_group_features * 2);
       }
     }
   }

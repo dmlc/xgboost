@@ -312,13 +312,12 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, node_cats.size());
         cat_bits = node_cats.subspan(0, n_words);
       }
-      batch.push_back(
-          {{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
-            candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
-           {base_weight, candidate.left_sum + candidate.right_sum},
-           {left_weight, candidate.left_sum},
-           {right_weight, candidate.right_sum},
-           candidate.split.loss_chg});
+      batch.push_back({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+                        candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
+                       {base_weight, candidate.left_sum + candidate.right_sum},
+                       {left_weight, candidate.left_sum},
+                       {right_weight, candidate.right_sum},
+                       candidate.split.loss_chg});
     }
 
     p_tree->Expand(this->ctx_, batch);
@@ -694,7 +693,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        DftMtHistShmemBytes(ctx_->Ordinal()))},
+                                                        HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}
