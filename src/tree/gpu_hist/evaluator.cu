@@ -4,8 +4,9 @@
  * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
-#include <thrust/logical.h>  // for any_of
-#include <thrust/sort.h>     // for stable_sort_by_key
+#include <thrust/for_each.h>  // for for_each
+#include <thrust/logical.h>   // for any_of
+#include <thrust/sort.h>      // for stable_sort_by_key
 
 #include <cuda/std/tuple>  // for make_tuple, get
 
@@ -19,6 +20,14 @@
 #include "xgboost/data.h"
 
 namespace xgboost::tree {
+namespace {
+XGBOOST_DEVICE std::uint32_t CatBin(common::Span<std::uint32_t const> ptr,
+                                   common::Span<std::uint32_t const> bin, std::uint32_t local) {
+  auto seg = dh::SegmentId(ptr, local);
+  return bin[seg] + static_cast<std::uint32_t>(local - ptr[seg]);
+}
+}  // namespace
+
 void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cuts,
                              common::Span<FeatureType const> ft, bst_feature_t n_features,
                              TrainParam const &param) {
@@ -116,9 +125,70 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
-  auto it = dh::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   auto total_bins = shared_inputs.feature_values.size();
+
+  auto cmp = [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
+    auto li = cuda::std::get<0>(l);
+    auto ri = cuda::std::get<0>(r);
+
+    auto l_node = li / total_bins;
+    auto r_node = ri / total_bins;
+
+    if (l_node != r_node) {
+      return l_node < r_node;
+    }
+
+    li = li % total_bins;
+    ri = ri % total_bins;
+
+    auto lfidx = d_feature_idx[li];
+    auto rfidx = d_feature_idx[ri];
+
+    if (lfidx != rfidx) {
+      return lfidx < rfidx;
+    }
+
+    if (common::IsCat(shared_inputs.feature_types, lfidx)) {
+      auto lw = cuda::std::get<1>(l);
+      auto rw = cuda::std::get<1>(r);
+      return lw < rw;
+    }
+    return li < ri;
+  };
+
+  if (cat_seg_ptr_.size() > 1 && !d_inputs.empty()) {
+    auto const num_nodes = static_cast<std::uint32_t>(d_inputs.size());
+    auto seg_ptr = dh::ToSpan(cat_seg_ptr_);
+    auto seg_bin = dh::ToSpan(cat_seg_bin_);
+    auto const cat_bins = n_cat_bins_;
+    auto const compact_n = static_cast<std::size_t>(num_nodes) * cat_bins;
+    auto compact_key = data.subspan(0, compact_n);
+    cat_compact_val_.resize(compact_n);
+    auto compact_val = dh::ToSpan(cat_compact_val_);
+    auto d_sorted_idx = sorted_idx;
+    auto it = dh::make_counting_iterator(std::uint32_t{0});
+    thrust::for_each(ctx->CUDACtx()->CTP(), it, it + compact_n, [=] XGBOOST_DEVICE(std::uint32_t k) {
+      auto node = k / cat_bins;
+      auto bin = CatBin(seg_ptr, seg_bin, k % cat_bins);
+      auto global_idx = node * static_cast<std::uint32_t>(total_bins) + bin;
+      auto const &input = d_inputs[node];
+      auto grad = shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[bin]);
+      auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
+      compact_key[k] = cuda::std::make_tuple(global_idx, lw);
+      compact_val[k] = d_sorted_idx[global_idx];
+    });
+    thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(compact_key), dh::tend(compact_key),
+                               dh::tbegin(compact_val), cmp);
+    thrust::for_each(ctx->CUDACtx()->CTP(), it, it + compact_n, [=] XGBOOST_DEVICE(std::uint32_t k) {
+      auto node = k / cat_bins;
+      auto dst = node * static_cast<std::uint32_t>(total_bins) + CatBin(seg_ptr, seg_bin, k % cat_bins);
+      d_sorted_idx[dst] = compact_val[k];
+    });
+    return dh::ToSpan(cat_sorted_idx_);
+  }
+
+  auto it = dh::make_counting_iterator(0u);
   thrust::transform(ctx->CUDACtx()->CTP(), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
                       auto const &input = d_inputs[i / total_bins];
@@ -137,35 +207,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   // - features within each node
   // - gradients within each feature
   thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(data), dh::tend(data),
-                             dh::tbegin(sorted_idx),
-                             [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
-                               auto li = cuda::std::get<0>(l);
-                               auto ri = cuda::std::get<0>(r);
-
-                               auto l_node = li / total_bins;
-                               auto r_node = ri / total_bins;
-
-                               if (l_node != r_node) {
-                                 return l_node < r_node;  // not the same node
-                               }
-
-                               li = li % total_bins;
-                               ri = ri % total_bins;
-
-                               auto lfidx = d_feature_idx[li];
-                               auto rfidx = d_feature_idx[ri];
-
-                               if (lfidx != rfidx) {
-                                 return lfidx < rfidx;  // not the same feature
-                               }
-
-                               if (common::IsCat(shared_inputs.feature_types, lfidx)) {
-                                 auto lw = cuda::std::get<1>(l);
-                                 auto rw = cuda::std::get<1>(r);
-                                 return lw < rw;
-                               }
-                               return li < ri;
-                             });
+                             dh::tbegin(sorted_idx), cmp);
 
   return dh::ToSpan(cat_sorted_idx_);
 }

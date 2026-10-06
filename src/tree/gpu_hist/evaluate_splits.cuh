@@ -87,6 +87,7 @@ class GPUHistEvaluator {
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
+  dh::device_vector<bst_feature_t> cat_compact_val_;
   dh::device_vector<std::uint32_t> cat_seg_bin_;
   dh::device_vector<std::uint32_t> cat_seg_ptr_;
   std::uint32_t n_cat_bins_ = 0;
