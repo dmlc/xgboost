@@ -4,11 +4,12 @@
 #include <dmlc/registry.h>
 #include <thrust/reduce.h>  // for reduce
 
-#include <algorithm>            // for transform
-#include <cstddef>              // for size_t
-#include <cuda/std/functional>  // for plus
-#include <memory>               // for shared_ptr
-#include <vector>               // for vector
+#include <algorithm>                               // for transform
+#include <cstddef>                                 // for size_t
+#include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <cuda/std/functional>                     // for plus
+#include <memory>                                  // for shared_ptr
+#include <vector>                                  // for vector
 
 #include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/cuda_context.cuh"    // for CUDAContext

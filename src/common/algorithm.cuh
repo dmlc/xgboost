@@ -11,6 +11,7 @@
 #include <cstdint>                                      // int32_t
 #include <cub/device/device_run_length_encode.cuh>      // for DeviceRunLengthEncode
 #include <cub/device/dispatch/dispatch_radix_sort.cuh>  // for DispatchSegmentedRadixSort
+#include <cub/device/device_segmented_reduce.cuh>       // for DeviceSegmentedReduce
 #include <cub/util_type.cuh>                            // for NullType, DoubleBuffer
 #include <cuda/std/tuple>                               // for tuple
 #include <functional>                                   // for plus, logical_and
