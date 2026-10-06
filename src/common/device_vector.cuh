@@ -8,7 +8,7 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-#include <rmm/cuda_stream_view.hpp>             // for cuda_stream_view
+#include <cuda/stream>                          // for cuda::stream_ref
 #include <rmm/mr/thrust_allocator_adaptor.hpp>  // for thrust_allocator
 
 #else
@@ -269,7 +269,7 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
 
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
-            rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
+            cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
 };
 
 template <typename T>
