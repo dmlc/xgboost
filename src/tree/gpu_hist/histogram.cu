@@ -59,10 +59,10 @@ struct HistTuning {
 
 namespace {
 // https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications
-// Technical Specifications                  7.5  | 8.0  | 8.6  8.7 | 8.9 | 9.0 10.0 | 11.0 12.0
-// Maximum number of resident blocks per SM  16   | 32   | 16       | 24  | 32       | 24
-// Maximum number of resident warps per SM   32   | 64   | 48             | 64       | 48
-// Maximum number of resident threads per SM 1024 | 2048 | 1536           | 2048     | 1536
+// Compute capability       7.5  | 8.0  | 8.6 8.7 | 8.9  | 9.0 10.0 10.3 | 11.0 12.0 12.1
+// Max resident blocks/SM   16   | 32   | 16      | 24   | 32            | 24
+// Max resident warps/SM    32   | 64   | 48      | 48   | 64            | 48
+// Max resident threads/SM  1024 | 2048 | 1536    | 1536 | 2048          | 1536
 
 using HistSm75 = HistTuning<1024, 1>;
 
