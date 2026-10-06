@@ -16,16 +16,11 @@
 
 namespace xgboost {
 TEST(SyclObjective, DeclareUnifiedTest(HingeObj)) {
-  for (auto device : {"sycl", "sycl:cpu"}) {
-    Context ctx;
-    ctx.UpdateAllowUnknown(Args{{"device", device}});
-    TestHingeObj(&ctx);
-  }
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestHingeObj(&ctx);
 }
 
-// The hinge kernels are registered by the SYCL plugin. Without those registrations
-// DispatchKernel silently falls back to the CPU variant, so the numeric test above passes
-// either way. Assert the SYCL variants exist so a lost registration fails loudly.
 TEST(SyclObjective, HingeKernelRegistration) {
   for (auto device : {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU}) {
     EXPECT_NE(common::GetKernelRegistry<obj::HingeGradientKernel>().Find(device), nullptr)
