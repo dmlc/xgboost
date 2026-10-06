@@ -3,8 +3,8 @@
  * \file elementwise_objective.h
  * \brief SYCL implementations of the typed elementwise objective kernels.
  */
-#ifndef PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
-#define PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#ifndef XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#define XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
 
 #include <cstddef>  // for size_t
 
@@ -31,7 +31,7 @@ void GradientSycl(Context const* ctx, HostDeviceVector<float> const& preds, Meta
   out_gpair->Reshape(info.num_row_, n_targets);
   auto gpair = out_gpair->View(device);
 
-  linalg::ElementWiseKernel(gpair, [=](std::size_t i, std::size_t j) mutable {
+  sycl::linalg::ElementWiseKernel(gpair, [=](std::size_t i, std::size_t j) mutable {
     gpair(i, j) = gradient(predt(i, j), labels(i, j), weights[i]);
   });
 }
@@ -44,8 +44,8 @@ void TransformSycl(Context const* ctx, HostDeviceVector<float>* preds, Transform
   preds->SetDevice(device);
   auto values = xgboost::linalg::MakeTensorView(device, preds->DeviceSpan(), preds->Size());
 
-  linalg::ElementWiseKernel(values,
-                            [=](std::size_t i) mutable { values(i) = transform(values(i)); });
+  sycl::linalg::ElementWiseKernel(values,
+                                  [=](std::size_t i) mutable { values(i) = transform(values(i)); });
 }
 
 template <typename CheckFn>
@@ -53,7 +53,7 @@ bool ValidationSycl(Context const* ctx, xgboost::linalg::Matrix<float> const& va
                     CheckFn check) {
   auto device = ctx->Device();
   CHECK(device.IsSycl());
-  return linalg::Validate(device, values.View(device), check);
+  return sycl::linalg::Validate(device, values.View(device), check);
 }
 }  // namespace detail
 
@@ -82,4 +82,4 @@ auto RegisterValidationSycl() {
 }
 }  // namespace xgboost::sycl::obj::elementwise
 
-#endif  // PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#endif  // XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
