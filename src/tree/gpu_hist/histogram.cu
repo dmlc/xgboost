@@ -84,21 +84,21 @@ using HistSm90 = HistTuning<1024, 2>;
 
 using HistSm110 = HistTuning<768, 2>;
 
-// Multi-target launch bounds
+// Multi-target launch bounds for the compilation target.
 #if __CUDA_ARCH__ >= 1100
-using MtHistBound = HistSm110;
+using MtHistLaunchBounds = HistSm110;
 #elif __CUDA_ARCH__ >= 900
-using MtHistBound = HistSm90;
+using MtHistLaunchBounds = HistSm90;
 #elif __CUDA_ARCH__ >= 860
-using MtHistBound = HistSm86;
+using MtHistLaunchBounds = HistSm86;
 #elif __CUDA_ARCH__ >= 800
-using MtHistBound = HistSm80;
+using MtHistLaunchBounds = HistSm80;
 #else
-using MtHistBound = HistSm75;
+using MtHistLaunchBounds = HistSm75;
 #endif
 
-// Single-target launch bounds.
-struct StHistBound {
+// Single-target block size and dispatch tag.
+struct StHistTuning {
   static constexpr std::int32_t kBlockThreads = 1024;
 };
 
@@ -106,9 +106,10 @@ struct StHistBound {
 // The architecture's multi-target tuning supplies that thread capacity.
 template <typename Arch>
 constexpr std::int32_t StMinBlocks() {
-  return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistBound::kBlockThreads);
+  return std::max(1, Arch::kBlockThreads * Arch::kMinBlocks / StHistTuning::kBlockThreads);
 }
-using StHistDeviceBound = HistTuning<StHistBound::kBlockThreads, StMinBlocks<MtHistBound>()>;
+using StHistLaunchBounds =
+    HistTuning<StHistTuning::kBlockThreads, StMinBlocks<MtHistLaunchBounds>()>;
 
 template <typename HistArchPolicy, std::int32_t ItemsPerThread, bool Dense, bool Compressed,
           bool SharedMem>
@@ -270,13 +271,13 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
  */
 template <typename Policy, typename Accessor>
 __global__ __launch_bounds__(
-    StHistDeviceBound::kBlockThreads,
-    StHistDeviceBound::kMinBlocks) void StHistKernel(Accessor const matrix,
-                                                     FeatureGroupsAccessor const feature_groups,
-                                                     common::Span<cuda_impl::RowIndexT const>
-                                                         d_ridx_iter,
-                                                     common::Span<GradientPairInt64 const> d_gpair,
-                                                     common::Span<GradientPairInt64> node_hist) {
+    StHistLaunchBounds::kBlockThreads,
+    StHistLaunchBounds::kMinBlocks) void StHistKernel(Accessor const matrix,
+                                                      FeatureGroupsAccessor const feature_groups,
+                                                      common::Span<cuda_impl::RowIndexT const>
+                                                          d_ridx_iter,
+                                                      common::Span<GradientPairInt64 const> d_gpair,
+                                                      common::Span<GradientPairInt64> node_hist) {
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
@@ -302,10 +303,15 @@ __global__ __launch_bounds__(
  * @param blk_ptr        Indptr for mapping blockIdx.x to nidx_in_set.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
-__global__ __launch_bounds__(MtHistBound::kBlockThreads, MtHistBound::kMinBlocks) void MtHistKernel(
-    Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
-    common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
-    GradientPairInt64 const* d_gpair, bst_idx_t n_samples, bst_target_t n_targets) {
+__global__ __launch_bounds__(
+    MtHistLaunchBounds::kBlockThreads,
+    MtHistLaunchBounds::kMinBlocks) void MtHistKernel(Accessor const matrix,
+                                                      FeatureGroupsAccessor const feature_groups,
+                                                      RidxIterSpan* d_ridx_iters,
+                                                      common::Span<std::uint32_t const> blk_ptr,
+                                                      common::Span<GradientPairInt64>* node_hists,
+                                                      GradientPairInt64 const* d_gpair,
+                                                      bst_idx_t n_samples, bst_target_t n_targets) {
   using Idx = RowPartitioner::RowIndexT;
 
   // Find the node for this block.
@@ -454,7 +460,7 @@ struct HistKernel {
           kernel, matrix, feature_groups, ridx, gpair, hist);
       dh::safe_cuda(cudaPeekAtLastError());
     };
-    using Arch = StHistBound;
+    using Arch = StHistTuning;
 
     if (use_shared) {
       using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
