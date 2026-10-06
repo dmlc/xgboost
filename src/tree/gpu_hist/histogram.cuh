@@ -19,10 +19,10 @@
 
 namespace xgboost::tree {
 // Shared-memory budget per block for the single-target occupancy target.
-[[nodiscard]] std::size_t DftStHistShmemBytes(std::int32_t device);
+[[nodiscard]] std::size_t SingleTargetHistShmemBytes(std::int32_t device);
 
 // Same budget rule for the architecture's multi-target block size.
-[[nodiscard]] std::size_t DftMtHistShmemBytes(std::int32_t device);
+[[nodiscard]] std::size_t MultiTargetHistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general

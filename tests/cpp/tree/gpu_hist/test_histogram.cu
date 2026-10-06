@@ -28,7 +28,7 @@ namespace xgboost::tree {
 TEST(Histogram, HistShmemBytes) {
   auto device = 0;
   auto optin = dh::MaxSharedMemoryOptin(device);
-  for (auto budget : {DftStHistShmemBytes(device), DftMtHistShmemBytes(device)}) {
+  for (auto budget : {SingleTargetHistShmemBytes(device), MultiTargetHistShmemBytes(device)}) {
     ASSERT_GT(budget, 0);
     ASSERT_LE(budget, optin);
   }
@@ -614,8 +614,8 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   ASSERT_EQ(page->IsDense(), layout == Layout::kDense);
   ASSERT_EQ(page->IsDenseCompressed(), layout != Layout::kSparse);
 
-  auto shmem_bytes =
-      n_targets == 1 ? DftStHistShmemBytes(ctx.Ordinal()) : DftMtHistShmemBytes(ctx.Ordinal());
+  auto shmem_bytes = n_targets == 1 ? SingleTargetHistShmemBytes(ctx.Ordinal())
+                                    : MultiTargetHistShmemBytes(ctx.Ordinal());
   if (small_groups) {
     // Budget for four features per group with uniform bin counts.
     shmem_bytes = sizeof(GradientPairInt64) * n_bins * 4;

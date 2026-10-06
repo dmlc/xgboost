@@ -154,12 +154,12 @@ constexpr std::int32_t kShmemAllocGranularity = 128;
 }
 }  // anonymous namespace
 
-std::size_t DftStHistShmemBytes(std::int32_t device) {
+std::size_t SingleTargetHistShmemBytes(std::int32_t device) {
   return DispatchCudaSm(
       device, [&](auto arch) { return HistShmemBytes(device, StMinBlocks<decltype(arch)>()); });
 }
 
-std::size_t DftMtHistShmemBytes(std::int32_t device) {
+std::size_t MultiTargetHistShmemBytes(std::int32_t device) {
   return DispatchCudaSm(
       device, [&](auto arch) { return HistShmemBytes(device, decltype(arch)::kMinBlocks); });
 }
