@@ -10,6 +10,9 @@
 #include <cstddef>                                      // size_t
 #include <cstdint>                                      // int32_t
 #include <cub/device/device_run_length_encode.cuh>      // for DeviceRunLengthEncode
+#include <cub/device/device_radix_sort.cuh>             // for DeviceRadixSort
+#include <cub/device/device_scan.cuh>                   // for DeviceScan
+#include <cub/device/device_segmented_radix_sort.cuh>   // for DeviceSegmentedRadixSort
 #include <cub/device/dispatch/dispatch_radix_sort.cuh>  // for DispatchSegmentedRadixSort
 #include <cub/device/device_segmented_reduce.cuh>       // for DeviceSegmentedReduce
 #include <cub/util_type.cuh>                            // for NullType, DoubleBuffer
@@ -50,6 +53,29 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
                                          EndOffsetIteratorT d_end_offsets, int begin_bit = 0,
                                          int end_bit = sizeof(KeyT) * 8,
                                          bool debug_synchronous = false) {
+#if CUB_VERSION >= 300000
+  // The public API requires non-overlapping input and output. Copy the input when
+  // sorting in place; writing directly to the original buffer also preserves gaps
+  // between segments.
+  dh::TemporaryArray<KeyT> input(d_temp_storage && d_keys_in == d_keys_out ? num_items : 0);
+  if (input.size() != 0) {
+    dh::safe_cuda(cudaMemcpyAsync(input.data().get(), d_keys_in, num_items * sizeof(KeyT),
+                                 cudaMemcpyDeviceToDevice, ctx->Stream()));
+    d_keys_in = input.data().get();
+  }
+  if (IS_DESCENDING) {
+    dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortKeysDescending(
+        d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, num_items, num_segments,
+        d_begin_offsets, d_end_offsets, begin_bit, end_bit, ctx->Stream()));
+  } else {
+    dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortKeys(
+        d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, num_items, num_segments,
+        d_begin_offsets, d_end_offsets, begin_bit, end_bit, ctx->Stream()));
+  }
+  if (debug_synchronous && d_temp_storage) {
+    dh::safe_cuda(cudaStreamSynchronize(ctx->Stream()));
+  }
+#else
   using OffsetT = int;
 
   // Null value type
@@ -62,6 +88,7 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, ctx->Stream(), debug_synchronous)));
+#endif
 }
 
 // Wrapper around cub sort for easier `descending` sort.
@@ -75,6 +102,17 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                                   BeginOffsetIteratorT d_begin_offsets,
                                   EndOffsetIteratorT d_end_offsets, curt::StreamRef stream,
                                   int begin_bit = 0, int end_bit = sizeof(KeyT) * 8) {
+#if CUB_VERSION >= 300000
+  if (descending) {
+    dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairsDescending(
+        d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out,
+        num_items, num_segments, d_begin_offsets, d_end_offsets, begin_bit, end_bit, stream));
+  } else {
+    dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
+        d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out,
+        num_items, num_segments, d_begin_offsets, d_end_offsets, begin_bit, end_bit, stream));
+  }
+#else
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in), d_values_out);
   // In old version of cub, num_items in dispatch is also int32_t, no way to change.
@@ -103,6 +141,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                                                           d_keys, d_values, num_items, num_segments,
                                                           d_begin_offsets, d_end_offsets, begin_bit,
                                                           end_bit, false, stream, false)));
+#endif
 #endif
 }
 }  // namespace detail
@@ -215,8 +254,24 @@ void ArgSort(Context const *ctx, Span<U> keys, Span<IdxT> sorted_idx) {
   using ValueT = std::remove_const_t<IdxT>;
 
   dh::TemporaryArray<KeyT> out(keys.size());
-  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()), out.data().get());
   dh::TemporaryArray<IdxT> sorted_idx_out(sorted_idx.size());
+#if CUB_VERSION >= 300000
+  auto sort = [&](void *storage) {
+    if (accending) {
+      dh::safe_cuda(cub::DeviceRadixSort::SortPairs(
+          storage, bytes, keys.data(), out.data().get(), sorted_idx.data(),
+          sorted_idx_out.data().get(), sorted_idx.size(), 0, sizeof(KeyT) * 8, cuctx->Stream()));
+    } else {
+      dh::safe_cuda(cub::DeviceRadixSort::SortPairsDescending(
+          storage, bytes, keys.data(), out.data().get(), sorted_idx.data(),
+          sorted_idx_out.data().get(), sorted_idx.size(), 0, sizeof(KeyT) * 8, cuctx->Stream()));
+    }
+  };
+  sort(nullptr);
+  dh::TemporaryArray<char> storage(bytes);
+  sort(storage.data().get());
+#else
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()), out.data().get());
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
                                      sorted_idx_out.data().get());
 
@@ -278,6 +333,7 @@ void ArgSort(Context const *ctx, Span<U> keys, Span<IdxT> sorted_idx) {
 #endif
   }
 
+#endif
   dh::safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
                                 sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice,
                                 cuctx->Stream()));
@@ -297,16 +353,24 @@ void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_f
   }
 }
 
-// Go one level down into cub::DeviceScan API to set OffsetT as 64 bit So we don't crash
-// on n > 2^31.
+// Older CUB versions require the internal dispatch API for 64-bit item counts.
 template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT, typename OffsetT>
-void InclusiveScan(xgboost::Context const*, InputIteratorT d_in, OutputIteratorT d_out,
+void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
                    ScanOpT scan_op, OffsetT num_items) {
 #if CUB_VERSION >= 300000
   static_assert(std::is_unsigned_v<OffsetT>, "OffsetT must be unsigned");
   static_assert(sizeof(OffsetT) >= 4, "OffsetT must be at least 4 bytes long");
 #endif
   std::size_t bytes = 0;
+#if CUB_VERSION >= 300000
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::safe_cuda(
+      cub::DeviceScan::InclusiveScan(nullptr, bytes, d_in, d_out, scan_op, num_items, stream));
+  dh::TemporaryArray<char> storage(bytes);
+  dh::safe_cuda(
+      cub::DeviceScan::InclusiveScan(storage.data().get(), bytes, d_in, d_out, scan_op, num_items,
+                                     stream));
+#else
 #if THRUST_MAJOR_VERSION >= 2
   dh::safe_cuda((
       cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
@@ -326,6 +390,7 @@ void InclusiveScan(xgboost::Context const*, InputIteratorT d_in, OutputIteratorT
       cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
           storage.data().get(), bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr,
           false)));
+#endif
 #endif
 }
 
