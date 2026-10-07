@@ -1,5 +1,8 @@
-# Avoid repeated Homebrew source builds on fresh macOS wheel runners.
-# See README.md for the rationale, cache maintenance, and removal criteria.
+# In October 2026, missing Homebrew bottles on Intel and macos-14 ARM runners
+# caused libomp installation to rebuild CMake and libomp (about 25/14 minutes).
+# Remove this cache when every wheel runner has a compatible prebuilt libomp:
+# verify fast installation on fresh, uncached runners and passing wheel tests
+# before replacing this action with ordinary setup. Preserve deployment targets.
 name: Set up macOS OpenMP
 description: Install libomp with an architecture- and version-specific Homebrew cache.
 runs:
@@ -24,9 +27,11 @@ runs:
       continue-on-error: true
       with:
         # Cache the installed library and its keg-only opt link, not downloads.
+        # CMake is only a build dependency; revisit if libomp gains runtime dependencies.
         path: |
           ${{ steps.libomp-cache-key.outputs.cellar }}/libomp
           ${{ steps.libomp-cache-key.outputs.prefix }}/opt/libomp
+        # Bump v1 if the cached layout or toolchain requires a fresh installation.
         key: macos-libomp-v1-${{ runner.arch }}-${{ steps.libomp-cache-key.outputs.macos }}-${{ steps.libomp-cache-key.outputs.version }}
     - name: Install libomp
       if: steps.libomp-cache.outputs.cache-hit != 'true'
@@ -37,6 +42,7 @@ runs:
       run: |
         test -f "$(brew --prefix libomp)/include/omp.h"
         test -f "$(brew --prefix libomp)/lib/libomp.dylib"
+    # Save before building wheels so a later failure does not discard setup work.
     - name: Save installed libomp
       if: steps.libomp-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5.0.3
