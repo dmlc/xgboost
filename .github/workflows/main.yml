@@ -562,44 +562,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
-      - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478
-      - name: Identify libomp cache
-        id: libomp-cache-key
-        run: |
-          # Keep the formula stable between querying its version and installing it.
-          echo "HOMEBREW_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
-          echo "prefix=$(brew --prefix)" >> "$GITHUB_OUTPUT"
-          echo "cellar=$(brew --cellar)" >> "$GITHUB_OUTPUT"
-          echo "macos=$(sw_vers -productVersion)" >> "$GITHUB_OUTPUT"
-          version=$(brew info --json=v2 libomp | jq -r '.formulae[0] | "\(.versions.stable)_\(.revision)"')
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-      - name: Restore installed libomp
-        id: libomp-cache
-        uses: actions/cache/restore@v5.0.3
-        continue-on-error: true
-        with:
-          # Cache the installed library and its keg-only opt link, not downloads.
-          path: |
-            ${{ steps.libomp-cache-key.outputs.cellar }}/libomp
-            ${{ steps.libomp-cache-key.outputs.prefix }}/opt/libomp
-          key: macos-libomp-v1-${{ runner.arch }}-${{ steps.libomp-cache-key.outputs.macos }}-${{ steps.libomp-cache-key.outputs.version }}
-      - name: Install libomp
-        if: steps.libomp-cache.outputs.cache-hit != 'true'
-        run: brew install libomp
-      - name: Verify installed libomp
-        run: |
-          test -f "$(brew --prefix libomp)/include/omp.h"
-          test -f "$(brew --prefix libomp)/lib/libomp.dylib"
-      - name: Save installed libomp
-        if: steps.libomp-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5.0.3
-        continue-on-error: true
-        with:
-          path: |
-            ${{ steps.libomp-cache-key.outputs.cellar }}/libomp
-            ${{ steps.libomp-cache-key.outputs.prefix }}/opt/libomp
-          key: ${{ steps.libomp-cache.outputs.cache-primary-key }}
+      - name: Set up libomp
+        uses: ./.github/actions/setup-libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal
