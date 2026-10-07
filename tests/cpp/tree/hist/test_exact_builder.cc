@@ -81,6 +81,67 @@ ExactProblem MakeProblem(std::size_t n_rows, bst_target_t n_classes, double sign
   return out;
 }
 
+/**
+ * @brief A problem whose ramp feature requires *many* splits to resolve, unlike
+ * @ref MakeProblem's single two-regime split.
+ *
+ * Divides the rows into eight contiguous blocks and cycles the dominant regime through
+ * `0, 1, 2` across them (period 3, not a power of 2). No single split -- nor even a
+ * balanced binary decomposition -- aligns with the regime boundaries, so the tree must
+ * keep splitting across several levels to separate blocks of different regimes, and the
+ * per-block gains differ enough that `grow_policy=lossguide` does not process nodes in
+ * strict parent-before-child order. That combination (many internal nodes live across the
+ * tree's lifetime, processed out of structural order) is what actually stresses a small
+ * `max_cached_hist_node` budget -- a single two-regime split never would, regardless of
+ * how small the cache is configured, because at most one histogram is ever pending at a
+ * time.
+ */
+ExactProblem MakeMultiLevelProblem(std::size_t n_rows, bst_target_t n_classes,
+                                   double signal = 3.0) {
+  ExactProblem out;
+  out.n_rows = n_rows;
+  out.n_classes = n_classes;
+  auto n_free = static_cast<bst_target_t>(n_classes - 1);
+
+  std::vector<float> feature(n_rows);
+  std::iota(feature.begin(), feature.end(), 0.0f);
+  out.fmat = GetDMatrixFromData(feature, n_rows, 1);
+
+  out.gpair.gpair.Reshape(n_rows, n_classes);
+  out.gpair.exact_hessian.Reshape(n_rows, n_free);
+  out.gpair.SetExactHessianRequested(true);
+  auto h_gpair = out.gpair.gpair.HostView();
+
+  std::size_t constexpr kNumBlocks = 8;
+  std::size_t const block = n_rows / kNumBlocks;
+  for (std::size_t r = 0; r < n_rows; ++r) {
+    std::size_t b = std::min<std::size_t>(r / block, kNumBlocks - 1);
+    std::size_t label = b % std::min<std::size_t>(n_classes, 3);
+    std::vector<double> p(n_classes, 1.0);
+    p[label] += signal;
+    double total = 0.0;
+    for (auto v : p) {
+      total += v;
+    }
+    for (auto& v : p) {
+      v /= total;
+    }
+
+    for (bst_target_t t = 0; t < n_classes; ++t) {
+      auto grad = static_cast<float>(p[t] - (label == t ? 1.0 : 0.0));
+      h_gpair(r, t) = GradientPair{grad, std::max(std::fabs(grad), 1e-16f)};
+    }
+    auto row = out.gpair.exact_hessian.HostRow(r);
+    auto view = common::PackedHessianAtRow(row, n_free, 0);
+    for (std::size_t i = 0; i < n_free; ++i) {
+      for (std::size_t j = 0; j <= i; ++j) {
+        view.Set(i, j, static_cast<float>(p[i] * ((i == j ? 1.0 : 0.0) - p[j])));
+      }
+    }
+  }
+  return out;
+}
+
 TrainParam MakeParam(std::string const& max_depth = "2", std::string const& lambda = "1.0",
                      std::string const& subsample = "1.0") {
   TrainParam param;
@@ -750,20 +811,31 @@ TEST(ExactBuilder, MultiPageNodeTotalMatchesGroundTruth) {
 TEST(ExactBuilder, HonoursMaxCachedHistNode) {
   bst_target_t constexpr kNumClasses = 3;
   Context ctx;
-  // Depth 4 grows up to 31 nodes; a cache of 2 forces eviction (and therefore a full rebuild
-  // in place of subtraction) on almost every level.
+  // MakeMultiLevelProblem's eight-block, period-3 regime pattern needs several levels of
+  // splitting to resolve, and under lossguide the per-block gain differences mean nodes are
+  // not applied in strict parent-before-child order -- so a cache of 2 is forced to evict
+  // and rebuild rather than subtract, not merely configured with a small number. Verified
+  // directly during review: temporary HistogramExists() tracing showed a mid-tree candidate's
+  // histogram had actually been evicted by the time its split was applied under the bounded
+  // budget (and not under the unbounded reference run), and reverting ApplyTreeSplit to read
+  // hist_[candidate.nid] directly -- the original unsafe pattern this test guards against --
+  // threw on exactly that candidate.
   auto param = MakeParam("4", "1.0", "1.0");
+  param.UpdateAllowUnknown(Args{{"grow_policy", "lossguide"}});
 
-  auto bounded_problem = MakeProblem(512, kNumClasses);
+  auto bounded_problem = MakeMultiLevelProblem(512, kNumClasses);
   auto bounded_tree =
       TrainExact(&ctx, &bounded_problem, param, Args{{"max_cached_hist_node", "2"}});
 
-  auto unbounded_problem = MakeProblem(512, kNumClasses);
+  auto unbounded_problem = MakeMultiLevelProblem(512, kNumClasses);
   auto unbounded_tree =
       TrainExact(&ctx, &unbounded_problem, param, Args{{"max_cached_hist_node", "4096"}});
 
-  ASSERT_GT(bounded_tree->Size(), 1u) << "the fixture did not split; this test would prove "
-                                         "nothing about eviction";
+  // More than a single root-only split both proves the fixture resolves its eight blocks
+  // across several levels and (combined with the cache budget above) proves more concurrent
+  // node histograms were needed than the bounded cache can hold.
+  ASSERT_GT(bounded_tree->Size(), 3u) << "the fixture did not grow past one level; this test "
+                                         "would prove nothing about eviction";
 
   auto bounded_leaves = LeafWeights(*bounded_tree, kNumClasses);
   auto unbounded_leaves = LeafWeights(*unbounded_tree, kNumClasses);

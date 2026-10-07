@@ -136,7 +136,7 @@ example. The feature supports only the ``multi_strategy=multi_output_tree``.
 Exact Hessian for multi-class (experimental)
 ********************************************
 
-.. versionadded:: 3.2.0
+.. versionadded:: 3.5.0
 
 XGBoost approximates the multi-class second-order statistics with a **diagonal** matrix: each
 class gets its own scalar Hessian and the coupling between classes is discarded. The true

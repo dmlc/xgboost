@@ -179,8 +179,11 @@ exact:     w · (1 − Σ_k p_k²) / K
 ```
 
 At a uniform prediction the diagonal quantity is **exactly 2×** the exact one for
-every `K`; the ratio falls towards 1 as predictions sharpen. End to end this is
-4–10% fewer nodes in exact mode at the same `min_child_weight`.
+every `K`. That ratio falls towards 1 as the probability mass on the row's **true**
+class approaches 1 -- it does not fall for every sharpening prediction: a confident
+but *incorrect* prediction keeps the diagonal quantity bounded away from zero while
+the exact one vanishes, so the ratio grows there instead of shrinking. End to end
+this is 4–10% fewer nodes in exact mode at the same `min_child_weight`.
 
 Exact mode gates on true curvature because that is the matrix its Newton system
 inverts — gating on the pseudo-Hessian would admit nodes whose real curvature

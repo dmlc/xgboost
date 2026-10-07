@@ -54,6 +54,10 @@ GRID = {"eta": [0.3, 0.1], "lambda": [1.0, 10.0], "max_depth": [6]}
 SEEDS = [0, 1, 2]
 EARLY_STOPPING = 20
 MODES = ("diagonal", "exact")
+# Fixed seed (reproducible run-to-run), not a fixed order: used to decide, independently per
+# (cfg, seed), which mode's search_fit runs first, so diagonal is not always measured first --
+# that would confound mode with cache/thermal/CPU-frequency state at the point in the run.
+ORDER_RNG = np.random.default_rng(1234)
 
 
 # --------------------------------------------------------------------------- data
@@ -243,23 +247,46 @@ def run_dataset(name, quick, rounds, nthread, raw_fh):
     splits = {s: split_indices(len(y), s) for s in SEEDS}
 
     # -- Phase A: search on validation only -----------------------------------
+    # Mode is the innermost loop, in a randomized order per (cfg, seed), so each pair of
+    # search_fit calls being compared on timing runs back to back under near-identical cache/
+    # thermal/CPU-frequency state, and diagonal is not systematically measured first across the
+    # whole grid. Nothing about what is computed, selected, or written changes -- same configs,
+    # same seeds, same search_fit arguments, same raw fields plus one more ("mode_order") that
+    # records which order actually ran.
     search: dict = {m: {} for m in MODES}
-    for mode in MODES:
-        for cfg in configs:
-            per_seed = []
-            for seed in SEEDS:
-                tr_idx, va_idx, _ = splits[seed]
-                rec = search_fit(mode, cfg, n_classes, x, y, tr_idx, va_idx, rounds, nthread)
-                rec.update({"dataset": name, "n_classes": n_classes, "mode": mode,
-                            "seed": seed, "cfg": cfg, "phase": "search"})
+    for cfg in configs:
+        per_seed: dict = {m: [] for m in MODES}
+        for seed in SEEDS:
+            tr_idx, va_idx, _ = splits[seed]
+            order = list(MODES)
+            ORDER_RNG.shuffle(order)
+            for mode in order:
+                rec = search_fit(
+                    mode, cfg, n_classes, x, y, tr_idx, va_idx, rounds, nthread
+                )
+                rec.update(
+                    {
+                        "dataset": name,
+                        "n_classes": n_classes,
+                        "mode": mode,
+                        "seed": seed,
+                        "cfg": cfg,
+                        "phase": "search",
+                        "mode_order": order,
+                    }
+                )
                 raw_fh.write(json.dumps(rec) + "\n")
                 raw_fh.flush()
-                per_seed.append(rec)
-            search[mode][json.dumps(cfg, sort_keys=True)] = per_seed
-            mv = float(np.mean([r["best_valid"] for r in per_seed]))
-            print(f"  search {mode:<9} {cfg}  mean_valid={mv:.5f}  "
-                  f"rounds={np.mean([r['best_round'] for r in per_seed]):.0f}  "
-                  f"{np.mean([r['total_seconds'] for r in per_seed]):.1f}s", flush=True)
+                per_seed[mode].append(rec)
+        for mode in MODES:
+            search[mode][json.dumps(cfg, sort_keys=True)] = per_seed[mode]
+            mv = float(np.mean([r["best_valid"] for r in per_seed[mode]]))
+            print(
+                f"  search {mode:<9} {cfg}  mean_valid={mv:.5f}  "
+                f"rounds={np.mean([r['best_round'] for r in per_seed[mode]]):.0f}  "
+                f"{np.mean([r['total_seconds'] for r in per_seed[mode]]):.1f}s",
+                flush=True,
+            )
 
     # -- Selection: mean validation across seeds, predeclared -----------------
     selected = {}

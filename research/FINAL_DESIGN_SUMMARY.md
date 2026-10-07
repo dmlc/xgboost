@@ -151,11 +151,23 @@ concrete review finding, in reviewable chunks:
 
 ## 6. What's left before opening a PR
 
-Not yet addressed by this recovery (explicitly deferred, not forgotten): doc version metadata
-(`.. versionadded:: 3.2.0` needs the actual target release), broken LaTeX `\top` rendering in
-`doc/tutorials/multioutput.rst`, and the Python source-tree library test
-(`tests/python/test_exact_multinomial.py::test_library_is_from_this_source_tree`) that assumes
-a development checkout layout. None are blocking for a correctness/design review; all are
-small, independent fixes suitable for one more short pass.
+A later hardening pass addressed every item this section used to list as deferred: the
+`versionadded` directive now reads `3.5.0`, the broken LaTeX `\top` rendering in
+`doc/tutorials/multioutput.rst` is fixed, and the source-tree-only Python test
+(`test_library_is_from_this_source_tree`) is removed rather than replaced with another
+filesystem-layout assumption. That same pass also fixed two real production bugs found by
+review (a histogram-cache-eviction crash under `grow_policy=lossguide` with a small
+`max_cached_hist_node`, and a missing-value split candidate the forward enumeration never
+reached), corrected an imprecise curvature-ratio claim, and fixed two `research/summarize_v2.py`
+reporting bugs and a benchmark-timing-order confound across all three benchmark scripts.
+
+Deliberately still open: `src/tree/hist/exact_histogram.h`'s sparse-page row loop calls
+`GetGindex()` once per feature rather than iterating the page's own stored (non-missing) row
+indices directly. A reusable, row-subset-aware version of the existing
+`AssignColumnBinIndex` machinery (or an equivalent) would be needed to do this without either
+inventing a new abstraction or hand-replicating `GHistIndexMatrix`'s compressed-index dispatch
+inline -- both bigger than a cleanup-pass nit should cost. Existing sparse/dense correctness
+coverage already passes either way; this is a deferred performance optimization, not a
+correctness gap.
 
 No branch has been pushed and no PR has been opened. Confirm before either.

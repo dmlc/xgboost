@@ -72,14 +72,6 @@ def predict(booster, dtrain):
 # --------------------------------------------------------------------------- #
 
 
-def test_library_is_from_this_source_tree():
-    from xgboost.libpath import find_lib_path
-
-    lib = Path(find_lib_path()[0]).resolve()
-    repo_lib = (Path(xgb.__file__).resolve().parents[2] / "lib").resolve()
-    assert lib.parent == repo_lib, f"loaded {lib}, expected a library under {repo_lib}"
-
-
 @pytest.mark.parametrize("mode", ["diagonal", "exact"])
 def test_parameter_is_accepted_and_reaches_cpp(mode):
     x, y = make_data(128, 4, 3)

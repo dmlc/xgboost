@@ -65,17 +65,27 @@ def main(nthread=8):
     print(f"platform : {platform.platform()}")
     print(f"data     : {ROWS} rows x {COLS} cols, {ROUNDS} rounds, max_depth={DEPTH}, "
           f"nthread={nthread}; best of 3 after a warm-up")
-    print(f"{'K':>4}{'diagonal s':>13}{'exact s':>11}{'ratio':>9}"
-          f"{'exact/K=3':>12}{'bytes/bin':>12}")
+    print(
+        f"{'K':>4}{'diagonal s':>13}{'exact s':>11}{'ratio':>9}"
+        f"{'exact/K=3':>12}{'bytes/bin':>12}  order"
+    )
+    # Fixed seed (reproducible run-to-run), not a fixed order: diagonal is not always timed
+    # first, which would confound mode with cache/thermal/CPU-frequency state at each K.
+    order_rng = np.random.default_rng(1234)
     base = None
     for k in K_VALUES:
-        d = timed(k, "diagonal", nthread)
-        e = timed(k, "exact", nthread)
+        order = ["diagonal", "exact"]
+        order_rng.shuffle(order)
+        timings = {mode: timed(k, mode, nthread) for mode in order}
+        d, e = timings["diagonal"], timings["exact"]
         if base is None:
             base = e
         # Exact stores (K-1) gradients + (K-1)K/2 Hessian entries per bin, in double.
         per_bin = 8 * ((k - 1) + (k - 1) * k // 2)
-        print(f"{k:>4}{d:>13.3f}{e:>11.3f}{e / d:>8.2f}x{e / base:>11.2f}x{per_bin:>12}")
+        print(
+            f"{k:>4}{d:>13.3f}{e:>11.3f}{e / d:>8.2f}x{e / base:>11.2f}x{per_bin:>12}  "
+            f"{order}"
+        )
     print()
     print("Storage is exact; the time ratios are one machine, one data shape. They are a")
     print("scalability profile, not a universal benchmark, and not a hard ceiling on K.")

@@ -568,6 +568,31 @@ TEST(ExactSplit, SparseMatrixNeedsTheBackwardPass) {
       << "the winning split should send missing rows to the low side";
 }
 
+/** A sparse feature can split all of its present values from its missing rows. */
+TEST(ExactSplit, PresentValuesCanSplitFromMissingRows) {
+  Context ctx;
+  bst_target_t constexpr kNumClasses = 3;
+  std::size_t constexpr kRows = 512;
+  auto fmat = RandomDataGenerator{kRows, 1, 0.5f}.Seed(29).GenerateDMatrix();
+  auto column = FeatureColumn(fmat.get(), 0, kRows);
+  auto problem = MakeProblemFor(fmat, kRows, kNumClasses, [&](std::size_t r) {
+    auto favoured = std::isnan(column[r]) ? 0u : 1u;
+    return std::make_pair(Peaked(kNumClasses, favoured, 6.0), favoured);
+  });
+  ASSERT_FALSE(problem.fmat->IsDense());
+
+  auto const& gmat =
+      *(problem.fmat->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{32, 0.5}).begin());
+  std::vector<bst_feature_t> features{0};
+  auto result = EnumerateBothWays(&ctx, problem, gmat, MakeParam(1.0), features);
+
+  ASSERT_TRUE(result.with_backward.valid);
+  ASSERT_TRUE(result.forward_only.valid);
+  EXPECT_FALSE(result.with_backward.default_left);
+  EXPECT_EQ(result.with_backward.split_value, gmat.cut.Values()[gmat.cut.Ptrs()[1] - 1]);
+  EXPECT_GT(result.with_backward.loss_chg, result.forward_only.loss_chg);
+}
+
 /**
  * Phase 10. On a dense matrix the two passes evaluate identical partitions, so every
  * candidate ties. `Update` requires a strict improvement, so the forward candidate wins and

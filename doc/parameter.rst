@@ -265,7 +265,7 @@ Parameters for Tree Booster
 
 * ``multi_hessian``, [default = ``diagonal``]
 
-  .. versionadded:: 3.2.0
+  .. versionadded:: 3.5.0
 
   .. note:: This parameter is experimental.
 
@@ -300,8 +300,12 @@ Parameters for Tree Booster
      does not gate identically in the two modes. ``diagonal`` compares against the mean
      absolute-residual pseudo-Hessian ``mean_k |p_k - y_k|``; ``exact`` compares against the
      true normalised curvature ``(1 - sum_k p_k^2) / K``. At a uniform prediction the
-     ``diagonal`` quantity is twice the ``exact`` one, converging as predictions sharpen.
-     Re-tune ``min_child_weight`` when switching modes.
+     ``diagonal`` quantity is twice the ``exact`` one. That ratio approaches 1 as the
+     probability the model assigns the row's true class approaches 1 -- it does not
+     converge for every sharpening prediction: a confident but incorrect prediction
+     keeps the ``diagonal`` quantity bounded away from zero while the ``exact`` one
+     vanishes, so the ratio grows rather than shrinks. Re-tune ``min_child_weight``
+     when switching modes.
 
   ``multi_hessian`` is a training parameter only. It is not stored in the model, and a model
   trained with ``exact`` loads and predicts identically to any other model.

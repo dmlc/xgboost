@@ -141,7 +141,8 @@ inline void EnumerateExactFeature(common::ExactMultinomialLeafSolver* solver,
 
   // Forward: accumulate the left child, missing values go right.
   workspace->left.Zero();
-  for (bst_bin_t bin = bin_begin; bin < bin_end - 1; ++bin) {
+  auto forward_end = may_have_missing ? bin_end : bin_end - 1;
+  for (bst_bin_t bin = bin_begin; bin < forward_end; ++bin) {
     accumulate(bin, workspace->left.Data());
     complement(common::Span<double const>{workspace->left.Data()}, workspace->right.Data());
     auto loss_chg =

@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import gc
 import json
+import subprocess
+import sys
 import time
 
 import numpy as np
@@ -37,16 +39,39 @@ import xgboost as xgb
 
 PROC = psutil.Process()
 
+# Fixed seed, not a fresh one per run: order is randomized (so a mode is not always measured
+# first, which would confound mode with cache/thermal/CPU-frequency/position-in-run state) but
+# still reproducible run-to-run. The *chosen* order is also printed with every comparison below
+# -- the point is to avoid a systematic bias, not to hide which order actually ran.
+_ORDER_RNG = np.random.default_rng(1234)
+
+
+def mode_order() -> tuple[str, str]:
+    order = ["diagonal", "exact"]
+    _ORDER_RNG.shuffle(order)
+    return tuple(order)
+
 
 def rss_mb() -> float:
     gc.collect()
     return PROC.memory_info().rss / (1024.0 * 1024.0)
 
 
+def peak_wset_supported() -> bool:
+    """`peak_wset` is a Windows-only field of psutil's pmem tuple. Checked once, by field
+    presence rather than by platform name, so this degrades gracefully on any psutil build
+    that lacks it rather than assuming Windows is the only such case."""
+    try:
+        return hasattr(PROC.memory_info(), "peak_wset")
+    except Exception:
+        return False
+
+
 def peak_wset_mb() -> float:
     """Windows' peak working-set counter: monotonically non-decreasing over the process's
     life, so unlike point-in-time RSS it cannot be hidden by a GC pass that runs between the
-    measurement and whenever the peak actually occurred."""
+    measurement and whenever the peak actually occurred. Only call this after checking
+    `peak_wset_supported()`."""
     gc.collect()
     return PROC.memory_info().peak_wset / (1024.0 * 1024.0)
 
@@ -124,7 +149,9 @@ def section_loss_curves():
     dva = xgb.DMatrix(x[va], label=y[va])
 
     curves = {}
-    for mode in ("diagonal", "exact"):
+    order = mode_order()
+    print(f"  execution order: {order}")
+    for mode in order:
         params = params_for(mode, k)
         result = {}
         bst, total, elapsed = timed_train(params, dtr, rounds=40,
@@ -156,12 +183,15 @@ def section_k_scaling():
         x, y, k = load(k_classes=k_cap)
         dtr = xgb.DMatrix(x, label=y)
         row = {}
-        for mode in ("diagonal", "exact"):
+        order = mode_order()
+        for mode in order:
             _, total, _ = timed_train(params_for(mode, k), dtr, rounds=20)
             row[mode] = total
         ratio = row["exact"] / row["diagonal"] if row["diagonal"] > 0 else float("nan")
-        print(f"  K={k:<2} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
-              f"ratio={ratio:.2f}x")
+        print(
+            f"  K={k:<2} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
+            f"ratio={ratio:.2f}x  order={order}"
+        )
 
 
 # --------------------------------------------------------------------------- 3) N scaling
@@ -173,12 +203,15 @@ def section_n_scaling():
         x, y, k = load(n_rows=n_rows)
         dtr = xgb.DMatrix(x, label=y)
         row = {}
-        for mode in ("diagonal", "exact"):
+        order = mode_order()
+        for mode in order:
             _, total, _ = timed_train(params_for(mode, k), dtr, rounds=20)
             row[mode] = total
         ratio = row["exact"] / row["diagonal"] if row["diagonal"] > 0 else float("nan")
-        print(f"  N={n_rows:<5} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
-              f"ratio={ratio:.2f}x")
+        print(
+            f"  N={n_rows:<5} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
+            f"ratio={ratio:.2f}x  order={order}"
+        )
 
 
 # --------------------------------------------------------------------------- 4) max_bin scaling
@@ -190,12 +223,15 @@ def section_max_bin_scaling():
     dtr = xgb.DMatrix(x, label=y)
     for max_bin in (32, 128, 256):
         row = {}
-        for mode in ("diagonal", "exact"):
+        order = mode_order()
+        for mode in order:
             _, total, _ = timed_train(params_for(mode, k, max_bin=max_bin), dtr, rounds=20)
             row[mode] = total
         ratio = row["exact"] / row["diagonal"] if row["diagonal"] > 0 else float("nan")
-        print(f"  max_bin={max_bin:<4} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
-              f"ratio={ratio:.2f}x")
+        print(
+            f"  max_bin={max_bin:<4} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
+            f"ratio={ratio:.2f}x  order={order}"
+        )
 
 
 # --------------------------------------------------------------------------- 5) thread scaling
@@ -207,12 +243,15 @@ def section_thread_scaling():
     dtr = xgb.DMatrix(x, label=y)
     for nthread in (1, 2, 4):
         row = {}
-        for mode in ("diagonal", "exact"):
+        order = mode_order()
+        for mode in order:
             _, total, _ = timed_train(params_for(mode, k, nthread=nthread), dtr, rounds=20)
             row[mode] = total
         ratio = row["exact"] / row["diagonal"] if row["diagonal"] > 0 else float("nan")
-        print(f"  nthread={nthread:<2} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
-              f"ratio={ratio:.2f}x")
+        print(
+            f"  nthread={nthread:<2} diagonal={row['diagonal']:.3f}s  exact={row['exact']:.3f}s  "
+            f"ratio={ratio:.2f}x  order={order}"
+        )
     print("  (ratio shrinking or flat as threads increase is the Phase 3C signal; a ratio that")
     print("   grows with thread count would mean the zero/reduce steps are not actually")
     print("   benefiting from parallelism.)")
@@ -221,28 +260,70 @@ def section_thread_scaling():
 # --------------------------------------------------------------------------- 6) peak memory
 
 
-def section_peak_memory():
-    print("\n=== 6) peak memory, illustrated via Phase 3B's cache budget ===")
-    print("  Windows' peak working-set counter (monotonic over the process's life), measured")
-    print("  as the delta it grows by during each training call -- a coarse proxy for the")
-    print("  histogram cache's own footprint, since it includes everything else the process")
-    print("  touches too, but immune to a GC pass hiding an already-passed peak.")
+def _peak_memory_problem():
     # Deliberately wide (many features -> many bins) and deep, so the O(K^2)-per-bin exact
     # cache has enough nodes*bins to produce a measurable peak over Python/numpy's own baseline.
     from sklearn.datasets import make_classification
     x, y = make_classification(n_samples=4000, n_features=200, n_informative=40, n_classes=8,
                                n_clusters_per_class=2, random_state=0)
-    x, y = x.astype(np.float32), y.astype(np.int32)
-    k = 8
+    return x.astype(np.float32), y.astype(np.int32), 8
+
+
+def _peak_memory_worker(budget: int) -> None:
+    """Run as a standalone subprocess (see `--peak-memory-worker` below), so each cache
+    budget gets its own process and therefore its own, independent peak-working-set
+    high-water mark. `peak_wset` is monotonic non-decreasing for the life of a process: run
+    two budgets sequentially in the SAME process and the second measurement can be hidden
+    entirely behind whichever budget happened to peak higher, in either direction -- not just
+    optimistically. This prints exactly one number (the measured growth, in MB) to stdout, so
+    the parent process can treat the child as a pure function of `budget`.
+    """
+    x, y, k = _peak_memory_problem()
     dtr = xgb.DMatrix(x, label=y)
+    before = peak_wset_mb()
+    timed_train(
+        params_for("exact", k, max_cached_hist_node=budget, max_bin=256, max_depth=8),
+        dtr,
+        rounds=10,
+    )
+    after = peak_wset_mb()
+    print(after - before)
+
+
+def section_peak_memory():
+    print("\n=== 6) peak memory, illustrated via Phase 3B's cache budget ===")
+    if not peak_wset_supported():
+        print(
+            "  Skipping: this platform's psutil build has no `peak_wset` field (that counter"
+        )
+        print(
+            "  is Windows-specific). No memory number is fabricated in its place; every other"
+        )
+        print("  section above this one is unaffected.")
+        return
+    print(
+        "  Windows' peak working-set counter, measured as the delta it grows by during each"
+    )
+    print(
+        "  training call -- a coarse proxy for the histogram cache's own footprint, since it"
+    )
+    print(
+        "  includes everything else the process touches too. Each cache budget below runs in"
+    )
+    print(
+        "  its own subprocess with its own baseline, so sequential budgets cannot share (and"
+    )
+    print("  therefore cannot contaminate) a single process's monotonic peak counter.")
     for label, budget in (("tiny cache (max_cached_hist_node=4)", 4),
                          ("effectively unbounded (max_cached_hist_node=65536)", 65536)):
-        before = peak_wset_mb()
-        timed_train(params_for("exact", k, max_cached_hist_node=budget, max_bin=256,
-                               max_depth=8), dtr, rounds=10)
-        after = peak_wset_mb()
-        print(f"  {label:<52} peak_wset before={before:.1f}MB after={after:.1f}MB "
-              f"grew_by={after - before:.1f}MB")
+        proc = subprocess.run(
+            [sys.executable, __file__, "--peak-memory-worker", str(budget)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        grew_by = float(proc.stdout.strip().splitlines()[-1])
+        print(f"  {label:<52} grew_by={grew_by:.1f}MB (own process, own baseline)")
 
 
 def main():
@@ -261,4 +342,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--peak-memory-worker":
+        _peak_memory_worker(int(sys.argv[2]))
+    else:
+        main()

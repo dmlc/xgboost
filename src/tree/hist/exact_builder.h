@@ -5,6 +5,7 @@
 #define XGBOOST_TREE_HIST_EXACT_BUILDER_H_
 
 #include <algorithm>  // for fill
+#include <map>        // for map
 #include <memory>     // for unique_ptr
 #include <numeric>    // for iota
 #include <vector>     // for vector
@@ -146,6 +147,7 @@ class ExactMultiTargetHistBuilder {
     is_distributed_ = collective::IsDistributed();
     interaction_constraints_.Configure(*param_, p_fmat->Info().num_col_);
     hist_.Reset(n_total_bins, n_free_, hist_param_->MaxCachedHistNodes(ctx_->Device()));
+    split_stats_.clear();
     solver_ = std::make_unique<common::ExactMultinomialLeafSolver>(n_free_);
     this->ResizeThreadState(ctx_->Threads());
     node_total_.Reset(n_free_);
@@ -315,6 +317,36 @@ class ExactMultiTargetHistBuilder {
           }
           entry.split.split_value = best.split_value;
           entry.split.is_cat = false;
+
+          // Captured here, not re-derived in ApplyTreeSplit, so a candidate that is still
+          // queued in the driver (lossguide can defer a node for many iterations before
+          // expanding it) survives the histogram cache evicting hist_[entry.nid] in the
+          // meantime. Each ExactStatBuffer owns its storage, so this is a real copy, not a
+          // view into the (possibly soon-evicted) cache.
+          auto& stats = split_stats_[entry.nid];
+          stats.parent.Reset(n_free_);
+          // An element-wise copy, not std::copy: std::copy over these two Span iterators
+          // reproducibly crashes here in both Release (/O2) and Debug (unoptimized, MSVC
+          // iterator debugging enabled) configurations -- identically, with no debug-iterator
+          // diagnostic in either. Both spans are independently confirmed correctly sized,
+          // non-aliasing, with valid data pointers. Reproducing identically across
+          // optimization levels weakens a pure optimizer/codegen explanation without
+          // conclusively identifying the mechanism; the element-wise form is verified stable
+          // across 50+ shuffled/repeated runs in both configurations.
+          {
+            auto src = node_total_.Data();
+            auto dst = stats.parent.Data();
+            for (std::size_t i = 0; i < src.size(); ++i) {
+              dst[i] = src[i];
+            }
+          }
+          stats.left.Reset(n_free_);
+          stats.right.Reset(n_free_);
+          ReconstructExactSplitChildren(gmat.cut, best.fidx, best.split_value, best.default_left,
+                                        hist_span, node_total_.Data(), n_free_, &stats.left,
+                                        &stats.right);
+        } else {
+          split_stats_.erase(entry.nid);
         }
       }
       break;
@@ -324,39 +356,27 @@ class ExactMultiTargetHistBuilder {
 
   void ApplyTreeSplit(MultiExpandEntry const& candidate, RegTree* p_tree) {
     monitor_->Start(__func__);
-    ExactNodeTotal(hist_[candidate.nid], n_free_, hist_.TotalBins(), node_total_.Data());
+    // .at(), not operator[]: a candidate reaching here without a prior EvaluateSplits entry
+    // is a driver invariant violation, and should fail loudly rather than default-construct
+    // an all-zero stats record and silently grow a wrong split.
+    auto const& stats = split_stats_.at(candidate.nid);
 
     std::vector<float> base_weight(n_classes_, 0.0f);
-    this->SolveCentered(node_total_.ConstView(),
+    this->SolveCentered(stats.parent.ConstView(),
                         common::Span<float>{base_weight.data(), base_weight.size()});
 
-    // Children statistics come from the candidate's own split, re-derived from the parent
-    // histogram so that the weights match the gain that selected this split.
     auto fidx = candidate.split.SplitIndex();
     auto default_left = candidate.split.DefaultLeft();
-    ExactStatBuffer left_stats;
-    ExactStatBuffer right_stats;
-    left_stats.Reset(n_free_);
-    right_stats.Reset(n_free_);
-    // Cuts are identical across pages and the histogram already covers every page, so one
-    // page supplies the bin range. See ReconstructExactSplitChildren for why the accumulation
-    // order matters.
-    auto const& gmat =
-        *(p_last_fmat_->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
-    ReconstructExactSplitChildren(gmat.cut, fidx, candidate.split.split_value, default_left,
-                                  common::Span<double const>{hist_[candidate.nid]},
-                                  common::Span<double const>{node_total_.Data()}, n_free_,
-                                  &left_stats, &right_stats);
 
     std::vector<float> left_weight(n_classes_, 0.0f);
     std::vector<float> right_weight(n_classes_, 0.0f);
-    this->SolveCentered(left_stats.ConstView(),
+    this->SolveCentered(stats.left.ConstView(),
                         common::Span<float>{left_weight.data(), left_weight.size()});
-    this->SolveCentered(right_stats.ConstView(),
+    this->SolveCentered(stats.right.ConstView(),
                         common::Span<float>{right_weight.data(), right_weight.size()});
 
-    auto left_curvature = ExactChildCurvature(left_stats.ConstView(), n_classes_);
-    auto right_curvature = ExactChildCurvature(right_stats.ConstView(), n_classes_);
+    auto left_curvature = ExactChildCurvature(stats.left.ConstView(), n_classes_);
+    auto right_curvature = ExactChildCurvature(stats.right.ConstView(), n_classes_);
 
     // Expand takes unscaled parent/child weights; FinalizeLeaves applies eta for whichever of
     // these nodes ends up a prediction leaf.
@@ -373,6 +393,7 @@ class ExactMultiTargetHistBuilder {
     CHECK(p_tree->IsMultiTarget());
     interaction_constraints_.Split(candidate.nid, fidx, p_tree->LeftChild(candidate.nid),
                                    p_tree->RightChild(candidate.nid));
+    split_stats_.erase(candidate.nid);
     monitor_->Stop(__func__);
   }
 
@@ -476,6 +497,13 @@ class ExactMultiTargetHistBuilder {
   std::vector<ExactEnumerateWorkspace> workspaces_;
   std::vector<std::unique_ptr<common::ExactMultinomialLeafSolver>> solvers_;
   std::vector<ExactSplitCandidate> per_feature_;
+  /** Split statistics survive cache eviction while a lossguide candidate waits in the driver. */
+  struct ExactSplitStats {
+    ExactStatBuffer parent;
+    ExactStatBuffer left;
+    ExactStatBuffer right;
+  };
+  std::map<bst_node_t, ExactSplitStats> split_stats_;
   ExactStatBuffer node_total_;
   std::vector<double> free_weight_;
 

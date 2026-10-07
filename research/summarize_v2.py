@@ -46,8 +46,14 @@ def selected_cfg(search, dataset, mode):
 
 
 def valid_at_round(rec, r):
+    """The validation loss recorded AT round `r`, or None if this run never actually reached
+    round `r` (stopped early, or the round cap was below `r`). Never substitutes the final,
+    already-stopped value for a checkpoint the run didn't run -- a run that stopped at round
+    60 must not contribute a "round 100" observation."""
     c = rec["valid_curve"]
-    return c[min(r, len(c)) - 1] if c else float("nan")
+    if not c or r > len(c):
+        return None
+    return c[r - 1]
 
 
 def valid_within_time(rec, budget):
@@ -95,13 +101,20 @@ def main():
             if not recs:
                 continue
             npt = [r["nodes_per_tree"] for r in recs if r["nodes_per_tree"] is not None]
-            print(f"| {d} | {k} | {m} | {cfg['eta']} | {cfg['lambda']} | {cfg['max_depth']} | "
-                  f"{np.mean([r['best_round'] for r in recs]):.0f} | "
-                  f"{np.mean([r['best_valid'] for r in recs]):.5f} | "
-                  f"{np.mean([r['train_at_best'] for r in recs]):.5f} | "
-                  f"{np.mean([r['total_seconds'] for r in recs]):.1f} | "
-                  f"{np.mean([r['sec_per_round'] for r in recs]):.4f} | "
-                  f"{np.mean(npt):.1f} |" if npt else "n/a |")
+            # A conditional scoped to this one cell: the old `f"...big row..." if npt else
+            # "n/a |"` applied the condition to the WHOLE row expression, so a missing
+            # nodes_per_tree collapsed the entire row (dataset, mode, losses, timing -- all of
+            # it) down to just "n/a |". Only the nodes cell may become n/a.
+            nodes_cell = f"{np.mean(npt):.1f}" if npt else "n/a"
+            print(
+                f"| {d} | {k} | {m} | {cfg['eta']} | {cfg['lambda']} | {cfg['max_depth']} | "
+                f"{np.mean([r['best_round'] for r in recs]):.0f} | "
+                f"{np.mean([r['best_valid'] for r in recs]):.5f} | "
+                f"{np.mean([r['train_at_best'] for r in recs]):.5f} | "
+                f"{np.mean([r['total_seconds'] for r in recs]):.1f} | "
+                f"{np.mean([r['sec_per_round'] for r in recs]):.4f} | "
+                f"{nodes_cell} |"
+            )
 
     # ---------------------------------------------------------------- TABLE 2
     print("\n## TABLE 2 - validation loss at fixed round checkpoints "
@@ -115,8 +128,13 @@ def main():
             _, recs = sel[(d, m)]
             cells = []
             for cp in ROUND_CHECKPOINTS:
-                vals = [valid_at_round(r, cp) for r in recs if len(r["valid_curve"]) >= 1]
-                cells.append(f"{np.mean(vals):.5f}" if vals else "n/a")
+                vals = [
+                    v for v in (valid_at_round(r, cp) for r in recs) if v is not None
+                ]
+                if vals:
+                    cells.append(f"{np.mean(vals):.5f} ({len(vals)}/{len(recs)} seeds)")
+                else:
+                    cells.append("n/a")
             print(f"| {d} | {k} | {m} | " + " | ".join(cells) + " |")
 
     # ---------------------------------------------------------------- TABLE 3
