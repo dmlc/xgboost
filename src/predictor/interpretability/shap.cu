@@ -391,11 +391,6 @@ struct SubgroupOps {
   [[nodiscard]] XGBOOST_DEV_INLINE bool ShouldWrite() const { return is_leader && row_valid; }
 
   template <typename T>
-  [[nodiscard]] XGBOOST_DEV_INLINE T Broadcast(T value) const {
-    return __shfl_sync(kFullWarpMask, value, 0, kGpuQuadraturePoints);
-  }
-
-  template <typename T>
   [[nodiscard]] XGBOOST_DEV_INLINE T Sum(T value) const {
     for (int offset = kGpuQuadraturePoints / 2; offset > 0; offset /= 2) {
       value += __shfl_down_sync(kFullWarpMask, value, offset, kGpuQuadraturePoints);
@@ -537,15 +532,9 @@ struct QuadratureShapTaskRunner {
     auto const& node = nodes_for_tree[shared.Node(warp, parent_depth)];
     int child_idx = static_cast<int>(shared.Stage(warp, parent_depth)) - 1;
 
-    float p_enter = 0.0f;
-    float q_prev = 1.0f;
-    if (subgroup.is_leader) {
-      p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
-                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
-    }
-    p_enter = subgroup.Broadcast(p_enter);
-    q_prev = subgroup.Broadcast(q_prev);
+    auto p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
+    auto q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
 
     // Extraction uses
     //   H * w(t) * ret_val *
@@ -564,13 +553,11 @@ struct QuadratureShapTaskRunner {
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
-      float p_e = 0.0f;
+      auto p_e =
+          shared.GoesLeft(warp, subgroup.row_slot, parent_depth) ? 0.0f : q_prev / child_weight;
       if (subgroup.is_leader) {
-        auto goes_left = shared.GoesLeft(warp, subgroup.row_slot, parent_depth);
-        p_e = goes_left ? 0.0f : q_prev / child_weight;
         shared.PathProbability(warp, subgroup.row_slot, parent_depth) = p_e;
       }
-      p_e = subgroup.Broadcast(p_e);
 
       if (subgroup.is_warp_leader) {
         shared.Node(warp, *stack_size) = child_node;
@@ -630,24 +617,17 @@ struct QuadratureShapTaskRunner {
 
     auto child_weight = child == 0 ? node.left_weight : node.right_weight;
     auto child_node = child == 0 ? node.left : node.right;
-    float q_prev = 1.0f;
+    // For repeated feature splits, replace the default q_prev with the path probability from
+    // the nearest previous split on the same feature.
+    auto q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
+                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
+    bool goes_left = this->EvaluateGoesLeft(ridx, node);
+    // p_e is the path probability after taking the chosen child for this row.
+    auto p_e = (child == 0 ? goes_left : !goes_left) ? q_prev / child_weight : 0.0f;
     if (subgroup.is_leader) {
-      // For repeated feature splits, replace the default q_prev with the path probability from
-      // the nearest previous split on the same feature.
-      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
-                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
-    }
-    q_prev = subgroup.Broadcast(q_prev);
-
-    float p_e = 0.0f;
-    if (subgroup.is_leader) {
-      bool goes_left = this->EvaluateGoesLeft(ridx, node);
-      // p_e is the path probability after taking the chosen child for this row.
-      p_e = (child == 0 ? goes_left : !goes_left) ? q_prev / child_weight : 0.0f;
       shared.SetGoesLeft(warp, subgroup.row_slot, depth, goes_left);
       shared.PathProbability(warp, subgroup.row_slot, depth) = p_e;
     }
-    p_e = subgroup.Broadcast(p_e);
 
     if (subgroup.is_warp_leader) {
       shared.Node(warp, *stack_size) = child_node;
@@ -798,15 +778,9 @@ struct QuadratureShapInteractionTaskRunner {
     auto const& node = nodes_for_tree[shared.Node(warp, parent_depth)];
     int child_idx = static_cast<int>(shared.Stage(warp, parent_depth)) - 1;
 
-    float p_enter = 0.0f;
-    float q_prev = 1.0f;
-    if (subgroup.is_leader) {
-      p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
-      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
-                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
-    }
-    p_enter = subgroup.Broadcast(p_enter);
-    q_prev = subgroup.Broadcast(q_prev);
+    auto p_enter = shared.PathProbability(warp, subgroup.row_slot, parent_depth);
+    auto q_prev = PreviousPathProbability(node.prev_same_offset_plus1, parent_depth,
+                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
 
     auto edge_delta_local =
         ExtractQuadratureEdgeDeltaLocal(quad_node, quad_weight, *ret_val, p_enter, q_prev);
@@ -814,11 +788,7 @@ struct QuadratureShapInteractionTaskRunner {
     this->AddDiagonalContribution(row_idx, tree_group, node.split_global, diag_contrib);
 
     this->ForEachUniquePartner(parent_depth, [&](int partner_depth, bst_feature_t partner_split) {
-      float q_partner = 1.0f;
-      if (subgroup.is_leader) {
-        q_partner = shared.PathProbability(warp, subgroup.row_slot, partner_depth);
-      }
-      q_partner = subgroup.Broadcast(q_partner);
+      auto q_partner = shared.PathProbability(warp, subgroup.row_slot, partner_depth);
       auto pair_delta_local =
           ExtractQuadratureInteractionDeltaLocal(quad_node, edge_delta_local, q_partner);
       auto pair_contrib = subgroup.Sum(pair_delta_local);
@@ -832,13 +802,11 @@ struct QuadratureShapInteractionTaskRunner {
     if (child_idx == 0) {
       auto child_weight = node.right_weight;
       auto child_node = node.right;
-      float p_e = 0.0f;
+      auto p_e =
+          shared.GoesLeft(warp, subgroup.row_slot, parent_depth) ? 0.0f : q_prev / child_weight;
       if (subgroup.is_leader) {
-        auto goes_left = shared.GoesLeft(warp, subgroup.row_slot, parent_depth);
-        p_e = goes_left ? 0.0f : q_prev / child_weight;
         shared.PathProbability(warp, subgroup.row_slot, parent_depth) = p_e;
       }
-      p_e = subgroup.Broadcast(p_e);
 
       if (subgroup.is_warp_leader) {
         shared.Node(warp, *stack_size) = child_node;
@@ -894,21 +862,14 @@ struct QuadratureShapInteractionTaskRunner {
 
     auto child_weight = child == 0 ? node.left_weight : node.right_weight;
     auto child_node = child == 0 ? node.left : node.right;
-    float q_prev = 1.0f;
+    auto q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
+                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
+    bool goes_left = this->EvaluateGoesLeft(ridx, node);
+    auto p_e = (child == 0 ? goes_left : !goes_left) ? q_prev / child_weight : 0.0f;
     if (subgroup.is_leader) {
-      q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
-                                       shared.PathProbabilityRow(warp, subgroup.row_slot));
-    }
-    q_prev = subgroup.Broadcast(q_prev);
-
-    float p_e = 0.0f;
-    if (subgroup.is_leader) {
-      bool goes_left = this->EvaluateGoesLeft(ridx, node);
-      p_e = (child == 0 ? goes_left : !goes_left) ? q_prev / child_weight : 0.0f;
       shared.SetGoesLeft(warp, subgroup.row_slot, depth, goes_left);
       shared.PathProbability(warp, subgroup.row_slot, depth) = p_e;
     }
-    p_e = subgroup.Broadcast(p_e);
 
     if (subgroup.is_warp_leader) {
       shared.Node(warp, *stack_size) = child_node;
