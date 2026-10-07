@@ -1508,9 +1508,6 @@ def _meta_from_numpy(
     handle: ctypes.c_void_p,
 ) -> None:
     data, dtype = _ensure_np_dtype(data, dtype)
-    interface = data.__array_interface__
-    if interface.get("mask", None) is not None:
-        raise ValueError("Masked array is not supported.")
     interface_str = array_interface(data)
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
 

@@ -150,8 +150,8 @@ struct GPUHistMakerDevice {
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(
-            *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
+                                                        HistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
@@ -282,7 +282,7 @@ struct GPUHistMakerDevice {
     this->monitor.Stop(__func__);
   }
 
-  // Build histograms for all the nodes with one call to the histogram builder.
+  // Build histograms for all the nodes in one kernel launch.
   void BuildHist(EllpackPage const& page, std::int32_t k,
                  std::vector<bst_node_t> const& build_nidx) {
     monitor.Start(__func__);

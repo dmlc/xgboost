@@ -418,7 +418,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
       cuda::std::make_reverse_iterator(dh::make_counting_iterator(entries.size())),
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
-  auto val_it = cuda::std::make_reverse_iterator(dh::tend(entries));
+  auto val_it = dh::trbegin(entries);
   thrust::inclusive_scan_by_key(
       ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it, val_it,
       cuda::std::equal_to<size_t>{},

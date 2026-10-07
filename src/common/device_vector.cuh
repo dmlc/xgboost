@@ -8,7 +8,14 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+#include <cuda/stream>                          // for cuda::stream_ref
+#include <rmm/version_config.hpp>               // for RMM_VERSION_MAJOR, RMM_VERSION_MINOR
+
+// TODO(hcho3): Remove this guard once we require Rapids 26.10+
+#if (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR <= 8) || RMM_VERSION_MAJOR < 26
 #include <rmm/cuda_stream_view.hpp>             // for cuda_stream_view
+#endif  // (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR <= 8) || RMM_VERSION_MAJOR < 26
+
 #include <rmm/mr/thrust_allocator_adaptor.hpp>  // for thrust_allocator
 
 #else
@@ -269,7 +276,7 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
 
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
-            rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
+            cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
 };
 
 template <typename T>
