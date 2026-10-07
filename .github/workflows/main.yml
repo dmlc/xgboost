@@ -475,7 +475,13 @@ jobs:
         run: |
           source activate gpu_test
           echo "CUPY_CACHE_DIR=${RUNNER_TEMP}/cupy-cache" >> "$GITHUB_ENV"
-          python ops/pipeline/cupy-cache-key.py
+          python - <<'PYTHON' | tee -a "$GITHUB_OUTPUT"
+          import cupy
+          from cupy.cuda import nvrtc, runtime
+
+          nvrtc_version = ".".join(map(str, nvrtc.getVersion()))
+          print(f"versions=cupy-{cupy.__version__}-cuda-{runtime.runtimeGetVersion()}-nvrtc-{nvrtc_version}")
+          PYTHON
       - name: Restore CuPy cache
         id: cupy-cache
         uses: actions/cache/restore@v5.0.3
@@ -483,7 +489,7 @@ jobs:
         with:
           path: ${{ env.CUPY_CACHE_DIR }}
           # No broad restore keys: compiled kernels must match the environment.
-          key: cupy-v1-${{ matrix.description }}-${{ needs.ci-configure.outputs.image_tag }}-${{ steps.cupy-cache-key.outputs.fingerprint }}
+          key: cupy-v2-${{ matrix.description }}-${{ needs.ci-configure.outputs.image_tag }}-${{ steps.cupy-cache-key.outputs.versions }}
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -506,7 +512,7 @@ jobs:
         continue-on-error: true
         with:
           path: ${{ env.CUPY_CACHE_DIR }}
-          key: cupy-v1-${{ matrix.description }}-${{ needs.ci-configure.outputs.image_tag }}-${{ steps.cupy-cache-key.outputs.fingerprint }}
+          key: ${{ steps.cupy-cache.outputs.cache-primary-key }}
       # Train a model for cross-platform testing (only for default CUDA 13 x86_64)
       - name: Train cross-platform test model
         if: matrix.cuda_version == 13 && matrix.suite == 'gpu'
