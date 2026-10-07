@@ -120,37 +120,9 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
+  auto it = dh::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   auto total_bins = shared_inputs.feature_values.size();
-
-  auto cmp = [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
-    auto li = cuda::std::get<0>(l);
-    auto ri = cuda::std::get<0>(r);
-
-    auto l_node = li / total_bins;
-    auto r_node = ri / total_bins;
-
-    if (l_node != r_node) {
-      return l_node < r_node;
-    }
-
-    li = li % total_bins;
-    ri = ri % total_bins;
-
-    auto lfidx = d_feature_idx[li];
-    auto rfidx = d_feature_idx[ri];
-
-    if (lfidx != rfidx) {
-      return lfidx < rfidx;
-    }
-
-    if (common::IsCat(shared_inputs.feature_types, lfidx)) {
-      auto lw = cuda::std::get<1>(l);
-      auto rw = cuda::std::get<1>(r);
-      return lw < rw;
-    }
-    return li < ri;
-  };
 
   if (cat_seg_ptr_.size() > 1 && !d_inputs.empty()) {
     auto const num_nodes = static_cast<std::uint32_t>(d_inputs.size());
@@ -161,7 +133,34 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     auto compact_key = data.subspan(0, compact_n);
     cat_compact_val_.resize(compact_n);
     auto compact_val = dh::ToSpan(cat_compact_val_);
-    auto it = dh::make_counting_iterator(std::uint32_t{0});
+    auto cmp = [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
+      auto li = cuda::std::get<0>(l);
+      auto ri = cuda::std::get<0>(r);
+
+      auto l_node = li / total_bins;
+      auto r_node = ri / total_bins;
+
+      if (l_node != r_node) {
+        return l_node < r_node;
+      }
+
+      li = li % total_bins;
+      ri = ri % total_bins;
+
+      auto lfidx = d_feature_idx[li];
+      auto rfidx = d_feature_idx[ri];
+
+      if (lfidx != rfidx) {
+        return lfidx < rfidx;
+      }
+
+      if (common::IsCat(shared_inputs.feature_types, lfidx)) {
+        auto lw = cuda::std::get<1>(l);
+        auto rw = cuda::std::get<1>(r);
+        return lw < rw;
+      }
+      return li < ri;
+    };
     thrust::for_each(ctx->CUDACtx()->CTP(), it, it + compact_n, [=] XGBOOST_DEVICE(std::uint32_t k) {
       auto node = k / cat_bins;
       auto bin = CatBin(seg_ptr, seg_bin, k % cat_bins);
@@ -182,7 +181,6 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     return dh::ToSpan(cat_sorted_idx_);
   }
 
-  auto it = dh::make_counting_iterator(0u);
   thrust::transform(ctx->CUDACtx()->CTP(), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
                       auto const &input = d_inputs[i / total_bins];
@@ -201,7 +199,35 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   // - features within each node
   // - gradients within each feature
   thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(data), dh::tend(data),
-                             dh::tbegin(sorted_idx), cmp);
+                             dh::tbegin(sorted_idx),
+                             [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
+                               auto li = cuda::std::get<0>(l);
+                               auto ri = cuda::std::get<0>(r);
+
+                               auto l_node = li / total_bins;
+                               auto r_node = ri / total_bins;
+
+                               if (l_node != r_node) {
+                                 return l_node < r_node;  // not the same node
+                               }
+
+                               li = li % total_bins;
+                               ri = ri % total_bins;
+
+                               auto lfidx = d_feature_idx[li];
+                               auto rfidx = d_feature_idx[ri];
+
+                               if (lfidx != rfidx) {
+                                 return lfidx < rfidx;  // not the same feature
+                               }
+
+                               if (common::IsCat(shared_inputs.feature_types, lfidx)) {
+                                 auto lw = cuda::std::get<1>(l);
+                                 auto rw = cuda::std::get<1>(r);
+                                 return lw < rw;
+                               }
+                               return li < ri;
+                             });
 
   return dh::ToSpan(cat_sorted_idx_);
 }
