@@ -85,11 +85,21 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   cub::DoubleBuffer<cub::NullType> d_values;
 
   constexpr auto kCubSortOrder = IS_DESCENDING ? kCubSortOrderDescending : kCubSortOrderAscending;
-  dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 kCubSortOrder, KeyT, cub::NullType, BeginOffsetIteratorT, EndOffsetIteratorT,
-                 OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
-                                    num_segments, d_begin_offsets, d_end_offsets, begin_bit,
-                                    end_bit, false, ctx->Stream(), debug_synchronous)));
+  using DispatchT = cub::DispatchSegmentedRadixSort<kCubSortOrder, KeyT, cub::NullType,
+                                                   BeginOffsetIteratorT, EndOffsetIteratorT,
+                                                   OffsetT>;
+#if THRUST_MAJOR_VERSION >= 2
+  dh::safe_cuda(DispatchT::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
+                                   num_segments, d_begin_offsets, d_end_offsets, begin_bit,
+                                   end_bit, false, ctx->Stream()));
+  if (debug_synchronous && d_temp_storage) {
+    dh::safe_cuda(cudaStreamSynchronize(ctx->Stream()));
+  }
+#else
+  dh::safe_cuda(DispatchT::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
+                                   num_segments, d_begin_offsets, d_end_offsets, begin_bit,
+                                   end_bit, false, ctx->Stream(), debug_synchronous));
+#endif
 #endif
 }
 
@@ -374,6 +384,7 @@ void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputItera
       cub::DeviceScan::InclusiveScan(storage.data().get(), bytes, d_in, d_out, scan_op, num_items,
                                      stream));
 #else
+  (void)ctx;  // Older dispatch APIs use the default stream.
 #if THRUST_MAJOR_VERSION >= 2
   dh::safe_cuda((
       cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
