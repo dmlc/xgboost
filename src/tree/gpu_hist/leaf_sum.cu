@@ -27,6 +27,7 @@
 #endif
 
 namespace xgboost::tree::cuda_impl {
+#if THRUST_VERSION >= 300000
 namespace {
 // Avoid nvcc's extended-lambda wrapper in the tabulate output iterator, which can
 // trigger host compiler warnings about uninitialized captures when copied by CUB.
@@ -36,6 +37,7 @@ struct AccumulateLeafSum {
   XGBOOST_DEVICE void operator()(std::int32_t idx, GradientPairInt64 value) { out(idx) += value; }
 };
 }  // namespace
+#endif  // THRUST_VERSION >= 300000
 
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  common::Span<GradientQuantiser const> roundings,
