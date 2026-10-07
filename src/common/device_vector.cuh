@@ -27,6 +27,7 @@
 #include <atomic>                  // for atomic, memory_order
 #include <cstddef>                 // for size_t
 #include <cstdint>                 // for int64_t
+#include <cuda_runtime_api.h>      // for CUDART_VERSION
 #include <cub/version.cuh>         // for CUB_VERSION
 #if CUB_VERSION >= 300200 && CUDART_VERSION >= 13020
 #include <cuda/memory_pool>        // for device_memory_pool
