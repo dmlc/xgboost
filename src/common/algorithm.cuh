@@ -115,7 +115,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                                   EndOffsetIteratorT d_end_offsets, curt::StreamRef stream,
                                   int begin_bit = 0, int end_bit = sizeof(KeyT) * 8) {
 // Assumption: d_keys_in and d_keys_out have no overlap.
-#if CUB_VERSION >= 300000
+#if CUB_VERSION >= 300100
   if (descending) {
     dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairsDescending(
         d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out,
