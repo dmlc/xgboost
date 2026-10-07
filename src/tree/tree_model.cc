@@ -596,8 +596,10 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
                         {"{stat}", this->with_stats_ ? this->NodeStat(tree, nidx) : ""},
                         {"{params}", param_.condition_node_params}});
 
-    result += BuildEdge<false>(tree, nidx, tree.LeftChild(nidx), true);
-    result += BuildEdge<false>(tree, nidx, tree.RightChild(nidx), false);
+    // For an indicator, "yes" means present, which is opposite the default child.
+    bool left_is_yes = has_less || !tree.DefaultLeft(nidx);
+    result += BuildEdge<false>(tree, nidx, tree.LeftChild(nidx), left_is_yes);
+    result += BuildEdge<false>(tree, nidx, tree.RightChild(nidx), !left_is_yes);
 
     return result;
   };
