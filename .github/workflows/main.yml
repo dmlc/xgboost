@@ -472,6 +472,7 @@ jobs:
       - name: Identify CuPy cache environment
         id: cupy-cache-key
         shell: bash
+        continue-on-error: true
         run: |
           source activate gpu_test
           echo "CUPY_CACHE_DIR=${RUNNER_TEMP}/cupy-cache" >> "$GITHUB_ENV"
@@ -484,6 +485,7 @@ jobs:
           PYTHON
       - name: Restore CuPy cache
         id: cupy-cache
+        if: steps.cupy-cache-key.outcome == 'success'
         uses: actions/cache/restore@v5.0.3
         continue-on-error: true
         with:
@@ -506,7 +508,8 @@ jobs:
       - name: Save CuPy cache
         # Preserve compilation work even if a test fails, but not on cancellation.
         if: >-
-          !cancelled() && steps.cupy-cache.outputs.cache-hit != 'true' &&
+          !cancelled() && steps.cupy-cache-key.outcome == 'success' &&
+          steps.cupy-cache.outputs.cache-hit != 'true' &&
           (steps.gpu-tests.outcome == 'success' || steps.gpu-tests.outcome == 'failure')
         uses: actions/cache/save@v5.0.3
         continue-on-error: true
