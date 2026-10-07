@@ -618,9 +618,10 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
         for (auto entry_idx : model_data.entries_by_group[gid]) {
           auto const &entry = model_data.entries[entry_idx];
-          auto formulation = InteractionContributionFormulation{
-              {diag.data(), ncolumns}, {matrix.data, matrix.ncolumns}, entry.weight,
-              path_features.data()};
+          auto formulation = InteractionContributionFormulation{{diag.data(), ncolumns},
+                                                                {matrix.data, matrix.ncolumns},
+                                                                entry.weight,
+                                                                path_features.data()};
           auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
           std::visit(
               [&](auto const &tree) {
