@@ -53,6 +53,8 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
                                          EndOffsetIteratorT d_end_offsets, int begin_bit = 0,
                                          int end_bit = sizeof(KeyT) * 8,
                                          bool debug_synchronous = false) {
+// Assumption: d_keys_in and d_keys_out may be the same (to support in-place sort)
+
 #if CUB_VERSION >= 300000
   // The public API requires non-overlapping input and output. Copy the input when
   // sorting in place; writing directly to the original buffer also preserves gaps
@@ -102,6 +104,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                                   BeginOffsetIteratorT d_begin_offsets,
                                   EndOffsetIteratorT d_end_offsets, curt::StreamRef stream,
                                   int begin_bit = 0, int end_bit = sizeof(KeyT) * 8) {
+// Assumption: d_keys_in and d_keys_out have no overlap.
 #if CUB_VERSION >= 300000
   if (descending) {
     dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairsDescending(
