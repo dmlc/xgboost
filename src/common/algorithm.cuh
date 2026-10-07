@@ -55,7 +55,7 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
                                          bool debug_synchronous = false) {
 // Assumption: d_keys_in and d_keys_out may be the same (to support in-place sort)
 
-#if CUB_VERSION >= 300000
+#if CUB_VERSION >= 300100
   // The public API requires non-overlapping input and output. Copy the input when
   // sorting in place; writing directly to the original buffer also preserves gaps
   // between segments.
