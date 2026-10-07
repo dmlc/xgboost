@@ -1874,6 +1874,10 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 # If output_margin is active, simply return the scores
                 return class_probs
 
+            if self.objective == "binary:logitraw":
+                # Raw margin, not a probability; apply the sigmoid before thresholding.
+                class_probs = expit(class_probs)
+
             if len(class_probs.shape) > 1 and self.n_classes_ != 2:
                 # multi-class, turns softprob into softmax
                 column_indexes: np.ndarray = np.argmax(class_probs, axis=1)
