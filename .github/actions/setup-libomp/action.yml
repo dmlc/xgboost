@@ -1,3 +1,5 @@
+# Avoid repeated Homebrew source builds on fresh macOS wheel runners.
+# See README.md for the rationale, cache maintenance, and removal criteria.
 name: Set up macOS OpenMP
 description: Install libomp with an architecture- and version-specific Homebrew cache.
 runs:
