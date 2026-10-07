@@ -139,6 +139,7 @@ TEST(SparsePageDMatrix, EllpackPagePool) {
     auto m =
         RandomDataGenerator{2055, 4, 0.0f}.Batches(8).OnHost(on_host).GenerateSparsePageDMatrix(
             "temp", true);
+    ASSERT_EQ(m->NumBatches(), 8);
     std::vector<std::vector<common::CompressedByteT>> expected;
     for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
       expected.emplace_back();
@@ -146,30 +147,34 @@ TEST(SparsePageDMatrix, EllpackPagePool) {
     }
     ASSERT_GT(expected.back().size(), expected.front().size());
 
+    auto check_page = [&](EllpackPage const& page, std::size_t i) {
+      std::vector<common::CompressedByteT> actual;
+      [[maybe_unused]] auto acc = page.Impl()->GetHostEllpack(&ctx, &actual);
+      ASSERT_EQ(actual, expected.at(i));
+    };
+
+    // Full scans reuse at most two buffers, each sized for the largest page.
     std::set<std::weak_ptr<common::ResourceHandler>, std::owner_less<>> buffers;
-    auto check_pages = [&](bool check_pool) {
+    for (std::int32_t scan = 0; scan < 3; ++scan) {
       std::size_t i = 0;
       for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
-        if (check_pool) {
-          buffers.insert(page.Impl()->gidx_buffer.Resource());
-          ASSERT_EQ(page.Impl()->gidx_buffer.Resource()->Size(), expected.back().size());
-        }
-        std::vector<common::CompressedByteT> actual;
-        [[maybe_unused]] auto acc = page.Impl()->GetHostEllpack(&ctx, &actual);
-        ASSERT_EQ(actual, expected.at(i++));
+        buffers.insert(page.Impl()->gidx_buffer.Resource());
+        ASSERT_EQ(page.Impl()->gidx_buffer.Resource()->Size(), expected.back().size());
+        check_page(page, i++);
       }
       ASSERT_EQ(i, expected.size());
-    };
-    for (int i = 0; i < 3; ++i) {
-      check_pages(true);
     }
     ASSERT_LE(buffers.size(), cuda_impl::DftPrefetchBatches());
 
-    // Restart before finishing; old prefetches may still be in flight.
-    for (int i = 0; i < 3; ++i) {
+    // Early restarts may allocate extra buffers, but must return all pages correctly.
+    for (std::int32_t restart = 0; restart < 3; ++restart) {
       auto it = m->GetBatches<EllpackPage>(&ctx, param).begin();
       ++it;
-      check_pages(false);
+      std::size_t i = 0;
+      for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
+        check_page(page, i++);
+      }
+      ASSERT_EQ(i, expected.size());
     }
   }
 }
