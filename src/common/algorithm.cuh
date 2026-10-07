@@ -59,10 +59,12 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   // The public API requires non-overlapping input and output. Copy the input when
   // sorting in place; writing directly to the original buffer also preserves gaps
   // between segments.
-  dh::TemporaryArray<KeyT> input(d_temp_storage && d_keys_in == d_keys_out ? num_items : 0);
+  dh::TemporaryArray<KeyT> input(d_keys_in == d_keys_out ? num_items : 0);
   if (input.size() != 0) {
-    dh::safe_cuda(cudaMemcpyAsync(input.data().get(), d_keys_in, num_items * sizeof(KeyT),
-                                 cudaMemcpyDeviceToDevice, ctx->Stream()));
+    if (d_temp_storage) {
+      dh::safe_cuda(cudaMemcpyAsync(input.data().get(), d_keys_in, num_items * sizeof(KeyT),
+                                   cudaMemcpyDeviceToDevice, ctx->Stream()));
+    }
     d_keys_in = input.data().get();
   }
   if (IS_DESCENDING) {
