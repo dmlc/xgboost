@@ -6,15 +6,15 @@
 #define XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 
 #include <algorithm>  // for max_element
-#include <array>    // for array
-#include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t
-#include <limits>   // for numeric_limits
-#include <memory>   // for shared_ptr
-#include <mutex>    // for mutex
-#include <tuple>    // for tuple
-#include <utility>  // for move
-#include <vector>   // for vector
+#include <array>      // for array
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr
+#include <mutex>      // for mutex
+#include <tuple>      // for tuple
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../common/compressed_iterator.h"  // for CompressedByteT
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts

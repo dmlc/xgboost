@@ -28,10 +28,10 @@ common::RefResourceView<common::CompressedByteT> EllpackPagePool::Allocate(std::
   CHECK_LE(n_bytes, max_bytes_);
   std::lock_guard<std::mutex> lock{mutex_};
   for (auto& page : pages_) {
-    if (!page || page.unique()) {
-      if (!page) {
-        page = std::make_shared<common::CudaMallocResource>(max_bytes_);
-      }
+    if (!page) {
+      page = std::make_shared<common::CudaMallocResource>(max_bytes_);
+    }
+    if (page.unique()) {
       return {page->DataAs<common::CompressedByteT>(), n_bytes, page};
     }
   }
