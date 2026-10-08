@@ -597,10 +597,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
-      - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478
-      - name: Install libomp
-        run: brew install libomp
+      - name: Set up libomp
+        uses: ./.github/actions/setup-libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal
