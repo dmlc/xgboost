@@ -105,7 +105,7 @@ TEST(CPUHistogram, CacheGrowth) {
       }
     }
   }
-  ASSERT_EQ(allocations, 4);  // Capacities for 1, 2, 4, then 7 histograms.
+  ASSERT_EQ(allocations, 6);  // Bin capacities: 3, 6, 9, 13, 19, then the limit of 21.
   std::vector<bst_node_t> next{7};
   ASSERT_FALSE(cache.CanHost(next, {}));
   auto capacity = cache.Capacity();
