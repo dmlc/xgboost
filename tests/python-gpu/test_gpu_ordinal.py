@@ -7,6 +7,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost._data_utils import cudf_cat_inf
 from xgboost.testing.data import make_categorical
 from xgboost.testing.ordinal import (
     run_basic_predict,
@@ -143,3 +144,12 @@ def test_update() -> None:
 
 def test_recode_dmatrix_predict() -> None:
     run_recode_dmatrix_predict("cuda")
+
+
+def test_cudf_cat_inf_uint64_overflow() -> None:
+    import cudf
+
+    cats = cudf.Index(cudf.Series([1, 2, np.iinfo(np.uint64).max], dtype="uint64"))
+    codes = cudf.Series([0, 1, 2], dtype="int32")
+    with pytest.raises(ValueError, match="signed 64-bit range"):
+        cudf_cat_inf(cats, codes)
