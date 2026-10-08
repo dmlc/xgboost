@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 def check_init_estimation_clf(tree_method: str, device: Device, client: Client) -> None:
-    """Test init estimation for classsifier."""
+    """Test init estimation for classifier."""
     X, y = make_classification(n_samples=4096 * 2, n_features=32, random_state=1994)
     clf = xgb.XGBClassifier(
         n_estimators=1, max_depth=1, tree_method=tree_method, device=device
