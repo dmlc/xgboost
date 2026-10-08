@@ -244,14 +244,16 @@ class TextGenerator : public TreeGenerator<TreeView> {
   }
 
   std::string Indicator(TreeView tree, bst_node_t nid, uint32_t) const override {
-    static std::string const kIndicatorTemplate = "{nid}:[{fname}] yes={yes},no={no}";
+    static std::string const kIndicatorTemplate =
+        "{nid}:[{fname}] yes={yes},no={no},missing={missing}";
     int32_t nyes = tree.DefaultLeft(nid) ? tree.RightChild(nid) : tree.LeftChild(nid);
     auto split_index = tree.SplitIndex(nid);
     std::string result =
         SuperT::Match(kIndicatorTemplate, {{"{nid}", std::to_string(nid)},
                                            {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
                                            {"{yes}", std::to_string(nyes)},
-                                           {"{no}", std::to_string(tree.DefaultChild(nid))}});
+                                           {"{no}", std::to_string(tree.DefaultChild(nid))},
+                                           {"{missing}", std::to_string(tree.DefaultChild(nid))}});
     return result;
   }
 
@@ -361,14 +363,16 @@ class JsonGenerator : public TreeGenerator<TreeView> {
   std::string Indicator(TreeView tree, bst_node_t nid, uint32_t depth) const override {
     int32_t nyes = tree.DefaultLeft(nid) ? tree.RightChild(nid) : tree.LeftChild(nid);
     static std::string const kIndicatorTemplate =
-        R"ID( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", "yes": {yes}, "no": {no})ID";
+        R"ID( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )ID"
+        R"ID("yes": {yes}, "no": {no}, "missing": {missing})ID";
     auto split_index = tree.SplitIndex(nid);
     auto result =
         SuperT::Match(kIndicatorTemplate, {{"{nid}", std::to_string(nid)},
                                            {"{depth}", std::to_string(depth)},
                                            {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
                                            {"{yes}", std::to_string(nyes)},
-                                           {"{no}", std::to_string(tree.DefaultChild(nid))}});
+                                           {"{no}", std::to_string(tree.DefaultChild(nid))},
+                                           {"{missing}", std::to_string(tree.DefaultChild(nid))}});
     return result;
   }
 
@@ -558,22 +562,19 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
   }
 
  protected:
-  template <bool is_categorical>
-  std::string BuildEdge(TreeView tree, bst_node_t nidx, int32_t child, bool left) const {
+  std::string BuildEdge(TreeView tree, bst_node_t nidx, int32_t child, bool is_yes) const {
     static std::string const kEdgeTemplate =
         "    {nid} -> {child} [label=\"{branch}\" color=\"{color}\"]\n";
     // Is this the default child for missing value?
     bool is_missing = tree.DefaultChild(nidx) == child;
-    std::string branch;
-    if (is_categorical) {
-      branch = std::string{left ? "no" : "yes"} + std::string{is_missing ? ", missing" : ""};
-    } else {
-      branch = std::string{left ? "yes" : "no"} + std::string{is_missing ? ", missing" : ""};
+    std::string branch = is_yes ? "yes" : "no";
+    if (is_missing) {
+      branch += ", missing";
     }
     std::string buffer =
         SuperT::Match(kEdgeTemplate, {{"{nid}", std::to_string(nidx)},
                                       {"{child}", std::to_string(child)},
-                                      {"{color}", is_missing ? param_.yes_color : param_.no_color},
+                                      {"{color}", is_yes ? param_.yes_color : param_.no_color},
                                       {"{branch}", branch}});
     return buffer;
   }
@@ -598,8 +599,8 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
 
     // For an indicator, "yes" means present, which is opposite the default child.
     bool left_is_yes = has_less || !tree.DefaultLeft(nidx);
-    result += BuildEdge<false>(tree, nidx, tree.LeftChild(nidx), left_is_yes);
-    result += BuildEdge<false>(tree, nidx, tree.RightChild(nidx), !left_is_yes);
+    result += BuildEdge(tree, nidx, tree.LeftChild(nidx), left_is_yes);
+    result += BuildEdge(tree, nidx, tree.RightChild(nidx), !left_is_yes);
 
     return result;
   };
@@ -623,8 +624,8 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
                          {"{stat}", this->with_stats_ ? this->NodeStat(tree, nidx) : ""},
                          {"{params}", param_.condition_node_params}});
 
-    result += BuildEdge<true>(tree, nidx, tree.LeftChild(nidx), true);
-    result += BuildEdge<true>(tree, nidx, tree.RightChild(nidx), false);
+    result += BuildEdge(tree, nidx, tree.LeftChild(nidx), false);
+    result += BuildEdge(tree, nidx, tree.RightChild(nidx), true);
 
     return result;
   }
