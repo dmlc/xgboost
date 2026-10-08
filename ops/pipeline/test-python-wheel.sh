@@ -109,12 +109,14 @@ fi
 case "$suite" in
   gpu|gpu-arm64)
     echo "-- Run Python tests, using a single GPU"
-    python -c 'from cupy.cuda import jitify; jitify._init_module()'
+    echo "-- CuPy Jitify warm-up (cache: ${CUPY_CACHE_DIR:-default})"
+    time python -c 'from cupy.cuda import jitify; jitify._init_module()'
     pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
     ;;
   mgpu)
     echo "-- Run Python tests, using multiple GPUs"
-    python -c 'from cupy.cuda import jitify; jitify._init_module()'
+    echo "-- CuPy Jitify warm-up (cache: ${CUPY_CACHE_DIR:-default})"
+    time python -c 'from cupy.cuda import jitify; jitify._init_module()'
     pytest -v -s -rxXs --durations=0 -m 'mgpu' tests/python-gpu
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_with_dask
     pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark/test_data.py -k dmatrix_ctor_gpu

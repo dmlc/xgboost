@@ -186,7 +186,6 @@ def test_categorical() -> None:
     )
     predt_1 = booster.inplace_predict(df_rev)
     assert (
-        df["f1"].cat.get_categories().to_list()
-        != df_rev["f1"].cat.get_categories().to_list()
+        df["f1"].dtype.categories.to_list() != df_rev["f1"].dtype.categories.to_list()
     )
     np.testing.assert_allclose(predt_0, predt_1)

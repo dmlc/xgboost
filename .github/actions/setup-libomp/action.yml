@@ -1,0 +1,54 @@
+# In October 2026, missing Homebrew bottles on Intel and macos-14 ARM runners
+# caused libomp installation to rebuild CMake and libomp (about 25/14 minutes).
+# Remove this cache when every wheel runner has a compatible prebuilt libomp:
+# verify fast installation on fresh, uncached runners and passing wheel tests
+# before replacing this action with ordinary setup. Preserve deployment targets.
+name: Set up macOS OpenMP
+description: Install libomp with an architecture- and version-specific Homebrew cache.
+runs:
+  using: composite
+  steps:
+    - name: Set up homebrew
+      uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478
+    - name: Identify libomp cache
+      id: libomp-cache-key
+      shell: bash -l {0}
+      run: |
+        # Keep the formula stable between querying its version and installing it.
+        echo "HOMEBREW_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
+        echo "prefix=$(brew --prefix)" >> "$GITHUB_OUTPUT"
+        echo "cellar=$(brew --cellar)" >> "$GITHUB_OUTPUT"
+        echo "macos=$(sw_vers -productVersion)" >> "$GITHUB_OUTPUT"
+        version=$(brew info --json=v2 libomp | jq -r '.formulae[0] | "\(.versions.stable)_\(.revision)"')
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+    - name: Restore installed libomp
+      id: libomp-cache
+      uses: actions/cache/restore@v5.0.3
+      continue-on-error: true
+      with:
+        # Cache the installed library and its keg-only opt link, not downloads.
+        # CMake is only a build dependency; revisit if libomp gains runtime dependencies.
+        path: |
+          ${{ steps.libomp-cache-key.outputs.cellar }}/libomp
+          ${{ steps.libomp-cache-key.outputs.prefix }}/opt/libomp
+        # Bump v1 if the cached layout or toolchain requires a fresh installation.
+        key: macos-libomp-v1-${{ runner.arch }}-${{ steps.libomp-cache-key.outputs.macos }}-${{ steps.libomp-cache-key.outputs.version }}
+    - name: Install libomp
+      if: steps.libomp-cache.outputs.cache-hit != 'true'
+      shell: bash -l {0}
+      run: brew install libomp
+    - name: Verify installed libomp
+      shell: bash -l {0}
+      run: |
+        test -f "$(brew --prefix libomp)/include/omp.h"
+        test -f "$(brew --prefix libomp)/lib/libomp.dylib"
+    # Save before building wheels so a later failure does not discard setup work.
+    - name: Save installed libomp
+      if: steps.libomp-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5.0.3
+      continue-on-error: true
+      with:
+        path: |
+          ${{ steps.libomp-cache-key.outputs.cellar }}/libomp
+          ${{ steps.libomp-cache-key.outputs.prefix }}/opt/libomp
+        key: ${{ steps.libomp-cache.outputs.cache-primary-key }}
