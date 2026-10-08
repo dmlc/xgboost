@@ -22,6 +22,16 @@ class TestGrowPolicy : public ::testing::Test {
   std::size_t n_features_ = 13;
   float sparsity_ = 0.5;
 
+  // Enable existing training monitors only for this fixture, including learner destruction.
+  int previous_verbosity_{0};
+  void SetUp() override {
+    previous_verbosity_ = static_cast<int>(ConsoleLogger::GlobalVerbosity());
+    ConsoleLogger::Configure({{"verbosity", "3"}});
+  }
+  void TearDown() override {
+    ConsoleLogger::Configure({{"verbosity", std::to_string(previous_verbosity_)}});
+  }
+
  protected:
   std::unique_ptr<Learner> TrainOneIter(Context const* ctx, bst_target_t n_targets,
                                         std::string tree_method, std::string policy,
@@ -63,6 +73,23 @@ class TestGrowPolicy : public ::testing::Test {
     auto train = [&]() {
       learner->UpdateOneIter(0, Xy);
       report("training");
+      // Count the actual result without imposing a new limit on unconstrained cases.
+      Json model{Object{}};
+      learner->SaveModel(&model);
+      RegTree tree;
+      tree.LoadModel(model["learner"]["gradient_booster"]["model"]["trees"][0]);
+      bst_node_t nodes = 0, leaves = 0, depth = 0;
+      tree::WalkTree(tree, [&](auto const& view, bst_node_t nidx) {
+        ++nodes;
+        leaves += view.IsLeaf(nidx);
+        depth = std::max(depth, view.GetDepth(nidx));
+        return true;
+      });
+      std::cout << "[GrowPolicyTree] device=" << ctx->DeviceName() << " method=" << tree_method
+                << " targets=" << n_targets << " policy=" << policy << " max_leaves=" << max_leaves
+                << " max_depth=" << max_depth << " rows=" << n_samples_ << " nodes=" << nodes
+                << " leaves=" << leaves << " depth=" << depth << std::endl;
+      report("inspect-tree");
     };
 
     auto check_max_leave = [&]() {
