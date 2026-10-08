@@ -286,7 +286,6 @@ void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_f
   }
 }
 
-// Older CUB versions require the internal dispatch API for 64-bit item counts.
 template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT, typename OffsetT>
 void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
                    ScanOpT scan_op, OffsetT num_items) {
