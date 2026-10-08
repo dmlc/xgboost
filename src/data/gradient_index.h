@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2026, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
@@ -72,30 +72,29 @@ class GHistIndexMatrix {
     auto const& ptrs = cut.Ptrs();
     auto const& values = cut.Values();
     std::atomic<bool> valid{true};
-    common::ParallelFor(
-        batch_size, batch_threads, common::WithWorker([&](size_t i, common::Worker worker) {
-          auto line = batch.GetLine(i);
-          size_t ibegin = row_ptr[rbegin + i];  // index of first entry for current block
-          size_t k = 0;
-          auto tid = worker.Id();
-          for (size_t j = 0; j < line.Size(); ++j) {
-            data::COOTuple elem = line.GetElement(j);
-            if (is_valid(elem)) {
-              if (XGBOOST_EXPECT((std::isinf(elem.value)), false)) {
-                valid = false;
-              }
-              bst_bin_t bin_idx{-1};
-              if (common::IsCat(ft, elem.column_idx)) {
-                bin_idx = cut.SearchCatBin(elem.value, elem.column_idx, ptrs, values);
-              } else {
-                bin_idx = cut.SearchBin(elem.value, elem.column_idx, ptrs, values);
-              }
-              index_data[ibegin + k] = get_offset(bin_idx, j);
-              ++hit_count_tloc_[tid * nbins + bin_idx];
-              ++k;
-            }
+    common::ParallelFor(batch_size, batch_threads, [&](size_t i) {
+      auto line = batch.GetLine(i);
+      size_t ibegin = row_ptr[rbegin + i];  // index of first entry for current block
+      size_t k = 0;
+      auto tid = omp_get_thread_num();
+      for (size_t j = 0; j < line.Size(); ++j) {
+        data::COOTuple elem = line.GetElement(j);
+        if (is_valid(elem)) {
+          if (XGBOOST_EXPECT((std::isinf(elem.value)), false)) {
+            valid = false;
           }
-        }));
+          bst_bin_t bin_idx{-1};
+          if (common::IsCat(ft, elem.column_idx)) {
+            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx, ptrs, values);
+          } else {
+            bin_idx = cut.SearchBin(elem.value, elem.column_idx, ptrs, values);
+          }
+          index_data[ibegin + k] = get_offset(bin_idx, j);
+          ++hit_count_tloc_[tid * nbins + bin_idx];
+          ++k;
+        }
+      }
+    });
 
     CHECK(valid) << error::InfInData();
   }

@@ -4,7 +4,9 @@
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
 
+#include <limits>
 #include <memory>  // shared_ptr
+#include <string>
 
 #include "xgboost/logging.h"
 #include "xgboost/metric.h"
@@ -33,6 +35,16 @@ inline void CheckRowWeights(MetaInfo const &info) {
   CHECK_EQ(info.weights_.Size(), info.num_row_)
       << "Number of weights should be equal to the number of data points.";
 }
+
+// Ranking config to be used on device and host
+struct EvalRankConfig {
+ public:
+  // Parsed from metric name, the top-n number of instances within a group after
+  // ranking to use for evaluation.
+  unsigned topn{std::numeric_limits<unsigned>::max()};
+  std::string name;
+  bool minus{false};
+};
 
 class PackedReduceResult {
   double residue_sum_{0};

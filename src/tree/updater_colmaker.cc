@@ -286,12 +286,11 @@ class ColMaker : public TreeUpdater {
       }
       const MetaInfo &info = fmat.Info();
       // setup position
-      common::ParallelFor(info.num_row_, ctx_->Threads(),
-                          common::WithWorker([&](auto ridx, common::Worker worker) {
-                            int32_t const tid = worker.Id();
-                            if (position_[ridx] < 0) return;
-                            stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
-                          }));
+      common::ParallelFor(info.num_row_, ctx_->Threads(), [&](auto ridx) {
+        int32_t const tid = omp_get_thread_num();
+        if (position_[ridx] < 0) return;
+        stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
+      });
       // sum the per thread statistics together
       for (int nid : nodes) {
         GradStats stats;
@@ -478,11 +477,10 @@ class ColMaker : public TreeUpdater {
           std::max(static_cast<int>(num_features / this->ctx_->Threads() / 32), 1);
       auto page = batch.GetView();
       common::ParallelFor(
-          num_features, ctx_->Threads(), common::Sched::Dyn(batch_size),
-          common::WithWorker([&](auto i, common::Worker worker) {
+          num_features, ctx_->Threads(), common::Sched::Dyn(batch_size), [&](auto i) {
             auto evaluator = tree_evaluator_.GetEvaluator();
             bst_feature_t const fid = feat_set[i];
-            int32_t const tid = worker.Id();
+            int32_t const tid = omp_get_thread_num();
             auto c = page[fid];
             const bool ind = c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
             if (colmaker_train_param_.NeedForwardSearch(column_densities_[fid], ind)) {
@@ -493,7 +491,7 @@ class ColMaker : public TreeUpdater {
               this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1, fid, gpair,
                                    stemp_[tid], evaluator);
             }
-          }));
+          });
     }
 
     // find splits at current level, do split per level

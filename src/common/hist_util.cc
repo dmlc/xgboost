@@ -1,12 +1,11 @@
 /**
- * Copyright 2017-2026, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file hist_util.cc
  */
 #include "hist_util.h"
 
 #include <dmlc/timer.h>
 
-#include <cstdint>  // for int32_t
 #include <vector>
 
 #include "../data/adapter.h"         // for SparsePageAdapterBatch
@@ -203,7 +202,7 @@ class GHistBuildingManager {
 // work does not amortize the per-block overhead.
 template <class BuildingManager>
 bool BuildSparseHistByBlocks(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                             const GHistIndexMatrix &gmat, GHistRow hist, std::int32_t n_threads) {
+                             const GHistIndexMatrix &gmat, GHistRow hist) {
   constexpr bool kFirstPage = BuildingManager::kFirstPage;
   using BinIdxType = typename BuildingManager::BinIdxType;
 
@@ -217,7 +216,8 @@ bool BuildSparseHistByBlocks(Span<GradientPair const> gpair, Span<bst_idx_t cons
   // process via CacheManager (CPUID + sane defaults).
   static const CacheManager kCacheManager{};
   const size_t hist_bytes = 2 * sizeof(double) * total_hist_bins;
-  const double l3_per_thread = static_cast<double>(kCacheManager.L3Size()) / std::max(1, n_threads);
+  const double l3_per_thread =
+      static_cast<double>(kCacheManager.L3Size()) / std::max(1, omp_get_max_threads());
   const double usable_cache = 0.8 * (kCacheManager.L2Size() + l3_per_thread);
   if (static_cast<double>(hist_bytes) <= usable_cache) {
     return false;
@@ -301,13 +301,13 @@ bool BuildSparseHistByBlocks(Span<GradientPair const> gpair, Span<bst_idx_t cons
 
 template <bool do_prefetch, class BuildingManager>
 void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                             const GHistIndexMatrix &gmat, GHistRow hist, std::int32_t n_threads) {
+                             const GHistIndexMatrix &gmat, GHistRow hist) {
   constexpr bool kAnyMissing = BuildingManager::kAnyMissing;
   constexpr bool kFirstPage = BuildingManager::kFirstPage;
   using BinIdxType = typename BuildingManager::BinIdxType;
 
   if constexpr (kAnyMissing) {
-    if (BuildSparseHistByBlocks<BuildingManager>(gpair, row_indices, gmat, hist, n_threads)) {
+    if (BuildSparseHistByBlocks<BuildingManager>(gpair, row_indices, gmat, hist)) {
       return;
     }
   }
@@ -464,7 +464,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
 
 template <class BuildingManager>
 void BuildHistDispatch(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                       const GHistIndexMatrix &gmat, GHistRow hist, std::int32_t n_threads) {
+                       const GHistIndexMatrix &gmat, GHistRow hist) {
   if (BuildingManager::kReadByColumn) {
     ColsWiseBuildHistKernel<BuildingManager>(gpair, row_indices, gmat, hist);
   } else {
@@ -480,16 +480,16 @@ void BuildHistDispatch(Span<GradientPair const> gpair, Span<bst_idx_t const> row
 
     if (contiguousBlock) {
       // contiguous memory access, built-in HW prefetching is enough
-      RowsWiseBuildHistKernel<false, BuildingManager>(gpair, row_indices, gmat, hist, n_threads);
+      RowsWiseBuildHistKernel<false, BuildingManager>(gpair, row_indices, gmat, hist);
     } else {
       auto span1 = row_indices.subspan(0, row_indices.size() - no_prefetch_size);
       if (!span1.empty()) {
-        RowsWiseBuildHistKernel<true, BuildingManager>(gpair, span1, gmat, hist, n_threads);
+        RowsWiseBuildHistKernel<true, BuildingManager>(gpair, span1, gmat, hist);
       }
       // no prefetching to avoid loading extra memory
       auto span2 = row_indices.subspan(row_indices.size() - no_prefetch_size);
       if (!span2.empty()) {
-        RowsWiseBuildHistKernel<false, BuildingManager>(gpair, span2, gmat, hist, n_threads);
+        RowsWiseBuildHistKernel<false, BuildingManager>(gpair, span2, gmat, hist);
       }
     }
   }
@@ -497,23 +497,20 @@ void BuildHistDispatch(Span<GradientPair const> gpair, Span<bst_idx_t const> row
 
 template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column,
-               std::int32_t n_threads) {
+               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column) {
   bool first_page = gmat.base_rowid == 0;
   auto bin_type_size = gmat.index.GetBinTypeSize();
 
   GHistBuildingManager<any_missing>::DispatchAndExecute(
       {first_page, read_by_column, bin_type_size}, [&](auto t) {
         using BuildingManager = decltype(t);
-        BuildHistDispatch<BuildingManager>(gpair, row_indices, gmat, hist, n_threads);
+        BuildHistDispatch<BuildingManager>(gpair, row_indices, gmat, hist);
       });
 }
 
 template void BuildHist<true>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                              const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column,
-                              std::int32_t n_threads);
+                              const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column);
 
 template void BuildHist<false>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column,
-                               std::int32_t n_threads);
+                               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column);
 }  // namespace xgboost::common

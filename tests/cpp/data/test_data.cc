@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2026, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -12,7 +12,7 @@
 
 namespace xgboost {
 TEST(SparsePage, PushCSC) {
-  std::vector<bst_idx_t> offset{0};
+  std::vector<bst_idx_t> offset {0};
   std::vector<Entry> data;
   SparsePage batch;
   batch.offset.HostVector() = offset;
@@ -55,7 +55,7 @@ TEST(SparsePage, PushCSC) {
 
   inst = page[1];
   ASSERT_EQ(inst.size(), 6ul);
-  std::vector<size_t> indices_sol{1, 2, 3};
+  std::vector<size_t> indices_sol {1, 2, 3};
   for (size_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
   }
@@ -70,16 +70,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   SparsePage page;  // Consolidated sparse page
   for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
     // Transpose each batch and push
-    SparsePage tmp = batch.GetTranspose(ncols, 4);
-    auto serial = batch.GetTranspose(ncols, 1);
-    ASSERT_EQ(tmp.offset.ConstHostVector(), serial.offset.ConstHostVector());
-    auto const& expected = serial.data.ConstHostVector();
-    auto const& actual = tmp.data.ConstHostVector();
-    ASSERT_EQ(actual.size(), expected.size());
-    for (std::size_t i = 0; i < actual.size(); ++i) {
-      ASSERT_EQ(actual[i].index, expected[i].index);
-      ASSERT_EQ(actual[i].fvalue, expected[i].fvalue);
-    }
+    SparsePage tmp = batch.GetTranspose(ncols, AllThreadsForTest());
     page.PushCSC(tmp);
   }
 
@@ -100,7 +91,6 @@ TEST(SparsePage, SortIndices) {
   auto p_fmat = RandomDataGenerator{100, 10, 0.6}.GenerateDMatrix();
   auto n_threads = AllThreadsForTest();
   SparsePage copy;
-  ASSERT_TRUE(copy.IsIndicesSorted(n_threads));
   for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_TRUE(page.IsIndicesSorted(n_threads));
     copy.Push(page);
@@ -122,8 +112,8 @@ TEST(SparsePage, SortIndices) {
 }
 
 TEST(DMatrix, Uri) {
-  auto constexpr kRows{16};
-  auto constexpr kCols{8};
+  auto constexpr kRows {16};
+  auto constexpr kCols {8};
 
   common::TemporaryDirectory tmpdir;
   auto const path = tmpdir.Path() / "small.csv";

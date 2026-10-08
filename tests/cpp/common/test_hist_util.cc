@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2026, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include "test_hist_util.h"
 
@@ -41,17 +41,15 @@ TEST(ParallelGHistBuilder, Reset) {
   common::BlockedSpace2d space(kNodes, [&](size_t /* node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
-  common::ParallelFor2d(
-      space, nthreads,
-      common::WithWorker([&](size_t inode, common::Range1d, common::Worker worker) {
-        const size_t tid = worker.Id();
+  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
 
-        GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
-        // fill hist by some non-null values
-        for (size_t j = 0; j < kBins; ++j) {
-          hist[j].Add(kValue, kValue);
-        }
-      }));
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    // fill hist by some non-null values
+    for (size_t j = 0; j < kBins; ++j) {
+      hist[j].Add(kValue, kValue);
+    }
+  });
 
   // reset and extend buffer
   target_hist.resize(kNodesExtended);
@@ -61,18 +59,16 @@ TEST(ParallelGHistBuilder, Reset) {
   common::BlockedSpace2d space2(kNodesExtended, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodesExtended, space2, target_hist);
 
-  common::ParallelFor2d(
-      space2, nthreads,
-      common::WithWorker([&](size_t inode, common::Range1d, common::Worker worker) {
-        const size_t tid = worker.Id();
+  common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
 
-        GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
-        // fill hist by some non-null values
-        for (size_t j = 0; j < kBins; ++j) {
-          ASSERT_EQ(0.0, hist[j].GetGrad());
-          ASSERT_EQ(0.0, hist[j].GetHess());
-        }
-      }));
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    // fill hist by some non-null values
+    for (size_t j = 0; j < kBins; ++j) {
+      ASSERT_EQ(0.0, hist[j].GetGrad());
+      ASSERT_EQ(0.0, hist[j].GetHess());
+    }
+  });
 }
 
 TEST(ParallelGHistBuilder, ReduceHist) {
@@ -100,16 +96,14 @@ TEST(ParallelGHistBuilder, ReduceHist) {
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
   // Simple analog of BuildHist function, works in parallel for both tree-nodes and data in node
-  common::ParallelFor2d(
-      space, nthreads,
-      common::WithWorker([&](size_t inode, common::Range1d, common::Worker worker) {
-        const size_t tid = worker.Id();
+  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d) {
+    const size_t tid = omp_get_thread_num();
 
-        GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
-        for (size_t i = 0; i < kBins; ++i) {
-          hist[i].Add(kValue, kValue);
-        }
-      }));
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
+    for (size_t i = 0; i < kBins; ++i) {
+      hist[i].Add(kValue, kValue);
+    }
+  });
 
   for (size_t inode = 0; inode < kNodes; inode++) {
     hist_builder.ReduceHist(inode, 0, kBins);

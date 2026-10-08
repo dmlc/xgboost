@@ -26,6 +26,7 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
+#include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
@@ -604,7 +605,7 @@ TEST(Learner, MultiTarget) {
   size_t constexpr kRows{128}, kCols{10}, kTargets{3};
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   m->Info().labels.Reshape(kRows, kTargets);
-  linalg::cpu_impl::TransformIdxKernel(m->Info().labels.HostView(), AllThreadsForTest(),
+  linalg::cpu_impl::TransformIdxKernel(m->Info().labels.HostView(), omp_get_max_threads(),
                                        [](auto i, auto) { return i; });
 
   {

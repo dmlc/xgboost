@@ -96,30 +96,28 @@ void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
  * Identity must be a neutral element of combine and is returned for empty input.
  * Acc must be default-constructible and copyable; combine must be associative and
  * commutative, allowing for floating-point rounding. Callbacks may execute concurrently.
- *
- * @tparam kBlockSize Indices per task. Use smaller blocks for expensive transforms.
  */
-template <std::size_t kBlockSize = 2048, typename Acc, typename Transform,
-          typename Combine = std::plus<Acc>>
+template <typename Acc, typename Transform, typename Combine = std::plus<Acc>>
 Acc TransformReduce(std::size_t size, std::int32_t n_threads, Acc identity, Transform&& transform,
                     Combine combine = {}) {
-  static_assert(kBlockSize > 0);
   CHECK_GE(n_threads, 1);
   if (size == 0) {
     return identity;
   }
 
+  std::size_t constexpr kBlockSize = 2048;
   n_threads = static_cast<std::int32_t>(
       std::min(static_cast<std::size_t>(n_threads), DivRoundUp(size, kBlockSize)));
   MemStackAllocator<Acc, DefaultMaxThreads()> partials(n_threads, identity);
-  ParallelFor1d<kBlockSize>(size, n_threads, WithWorker([&](auto const& block, Worker worker) {
-                              auto local = identity;
-                              for (auto i = block.begin(); i < block.end(); ++i) {
-                                local = combine(local, static_cast<Acc>(transform(i)));
-                              }
-                              auto& partial = partials[worker.Id()];
-                              partial = combine(partial, local);
-                            }));
+  ParallelFor1d<kBlockSize>(size, n_threads, [&](auto const& block) {
+    auto local = identity;
+    for (auto i = block.begin(); i < block.end(); ++i) {
+      local = combine(local, static_cast<Acc>(transform(i)));
+    }
+    // A serial call can run on any thread of an enclosing parallel region.
+    auto& partial = partials[n_threads == 1 ? 0 : omp_get_thread_num()];
+    partial = combine(partial, local);
+  });
   return std::accumulate(partials.cbegin(), partials.cend(), identity, combine);
 }
 

@@ -650,8 +650,7 @@ class ParallelGHistBuilder {
 // construct a histogram via histogram aggregation
 template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-               const GHistIndexMatrix& gmat, GHistRow hist, bool read_by_column,
-               std::int32_t n_threads);
+               const GHistIndexMatrix& gmat, GHistRow hist, bool read_by_column);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_

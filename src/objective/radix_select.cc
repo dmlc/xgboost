@@ -109,20 +109,19 @@ void RadixSelectCpu(Context const* ctx, linalg::Matrix<float> const& values,
     auto shift = 32 - (pass + 1) * kRadixBits;
     auto prefix_mask = pass == 0 ? 0U : std::numeric_limits<std::uint32_t>::max() << (shift + 8);
     // Count the next byte only for keys matching the prefix chosen in earlier passes.
-    common::ParallelFor(values.Shape(0) * n_outputs, n_threads,
-                        common::WithWorker([&](std::size_t i, common::Worker worker) {
-                          auto output = i / values.Shape(0);
-                          auto row = i % values.Shape(0);
-                          auto column = output / n_alphas;
-                          auto key = ToOrderedKey(h_values(row, column));
-                          if ((key & prefix_mask) != prefixes[output]) {
-                            return;
-                          }
-                          auto bin = (key >> shift) & (kRadixBins - 1);
-                          auto thread = worker.Id();
-                          auto offset = (thread * n_outputs + output) * kRadixBins + bin;
-                          thread_histogram[offset] += h_weights[row];
-                        }));
+    common::ParallelFor(values.Shape(0) * n_outputs, n_threads, [&](std::size_t i) {
+      auto output = i / values.Shape(0);
+      auto row = i % values.Shape(0);
+      auto column = output / n_alphas;
+      auto key = ToOrderedKey(h_values(row, column));
+      if ((key & prefix_mask) != prefixes[output]) {
+        return;
+      }
+      auto bin = (key >> shift) & (kRadixBins - 1);
+      auto thread = omp_get_thread_num();
+      auto offset = (thread * n_outputs + output) * kRadixBins + bin;
+      thread_histogram[offset] += h_weights[row];
+    });
 
     // Combine thread-local histograms, then combine the same bins across workers.
     std::fill(histogram.begin(), histogram.end(), 0.0);

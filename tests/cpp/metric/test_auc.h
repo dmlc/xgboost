@@ -240,11 +240,6 @@ inline void VerifyRankingAUC(DeviceOrd device) {
   // AUC metric for grouped datasets - exception scenarios
   ASSERT_TRUE(std::isnan(GetMetricEval(metric.get(), {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3})));
 
-  // Keep a valid zero-AUC group in the denominator, but exclude the two-document group.
-  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 2, 1, 0, 0, 1}, {0, 1, 2, 0, 1, 2, 0, 1}, {},
-                            {0, 3, 6, 8}),
-              0.5, 1e-10);
-
   // regression case
   HostDeviceVector<float> predt{
       0.33935383, 0.5149714,  0.32138085, 1.4547751, 1.2010975, 0.42651367, 0.23104341, 0.83610827,
@@ -337,9 +332,6 @@ inline void VerifyRankingPRAUC(DeviceOrd device) {
   ASSERT_THROW(GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
                              {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3.0f}, {}, groups),
                dmlc::Error);
-
-  // A group with only one class contributes neither area nor a valid-group count.
-  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 0, 1}, {0, 1, 1, 1}, {}, {0, 2, 4}), 1.0, 1e-10);
 
   // AUCPR with groups and no weights
   EXPECT_NEAR(

@@ -289,46 +289,44 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(
-        space, n_threads,
-        common::WithWorker([&](std::size_t nidx_in_set, common::Range1d r, common::Worker worker) {
-          auto tidx = worker.Id();
-          auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
-          auto best = &entry->split;
-          auto nidx = entry->nid;
-          auto histogram = hist[nidx];
-          auto features_set = features[nidx_in_set]->ConstHostSpan();
-          for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
-            auto fidx = features_set[fidx_in_set];
-            bool is_cat = common::IsCat(feature_types, fidx);
-            if (!interaction_constraints_.Query(nidx, fidx)) {
-              continue;
-            }
-            if (is_cat) {
-              auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
-              if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-                this->EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
-              } else {
-                std::vector<size_t> sorted_idx(n_bins);
-                std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-                auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
-                // Sort the histogram to get contiguous partitions.
-                std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                                 [&](std::size_t l, std::size_t r) {
-                                   return evaluator.CalcWeightCat(*param_, feat_hist[l]) <
-                                          evaluator.CalcWeightCat(*param_, feat_hist[r]);
-                                 });
-                this->EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-                this->EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-              }
-            } else {
-              auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-              if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-                EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
-              }
-            }
+    common::ParallelFor2d(space, n_threads, [&](std::size_t nidx_in_set, common::Range1d r) {
+      auto tidx = omp_get_thread_num();
+      auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
+      auto best = &entry->split;
+      auto nidx = entry->nid;
+      auto histogram = hist[nidx];
+      auto features_set = features[nidx_in_set]->ConstHostSpan();
+      for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
+        auto fidx = features_set[fidx_in_set];
+        bool is_cat = common::IsCat(feature_types, fidx);
+        if (!interaction_constraints_.Query(nidx, fidx)) {
+          continue;
+        }
+        if (is_cat) {
+          auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
+          if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
+            this->EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
+          } else {
+            std::vector<size_t> sorted_idx(n_bins);
+            std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+            auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
+            // Sort the histogram to get contiguous partitions.
+            std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                             [&](std::size_t l, std::size_t r) {
+                               return evaluator.CalcWeightCat(*param_, feat_hist[l]) <
+                                      evaluator.CalcWeightCat(*param_, feat_hist[r]);
+                             });
+            this->EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            this->EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
           }
-        }));
+        } else {
+          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
+          if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
+            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
+          }
+        }
+      }
+    });
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
@@ -633,84 +631,82 @@ class HistMultiEvaluator {
     }
 
     auto evaluator = tree_evaluator_.GetEvaluator();
-    common::ParallelFor2d(
-        space, n_threads,
-        common::WithWorker([&](std::size_t nidx_in_set, common::Range1d r, common::Worker worker) {
-          auto tidx = worker.Id();
-          auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
-          auto best = &entry->split;
+    common::ParallelFor2d(space, n_threads, [&](std::size_t nidx_in_set, common::Range1d r) {
+      auto tidx = omp_get_thread_num();
+      auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
+      auto best = &entry->split;
 
-          auto parent_sum = stats_.Slice(entry->nid, linalg::All());
-          auto base_weight = linalg::Zeros<float>(ctx_, parent_sum.Shape());
-          auto h_bw = base_weight.HostView();
-          evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
+      auto parent_sum = stats_.Slice(entry->nid, linalg::All());
+      auto base_weight = linalg::Zeros<float>(ctx_, parent_sum.Shape());
+      auto h_bw = base_weight.HostView();
+      evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
 
-          std::vector<common::ConstGHistRow> node_hist;
-          for (auto t_hist : hist) {
-            node_hist.emplace_back((*t_hist)[entry->nid]);
+      std::vector<common::ConstGHistRow> node_hist;
+      for (auto t_hist : hist) {
+        node_hist.emplace_back((*t_hist)[entry->nid]);
+      }
+      auto features_set = features[nidx_in_set]->ConstHostSpan();
+      auto n_targets = hist.size();
+
+      for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
+        auto fidx = features_set[fidx_in_set];
+        if (!interaction_constraints_.Query(entry->nid, fidx)) {
+          continue;
+        }
+        auto parent_gain = gain_[entry->nid];
+        bool is_cat = common::IsCat(feature_types, fidx);
+        // Numeric split
+        if (!is_cat) {
+          bool missing = this->EnumerateSplit<+1>(cut, fidx, node_hist, parent_sum, parent_gain,
+                                                  entry->nid, evaluator, best);
+          if (missing) {
+            this->EnumerateSplit<-1>(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
+                                     evaluator, best);
           }
-          auto features_set = features[nidx_in_set]->ConstHostSpan();
-          auto n_targets = hist.size();
+          continue;
+        }
 
-          for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
-            auto fidx = features_set[fidx_in_set];
-            if (!interaction_constraints_.Query(entry->nid, fidx)) {
-              continue;
-            }
-            auto parent_gain = gain_[entry->nid];
-            bool is_cat = common::IsCat(feature_types, fidx);
-            // Numeric split
-            if (!is_cat) {
-              bool missing = this->EnumerateSplit<+1>(cut, fidx, node_hist, parent_sum, parent_gain,
-                                                      entry->nid, evaluator, best);
-              if (missing) {
-                this->EnumerateSplit<-1>(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
-                                         evaluator, best);
-              }
-              continue;
-            }
+        auto const &cut_ptr = cut.Ptrs();
+        auto n_bins = cut_ptr.at(fidx + 1) - cut_ptr[fidx];
+        // One hot split
+        if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
+          this->EnumerateOneHot(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
+                                evaluator, best);
+          continue;
+        }
 
-            auto const &cut_ptr = cut.Ptrs();
-            auto n_bins = cut_ptr.at(fidx + 1) - cut_ptr[fidx];
-            // One hot split
-            if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-              this->EnumerateOneHot(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
-                                    evaluator, best);
-              continue;
-            }
+        // Partition split
+        std::vector<size_t> sorted_idx(n_bins);
+        std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
+        linalg::Vector<GradientPairPrecise> grads({n_targets}, this->ctx_->Device());
+        auto h_grads = grads.HostView();
+        std::vector<float> child_w(n_targets, .0f);
 
-            // Partition split
-            std::vector<size_t> sorted_idx(n_bins);
-            std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-            linalg::Vector<GradientPairPrecise> grads({n_targets}, this->ctx_->Device());
-            auto h_grads = grads.HostView();
-            std::vector<float> child_w(n_targets, .0f);
-
-            // Sort by s_c = w_p^T w_c
-            // Project onto the parent's update direction to compare scores l_s < r_s
-            // Since we care only about the ordering, no need to divide the norm.
-            std::vector<double> scores(n_bins);
-            for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
-              for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
-                auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
-                h_grads(t_idx) = f_hist[bin_idx];
-              }
-              evaluator.CalcWeightCat(*param_, h_grads,
-                                      linalg::MakeVec(child_w.data(), child_w.size()));
-              double sc = .0;
-              for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
-                sc += h_bw(t_idx) * child_w[t_idx];
-              }
-              scores[bin_idx] = sc;
-            }
-
-            std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                             [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
-
-            this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
-            this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
+        // Sort by s_c = w_p^T w_c
+        // Project onto the parent's update direction to compare scores l_s < r_s
+        // Since we care only about the ordering, no need to divide the norm.
+        std::vector<double> scores(n_bins);
+        for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
+          for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
+            auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
+            h_grads(t_idx) = f_hist[bin_idx];
           }
-        }));
+          evaluator.CalcWeightCat(*param_, h_grads,
+                                  linalg::MakeVec(child_w.data(), child_w.size()));
+          double sc = .0;
+          for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
+            sc += h_bw(t_idx) * child_w[t_idx];
+          }
+          scores[bin_idx] = sc;
+        }
+
+        std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                         [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
+
+        this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
+        this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
+      }
+    });
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
