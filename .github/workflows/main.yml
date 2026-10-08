@@ -469,6 +469,29 @@ jobs:
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v7.0.1
+      - name: Identify CuPy cache environment
+        id: cupy-cache-key
+        shell: bash
+        continue-on-error: true
+        run: |
+          source activate gpu_test
+          echo "CUPY_CACHE_DIR=${RUNNER_TEMP}/cupy-cache" >> "$GITHUB_ENV"
+          python - <<'PYTHON' | tee -a "$GITHUB_OUTPUT"
+          import cupy
+          from cupy.cuda import nvrtc, runtime
+
+          nvrtc_version = ".".join(map(str, nvrtc.getVersion()))
+          print(f"versions=cupy-{cupy.__version__}-cuda-{runtime.runtimeGetVersion()}-nvrtc-{nvrtc_version}")
+          PYTHON
+      - name: Restore CuPy cache
+        id: cupy-cache
+        if: steps.cupy-cache-key.outcome == 'success'
+        uses: actions/cache/restore@v5.0.3
+        continue-on-error: true
+        with:
+          path: ${{ env.CUPY_CACHE_DIR }}
+          # No broad restore keys: compiled kernels must match the environment.
+          key: cupy-v2-${{ matrix.description }}-${{ needs.ci-configure.outputs.image_tag }}-${{ steps.cupy-cache-key.outputs.versions }}
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -477,10 +500,22 @@ jobs:
             --dest-dir wheelhouse \
             *.whl
       - name: Run Python tests (${{ matrix.description }})
+        id: gpu-tests
         run: >-
           bash ops/pipeline/test-python-wheel.sh
           --suite ${{ matrix.suite }}
           --cuda-version ${{ matrix.cuda_version }}
+      - name: Save CuPy cache
+        # Preserve compilation work even if a test fails, but not on cancellation.
+        if: >-
+          !cancelled() && steps.cupy-cache-key.outcome == 'success' &&
+          steps.cupy-cache.outputs.cache-hit != 'true' &&
+          (steps.gpu-tests.outcome == 'success' || steps.gpu-tests.outcome == 'failure')
+        uses: actions/cache/save@v5.0.3
+        continue-on-error: true
+        with:
+          path: ${{ env.CUPY_CACHE_DIR }}
+          key: ${{ steps.cupy-cache.outputs.cache-primary-key }}
       # Train a model for cross-platform testing (only for default CUDA 13 x86_64)
       - name: Train cross-platform test model
         if: matrix.cuda_version == 13 && matrix.suite == 'gpu'
