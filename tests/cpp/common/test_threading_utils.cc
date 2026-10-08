@@ -1,10 +1,11 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <dmlc/omp.h>  // for omp_in_parallel
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for std::size_t
+#include <memory>   // for make_shared, shared_ptr
 
 #include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
 #include "xgboost/context.h"                      // Context
@@ -110,5 +111,19 @@ TEST(OmpGetNumThreads, Max) {
   ASSERT_GE(n_threads, 1);
   ASSERT_LE(n_threads, std::thread::hardware_concurrency());
 #endif
+}
+
+TEST(MemStackAllocator, ObjectLifetime) {
+  auto value = std::make_shared<int>(7);
+  for (std::size_t n : {0, 2, 3}) {
+    {
+      MemStackAllocator<std::shared_ptr<int>, 2> storage(n, value);
+      ASSERT_EQ(value.use_count(), n + 1);
+      for (std::size_t i = 0; i < n; ++i) {
+        ASSERT_EQ(storage[i], value);
+      }
+    }
+    ASSERT_EQ(value.use_count(), 1);
+  }
 }
 }  // namespace xgboost::common

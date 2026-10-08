@@ -9,12 +9,11 @@
 
 #include <array>
 #include <atomic>
-#include <numeric>
-#include <vector>
+#include <cstddef>  // for size_t
 
 #include "../collective/aggregator.h"
 #include "../common/kernel.h"
-#include "../common/threading_utils.h"
+#include "../common/numeric.h"  // for TransformReduce
 #include "xgboost/collective/result.h"
 #include "xgboost/metric.h"
 
@@ -27,7 +26,6 @@ PackedReduceResult EvalCpu(Context const* ctx, HostDeviceVector<float> const& pr
                            HostDeviceVector<std::int32_t>* /*label_error_buffer*/) {
   auto const& weights = info.weights_;
   auto const& labels = *info.labels.Data();
-  auto n_threads = ctx->Threads();
   size_t ndata = labels.Size();
 
   const auto& h_labels = labels.HostVector();
@@ -37,28 +35,21 @@ PackedReduceResult EvalCpu(Context const* ctx, HostDeviceVector<float> const& pr
   std::atomic<int> label_error{0};
   bool const is_null_weight = weights.Size() == 0;
 
-  std::vector<double> scores_tloc(n_threads, 0);
-  std::vector<double> weights_tloc(n_threads, 0);
-  common::ParallelFor(ndata, n_threads, [&](size_t idx) {
-    bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
-    auto label = static_cast<int>(h_labels[idx]);
-    if (label >= 0 && label < static_cast<int>(n_class)) {
-      auto t_idx = omp_get_thread_num();
-      scores_tloc[t_idx] +=
-          EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class, n_class) * weight;
-      weights_tloc[t_idx] += weight;
-    } else {
-      label_error = label;
-    }
-  });
-
-  double residue_sum = std::accumulate(scores_tloc.cbegin(), scores_tloc.cend(), 0.0);
-  double weights_sum = std::accumulate(weights_tloc.cbegin(), weights_tloc.cend(), 0.0);
+  auto result =
+      common::TransformReduce(ndata, ctx->Threads(), PackedReduceResult{}, [&](std::size_t idx) {
+        bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
+        auto label = static_cast<int>(h_labels[idx]);
+        if (label >= 0 && label < static_cast<int>(n_class)) {
+          auto residue =
+              EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class, n_class) * weight;
+          return PackedReduceResult{residue, weight};
+        }
+        label_error = label;
+        return PackedReduceResult{};
+      });
 
   CheckMultiClassLabel(label_error, n_class);
-  PackedReduceResult res{residue_sum, weights_sum};
-
-  return res;
+  return result;
 }
 
 auto const kRegisterErrorCpu = common::KernelRegistration<MultiClassErrorEvalKernel>{

@@ -4,19 +4,19 @@
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
 
-#include <dmlc/common.h>  // OMPException
-
-#include <algorithm>    // for max
+#include <algorithm>    // for min, max
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
+#include <functional>   // for plus
 #include <iterator>     // for iterator_traits
 #include <numeric>      // for accumulate
 #include <type_traits>  // for is_same_v
 #include <vector>       // for vector
 
-#include "threading_utils.h"             // MemStackAllocator, DefaultMaxThreads
+#include "threading_utils.h"             // ParallelFor1d, MemStackAllocator, DefaultMaxThreads
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "xgboost/logging.h"             // CHECK_GE
 
 #if !defined(XGBOOST_USE_CUDA)
 
@@ -90,6 +90,37 @@ void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
   });
 }
 
+/**
+ * @brief CPU reduction of transformed indices in [0, size), accumulated in blocks.
+ *
+ * Identity must be a neutral element of combine and is returned for empty input.
+ * Acc must be default-constructible and copyable; combine must be associative and
+ * commutative, allowing for floating-point rounding. Callbacks may execute concurrently.
+ */
+template <typename Acc, typename Transform, typename Combine = std::plus<Acc>>
+Acc TransformReduce(std::size_t size, std::int32_t n_threads, Acc identity, Transform&& transform,
+                    Combine combine = {}) {
+  CHECK_GE(n_threads, 1);
+  if (size == 0) {
+    return identity;
+  }
+
+  std::size_t constexpr kBlockSize = 2048;
+  n_threads = static_cast<std::int32_t>(
+      std::min(static_cast<std::size_t>(n_threads), DivRoundUp(size, kBlockSize)));
+  MemStackAllocator<Acc, DefaultMaxThreads()> partials(n_threads, identity);
+  ParallelFor1d<kBlockSize>(size, n_threads, [&](auto const& block) {
+    auto local = identity;
+    for (auto i = block.begin(); i < block.end(); ++i) {
+      local = combine(local, static_cast<Acc>(transform(i)));
+    }
+    // A serial call can run on any thread of an enclosing parallel region.
+    auto& partial = partials[n_threads == 1 ? 0 : omp_get_thread_num()];
+    partial = combine(partial, local);
+  });
+  return std::accumulate(partials.cbegin(), partials.cend(), identity, combine);
+}
+
 namespace cuda_impl {
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
 #if !defined(XGBOOST_USE_CUDA)
@@ -99,21 +130,6 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
-
-/**
- * \brief Reduction with iterator. init must be additive identity. (0 for primitive types)
- */
-namespace cpu_impl {
-template <typename It, typename V = typename It::value_type>
-V Reduce(Context const* ctx, It first, It second, V const& init) {
-  std::size_t n = std::distance(first, second);
-  auto n_threads = static_cast<std::size_t>(std::min(n, static_cast<std::size_t>(ctx->Threads())));
-  common::MemStackAllocator<V, common::DefaultMaxThreads()> result_tloc(n_threads, init);
-  common::ParallelFor(n, n_threads, [&](auto i) { result_tloc[omp_get_thread_num()] += first[i]; });
-  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cbegin() + n_threads, init);
-  return result;
-}
-}  // namespace cpu_impl
 
 /**
  * @brief Reduction on host device vector.

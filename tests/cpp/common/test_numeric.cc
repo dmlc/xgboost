@@ -3,7 +3,13 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>  // for min, max
+#include <array>      // for array
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
 #include <numeric>
+#include <stdexcept>  // for runtime_error
+#include <vector>     // for vector
 
 #include "../../../src/common/numeric.h"
 
@@ -32,11 +38,42 @@ TEST(Numeric, PartialSum) {
 TEST(Numeric, Reduce) {
   Context ctx;
   ASSERT_TRUE(ctx.IsCPU());
-  HostDeviceVector<float> values(20);
-  auto& h_values = values.HostVector();
-  std::iota(h_values.begin(), h_values.end(), 0.0f);
-  auto sum = Reduce(&ctx, values);
-  ASSERT_EQ(sum, (values.Size() - 1) * values.Size() / 2);
+  for (auto n_threads : {1, 4}) {
+    ctx.nthread = n_threads;
+    for (std::size_t n : {0, 1, 20, 8193}) {
+      HostDeviceVector<float> values(n);
+      auto& h_values = values.HostVector();
+      std::iota(h_values.begin(), h_values.end(), 1.0f);
+      ASSERT_EQ(Reduce(&ctx, values), n * (n + 1) / 2);
+    }
+  }
+}
+
+TEST(Numeric, TransformReduce) {
+  // Exercise a custom accumulator and combiner with a nonzero identity.
+  using Bounds = std::array<int, 2>;
+  Bounds identity{std::numeric_limits<int>::max(), std::numeric_limits<int>::lowest()};
+  auto reduce = [&](std::size_t size, int n_threads) {
+    return TransformReduce(
+        size, n_threads, identity,
+        [](std::size_t i) -> Bounds {
+          auto value = static_cast<int>(i) + 1;
+          return {value, value};
+        },
+        [](Bounds const& a, Bounds const& b) -> Bounds {
+          return {std::min(a[0], b[0]), std::max(a[1], b[1])};
+        });
+  };
+  for (auto n_threads : {1, 4}) {
+    ASSERT_EQ(reduce(0, n_threads), identity);
+    ASSERT_EQ(reduce(8193, n_threads), (Bounds{1, 8193}));
+    ASSERT_THROW(
+        TransformReduce(8193, n_threads, 0,
+                        [](std::size_t) -> int { throw std::runtime_error{"Transform failed"}; }),
+        std::runtime_error);
+  }
+  // Nested serial calls must not index storage with the enclosing OpenMP thread ID.
+  ParallelFor(4, 4, [&](auto) { ASSERT_EQ(reduce(8193, 1), (Bounds{1, 8193})); });
 }
 
 TEST(Numeric, Iota) {
