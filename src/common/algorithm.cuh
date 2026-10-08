@@ -80,7 +80,7 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   if (debug_synchronous && d_temp_storage) {
     dh::safe_cuda(cudaStreamSynchronize(ctx->Stream()));
   }
-#else
+#else  // CUB_VERSION >= 300100
   // The static Dispatch() method of cub::DispatchSegmentedRadixSort takes in 32-bit int for
   // num_items parameter.
   using OffsetT = int;
@@ -100,7 +100,7 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   if (debug_synchronous && d_temp_storage) {
     dh::safe_cuda(cudaStreamSynchronize(ctx->Stream()));
   }
-#endif
+#endif  // CUB_VERSION >= 300100
 }
 
 // Wrapper around cub sort for easier `descending` sort.
@@ -125,7 +125,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
         d_temp_storage, temp_storage_bytes, d_keys_in, d_keys_out, d_values_in, d_values_out,
         num_items, num_segments, d_begin_offsets, d_end_offsets, begin_bit, end_bit, stream));
   }
-#else
+#else  // CUB_VERSION >= 300100
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in), d_values_out);
   // In old version of cub, num_items in dispatch is also int32_t, no way to change.
@@ -140,7 +140,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, stream)));
-#endif
+#endif  // CUB_VERSION >= 300100
 }
 }  // namespace detail
 

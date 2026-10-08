@@ -31,9 +31,9 @@
 #if CUB_VERSION >= 300200
 #include <cuda/memory_pool>        // for device_memory_pool
 #include <unordered_map>           // for unordered_map
-#else
+#else  // CUB_VERSION >= 300200
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
-#endif
+#endif  // CUB_VERSION >= 300200
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <functional>              // for function
 #include <memory>                  // for unique_ptr
@@ -400,7 +400,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     }
     return *pool;
   }
-#else
+#else  // CUB_VERSION >= 300200
   static cub::CachingDeviceAllocator &GetGlobalCachingAllocator() {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
@@ -408,7 +408,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         std::make_unique<cub::CachingDeviceAllocator>(2, 9, 29)};
     return *allocator;
   }
-#endif
+#endif  // CUB_VERSION >= 300200
 
   pointer allocate(std::size_t n) {  // NOLINT
     pointer thrust_ptr;
@@ -421,7 +421,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
       } catch (const std::exception &e) {
         detail::ThrowOOMError(e.what(), n * sizeof(T));
       }
-#else
+#else  // CUB_VERSION >= 300200
       T *raw_ptr{nullptr};
       // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
@@ -431,7 +431,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
       thrust_ptr = thrust::device_pointer_cast(raw_ptr);
-#endif
+#endif  // CUB_VERSION >= 300200
     } else {
       try {
         thrust_ptr = SuperT::allocate(n);
@@ -450,9 +450,9 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
       GetGlobalCachingAllocator().deallocate(
           cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}},
           thrust::raw_pointer_cast(ptr), n * sizeof(T));
-#else
+#else  // CUB_VERSION >= 300200
       GetGlobalCachingAllocator().DeviceFree(thrust::raw_pointer_cast(ptr));
-#endif
+#endif  // CUB_VERSION >= 300200
     } else {
       SuperT::deallocate(ptr, n);
     }
