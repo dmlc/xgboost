@@ -6,9 +6,11 @@
 #include <xgboost/context.h>  // for Context
 #include <xgboost/tree_model.h>
 
+#include <chrono>
 #include <cstddef>  // for size_t
-#include <memory>   // for unique_ptr
-#include <string>   // for string
+#include <iostream>
+#include <memory>  // for unique_ptr
+#include <string>  // for string
 
 #include "../../../src/tree/tree_view.h"  // for WalkTree
 #include "../helpers.h"
@@ -24,9 +26,22 @@ class TestGrowPolicy : public ::testing::Test {
   std::unique_ptr<Learner> TrainOneIter(Context const* ctx, bst_target_t n_targets,
                                         std::string tree_method, std::string policy,
                                         bst_node_t max_leaves, bst_node_t max_depth) {
+    // Temporary PR diagnostics: remove after locating the Windows slowdown.
+    using Clock = std::chrono::steady_clock;
+    auto start = Clock::now();
+    auto last = start;
+    auto report = [&](char const* phase) {
+      auto now = Clock::now();
+      auto elapsed = std::chrono::duration<double, std::milli>(now - last).count();
+      std::cout << "[GrowPolicyTiming] device=" << ctx->DeviceName() << " method=" << tree_method
+                << " targets=" << n_targets << " policy=" << policy << " leaves=" << max_leaves
+                << " depth=" << max_depth << " phase=" << phase << " ms=" << elapsed << std::endl;
+      last = Clock::now();
+    };
     auto Xy =
         RandomDataGenerator{n_samples_, n_features_, sparsity_}.Targets(n_targets).GenerateDMatrix(
             true);
+    report("data-and-dmatrix");
 
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     // These small fits check tree structure, not scaling with thread count.
@@ -44,6 +59,12 @@ class TestGrowPolicy : public ::testing::Test {
       learner->Configure({{"multi_strategy", "multi_output_tree"}});
     }
 
+    report("learner-setup");
+    auto train = [&]() {
+      learner->UpdateOneIter(0, Xy);
+      report("training");
+    };
+
     auto check_max_leave = [&]() {
       Json model{Object{}};
       learner->SaveModel(&model);
@@ -51,6 +72,7 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       CHECK_LE(tree.GetNumLeaves(), max_leaves);
+      report("check-leaves");
     };
 
     auto check_max_depth = [&](int32_t sol) {
@@ -71,30 +93,33 @@ class TestGrowPolicy : public ::testing::Test {
         CHECK_EQ(depth, max_depth) << "tree method: " << tree_method << " policy: " << policy
                                    << " leaves:" << max_leaves << ", depth:" << max_depth;
       }
+      report("check-depth");
     };
 
     if (max_leaves == 0 && max_depth == 0) {
       // unconstrained
       if (ctx->IsCPU()) {
         // GPU pre-allocates for all nodes.
-        learner->UpdateOneIter(0, Xy);
+        train();
       }
     } else if (max_leaves > 0 && max_depth == 0) {
-      learner->UpdateOneIter(0, Xy);
+      train();
       check_max_leave();
     } else if (max_leaves == 0 && max_depth > 0) {
-      learner->UpdateOneIter(0, Xy);
+      train();
       check_max_depth(-1);
     } else if (max_leaves > 0 && max_depth > 0) {
-      learner->UpdateOneIter(0, Xy);
+      train();
       check_max_leave();
       check_max_depth(2);
     } else if (max_leaves == -1 && max_depth == 0) {
       // default max_leaves is 0, so both of them are now 0
     } else {
       // default parameters
-      learner->UpdateOneIter(0, Xy);
+      train();
     }
+    last = start;
+    report("total");
     return learner;
   }
 
