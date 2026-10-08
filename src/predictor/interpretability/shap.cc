@@ -104,8 +104,8 @@ constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 using QuadratureRule = detail::QuadratureRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
-// Per-point terms of the return-edge extraction. Their sum is the edge's delta; pairwise
-// interactions also weight them by each partner's cached factor.
+// Per-point terms of the return-edge extraction. Their sum, weighted by the quadrature weights, is
+// the edge's delta; pairwise interactions also weight them by each partner's cached factor.
 QuadratureBuffer ExtractQuadratureEdgeTerms(QuadratureRule const &rule,
                                             QuadratureBuffer const &h_vals, float p_enter,
                                             float p_exit) {
@@ -126,8 +126,8 @@ QuadratureBuffer ExtractQuadratureEdgeTerms(QuadratureRule const &rule,
 }
 
 template <typename Tree>
-void WriteWeightedLeafReturn(Tree const &tree, QuadratureRule const &rule, bst_node_t nidx,
-                             bst_target_t target_idx, QuadratureBuffer const &c_vals, float w_prod,
+void WriteWeightedLeafReturn(Tree const &tree, bst_node_t nidx, bst_target_t target_idx,
+                             QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
   float leaf_value;
   if constexpr (tree::IsScalarTree<Tree>()) {
@@ -137,7 +137,7 @@ void WriteWeightedLeafReturn(Tree const &tree, QuadratureRule const &rule, bst_n
   }
   auto const leaf_scale = w_prod * leaf_value;
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
+    (*out_h)[i] = c_vals[i] * leaf_scale;
   }
 }
 
@@ -180,7 +180,7 @@ struct AdditiveContributionFormulation {
     auto const edge_terms = ExtractQuadratureEdgeTerms(rule, h_vals, p_enter, p_exit);
     float edge_delta = 0.0f;
     for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      edge_delta += edge_terms[i];
+      edge_delta += rule.weights[i] * edge_terms[i];
     }
     phi[split_index] += edge_delta;
   }
@@ -227,9 +227,10 @@ struct InteractionContributionFormulation {
 
   void HandleReturn(QuadratureRule const &rule, bst_feature_t split_index,
                     QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
-    auto const edge_terms = ExtractQuadratureEdgeTerms(rule, h_vals, p_enter, p_exit);
+    auto edge_terms = ExtractQuadratureEdgeTerms(rule, h_vals, p_enter, p_exit);
     float edge_delta = 0.0f;
     for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      edge_terms[i] *= rule.weights[i];
       edge_delta += edge_terms[i];
     }
     phi_diag[split_index] += scale * edge_delta;
@@ -306,7 +307,7 @@ struct QuadratureTreeShapRunner {
   void RunNode(bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                QuadratureBuffer *out_h) {
     if (tree.IsLeaf(nidx)) {
-      WriteWeightedLeafReturn(tree, rule, nidx, target_idx, c_vals, w_prod, out_h);
+      WriteWeightedLeafReturn(tree, nidx, target_idx, c_vals, w_prod, out_h);
       return;
     }
 
