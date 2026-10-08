@@ -167,18 +167,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
       }));
   std::size_t n_bytes = 0;
   auto scan = [&](void* storage) {
-#if CUB_VERSION >= 300000
     return cub::DeviceScan::InclusiveScan(storage, n_bytes, input_iterator,
                                           discard_write_iterator, IndexFlagOp{},
                                           static_cast<std::uint64_t>(total_rows),
                                           ctx->CUDACtx()->Stream());
-#else
-    // Older CUB versions require the internal API for 64-bit item counts.
-    return cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator),
-                             IndexFlagOp, cub::NullType, std::uint64_t>::Dispatch(
-        storage, n_bytes, input_iterator, discard_write_iterator, IndexFlagOp{}, cub::NullType{},
-        static_cast<std::uint64_t>(total_rows), ctx->CUDACtx()->Stream());
-#endif
   };
   if (tmp->empty()) {
     // The size of temporary storage is calculated based on the total number of
