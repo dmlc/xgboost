@@ -29,7 +29,9 @@ class TestGrowPolicy : public ::testing::Test {
             true);
 
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-    learner->Configure({{"tree_method", tree_method}});
+    // These small fits check tree structure, not scaling with thread count.
+    // Exercise parallel training with a fixed budget on every CI runner.
+    learner->Configure({{"tree_method", tree_method}, {"nthread", "2"}});
     learner->Configure({{"device", ctx->DeviceName()}});
     if (max_leaves >= 0) {
       learner->Configure({{"max_leaves", std::to_string(max_leaves)}});
