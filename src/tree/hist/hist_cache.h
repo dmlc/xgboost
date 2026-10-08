@@ -3,10 +3,12 @@
  */
 #ifndef XGBOOST_TREE_HIST_HIST_CACHE_H_
 #define XGBOOST_TREE_HIST_HIST_CACHE_H_
-#include <cstddef>  // for size_t
-#include <map>      // for map
-#include <memory>   // for unique_ptr
-#include <vector>   // for vector
+#include <algorithm>  // for max, min
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <map>        // for map
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../../common/hist_util.h"          // for GHistRow, ConstGHistRow
 #include "../../common/ref_resource_view.h"  // for ReallocVector
@@ -48,13 +50,13 @@ class BoundedHistCollection {
   BoundedHistCollection() = default;
   common::GHistRow operator[](std::size_t idx) {
     auto offset = node_map_.at(idx);
-    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(
-        offset, n_total_bins_);
+    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(offset,
+                                                                                   n_total_bins_);
   }
   common::ConstGHistRow operator[](std::size_t idx) const {
     auto offset = node_map_.at(idx);
-    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(
-        offset, n_total_bins_);
+    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(offset,
+                                                                                   n_total_bins_);
   }
   void Reset(bst_bin_t n_total_bins, std::size_t n_cached_nodes) {
     n_total_bins_ = n_total_bins;
@@ -88,7 +90,13 @@ class BoundedHistCollection {
     auto alloc_size = n_new_nodes * n_total_bins_;
     auto new_size = alloc_size + current_size_;
     if (new_size > data_->size()) {
-      data_->Resize(new_size);
+      // Loss-guided growth adds a few histograms at a time. Geometric growth avoids
+      // repeatedly reallocating and copying the entire buffer on platforms like Windows.
+      // Cap spare capacity at the cache limit; an oversized batch still fits exactly.
+      auto max_bins = std::numeric_limits<std::size_t>::max() / sizeof(GradientPairPrecise);
+      auto cache_size = std::min(max_cached_nodes_, max_bins / n_total_bins_) * n_total_bins_;
+      auto capacity = std::min(data_->size() * 2, cache_size);
+      data_->Resize(std::max(new_size, capacity));
     }
     for (auto nidx : nodes_to_build) {
       node_map_[nidx] = current_size_;
@@ -110,6 +118,7 @@ class BoundedHistCollection {
     return node_map_.find(nidx) != node_map_.cend();
   }
   [[nodiscard]] std::size_t Size() const { return current_size_; }
+  [[nodiscard]] std::size_t Capacity() const { return data_->size(); }
 };
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_HIST_CACHE_H_

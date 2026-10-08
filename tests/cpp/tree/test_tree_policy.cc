@@ -6,11 +6,9 @@
 #include <xgboost/context.h>  // for Context
 #include <xgboost/tree_model.h>
 
-#include <chrono>
 #include <cstddef>  // for size_t
-#include <iostream>
-#include <memory>  // for unique_ptr
-#include <string>  // for string
+#include <memory>   // for unique_ptr
+#include <string>   // for string
 
 #include "../../../src/tree/tree_view.h"  // for WalkTree
 #include "../helpers.h"
@@ -22,41 +20,16 @@ class TestGrowPolicy : public ::testing::Test {
   std::size_t n_features_ = 13;
   float sparsity_ = 0.5;
 
-  // Enable existing training monitors only for this fixture, including learner destruction.
-  int previous_verbosity_{0};
-  void SetUp() override {
-    previous_verbosity_ = static_cast<int>(ConsoleLogger::GlobalVerbosity());
-    ConsoleLogger::Configure({{"verbosity", "3"}});
-  }
-  void TearDown() override {
-    ConsoleLogger::Configure({{"verbosity", std::to_string(previous_verbosity_)}});
-  }
-
  protected:
   std::unique_ptr<Learner> TrainOneIter(Context const* ctx, bst_target_t n_targets,
                                         std::string tree_method, std::string policy,
                                         bst_node_t max_leaves, bst_node_t max_depth) {
-    // Temporary PR diagnostics: remove after locating the Windows slowdown.
-    using Clock = std::chrono::steady_clock;
-    auto start = Clock::now();
-    auto last = start;
-    auto report = [&](char const* phase) {
-      auto now = Clock::now();
-      auto elapsed = std::chrono::duration<double, std::milli>(now - last).count();
-      std::cout << "[GrowPolicyTiming] device=" << ctx->DeviceName() << " method=" << tree_method
-                << " targets=" << n_targets << " policy=" << policy << " leaves=" << max_leaves
-                << " depth=" << max_depth << " phase=" << phase << " ms=" << elapsed << std::endl;
-      last = Clock::now();
-    };
     auto Xy =
         RandomDataGenerator{n_samples_, n_features_, sparsity_}.Targets(n_targets).GenerateDMatrix(
             true);
-    report("data-and-dmatrix");
 
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-    // These small fits check tree structure, not scaling with thread count.
-    // Exercise parallel training with a fixed budget on every CI runner.
-    learner->Configure({{"tree_method", tree_method}, {"nthread", "2"}});
+    learner->Configure({{"tree_method", tree_method}});
     learner->Configure({{"device", ctx->DeviceName()}});
     if (max_leaves >= 0) {
       learner->Configure({{"max_leaves", std::to_string(max_leaves)}});
@@ -69,29 +42,6 @@ class TestGrowPolicy : public ::testing::Test {
       learner->Configure({{"multi_strategy", "multi_output_tree"}});
     }
 
-    report("learner-setup");
-    auto train = [&]() {
-      learner->UpdateOneIter(0, Xy);
-      report("training");
-      // Count the actual result without imposing a new limit on unconstrained cases.
-      Json model{Object{}};
-      learner->SaveModel(&model);
-      RegTree tree;
-      tree.LoadModel(model["learner"]["gradient_booster"]["model"]["trees"][0]);
-      bst_node_t nodes = 0, leaves = 0, depth = 0;
-      tree::WalkTree(tree, [&](auto const& view, bst_node_t nidx) {
-        ++nodes;
-        leaves += view.IsLeaf(nidx);
-        depth = std::max(depth, view.GetDepth(nidx));
-        return true;
-      });
-      std::cout << "[GrowPolicyTree] device=" << ctx->DeviceName() << " method=" << tree_method
-                << " targets=" << n_targets << " policy=" << policy << " max_leaves=" << max_leaves
-                << " max_depth=" << max_depth << " rows=" << n_samples_ << " nodes=" << nodes
-                << " leaves=" << leaves << " depth=" << depth << std::endl;
-      report("inspect-tree");
-    };
-
     auto check_max_leave = [&]() {
       Json model{Object{}};
       learner->SaveModel(&model);
@@ -99,7 +49,6 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       CHECK_LE(tree.GetNumLeaves(), max_leaves);
-      report("check-leaves");
     };
 
     auto check_max_depth = [&](int32_t sol) {
@@ -120,33 +69,30 @@ class TestGrowPolicy : public ::testing::Test {
         CHECK_EQ(depth, max_depth) << "tree method: " << tree_method << " policy: " << policy
                                    << " leaves:" << max_leaves << ", depth:" << max_depth;
       }
-      report("check-depth");
     };
 
     if (max_leaves == 0 && max_depth == 0) {
       // unconstrained
       if (ctx->IsCPU()) {
         // GPU pre-allocates for all nodes.
-        train();
+        learner->UpdateOneIter(0, Xy);
       }
     } else if (max_leaves > 0 && max_depth == 0) {
-      train();
+      learner->UpdateOneIter(0, Xy);
       check_max_leave();
     } else if (max_leaves == 0 && max_depth > 0) {
-      train();
+      learner->UpdateOneIter(0, Xy);
       check_max_depth(-1);
     } else if (max_leaves > 0 && max_depth > 0) {
-      train();
+      learner->UpdateOneIter(0, Xy);
       check_max_leave();
       check_max_depth(2);
     } else if (max_leaves == -1 && max_depth == 0) {
       // default max_leaves is 0, so both of them are now 0
     } else {
       // default parameters
-      train();
+      learner->UpdateOneIter(0, Xy);
     }
-    last = start;
-    report("total");
     return learner;
   }
 
