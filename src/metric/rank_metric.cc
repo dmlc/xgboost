@@ -6,14 +6,13 @@
 #include <dmlc/omp.h>
 #include <dmlc/registry.h>
 
-#include <algorithm>   // for stable_sort, copy, fill_n, min, max
+#include <algorithm>   // for min, max
 #include <array>       // for array
 #include <cmath>       // for log, sqrt
 #include <functional>  // for less, greater
-#include <map>         // for operator!=, _Rb_tree_const_iterator
 #include <memory>      // for allocator, unique_ptr, shared_ptr, __shared_...
-#include <numeric>     // for accumulate
-#include <ostream>     // for operator<<, basic_ostream, ostringstream
+#include <set>         // for set
+#include <sstream>     // for ostringstream
 #include <string>      // for char_traits, operator<, basic_string, to_string
 #include <utility>     // for pair, make_pair
 #include <vector>      // for vector
@@ -23,8 +22,9 @@
 #include "../common/algorithm.h"  // for ArgSort, Sort
 #include "../common/kernel.h"
 #include "../common/linalg_op.h"         // for cbegin, cend
+#include "../common/numeric.h"           // for TransformReduce
 #include "../common/optional_weight.h"   // for OptionalWeights, MakeOptionalWeights
-#include "metric_common.h"               // for MetricNoCache, GPUMetric, PackedReduceResult
+#include "metric_common.h"               // for MetricNoCache, PackedReduceResult
 #include "xgboost/base.h"                // for bst_float, bst_omp_uint, bst_group_t, Args
 #include "xgboost/cache.h"               // for DMatrixCache
 #include "xgboost/context.h"             // for Context
@@ -157,51 +157,6 @@ struct EvalAMS : public MetricNoCache {
   float ratio_;
 };
 
-/*! \brief Evaluate rank list */
-struct EvalRank : public MetricNoCache, public EvalRankConfig {
- public:
-  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK_EQ(preds.Size(), info.labels.Size()) << "label size predict size not match";
-
-    // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(preds.Size());
-    const auto& gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
-
-    CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
-    CHECK_EQ(gptr.back(), preds.Size())
-        << "EvalRank: group structure must match number of prediction";
-
-    const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
-    // sum statistics
-    const auto& h_labels = info.labels.HostView();
-    CHECK_LE(h_labels.Shape(1), 1);
-    const auto& h_preds = preds.ConstHostVector();
-
-    std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
-    common::ParallelForBlock(ngroups, ctx_->Threads(), [&](auto&& blk) {
-      for (auto group_idx = blk.begin(); group_idx < blk.end(); ++group_idx) {
-        PredIndPairContainer rec;
-        for (unsigned j = gptr[group_idx]; j < gptr[group_idx + 1]; ++j) {
-          rec.emplace_back(h_preds[j], static_cast<int>(h_labels(j)));
-        }
-        sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
-      }
-    });
-    double sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
-    return collective::GlobalRatio(ctx_, sum_metric, static_cast<double>(ngroups));
-  }
-
-  [[nodiscard]] const char* Name() const override { return name.c_str(); }
-
- protected:
-  explicit EvalRank(const char* name, const char* param) {
-    this->name = ltr::ParseMetricName(name, param, &topn, &minus);
-  }
-
-  virtual double EvalGroup(PredIndPairContainer* recptr) const = 0;
-};
-
 /*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
 struct EvalCox : public MetricNoCache {
  public:
@@ -311,27 +266,18 @@ PackedReduceResult PreScoreCpu(Context const* ctx, MetaInfo const& info,
   auto rank_idx = p_cache->SortedIdx(ctx, predt.ConstHostSpan());
 
   auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
-  auto pre = p_cache->Pre(ctx);
+  return common::TransformReduce<1>(
+      p_cache->Groups(), ctx->Threads(), PackedReduceResult{}, [&](auto g) -> PackedReduceResult {
+        auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+        auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
 
-  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
-    auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
-    auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
-
-    auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
-    double n_hits{0.0};
-    for (std::size_t i = 0; i < n; ++i) {
-      n_hits += g_label(g_rank[i]) * weight[g];
-    }
-    pre[g] = n_hits / static_cast<double>(n);
-  });
-
-  auto sw = 0.0;
-  for (std::size_t i = 0; i < pre.size(); ++i) {
-    sw += weight[i];
-  }
-
-  auto sum = std::accumulate(pre.cbegin(), pre.cend(), 0.0);
-  return {sum, sw};
+        auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
+        double n_hits{0.0};
+        for (std::size_t i = 0; i < n; ++i) {
+          n_hits += g_label(g_rank[i]) * weight[g];
+        }
+        return {n_hits / static_cast<double>(n), weight[g]};
+      });
 }
 
 auto const kRegisterPrecisionCpu =
@@ -343,8 +289,6 @@ PackedReduceResult NDCGScoreCpu(Context const* ctx, MetaInfo const& info,
   // group local ndcg
   auto group_ptr = p_cache->DataGroupPtr(ctx);
   bst_group_t n_groups = group_ptr.size() - 1;
-  auto ndcg_gloc = p_cache->Dcg(ctx);
-  std::fill_n(ndcg_gloc.Values().data(), ndcg_gloc.Size(), 0.0);
 
   auto h_inv_idcg = p_cache->InvIDCG(ctx);
   auto p_discount = p_cache->Discount(ctx).data();
@@ -353,37 +297,30 @@ PackedReduceResult NDCGScoreCpu(Context const* ctx, MetaInfo const& info,
   auto h_predt = linalg::MakeTensorView(ctx, &preds, preds.Size());
   auto weights = common::MakeOptionalWeights(ctx->Device(), info.weights_);
 
-  common::ParallelFor(n_groups, ctx->Threads(), [&](auto g) {
-    auto g_predt = h_predt.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
-    auto g_labels = h_label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]), 0);
-    auto sorted_idx = common::ArgSort<std::size_t>(ctx, linalg::cbegin(g_predt),
-                                                   linalg::cend(g_predt), std::greater<>{});
-    double ndcg{.0};
-    double inv_idcg = h_inv_idcg(g);
-    if (inv_idcg <= 0.0) {
-      ndcg_gloc(g) = minus ? 0.0 : 1.0;
-      return;
-    }
-    std::size_t n{std::min(sorted_idx.size(), static_cast<std::size_t>(p_cache->Param().TopK()))};
-    if (p_cache->Param().ndcg_exp_gain) {
-      for (std::size_t i = 0; i < n; ++i) {
-        ndcg += p_discount[i] * ltr::CalcDCGGain(g_labels(sorted_idx[i])) * inv_idcg;
-      }
-    } else {
-      for (std::size_t i = 0; i < n; ++i) {
-        ndcg += p_discount[i] * g_labels(sorted_idx[i]) * inv_idcg;
-      }
-    }
-    ndcg_gloc(g) += ndcg * weights[g];
-  });
-  double sum_w{0};
-  if (weights.Empty()) {
-    sum_w = n_groups;
-  } else {
-    sum_w = std::accumulate(weights.weights.cbegin(), weights.weights.cend(), 0.0);
-  }
-  auto ndcg = std::accumulate(linalg::cbegin(ndcg_gloc), linalg::cend(ndcg_gloc), 0.0);
-  return {ndcg, sum_w};
+  return common::TransformReduce<1>(
+      n_groups, ctx->Threads(), PackedReduceResult{}, [&](auto g) -> PackedReduceResult {
+        auto g_predt = h_predt.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
+        auto g_labels = h_label.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]), 0);
+        auto sorted_idx = common::ArgSort<std::size_t>(ctx, linalg::cbegin(g_predt),
+                                                       linalg::cend(g_predt), std::greater<>{});
+        double ndcg{.0};
+        double inv_idcg = h_inv_idcg(g);
+        if (inv_idcg <= 0.0) {
+          return {minus ? 0.0 : 1.0, weights[g]};
+        }
+        std::size_t n{
+            std::min(sorted_idx.size(), static_cast<std::size_t>(p_cache->Param().TopK()))};
+        if (p_cache->Param().ndcg_exp_gain) {
+          for (std::size_t i = 0; i < n; ++i) {
+            ndcg += p_discount[i] * ltr::CalcDCGGain(g_labels(sorted_idx[i])) * inv_idcg;
+          }
+        } else {
+          for (std::size_t i = 0; i < n; ++i) {
+            ndcg += p_discount[i] * g_labels(sorted_idx[i]) * inv_idcg;
+          }
+        }
+        return {ndcg * weights[g], weights[g]};
+      });
 }
 
 auto const kRegisterNDCGCpu =
@@ -395,42 +332,33 @@ PackedReduceResult MAPScoreCpu(Context const* ctx, MetaInfo const& info,
   auto gptr = p_cache->DataGroupPtr(ctx);
   auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
 
-  auto map_gloc = p_cache->Map(ctx);
-  std::fill_n(map_gloc.data(), map_gloc.size(), 0.0);
   auto rank_idx = p_cache->SortedIdx(ctx, predt.ConstHostSpan());
-
-  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
-    auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
-    auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
-
-    auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
-    double n_hits{0.0};
-    for (std::size_t i = 0; i < n; ++i) {
-      auto p = g_label(g_rank[i]);
-      n_hits += p;
-      map_gloc[g] += n_hits / static_cast<double>((i + 1)) * p;
-    }
-    for (std::size_t i = n; i < g_label.Size(); ++i) {
-      n_hits += g_label(g_rank[i]);
-    }
-    if (n_hits > 0.0) {
-      map_gloc[g] /= std::min(n_hits, static_cast<double>(p_cache->Param().TopK()));
-    } else {
-      map_gloc[g] = minus ? 0.0 : 1.0;
-    }
-  });
-
-  auto sw = 0.0;
   auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
   if (!weight.Empty()) {
     CHECK_EQ(weight.weights.size(), p_cache->Groups());
   }
-  for (std::size_t i = 0; i < map_gloc.size(); ++i) {
-    map_gloc[i] = map_gloc[i] * weight[i];
-    sw += weight[i];
-  }
-  auto sum = std::accumulate(map_gloc.cbegin(), map_gloc.cend(), 0.0);
-  return {sum, sw};
+  return common::TransformReduce<1>(
+      p_cache->Groups(), ctx->Threads(), PackedReduceResult{}, [&](auto g) -> PackedReduceResult {
+        auto g_label = h_label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+        auto g_rank = rank_idx.subspan(gptr[g], gptr[g + 1] - gptr[g]);
+
+        auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
+        double n_hits{0.0}, map{0.0};
+        for (std::size_t i = 0; i < n; ++i) {
+          auto p = g_label(g_rank[i]);
+          n_hits += p;
+          map += n_hits / static_cast<double>((i + 1)) * p;
+        }
+        for (std::size_t i = n; i < g_label.Size(); ++i) {
+          n_hits += g_label(g_rank[i]);
+        }
+        if (n_hits > 0.0) {
+          map /= std::min(n_hits, static_cast<double>(p_cache->Param().TopK()));
+        } else {
+          map = minus ? 0.0 : 1.0;
+        }
+        return {map * weight[g], weight[g]};
+      });
 }
 
 auto const kRegisterMAPCpu =

@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2026, XGBoost Contributors
  */
-#include <dmlc/omp.h>  // for omp_in_parallel
+#include <dmlc/omp.h>  // for omp_get_num_threads, omp_get_thread_num, omp_in_parallel
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for std::size_t
@@ -41,11 +41,13 @@ TEST(ParallelFor2d, Test) {
   ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
   ASSERT_EQ(ctx.nthread, 4);
 
-  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
-    for (auto j = r.begin(); j < r.end(); ++j) {
-      matrix[i * kDim2 + j] += 1;
-    }
-  });
+  ParallelFor2d(space, ctx.Threads(), WithWorker([&](size_t i, Range1d r, Worker worker) {
+                  EXPECT_EQ(worker.Id(), omp_get_thread_num());
+                  EXPECT_EQ(worker.Count(), omp_get_num_threads());
+                  for (auto j = r.begin(); j < r.end(); ++j) {
+                    matrix[i * kDim2 + j] += 1;
+                  }
+                }));
 
   for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
@@ -97,6 +99,45 @@ TEST(ParallelFor, Basic) {
   });
   ASSERT_FALSE(omp_in_parallel());
   ParallelFor(n, 1, [&](auto) { ASSERT_FALSE(omp_in_parallel()); });
+}
+
+TEST(ParallelFor, WithWorker) {
+  for (auto n_threads : {1, 4}) {
+    std::vector<int> visits(17);
+    auto visit = [&](std::size_t i, Worker worker) {
+      EXPECT_EQ(worker.Id(), omp_get_thread_num());
+      EXPECT_EQ(worker.Count(), omp_get_num_threads());
+      EXPECT_GE(worker.Id(), 0);
+      EXPECT_LT(worker.Id(), worker.Count());
+      EXPECT_LE(worker.Count(), n_threads);
+      ++visits[i];
+      // Serial callbacks describe this invocation, even inside an outer team.
+      ParallelFor(1, 1, WithWorker([](auto, Worker inner) {
+                    EXPECT_EQ(inner.Id(), 0);
+                    EXPECT_EQ(inner.Count(), 1);
+                  }));
+    };
+    auto check = [&] {
+      for (auto& count : visits) {
+        EXPECT_EQ(count, 1);
+        count = 0;
+      }
+    };
+    for (auto sched : {Sched::Auto(), Sched::Static(), Sched::Static(2), Sched::Dyn(),
+                       Sched::Dyn(2), Sched::Guided()}) {
+      ParallelFor(visits.size(), n_threads, sched, WithWorker(visit));
+      check();
+    }
+    auto visit_range = WithWorker([&](Range1d range, Worker worker) {
+      for (auto i = range.begin(); i < range.end(); ++i) {
+        visit(i, worker);
+      }
+    });
+    ParallelFor1d<3>(visits.size(), n_threads, visit_range);
+    check();
+    ParallelForBlock(visits.size(), n_threads, visit_range);
+    check();
+  }
 }
 
 TEST(OmpGetNumThreads, Max) {

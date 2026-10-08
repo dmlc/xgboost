@@ -344,16 +344,18 @@ class MultiTargetHistBuilder {
           n_leaves, [&](std::size_t leaf_idx) { return part[leaves_idx[leaf_idx]].Size(); }, 1024);
       // when Size() is 0 (node has no rows in a partition), no blocks are created for
       // that leaf and the lambda is never called.
-      common::ParallelFor2d(space, n_threads, [&](std::size_t leaf_idx, common::Range1d r) {
-        auto const &node = part[leaves_idx[leaf_idx]];
-        auto tidx = omp_get_thread_num();
-        // Sum gradients for rows in this leaf (row indices are global)
-        for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
-          for (bst_target_t t = 0; t < n_targets; ++t) {
-            h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
-          }
-        }
-      });
+      common::ParallelFor2d(
+          space, n_threads,
+          common::WithWorker([&](std::size_t leaf_idx, common::Range1d r, common::Worker worker) {
+            auto const &node = part[leaves_idx[leaf_idx]];
+            auto tidx = worker.Id();
+            // Sum gradients for rows in this leaf (row indices are global)
+            for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
+              for (bst_target_t t = 0; t < n_targets; ++t) {
+                h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
+              }
+            }
+          }));
     }
 
     // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]

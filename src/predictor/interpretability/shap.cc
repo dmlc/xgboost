@@ -18,7 +18,6 @@
 #include "../data_accessor.h"              // for GHistIndexMatrixView
 #include "../predict_fn.h"                 // for GetTreeLimit
 #include "../prediction_kernel.h"          // for prediction kernels
-#include "dmlc/omp.h"                      // for omp_get_thread_num
 #include "dmlc/registry.h"                 // for DMLC_REGISTRY_FILE_TAG
 #include "quadrature.h"
 #include "xgboost/base.h"        // for bst_omp_uint
@@ -514,47 +513,49 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   auto base_margin = info.base_margin_.View(device);
 
   auto process_view = [&](auto &&view) {
-    common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-      auto tid = omp_get_thread_num();
-      auto &feats = feats_tloc[tid];
-      if (feats.Size() == 0) {
-        feats.Init(model.learner_model_state->num_feature);
-      }
-      auto &this_tree_contribs = contribs_tloc[tid];
-      auto &path_prob = path_prob_tloc[tid];
-      auto row_idx = view.base_rowid + i;
-      auto n_valid = view.DoFill(i, feats.Data().data());
-      feats.HasMissing(n_valid != feats.Size());
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-        for (auto entry_idx : model_data.entries_by_group[gid]) {
-          auto const &entry = model_data.entries[entry_idx];
-          std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
-          auto formulation = AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
-          auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
-          std::visit(
-              [&](auto const &tree) {
-                auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
-                                                       AdditiveContributionFormulation>{
-                    tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
-                runner.Run();
-              },
-              model_data.trees[entry.tree_idx]);
-          auto const weight = entry.weight;
-          for (size_t ci = 0; ci + 1 < ncolumns; ++ci) {
-            p_contribs[ci] += this_tree_contribs[ci] * weight;
+    common::ParallelFor(
+        view.Size(), n_threads, common::WithWorker([&](auto i, common::Worker worker) {
+          auto tid = worker.Id();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_state->num_feature);
           }
-        }
-        p_contribs[ncolumns - 1] += model_data.group_root_mean_sums[gid];
-        if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
-          p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-        } else {
-          p_contribs[ncolumns - 1] += base_score(gid);
-        }
-      }
-      feats.Drop();
-    });
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto &path_prob = path_prob_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (auto entry_idx : model_data.entries_by_group[gid]) {
+              auto const &entry = model_data.entries[entry_idx];
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
+              auto formulation =
+                  AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
+              auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
+              std::visit(
+                  [&](auto const &tree) {
+                    auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
+                                                           AdditiveContributionFormulation>{
+                        tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
+                    runner.Run();
+                  },
+                  model_data.trees[entry.tree_idx]);
+              auto const weight = entry.weight;
+              for (size_t ci = 0; ci + 1 < ncolumns; ++ci) {
+                p_contribs[ci] += this_tree_contribs[ci] * weight;
+              }
+            }
+            p_contribs[ncolumns - 1] += model_data.group_root_mean_sums[gid];
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
+            }
+          }
+          feats.Drop();
+        }));
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);
@@ -599,74 +600,75 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   auto base_margin = info.base_margin_.View(device);
 
   auto process_view = [&](auto &&view) {
-    common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-      auto tid = omp_get_thread_num();
-      auto &feats = feats_tloc[tid];
-      if (feats.Size() == 0) {
-        feats.Init(model.learner_model_state->num_feature);
-      }
-      auto &path_features = path_features_tloc[tid];
-      auto &path_prob = path_prob_tloc[tid];
-      auto &diag = diag_tloc[tid];
-      auto row_idx = view.base_rowid + i;
-      auto n_valid = view.DoFill(i, feats.Data().data());
-      feats.HasMissing(n_valid != feats.Size());
-
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        auto const offset = (row_idx * n_groups + gid) * matrix_chunk;
-        auto matrix = DenseInteractionMatrixView<bst_float>{contribs.data() + offset, ncolumns};
-        std::fill(diag.begin(), diag.end(), 0.0f);
-
-        for (auto entry_idx : model_data.entries_by_group[gid]) {
-          auto const &entry = model_data.entries[entry_idx];
-          auto formulation = InteractionContributionFormulation{{diag.data(), ncolumns},
-                                                                {matrix.data, matrix.ncolumns},
-                                                                entry.weight,
-                                                                path_features.data()};
-          auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
-          std::visit(
-              [&](auto const &tree) {
-                auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
-                                                       InteractionContributionFormulation>{
-                    tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
-                runner.Run();
-              },
-              model_data.trees[entry.tree_idx]);
-        }
-
-        diag[ncolumns - 1] += model_data.group_root_mean_sums[gid];
-        if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
-          diag[ncolumns - 1] += base_margin(row_idx, gid);
-        } else {
-          diag[ncolumns - 1] += base_score(gid);
-        }
-
-        // The path-local return updates populate row-wise off-diagonal effects. Average the two
-        // directional estimates so the final matrix is explicitly symmetric.
-        for (size_t r = 0; r < ncolumns; ++r) {
-          for (size_t c = r + 1; c < ncolumns; ++c) {
-            auto const sym = 0.5f * (matrix(r, c) + matrix(c, r));
-            matrix(r, c) = sym;
-            matrix(c, r) = sym;
+    common::ParallelFor(
+        view.Size(), n_threads, common::WithWorker([&](auto i, common::Worker worker) {
+          auto tid = worker.Id();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_state->num_feature);
           }
-        }
+          auto &path_features = path_features_tloc[tid];
+          auto &path_prob = path_prob_tloc[tid];
+          auto &diag = diag_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
 
-        // Match the incumbent interaction semantics: each diagonal entry is the additive SHAP
-        // value minus the off-diagonal interactions in that row.
-        for (size_t r = 0; r < ncolumns; ++r) {
-          float value = diag[r];
-          for (size_t c = 0; c < ncolumns; ++c) {
-            if (c != r) {
-              value -= matrix(r, c);
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            auto const offset = (row_idx * n_groups + gid) * matrix_chunk;
+            auto matrix = DenseInteractionMatrixView<bst_float>{contribs.data() + offset, ncolumns};
+            std::fill(diag.begin(), diag.end(), 0.0f);
+
+            for (auto entry_idx : model_data.entries_by_group[gid]) {
+              auto const &entry = model_data.entries[entry_idx];
+              auto formulation = InteractionContributionFormulation{{diag.data(), ncolumns},
+                                                                    {matrix.data, matrix.ncolumns},
+                                                                    entry.weight,
+                                                                    path_features.data()};
+              auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
+              std::visit(
+                  [&](auto const &tree) {
+                    auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
+                                                           InteractionContributionFormulation>{
+                        tree, cover_ratios, entry.target_idx, feats, rule, &path_prob, formulation};
+                    runner.Run();
+                  },
+                  model_data.trees[entry.tree_idx]);
+            }
+
+            diag[ncolumns - 1] += model_data.group_root_mean_sums[gid];
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              diag[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              diag[ncolumns - 1] += base_score(gid);
+            }
+
+            // The path-local return updates populate row-wise off-diagonal effects. Average the two
+            // directional estimates so the final matrix is explicitly symmetric.
+            for (size_t r = 0; r < ncolumns; ++r) {
+              for (size_t c = r + 1; c < ncolumns; ++c) {
+                auto const sym = 0.5f * (matrix(r, c) + matrix(c, r));
+                matrix(r, c) = sym;
+                matrix(c, r) = sym;
+              }
+            }
+
+            // Match the incumbent interaction semantics: each diagonal entry is the additive SHAP
+            // value minus the off-diagonal interactions in that row.
+            for (size_t r = 0; r < ncolumns; ++r) {
+              float value = diag[r];
+              for (size_t c = 0; c < ncolumns; ++c) {
+                if (c != r) {
+                  value -= matrix(r, c);
+                }
+              }
+              matrix(r, r) = value;
             }
           }
-          matrix(r, r) = value;
-        }
-      }
 
-      feats.Drop();
-    });
+          feats.Drop();
+        }));
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);
@@ -709,40 +711,41 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto base_margin = info.base_margin_.View(device);
 
   auto process_view = [&](auto &&view) {
-    common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-      auto tid = omp_get_thread_num();
-      auto &feats = feats_tloc[tid];
-      if (feats.Size() == 0) {
-        feats.Init(model.learner_model_state->num_feature);
-      }
-      auto &this_tree_contribs = contribs_tloc[tid];
-      auto row_idx = view.base_rowid + i;
-      auto n_valid = view.DoFill(i, feats.Data().data());
-      feats.HasMissing(n_valid != feats.Size());
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-        for (bst_tree_t j = 0; j < tree_end; ++j) {
-          if (h_tree_groups[j] != gid) {
-            continue;
+    common::ParallelFor(
+        view.Size(), n_threads, common::WithWorker([&](auto i, common::Worker worker) {
+          auto tid = worker.Id();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_state->num_feature);
           }
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (bst_tree_t j = 0; j < tree_end; ++j) {
+              if (h_tree_groups[j] != gid) {
+                continue;
+              }
 
-          std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-          auto const sc_tree = model.trees[j]->HostScView();
-          CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
-          for (size_t ci = 0; ci < ncolumns; ++ci) {
-            p_contribs[ci] +=
-                this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              auto const sc_tree = model.trees[j]->HostScView();
+              CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
+              for (size_t ci = 0; ci < ncolumns; ++ci) {
+                p_contribs[ci] +=
+                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              }
+            }
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
+            }
           }
-        }
-        if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
-          p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-        } else {
-          p_contribs[ncolumns - 1] += base_score(gid);
-        }
-      }
-      feats.Drop();
-    });
+          feats.Drop();
+        }));
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);

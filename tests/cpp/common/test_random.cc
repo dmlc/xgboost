@@ -1,7 +1,11 @@
 /**
  * Copyright 2018-2026, XGBoost Contributors
  */
+#include <string>
+#include <vector>
+
 #include "../../../src/common/random.h"
+#include "../../../src/common/threading_utils.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"
 #include "xgboost/context.h"  // for Context
@@ -69,40 +73,24 @@ TEST(ColumnSampler, GPUTest) {
 // Each thread gets its own Context (since ctx->Rng() is not thread-safe) with the same
 // seed. All threads should produce identical column samples.
 TEST(ColumnSampler, ThreadSynchronisation) {
-  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
-#if defined(__linux__)
-  std::int64_t const n_threads = std::thread::hardware_concurrency() * 128;
-#else
-  std::int64_t const n_threads = std::thread::hardware_concurrency();
-#endif
-  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
-  int n = 128;
-  size_t iterations = 10;
-  size_t levels = 5;
-  std::vector<bst_feature_t> reference_result;
-  HostDeviceVector<float> feature_weights;
-  bool success = true;
-#pragma omp parallel num_threads(n_threads)
-  {
-    for (auto j = 0ull; j < iterations; j++) {
-      Context ctx;
-      ctx.Init({{"seed", std::to_string(j)}});
-      ColumnSampler cs;
-      cs.Init(&ctx, n, feature_weights, 0.5f, 0.5f, 0.5f);
-      for (auto level = 0ull; level < levels; level++) {
-        auto result = cs.GetFeatureSet(&ctx, level)->ConstHostVector();
-#pragma omp single
-        {
-          reference_result = result;
-        }
-        if (result != reference_result) {
-          success = false;
-        }
-#pragma omp barrier
-      }
+  auto sample = [](int seed) {
+    Context ctx;
+    ctx.Init({{"seed", std::to_string(seed)}});
+    ColumnSampler cs;
+    HostDeviceVector<float> feature_weights;
+    cs.Init(&ctx, 128, feature_weights, 0.5f, 0.5f, 0.5f);
+    std::vector<std::vector<bst_feature_t>> result;
+    for (int level = 0; level < 5; ++level) {
+      result.push_back(cs.GetFeatureSet(&ctx, level)->ConstHostVector());
     }
+    return result;
+  };
+  Context ctx;
+  ctx.Init({{"nthread", "4"}});
+  for (int seed = 0; seed < 10; ++seed) {
+    auto const expected = sample(seed);
+    ParallelFor(16, ctx.Threads(), [&](auto) { EXPECT_EQ(sample(seed), expected); });
   }
-  ASSERT_TRUE(success);
 }
 
 namespace {

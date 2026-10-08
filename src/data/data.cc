@@ -11,6 +11,7 @@
 #include <cmath>        // for abs
 #include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
 #include <cstring>      // for size_t, strcmp, memcpy
+#include <functional>   // for logical_and
 #include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
 #include <map>          // for map, operator!=
 #include <numeric>      // for accumulate, partial_sum
@@ -26,7 +27,7 @@
 #include "../common/io.h"                     // for PeekableInStream
 #include "../common/linalg_op.h"              // for ElementWiseTransformHost
 #include "../common/math.h"                   // for CheckNAN
-#include "../common/numeric.h"                // for Iota, RunLengthEncode
+#include "../common/numeric.h"                // for Iota, RunLengthEncode, TransformReduce
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../common/version.h"                // for Version
 #include "../data/adapter.h"                  // for FileAdapter
@@ -1003,26 +1004,34 @@ template DMatrix* DMatrix::Create(
     float missing, int nthread, std::string const& cache_prefix);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
+  CHECK_GE(n_threads, 1);
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
   builder.InitBudget(num_columns, n_threads);
-  long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
+  // Use the same logical partitions for budgeting and filling, regardless of the
+  // number of workers the runtime supplies to either pass.
+  auto const block_size = common::DivRoundUp(this->Size(), static_cast<std::size_t>(n_threads));
   auto page = this->GetView();
-  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto inst = page[i];
-    for (const auto& entry : inst) {
-      builder.AddBudget(entry.index, tid);
+  auto for_each_row = [&](auto&& fn) {
+    common::ParallelFor(n_threads, n_threads, [&](auto partition) {
+      auto begin = partition * block_size;
+      auto end = std::min(begin + block_size, this->Size());
+      for (auto i = begin; i < end; ++i) {
+        fn(i, partition);
+      }
+    });
+  };
+  for_each_row([&](auto i, auto partition) {
+    for (auto const& entry : page[i]) {
+      builder.AddBudget(entry.index, partition);
     }
   });
   builder.InitStorage();
-  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto inst = page[i];
-    for (const auto& entry : inst) {
+  for_each_row([&](auto i, auto partition) {
+    for (auto const& entry : page[i]) {
       builder.Push(entry.index, Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
-                   tid);
+                   partition);
     }
   });
 
@@ -1039,16 +1048,13 @@ bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_data = this->data.HostVector();
   n_threads = std::max(std::min(static_cast<std::size_t>(n_threads), this->Size()),
                        static_cast<std::size_t>(1));
-  std::vector<int32_t> is_sorted_tloc(n_threads, 0);
-  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
-    auto beg = h_offset[i];
-    auto end = h_offset[i + 1];
-    is_sorted_tloc[omp_get_thread_num()] +=
-        !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
-  });
-  auto is_sorted = std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(),
-                                   static_cast<size_t>(0)) == this->Size();
-  return is_sorted;
+  return common::TransformReduce<1>(
+      this->Size(), n_threads, true,
+      [&](auto i) {
+        return std::is_sorted(h_data.begin() + h_offset[i], h_data.begin() + h_offset[i + 1],
+                              Entry::CmpIndex);
+      },
+      std::logical_and<>{});
 }
 
 void SparsePage::SortIndices(int32_t n_threads) {

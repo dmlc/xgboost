@@ -75,22 +75,23 @@ class TreeRefresher : public TreeUpdater {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
       CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
-      common::ParallelFor(batch.Size(), ctx_->Threads(), [&](auto i) {
-        SparsePage::Inst inst = page[i];
-        const int tid = omp_get_thread_num();
-        const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-        RegTree::FVec &feats = fvec_temp[tid];
-        feats.Fill(inst);
-        bst_node_t offset = 0;
-        for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-          auto tree = trees[tree_idx];
-          auto leaf =
-              AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
-          (*h_position[tree_idx])[ridx] = SamplePosition::Encode(leaf, true);
-          offset += tree->NumNodes();
-        }
-        feats.Drop();
-      });
+      common::ParallelFor(
+          batch.Size(), ctx_->Threads(), common::WithWorker([&](auto i, common::Worker worker) {
+            SparsePage::Inst inst = page[i];
+            const int tid = worker.Id();
+            const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
+            RegTree::FVec &feats = fvec_temp[tid];
+            feats.Fill(inst);
+            bst_node_t offset = 0;
+            for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+              auto tree = trees[tree_idx];
+              auto leaf =
+                  AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
+              (*h_position[tree_idx])[ridx] = SamplePosition::Encode(leaf, true);
+              offset += tree->NumNodes();
+            }
+            feats.Drop();
+          }));
     }
 
     // aggregate the statistics
