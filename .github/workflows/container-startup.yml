@@ -1,10 +1,19 @@
 name: Measure GPU container startup
 
 on:
+  # Collect measurements before merging; avoid running this GPU experiment on unrelated PRs.
+  pull_request:
+    paths:
+      - '.github/workflows/container-startup.yml'
+      - 'ops/pipeline/measure-container-startup.sh'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   measure:
