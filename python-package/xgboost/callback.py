@@ -420,6 +420,8 @@ class EarlyStopping(TrainingCallback):
                 "aucpr@",
                 "map@",
                 "ndcg@",
+                "ams@",
+                "interval-regression-accuracy",
             )
             if metric != "mape" and any(metric.startswith(x) for x in maximize_metrics):
                 self.maximize = True
