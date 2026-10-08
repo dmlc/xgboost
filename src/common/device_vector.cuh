@@ -27,9 +27,8 @@
 #include <atomic>                  // for atomic, memory_order
 #include <cstddef>                 // for size_t
 #include <cstdint>                 // for int64_t
-#include <cuda_runtime_api.h>      // for CUDART_VERSION
 #include <cub/version.cuh>         // for CUB_VERSION
-#if CUB_VERSION >= 300200 && CUDART_VERSION >= 13020
+#if CUB_VERSION >= 300200
 #include <cuda/memory_pool>        // for device_memory_pool
 #include <unordered_map>           // for unordered_map
 #else
@@ -388,7 +387,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
   };
 
-#if CUB_VERSION >= 300200 && CUDART_VERSION >= 13020
+#if CUB_VERSION >= 300200
   static cuda::device_memory_pool &GetGlobalCachingAllocator() {
     // A thread can switch devices; keep a separate pool for each device. The
     // default release threshold retains cached memory until the pool is destroyed.
@@ -414,7 +413,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
   pointer allocate(std::size_t n) {  // NOLINT
     pointer thrust_ptr;
     if (use_caching_allocator_) {
-#if CUB_VERSION >= 300200 && CUDART_VERSION >= 13020
+#if CUB_VERSION >= 300200
       try {
         auto *raw_ptr = static_cast<T *>(GetGlobalCachingAllocator().allocate(
             cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}, n * sizeof(T)));
@@ -447,7 +446,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 
   void deallocate(pointer ptr, std::size_t n) {  // NOLINT
     if (use_caching_allocator_) {
-#if CUB_VERSION >= 300200 && CUDART_VERSION >= 13020
+#if CUB_VERSION >= 300200
       GetGlobalCachingAllocator().deallocate(
           cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}},
           thrust::raw_pointer_cast(ptr), n * sizeof(T));
