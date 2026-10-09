@@ -27,7 +27,14 @@
 #include <atomic>                  // for atomic, memory_order
 #include <cstddef>                 // for size_t
 #include <cstdint>                 // for int64_t
+#include <cub/version.cuh>         // for CUB_VERSION
+#if CUB_VERSION >= 300200
+#include <cuda/memory_pool>        // for device_memory_pool
+#include <mutex>                   // for mutex, lock_guard
+#include <unordered_map>           // for unordered_map
+#else  // CUB_VERSION >= 300200
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
+#endif  // CUB_VERSION >= 300200
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <functional>              // for function
 #include <memory>                  // for unique_ptr
@@ -368,7 +375,7 @@ struct XGBDefaultDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 };
 
 /**
- * @brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
+ * @brief Caching memory allocator, uses a device memory pool as a back-end, unless
  *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
@@ -381,6 +388,33 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
   };
 
+#if CUB_VERSION >= 300200
+  static cuda::device_memory_pool &GetGlobalCachingAllocator() {
+    struct PoolDeleter {
+      void operator()(cuda::device_memory_pool *pool) const {
+        // Thread-local cleanup can run after CUDA driver/runtime teardown. Use the
+        // runtime API to tolerate shutdown errors instead of CCCL's noexcept destructor.
+        auto status = cudaMemPoolDestroy(pool->release());
+        delete pool;
+        if (status != cudaErrorCudartUnloading && status != cudaErrorInitializationError) {
+          safe_cuda(status);
+        }
+      }
+    };
+    // A thread can switch devices; keep a separate pool for each device. The
+    // default release threshold retains cached memory until the pool is destroyed.
+    static std::mutex mutex;
+    static std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
+    auto device = cub::CurrentDevice();
+    // Protect the registry; allocations can use the pool concurrently after lookup.
+    std::lock_guard<std::mutex> lock{mutex};
+    auto &pool = pools[device];
+    if (!pool) {
+      pool.reset(new cuda::device_memory_pool{cuda::device_ref{device}});
+    }
+    return *pool;
+  }
+#else  // CUB_VERSION >= 300200
   static cub::CachingDeviceAllocator &GetGlobalCachingAllocator() {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
@@ -388,10 +422,20 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         std::make_unique<cub::CachingDeviceAllocator>(2, 9, 29)};
     return *allocator;
   }
+#endif  // CUB_VERSION >= 300200
 
   pointer allocate(std::size_t n) {  // NOLINT
     pointer thrust_ptr;
-    if (use_cub_allocator_) {
+    if (use_caching_allocator_) {
+#if CUB_VERSION >= 300200
+      try {
+        auto *raw_ptr = static_cast<T *>(GetGlobalCachingAllocator().allocate(
+            cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}, n * sizeof(T)));
+        thrust_ptr = thrust::device_pointer_cast(raw_ptr);
+      } catch (const std::exception &e) {
+        detail::ThrowOOMError(e.what(), n * sizeof(T));
+      }
+#else  // CUB_VERSION >= 300200
       T *raw_ptr{nullptr};
       // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
@@ -401,6 +445,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
       thrust_ptr = thrust::device_pointer_cast(raw_ptr);
+#endif  // CUB_VERSION >= 300200
     } else {
       try {
         thrust_ptr = SuperT::allocate(n);
@@ -414,8 +459,14 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
   }
 
   void deallocate(pointer ptr, std::size_t n) {  // NOLINT
-    if (use_cub_allocator_) {
+    if (use_caching_allocator_) {
+#if CUB_VERSION >= 300200
+      GetGlobalCachingAllocator().deallocate(
+          cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}},
+          thrust::raw_pointer_cast(ptr), n * sizeof(T));
+#else  // CUB_VERSION >= 300200
       GetGlobalCachingAllocator().DeviceFree(thrust::raw_pointer_cast(ptr));
+#endif  // CUB_VERSION >= 300200
     } else {
       SuperT::deallocate(ptr, n);
     }
@@ -424,13 +475,13 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 
   XGBCachingDeviceAllocatorImpl()
       : SuperT{},
-        use_cub_allocator_{!(xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm ||
-                             xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)} {}
+        use_caching_allocator_{!(xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm ||
+                                 xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)} {}
 
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
 
  private:
-  bool use_cub_allocator_;
+  bool use_caching_allocator_;
 };
 }  // namespace detail
 
