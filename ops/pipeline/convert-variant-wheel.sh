@@ -1,6 +1,5 @@
 #!/bin/bash
-## Build Python wheels using Wheel Variant prototype (WheelNext)
-## Companion script for ops/pipeline/build-variant-wheels.sh
+## Convert an existing audited CUDA 13 wheel using the WheelNext prototype.
 
 set -eo pipefail
 
