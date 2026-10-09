@@ -2,14 +2,14 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                          // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
-#include <xgboost/context.h>                       // for Context
-#include <xgboost/linalg.h>                        // for MakeTensorView, Vector
+#include <xgboost/base.h>     // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
+#include <xgboost/context.h>  // for Context
+#include <xgboost/linalg.h>   // for MakeTensorView, Vector
 
-#include <cstddef>                                 // for size_t
-#include <memory>                                  // for shared_ptr
-#include <numeric>                                 // for iota
-#include <vector>                                  // for vector
+#include <cstddef>  // for size_t
+#include <memory>   // for shared_ptr
+#include <numeric>  // for iota
+#include <vector>   // for vector
 
 #include "../../../src/common/algorithm.cuh"       // for SegmentedSequence
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext

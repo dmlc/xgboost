@@ -1,6 +1,8 @@
 /**
  * Copyright 2021-2026, XGBoost Contributors
  */
+#include "test_linalg.h"  // for TestLinalgDispatch
+
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
@@ -11,7 +13,6 @@
 #include <vector>   // for vector
 
 #include "../../../src/common/linalg_op.h"
-#include "test_linalg.h"  // for TestLinalgDispatch
 
 namespace xgboost::linalg {
 namespace {
