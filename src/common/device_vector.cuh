@@ -402,7 +402,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     };
     // A thread can switch devices; keep a separate pool for each device. The
     // default release threshold retains cached memory until the pool is destroyed.
-    thread_local std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
+    static std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
     int device;
     safe_cuda(cudaGetDevice(&device));
     auto &pool = pools[device];
