@@ -656,8 +656,17 @@ jobs:
         run: python -m pip install -v wheelhouse/*.whl
       - name: Run Python tests
         run: |
-          pytest -s -v -rxXs --durations=0 tests/python
-          pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+          python ops/pipeline/diagnose-macos-tests.py -s -v -rxXs --durations=0 tests/python
+          python ops/pipeline/diagnose-macos-tests.py -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+
+      - name: Upload macOS test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: macos-test-diagnostics-${{ matrix.os }}
+          path: macos-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14
 
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)

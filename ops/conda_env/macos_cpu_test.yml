@@ -20,6 +20,8 @@ dependencies:
 - astroid
 - sh
 - pytest
+- psutil
+- threadpoolctl
 - pytest-cov
 - pytest-timeout
 - urllib3
