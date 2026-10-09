@@ -30,6 +30,7 @@
 #include <cub/version.cuh>         // for CUB_VERSION
 #if CUB_VERSION >= 300200
 #include <cuda/memory_pool>        // for device_memory_pool
+#include <mutex>                   // for mutex, lock_guard
 #include <unordered_map>           // for unordered_map
 #else  // CUB_VERSION >= 300200
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
@@ -389,14 +390,27 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 
 #if CUB_VERSION >= 300200
   static cuda::device_memory_pool &GetGlobalCachingAllocator() {
+    struct PoolDeleter {
+      void operator()(cuda::device_memory_pool *pool) const {
+        // Thread-local cleanup can run after CUDA driver/runtime teardown. Use the
+        // runtime API to tolerate shutdown errors instead of CCCL's noexcept destructor.
+        auto status = cudaMemPoolDestroy(pool->release());
+        delete pool;
+        if (status != cudaErrorCudartUnloading && status != cudaErrorInitializationError) {
+          safe_cuda(status);
+        }
+      }
+    };
     // A thread can switch devices; keep a separate pool for each device. The
     // default release threshold retains cached memory until the pool is destroyed.
-    thread_local std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool>> pools;
-    int device;
-    safe_cuda(cudaGetDevice(&device));
+    static std::mutex mutex;
+    static std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
+    auto device = cub::CurrentDevice();
+    // Protect the registry; allocations can use the pool concurrently after lookup.
+    std::lock_guard<std::mutex> lock{mutex};
     auto &pool = pools[device];
     if (!pool) {
-      pool = std::make_unique<cuda::device_memory_pool>(cuda::device_ref{device});
+      pool.reset(new cuda::device_memory_pool{cuda::device_ref{device}});
     }
     return *pool;
   }
