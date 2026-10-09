@@ -124,12 +124,11 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
+  xgboost::Context cpu_ctx;
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels = xgboost::linalg::Tensor<float, 2>{labels.cbegin(),
-                                                  labels.cend(),
-                                                  {labels.size(), static_cast<std::size_t>(1)},
-                                                  xgboost::DeviceOrd::CPU()};
+  info.labels = xgboost::linalg::Tensor<float, 2>{
+      &cpu_ctx, labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}};
   info.weights_.HostVector() = weights;
 
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -161,12 +160,11 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_uint> groups,
                              std::vector<xgboost::bst_float> out_grad,
                              std::vector<xgboost::bst_float> out_hess) {
+  xgboost::Context cpu_ctx;
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels = xgboost::linalg::Matrix<float>{labels.cbegin(),
-                                               labels.cend(),
-                                               {labels.size(), static_cast<std::size_t>(1)},
-                                               xgboost::DeviceOrd::CPU()};
+  info.labels = xgboost::linalg::Matrix<float>{
+      &cpu_ctx, labels.cbegin(), labels.cend(), {labels.size(), static_cast<std::size_t>(1)}};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -178,10 +176,10 @@ xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
                                  std::vector<xgboost::bst_uint> groups) {
+  xgboost::Context cpu_ctx;
   return GetMultiMetricEval(
       metric, preds,
-      xgboost::linalg::Tensor<float, 2>{
-          labels.begin(), labels.end(), {labels.size()}, xgboost::DeviceOrd::CPU()},
+      xgboost::linalg::Tensor<float, 2>{&cpu_ctx, labels.begin(), labels.end(), {labels.size()}},
       weights, groups);
 }
 
@@ -233,7 +231,8 @@ void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const 
   CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
   p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
   if (device_.IsCUDA()) {
-    p_fmat->Info().labels.SetDevice(device_);
+    auto ctx = MakeCUDACtx(device_.ordinal);
+    p_fmat->Info().labels.SetDevice(&ctx);
   }
 }
 
@@ -435,7 +434,8 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
     MakeLabels(this->device_, this->rows_, this->n_classes_, this->n_targets_, out);
   }
   if (device_.IsCUDA()) {
-    out->Info().labels.SetDevice(device_);
+    auto ctx = MakeCUDACtx(device_.ordinal);
+    out->Info().labels.SetDevice(&ctx);
     out->Info().feature_types.SetDevice(device_);
     for (auto const& page : out->GetBatches<SparsePage>()) {
       page.data.SetDevice(device_);
@@ -642,6 +642,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   size_t kCols,
                                                   LearnerModelState const* learner_model_param,
                                                   Context const* ctx) {
+  Context cpu_ctx;
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create(name, ctx, learner_model_param)};
   gbm->Configure(kwargs);
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -651,9 +652,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
     labels[i] = i;
   }
   p_dmat->Info().labels =
-      linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, DeviceOrd::CPU()};
+      linalg::Tensor<float, 2>{&cpu_ctx, labels.cbegin(), labels.cend(), {labels.size()}};
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>{{kRows}, ctx->Device()};
+  gpair.gpair = linalg::Matrix<GradientPair>{ctx, {kRows}};
   auto h_gpair = gpair.gpair.HostView();
   for (size_t i = 0; i < kRows; ++i) {
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};

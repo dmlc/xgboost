@@ -112,7 +112,7 @@ void QuantileGradientCpu(Context const* ctx, HostDeviceVector<float> const& pred
     }
   }
 
-  out_gpair->SetDevice(DeviceOrd::CPU());
+  out_gpair->SetDevice(&cpu_ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
   auto gpair = out_gpair->HostView();
   linalg::cpu_impl::ElementWiseKernel(

@@ -83,7 +83,7 @@ TEST(Updater, ColMakerExportsFinishedLeafPositions) {
   auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
 
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>{{{1.0f, 1.0f}, {-1.0f, 1.0f}}, {2, 1}, ctx.Device()};
+  gpair.gpair = linalg::Matrix<GradientPair>{&ctx, {{1.0f, 1.0f}, {-1.0f, 1.0f}}, {2, 1}};
 
   tree::TrainParam param;
   param.Init(Args{{"max_depth", "2"}, {"min_child_weight", "0"}, {"reg_lambda", "0"}});

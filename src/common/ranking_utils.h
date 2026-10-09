@@ -3,13 +3,13 @@
  */
 #ifndef XGBOOST_COMMON_RANKING_UTILS_H_
 #define XGBOOST_COMMON_RANKING_UTILS_H_
-#include <algorithm>                     // for min
-#include <cmath>                         // for log2, fabs, floor
-#include <cstddef>                       // for size_t
-#include <cstdint>                       // for uint32_t, uint8_t, int32_t
-#include <limits>                        // for numeric_limits
-#include <string>                        // for char_traits, string
-#include <vector>                        // for vector
+#include <algorithm>  // for min
+#include <cmath>      // for log2, fabs, floor
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, uint8_t, int32_t
+#include <limits>     // for numeric_limits
+#include <string>     // for char_traits, string
+#include <vector>     // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
 #include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
@@ -281,10 +281,10 @@ class RankingCache {
 
   [[nodiscard]] linalg::VectorView<GradientPair> CUDARounding(Context const* ctx) {
     if (roundings_.Size() == 0) {
-      roundings_.SetDevice(ctx->Device());
+      roundings_.SetDevice(ctx);
       roundings_.Reshape(Groups());
     }
-    return roundings_.View(ctx->Device());
+    return roundings_.View(ctx);
   }
   [[nodiscard]] common::Span<double> CUDACostRounding(Context const* ctx) {
     if (cost_rounding_.Size() == 0) {
@@ -330,19 +330,19 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-  // This function doesn't have sycl-specific implementation yet.
-  // For that reason we transfer data to host in case of sycl is used for propper execution.
-    return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
+    // This function doesn't have sycl-specific implementation yet.
+    // For that reason we transfer data to host in case of sycl is used for propper execution.
+    return ctx->IsSycl() ? inv_idcg_.HostView() : inv_idcg_.View(ctx);
   }
   common::Span<double const> Discount(Context const* ctx) const {
     return ctx->IsCUDA() ? discounts_.ConstDeviceSpan() : discounts_.ConstHostSpan();
   }
   linalg::VectorView<double> Dcg(Context const* ctx) {
     if (dcg_.Size() == 0) {
-      dcg_.SetDevice(ctx->Device());
+      dcg_.SetDevice(ctx);
       dcg_.Reshape(this->Groups());
     }
-    return dcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
+    return ctx->IsSycl() ? dcg_.HostView() : dcg_.View(ctx);
   }
 };
 

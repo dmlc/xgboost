@@ -32,14 +32,14 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
   preds.SetDevice(device);
   alpha.SetDevice(device);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, n_targets);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
   auto alpha_d = alpha.ConstDeviceSpan();
 
   auto n_rows = info.num_row_;
   auto n_stats = static_cast<std::size_t>(n_targets) + 1;
   linalg::Vector<double> scale_stats = linalg::Zeros<double>(ctx, n_stats);
-  auto stats = scale_stats.View(device);
+  auto stats = scale_stats.View(ctx);
   if (n_rows != 0) {
     auto value_it = dh::MakeTransformIterator<double>(
         dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
@@ -69,9 +69,9 @@ void QuantileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pre
     }
   });
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
   linalg::cuda_impl::ElementWiseKernel(
       gpair,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

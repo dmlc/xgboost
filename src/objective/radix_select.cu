@@ -29,10 +29,9 @@ void RadixSelectCuda(Context const* ctx, linalg::Matrix<float> const& values,
                      bst_target_t n_targets, linalg::Vector<float>* out) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  values.SetDevice(device);
   weights.SetDevice(device);
   alphas.SetDevice(device);
-  auto d_values = values.View(device);
+  auto d_values = values.View(ctx);
   auto d_weights = common::OptionalWeights{weights.ConstDeviceSpan()};
   auto d_alphas = alphas.ConstDeviceSpan();
   auto n_rows = values.Shape(0);
@@ -46,9 +45,9 @@ void RadixSelectCuda(Context const* ctx, linalg::Matrix<float> const& values,
   linalg::Vector<std::uint32_t> prefixes = linalg::Zeros<std::uint32_t>(ctx, n_outputs);
   linalg::Vector<double> ranks = linalg::Zeros<double>(ctx, n_outputs);
   linalg::Vector<double> histogram = linalg::Zeros<double>(ctx, n_outputs * kRadixBins);
-  auto d_prefixes = prefixes.View(device);
-  auto d_ranks = ranks.View(device);
-  auto d_histogram = histogram.View(device);
+  auto d_prefixes = prefixes.View(ctx);
+  auto d_ranks = ranks.View(ctx);
+  auto d_histogram = histogram.View(ctx);
   auto stream = ctx->CUDACtx()->Stream();
 
   for (std::size_t pass{0}; pass < kRadixPasses; ++pass) {
@@ -134,7 +133,7 @@ void RadixSelectCuda(Context const* ctx, linalg::Matrix<float> const& values,
   }
 
   // Reverse the ordered-key transform after all four prefix bytes have been selected.
-  auto d_out = out->View(device);
+  auto d_out = out->View(ctx);
   dh::LaunchN(n_outputs, stream, [=] __device__(std::size_t output) mutable {
     auto key = d_prefixes(output);
     auto bits = key ^ (key & 0x80000000U ? 0x80000000U : 0xffffffffU);

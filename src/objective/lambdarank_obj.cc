@@ -100,20 +100,18 @@ class LambdaRankObj : public ObjFunction {
 
   // Update position biased for unbiased click data
   void UpdatePositionBias() {
-    li_full_.SetDevice(ctx_->Device());
-    lj_full_.SetDevice(ctx_->Device());
-    li_.SetDevice(ctx_->Device());
-    lj_.SetDevice(ctx_->Device());
+    li_full_.SetDevice(ctx_);
+    lj_full_.SetDevice(ctx_);
+    li_.SetDevice(ctx_);
+    lj_.SetDevice(ctx_);
 
     if (ctx_->IsCUDA()) {
-      cuda_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
-                                              lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
-                                              &li_, &lj_, p_cache_);
+      cuda_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_), lj_full_.View(ctx_),
+                                              &ti_plus_, &tj_minus_, &li_, &lj_, p_cache_);
     } else {
       // This function doesn't have sycl-specific implementation yet.
       // For that reason we transfer data to host in case of sycl is used for propper execution.
-      auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(device), lj_full_.View(device),
+      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.HostView(), lj_full_.HostView(),
                                              &ti_plus_, &tj_minus_, &li_, &lj_, p_cache_);
     }
 
@@ -361,24 +359,23 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
   void GetGradientImpl(std::uint32_t seed, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
-      cuda_impl::LambdaRankGetGradientNDCG(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+      cuda_impl::LambdaRankGetGradientNDCG(ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_),
+                                           tj_minus_.View(ctx_), li_full_.View(ctx_),
+                                           lj_full_.View(ctx_), out_gpair);
       return;
     }
 
-    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto cpu_ctx = ctx_->MakeCPU();
     bst_group_t n_groups = p_cache_->Groups();
     auto gptr = p_cache_->DataGroupPtr(ctx_);
 
-    out_gpair->SetDevice(device);
+    out_gpair->SetDevice(&cpu_ctx);
     out_gpair->Reshape(info.num_row_, 1);
 
     auto h_gpair = out_gpair->HostView();
     auto h_predt = predt.ConstHostSpan();
     auto h_label = info.labels.HostView();
-    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(cpu_ctx.Device(), info.weights_);
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
     };
@@ -487,24 +484,23 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientMAP(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_), tj_minus_.View(ctx_),
+          li_full_.View(ctx_), lj_full_.View(ctx_), out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_).data();
     bst_group_t n_groups = p_cache_->Groups();
 
     CHECK_EQ(info.labels.Shape(1), 1) << "multi-target for learning to rank is not yet supported.";
-    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-    out_gpair->SetDevice(device);
+    auto cpu_ctx = ctx_->MakeCPU();
+    out_gpair->SetDevice(&cpu_ctx);
     out_gpair->Reshape(info.num_row_, this->Targets(info));
 
     auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
-    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(cpu_ctx.Device(), info.weights_);
 
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
@@ -587,15 +583,14 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
       return cuda_impl::LambdaRankGetGradientPairwise(
-          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_->Device()),
-          tj_minus_.View(ctx_->Device()), li_full_.View(ctx_->Device()),
-          lj_full_.View(ctx_->Device()), out_gpair);
+          ctx_, seed, predt, info, GetCache(), ti_plus_.View(ctx_), tj_minus_.View(ctx_),
+          li_full_.View(ctx_), lj_full_.View(ctx_), out_gpair);
     }
 
     auto gptr = p_cache_->DataGroupPtr(ctx_);
     bst_group_t n_groups = p_cache_->Groups();
 
-    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->SetDevice(ctx_);
     out_gpair->Reshape(info.num_row_, this->Targets(info));
 
     auto h_gpair = out_gpair->HostView();

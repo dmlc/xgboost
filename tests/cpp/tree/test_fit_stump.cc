@@ -13,9 +13,7 @@ namespace xgboost::tree {
 namespace {
 void TestFitStump(Context const *ctx) {
   std::size_t constexpr kRows = 16, kTargets = 2;
-  linalg::Matrix<GradientPair> gpair;
-  gpair.SetDevice(ctx->Device());
-  gpair.Reshape(kRows, kTargets);
+  auto gpair = linalg::Empty<GradientPair>(ctx, kRows, kTargets);
   auto h_gpair = gpair.HostView();
   for (std::size_t i = 0; i < kRows; ++i) {
     for (std::size_t t = 0; t < kTargets; ++t) {

@@ -678,7 +678,7 @@ class HistMultiEvaluator {
         // Partition split
         std::vector<size_t> sorted_idx(n_bins);
         std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-        linalg::Vector<GradientPairPrecise> grads({n_targets}, this->ctx_->Device());
+        linalg::Vector<GradientPairPrecise> grads(this->ctx_, {n_targets});
         auto h_grads = grads.HostView();
         std::vector<float> child_w(n_targets, .0f);
 
@@ -720,7 +720,7 @@ class HistMultiEvaluator {
     stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_targets);
     gain_.resize(1);
 
-    linalg::Vector<float> weight({n_targets}, ctx_->Device());
+    linalg::Vector<float> weight(ctx_, {n_targets});
     auto evaluator = tree_evaluator_.GetEvaluator();
     evaluator.CalcWeight(RegTree::kRoot, *param_, root_sum, weight.HostView());
     auto root_gain = evaluator.CalcGainGivenWeight(*param_, root_sum, weight.HostView());

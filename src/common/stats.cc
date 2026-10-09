@@ -22,7 +22,7 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
   if (ctx->IsCUDA()) {
     weights.SetDevice(ctx->Device());
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
-    auto t_v = t.View(ctx->Device());
+    auto t_v = t.View(ctx);
     cuda_impl::Median(ctx, t_v, opt_weights, out);
     return;
   }
@@ -47,13 +47,13 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
 }
 
 void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<float>* out) {
-  out->SetDevice(ctx->Device());
+  out->SetDevice(ctx);
   out->Reshape(1);
 
   if (ctx->IsCUDA()) {
-    cuda_impl::Mean(ctx, v, out->View(ctx->Device()));
+    cuda_impl::Mean(ctx, v, out->View(ctx));
   } else if (ctx->IsSycl()) {
-    sycl_impl::Mean(ctx, v, out->View(ctx->Device()));
+    sycl_impl::Mean(ctx, v, out->View(ctx));
   } else {
     auto h_v = v;
     float n = v.Size();
@@ -85,8 +85,8 @@ void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vect
     }
     SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
-    auto d_v = v.View(ctx->Device());
-    auto d_out = out->View(ctx->Device());
+    auto d_v = v.View(ctx);
+    auto d_out = out->View(ctx);
     cuda_impl::SampleMean(ctx, d_v, d_out);
   }
 }
@@ -111,10 +111,10 @@ void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
     }
     SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
-    auto d_v = v.View(ctx->Device());
+    auto d_v = v.View(ctx);
     w.SetDevice(ctx->Device());
     auto d_w = w.ConstDeviceSpan();
-    auto d_out = out->View(ctx->Device());
+    auto d_out = out->View(ctx);
     cuda_impl::WeightedSampleMean(ctx, d_v, d_w, d_out);
   }
 }

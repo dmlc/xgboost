@@ -436,7 +436,7 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
   // Groups is maintained by a higher level Python function.  We should aim at deprecating
   // the slice function.
   if (this->labels.Size() != this->num_row_) {
-    auto t_labels = this->labels.View(this->labels.Data()->Device());
+    auto t_labels = this->labels.HostView();
     out.labels.Reshape(ridxs.size(), labels.Shape(1));
     out.labels.Data()->HostVector() =
         Gather(this->labels.Data()->HostVector(), ridxs, t_labels.Stride(0));
@@ -462,7 +462,7 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Incorrect size of base margin vector.";
-    auto t_margin = this->base_margin_.View(this->base_margin_.Data()->Device());
+    auto t_margin = this->base_margin_.HostView();
     out.base_margin_.Reshape(ridxs.size(), t_margin.Shape(1));
     out.base_margin_.Data()->HostVector() =
         Gather(this->base_margin_.Data()->HostVector(), ridxs, t_margin.Stride(0));
@@ -505,7 +505,7 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
     return;
   }
   p_out->Reshape(array.shape);
-  auto t_out = p_out->View(DeviceOrd::CPU());
+  auto t_out = p_out->HostView();
   CHECK(t_out.CContiguous());
   auto const shape = t_out.Shape();
   DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {

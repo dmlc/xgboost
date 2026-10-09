@@ -46,9 +46,7 @@ class SquaredLogErrorRegression : public ObjFunction {
       LOG(FATAL) << SquaredLogError::LabelErrorMsg();
     }
 
-    linalg::Matrix<float> transformed_labels;
-    transformed_labels.SetDevice(ctx_->Device());
-    transformed_labels.Reshape(info.labels.Shape());
+    auto transformed_labels = linalg::EmptyLike(ctx_, info.labels);
     transformed_labels.Data()->Copy(*info.labels.Data());
     common::DispatchKernel<SquaredLogLabelTransformKernel>(ctx_, transformed_labels.Data(),
                                                            SquaredLogLabelTransform{});

@@ -23,7 +23,7 @@ TEST(LearnerModelState, ChangeCUDADevice) {
   auto ctx = MakeCUDACtx(0);
   std::vector<float> h_base_score{0.5f};
   linalg::Vector<float> base_score{
-      h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}, ctx.Device()};
+      &ctx, h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}};
   LearnerModelState state{&ctx,
                           1,
                           0,

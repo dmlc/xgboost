@@ -127,8 +127,8 @@ TEST(MetaInfo, SaveLoadBinary) {
     EXPECT_EQ(inforead.group_ptr_, info.group_ptr_);
     EXPECT_EQ(inforead.weights_.HostVector(), info.weights_.HostVector());
 
-    auto orig_margin = info.base_margin_.View(xgboost::DeviceOrd::CPU());
-    auto read_margin = inforead.base_margin_.View(xgboost::DeviceOrd::CPU());
+    auto orig_margin = info.base_margin_.HostView();
+    auto read_margin = inforead.base_margin_.HostView();
     EXPECT_TRUE(std::equal(orig_margin.Values().cbegin(), orig_margin.Values().cend(),
                            read_margin.Values().cbegin()));
 
@@ -251,7 +251,8 @@ TEST(MetaInfo, Validate) {
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
   info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_));
-  info.labels.SetDevice(FstCU());
+  auto cuda_ctx = ctx.MakeCUDA();
+  info.labels.SetDevice(&cuda_ctx);
   EXPECT_THROW(info.Validate(DeviceOrd::CUDA(1)), dmlc::Error);
 
   xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};

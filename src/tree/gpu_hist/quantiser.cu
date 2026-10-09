@@ -130,12 +130,12 @@ void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair con
                          linalg::Matrix<GradientPairInt64>* p_out) {
   auto shape = gpairs.Shape();
   if (p_out->Empty()) {
-    *p_out = linalg::Matrix<GradientPairInt64>{shape, ctx->Device(), linalg::kF};
+    *p_out = linalg::Matrix<GradientPairInt64>{ctx, shape, linalg::kF};
   } else {
     p_out->Reshape(shape);
   }
 
-  auto out_gpair = p_out->View(ctx->Device());
+  auto out_gpair = p_out->View(ctx);
   CHECK(out_gpair.FContiguous());
   auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
     auto [ridx, target_idx] = linalg::UnravelIndex(i, gpairs.Shape());

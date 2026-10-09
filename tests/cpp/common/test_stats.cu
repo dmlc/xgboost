@@ -21,11 +21,11 @@ namespace common {
 namespace {
 class StatsGPU : public ::testing::Test {
  private:
-  linalg::Tensor<float, 1> arr_{{1.f, 2.f, 3.f, 4.f, 5.f, 2.f, 4.f, 5.f, 3.f, 1.f}, {10}, FstCU()};
-  linalg::Tensor<std::size_t, 1> indptr_{{0, 5, 10}, {3}, FstCU()};
+  Context ctx_{MakeCUDACtx(0)};
+  linalg::Tensor<float, 1> arr_{&ctx_, {1.f, 2.f, 3.f, 4.f, 5.f, 2.f, 4.f, 5.f, 3.f, 1.f}, {10}};
+  linalg::Tensor<std::size_t, 1> indptr_{&ctx_, {0, 5, 10}, {3}};
   HostDeviceVector<float> results_;
   using TestSet = std::vector<std::pair<float, float>>;
-  Context ctx_;
 
   void Check(float expected) {
     auto const& h_results = results_.HostVector();
@@ -35,8 +35,6 @@ class StatsGPU : public ::testing::Test {
   }
 
  public:
-  void SetUp() override { ctx_ = MakeCUDACtx(0); }
-
   void WeightedMulti() {
     // data for one segment
     std::vector<float> seg{1.f, 2.f, 3.f, 4.f, 5.f};
@@ -47,8 +45,8 @@ class StatsGPU : public ::testing::Test {
     data.insert(data.cend(), seg.begin(), seg.end());
     data.insert(data.cend(), seg.begin(), seg.end());
     data.insert(data.cend(), seg.begin(), seg.end());
-    linalg::Tensor<float, 1> arr{data.cbegin(), data.cend(), {data.size()}, FstCU()};
-    auto d_arr = arr.View(DeviceOrd::CUDA(0));
+    linalg::Tensor<float, 1> arr{&ctx_, data.cbegin(), data.cend(), {data.size()}};
+    auto d_arr = arr.View(&ctx_);
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
         dh::make_counting_iterator(0ul),
@@ -71,15 +69,15 @@ class StatsGPU : public ::testing::Test {
   }
 
   void Weighted() {
-    auto d_arr = arr_.View(DeviceOrd::CUDA(0));
-    auto d_key = indptr_.View(DeviceOrd::CUDA(0));
+    auto d_arr = arr_.View(&ctx_);
+    auto d_key = indptr_.View(&ctx_);
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
         dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_key(i); });
     auto val_it = dh::MakeTransformIterator<float>(
         dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
-    linalg::Tensor<float, 1> weights{{10}, FstCU()};
-    linalg::cuda_impl::TransformIdxKernel(&ctx_, weights.View(DeviceOrd::CUDA(0)),
+    linalg::Tensor<float, 1> weights{&ctx_, {10}};
+    linalg::cuda_impl::TransformIdxKernel(&ctx_, weights.View(&ctx_),
                                           [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
     auto w_it = weights.Data()->ConstDevicePointer();
     for (auto const& pair : TestSet{{0.0f, 1.0f}, {0.5f, 3.0f}, {1.0f, 5.0f}}) {
@@ -99,8 +97,8 @@ class StatsGPU : public ::testing::Test {
     data.insert(data.cend(), seg.begin(), seg.end());
     data.insert(data.cend(), seg.begin(), seg.end());
     data.insert(data.cend(), seg.begin(), seg.end());
-    linalg::Tensor<float, 1> arr{data.cbegin(), data.cend(), {data.size()}, FstCU()};
-    auto d_arr = arr.View(DeviceOrd::CUDA(0));
+    linalg::Tensor<float, 1> arr{&ctx_, data.cbegin(), data.cend(), {data.size()}};
+    auto d_arr = arr.View(&ctx_);
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
         dh::make_counting_iterator(0ul),
@@ -122,8 +120,8 @@ class StatsGPU : public ::testing::Test {
   }
 
   void NonWeighted() {
-    auto d_arr = arr_.View(DeviceOrd::CUDA(0));
-    auto d_key = indptr_.View(DeviceOrd::CUDA(0));
+    auto d_arr = arr_.View(&ctx_);
+    auto d_key = indptr_.View(&ctx_);
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
         dh::make_counting_iterator(0ul), [=] __device__(std::size_t i) { return d_key(i); });

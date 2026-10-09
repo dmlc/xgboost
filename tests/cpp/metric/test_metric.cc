@@ -126,8 +126,9 @@ TEST(MetricInvalidInput, QuantileShape) {
 }
 
 TEST(MetricInvalidInput, MultiTargetLabels) {
+  Context cpu_ctx;
   auto ctx = MakeCUDACtx(GPUIDX);
-  linalg::Tensor<float, 2> labels{{0.0f, 1.0f, 0.0f, 1.0f}, {2, 2}, DeviceOrd::CPU()};
+  linalg::Tensor<float, 2> labels{&cpu_ctx, {0.0f, 1.0f, 0.0f, 1.0f}, {2, 2}};
 
   for (auto const& name : {"merror", "mlogloss"}) {
     SCOPED_TRACE(name);

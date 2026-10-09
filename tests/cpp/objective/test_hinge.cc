@@ -35,13 +35,11 @@ void TestHingeObj(const Context* ctx) {
   MetaInfo init_info;
   init_info.num_row_ = 4;
   init_info.labels = linalg::Tensor<float, 2>{
-      {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-      {4, 3},
-      ctx->Device()};
+      ctx, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, {4, 3}};
   linalg::Vector<float> base_score;
   MetaInfo invalid_info;
   invalid_info.num_row_ = 1;
-  invalid_info.labels = linalg::Tensor<float, 2>{{0.5f}, {1, 1}, ctx->Device()};
+  invalid_info.labels = linalg::Tensor<float, 2>{ctx, {0.5f}, {1, 1}};
   EXPECT_ANY_THROW(obj->InitEstimation(invalid_info, &base_score));
 
   obj->InitEstimation(init_info, &base_score);

@@ -36,7 +36,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
                                                    return t(ridx, cidx);
                                                  });
 
-  out->SetDevice(ctx->Device());
+  out->SetDevice(ctx);
   out->Reshape(n_columns);
   if (weights.Empty()) {
     common::SegmentedQuantile(ctx, 0.5, dh::tcbegin(d_segments), dh::tcend(d_segments), val_it,

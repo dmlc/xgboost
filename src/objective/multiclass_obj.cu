@@ -31,11 +31,11 @@ void MulticlassGradientCuda(Context const* ctx, HostDeviceVector<float> const& p
   CHECK(device.IsCUDA());
   preds.SetDevice(device);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, n_classes);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_classes);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
 
   dh::LaunchN(info.num_row_, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t row) mutable {
     auto point = predt.Slice(row, linalg::All());
@@ -93,9 +93,9 @@ void MulticlassInitEstimationCuda(Context const* ctx, MetaInfo const& info, std:
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
   *base_score = linalg::Zeros<float>(ctx, n_classes);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
-  auto intercept = base_score->View(device);
+  auto intercept = base_score->View(ctx);
   linalg::SmallHistogram(ctx, labels, weights, intercept);
   auto sum_weight = common::SumOptionalWeights(ctx, weights, info.labels.Size());
   collective::SafeColl(collective::GlobalSum(ctx, intercept, &sum_weight));
@@ -104,7 +104,7 @@ void MulticlassInitEstimationCuda(Context const* ctx, MetaInfo const& info, std:
   linalg::LogE(ctx, intercept, kRtEps);
   linalg::Vector<float> mean;
   common::Mean(ctx, intercept, &mean);
-  auto mean_d = mean.View(device);
+  auto mean_d = mean.View(ctx);
   dh::LaunchN(intercept.Size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) mutable { intercept(i) -= mean_d(0); });
 }

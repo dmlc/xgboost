@@ -34,7 +34,7 @@ void ExpectileGradientCpu(Context const* ctx, HostDeviceVector<float> const& pre
   auto predt =
       linalg::MakeTensorView(DeviceOrd::CPU(), preds.ConstHostSpan(), info.num_row_, n_targets);
   auto alpha_h = alpha.ConstHostSpan();
-  out_gpair->SetDevice(DeviceOrd::CPU());
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
   auto gpair = out_gpair->HostView();
   linalg::cpu_impl::ElementWiseKernel(
@@ -148,7 +148,7 @@ class ExpectileRegression : public FitIntercept {
   }
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     auto n_targets = this->Targets(info);
-    base_score->SetDevice(ctx_->Device());
+    base_score->SetDevice(ctx_);
     base_score->Reshape(n_targets);
     common::DispatchKernel<ExpectileInitEstimationKernel>(ctx_, info, alpha_, n_targets,
                                                           base_score);

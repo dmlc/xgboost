@@ -394,8 +394,7 @@ inline auto GenerateRandomGradients(Context const* ctx, bst_idx_t n_rows, bst_ta
                                     float lower = 0.0f, float upper = 1.0f) {
   auto g = GenerateRandomGradients(n_rows * n_targets, lower, upper);
   GradientContainer gpair;
-  gpair.gpair =
-      linalg::Matrix<GradientPair>{{n_rows, static_cast<bst_idx_t>(n_targets)}, ctx->Device()};
+  gpair.gpair = linalg::Matrix<GradientPair>{ctx, {n_rows, static_cast<bst_idx_t>(n_targets)}};
   gpair.gpair.Data()->Copy(g);
   return gpair;
 }
@@ -489,8 +488,10 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
  */
 inline LearnerModelState MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
                                 DeviceOrd device = DeviceOrd::CPU()) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", device.Name()}});
   size_t shape[1]{1};
-  LearnerModelState mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
+  LearnerModelState mparam(n_features, linalg::Tensor<float, 1>{&ctx, {base_score}, shape},
                            n_groups, 1, MultiStrategy::kOneOutputPerTree);
   return mparam;
 }

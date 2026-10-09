@@ -21,7 +21,8 @@ TEST(Updater, Refresh) {
   Context ctx;
 
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>{{{0.23f, 0.24f},
+  gpair.gpair = linalg::Matrix<GradientPair>{&ctx,
+                                             {{0.23f, 0.24f},
                                               {0.23f, 0.24f},
                                               {0.23f, 0.24f},
                                               {0.23f, 0.24f},
@@ -29,8 +30,7 @@ TEST(Updater, Refresh) {
                                               {0.27f, 0.29f},
                                               {0.27f, 0.29f},
                                               {0.27f, 0.29f}},
-                                             {8, 1},
-                                             ctx.Device()};
+                                             {8, 1}};
 
   std::shared_ptr<DMatrix> p_dmat{
       RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};

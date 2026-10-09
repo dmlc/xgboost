@@ -183,7 +183,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   HistMultiEvaluator evaluator{&ctx, p_fmat->Info(), &param, n_targets, sampler};
   HistMakerTrainParam hist_param;
   std::vector<BoundedHistCollection> histogram(n_targets);
-  linalg::Vector<GradientPairPrecise> root_sum({2}, DeviceOrd::CPU());
+  linalg::Vector<GradientPairPrecise> root_sum(&ctx, {2});
   for (bst_target_t t{0}; t < n_targets; ++t) {
     auto &hist = histogram[t];
     hist.Reset(n_bins * n_features, hist_param.MaxCachedHistNodes(ctx.Device()));
@@ -365,7 +365,7 @@ class TestHistMultiEvaluator : public ::testing::Test {
   std::shared_ptr<common::ColumnSampler> sampler_{std::make_shared<common::ColumnSampler>()};
   MetaInfo info_;
   std::vector<BoundedHistCollection> histogram_ = std::vector<BoundedHistCollection>(kNTargets);
-  linalg::Vector<GradientPairPrecise> root_sum_{{kNTargets}, DeviceOrd::CPU()};
+  linalg::Vector<GradientPairPrecise> root_sum_{&ctx_, {kNTargets}};
   common::HistogramCuts cuts_{kNFeatures};
   RegTree tree_{kNTargets, kNFeatures};
   std::vector<MultiExpandEntry> entries_ = std::vector<MultiExpandEntry>(1, {0, 0});

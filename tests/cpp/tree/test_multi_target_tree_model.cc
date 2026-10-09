@@ -111,6 +111,7 @@ TEST(MultiTargetTree, JsonIO) {
 
 namespace {
 void TestTreeDump(std::string format, std::string leaf_key) {
+  Context cpu_ctx;
   auto tree = MakeMtTreeForTest(3);
   auto n_features = tree->NumFeatures();
   FeatureMap fmap;
@@ -128,7 +129,7 @@ void TestTreeDump(std::string format, std::string leaf_key) {
     // Test the "..."
     bst_target_t n_targets{4};
     RegTree tree{n_targets, n_features};
-    linalg::Vector<float> weight{{1.0f, 2.0f, 3.0f, 4.0f}, {4ul}, DeviceOrd::CPU()};
+    linalg::Vector<float> weight{&cpu_ctx, {1.0f, 2.0f, 3.0f, 4.0f}, {4ul}};
     tree.SetRoot(weight.HostView(), /*sum_hess=*/1.0f);
     Expand(&tree, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(), weight.HostView(),
            weight.HostView(), /*loss_chg=*/0.5f,
@@ -160,17 +161,18 @@ TEST(MultiTargetTree, View) {
 }
 
 TEST(MultiTargetTree, FinalizeLeaves) {
+  Context cpu_ctx;
   bst_target_t n_targets{5};
   bst_feature_t n_features{4};
   std::unique_ptr<RegTree> tree{std::make_unique<RegTree>(n_targets, n_features)};
   CHECK(tree->IsMultiTarget());
   // Reduce to 2 targets
-  linalg::Vector<float> base_weight{{1.0f, 2.0f}, {2ul}, DeviceOrd::CPU()};
+  linalg::Vector<float> base_weight{&cpu_ctx, {1.0f, 2.0f}, {2ul}};
   tree->SetRoot(base_weight.HostView(), /*sum_hess=*/1.0f);
   ASSERT_EQ(tree->GetMultiTargetTree()->NumSplitTargets(), 2);
 
-  linalg::Vector<float> left_weight{{2.0f, 3.0f}, {2ul}, DeviceOrd::CPU()};
-  linalg::Vector<float> right_weight{{3.0f, 4.0f}, {2ul}, DeviceOrd::CPU()};
+  linalg::Vector<float> left_weight{&cpu_ctx, {2.0f, 3.0f}, {2ul}};
+  linalg::Vector<float> right_weight{&cpu_ctx, {3.0f, 4.0f}, {2ul}};
   Expand(tree.get(), RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
          left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
          /*left_sum=*/0.6f, /*right_sum=*/0.4f);

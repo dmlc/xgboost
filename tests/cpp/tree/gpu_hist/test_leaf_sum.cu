@@ -36,8 +36,8 @@ TEST(LeafGradSum, Basic) {
   auto quantizers = MakeDummyQuantizers(n_targets);
   auto out_sum = linalg::Constant(&ctx, GradientPairInt64{}, n_leaves, n_targets);
 
-  LeafGradSum(&ctx, h_leaves, dh::ToSpan(quantizers), dh::ToSpan(sorted_ridx),
-              gpairs.View(ctx.Device()), out_sum.View(ctx.Device()));
+  LeafGradSum(&ctx, h_leaves, dh::ToSpan(quantizers), dh::ToSpan(sorted_ridx), gpairs.View(&ctx),
+              out_sum.View(&ctx));
 
   for (auto v : out_sum.HostView()) {
     ASSERT_EQ(v.GetQuantisedGrad(), 3);

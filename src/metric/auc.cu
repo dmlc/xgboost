@@ -93,7 +93,7 @@ std::tuple<double, double, double> BinaryAUC(Context const *ctx, common::Span<fl
                                              MetaInfo const &info,
                                              common::Span<size_t const> d_sorted_idx, Fn area_fn,
                                              std::shared_ptr<DeviceAUCCache> cache) {
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto weights = info.weights_.ConstDeviceSpan();
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
 
@@ -323,7 +323,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
   // Index is sorted within output.
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
 
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto weights = info.weights_.ConstDeviceSpan();
 
   size_t n_samples = labels.Shape(0);
@@ -507,7 +507,7 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
   /**
    * Sort the labels
    */
-  auto d_labels = info.labels.View(ctx->Device());
+  auto d_labels = info.labels.View(ctx);
 
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::SegmentedArgSort<false, false>(ctx, d_labels.Values(), d_group_ptr, d_sorted_idx);
@@ -607,7 +607,7 @@ std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::ArgSort<false>(ctx, predts, d_sorted_idx);
 
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto d_weights = info.weights_.ConstDeviceSpan();
   auto get_weight = common::OptionalWeights{d_weights};
   auto it = dh::MakeTransformIterator<Pair>(dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(
@@ -650,7 +650,7 @@ double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo
   /**
    * Get total positive/negative
    */
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto n_samples = info.num_row_;
   dh::caching_device_vector<Pair> totals(n_targets);
   auto key_it = dh::MakeTransformIterator<size_t>(dh::make_counting_iterator(0ul),
@@ -696,7 +696,7 @@ std::pair<double, uint32_t> RankingPRAUCImpl(Context const *ctx, common::Span<fl
    */
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
 
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto weights = info.weights_.ConstDeviceSpan();
 
   uint32_t n_groups = static_cast<uint32_t>(info.group_ptr_.size() - 1);
@@ -820,7 +820,7 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::SegmentedArgSort<false, false>(ctx, predts, d_group_ptr, d_sorted_idx);
 
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   if (thrust::any_of(ctx->CUDACtx()->CTP(), dh::tbegin(labels.Values()), dh::tend(labels.Values()),
                      PRAUCLabelInvalid{})) {
     InvalidLabels();
@@ -863,7 +863,7 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
 namespace {
 void PrepareInputs(Context const *ctx, HostDeviceVector<float> const &preds, MetaInfo const &info) {
   preds.SetDevice(ctx->Device());
-  info.labels.SetDevice(ctx->Device());
+  info.labels.SetDevice(ctx);
   info.weights_.SetDevice(ctx->Device());
 }
 

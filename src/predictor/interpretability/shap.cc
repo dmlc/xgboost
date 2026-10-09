@@ -510,8 +510,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   std::vector<std::vector<float>> path_prob_tloc(
       n_threads, std::vector<float>(n_features, kQuadratureTreeShapUnseen));
 
-  auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
-  auto base_margin = info.base_margin_.View(device);
+  auto base_margin = ctx->IsSycl() ? info.base_margin_.HostView() : info.base_margin_.View(ctx);
 
   auto process_view = [&](auto &&view) {
     common::ParallelFor(view.Size(), n_threads, [&](auto i) {
@@ -595,8 +594,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
       n_threads, std::vector<float>(n_features, kQuadratureTreeShapUnseen));
   std::vector<std::vector<float>> diag_tloc(n_threads, std::vector<float>(ncolumns));
 
-  auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
-  auto base_margin = info.base_margin_.View(device);
+  auto base_margin = ctx->IsSycl() ? info.base_margin_.HostView() : info.base_margin_.View(ctx);
 
   auto process_view = [&](auto &&view) {
     common::ParallelFor(view.Size(), n_threads, [&](auto i) {
@@ -705,8 +703,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
 
-  auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
-  auto base_margin = info.base_margin_.View(device);
+  auto base_margin = ctx->IsSycl() ? info.base_margin_.HostView() : info.base_margin_.View(ctx);
 
   auto process_view = [&](auto &&view) {
     common::ParallelFor(view.Size(), n_threads, [&](auto i) {

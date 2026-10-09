@@ -207,7 +207,7 @@ void TestTrainingPredictionCache(bool use_subsampling) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Classes(kClasses).GenerateDMatrix(true);
 
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>({kRows, kClasses}, ctx.Device());
+  gpair.gpair = linalg::Matrix<GradientPair>(&ctx, {kRows, kClasses});
   auto h_gpair = gpair.gpair.HostView();
   for (size_t i = 0; i < kRows * kClasses; ++i) {
     std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};

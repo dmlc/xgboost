@@ -257,6 +257,7 @@ TEST(SimpleDMatrix, FromFile) {
 }
 
 TEST(SimpleDMatrix, Slice) {
+  Context ctx;
   size_t constexpr kRows{16};
   size_t constexpr kCols{8};
   size_t constexpr kClasses{3};
@@ -274,7 +275,7 @@ TEST(SimpleDMatrix, Slice) {
   std::iota(upper.begin(), upper.end(), 1.0f);
 
   auto &margin = p_m->Info().base_margin_;
-  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, DeviceOrd::CPU()};
+  margin = decltype(p_m->Info().base_margin_){&ctx, {kRows, kClasses}};
 
   std::array<int32_t, 3> ridxs{1, 3, 5};
   std::unique_ptr<DMatrix> out{p_m->Slice(ridxs)};
@@ -304,8 +305,8 @@ TEST(SimpleDMatrix, Slice) {
         ASSERT_EQ(p_m->Info().weights_.HostVector().at(ridx),
                   out->Info().weights_.HostVector().at(i));
 
-        auto out_margin = out->Info().base_margin_.View(DeviceOrd::CPU());
-        auto in_margin = margin.View(DeviceOrd::CPU());
+        auto out_margin = out->Info().base_margin_.HostView();
+        auto in_margin = margin.HostView();
         for (size_t j = 0; j < kClasses; ++j) {
           ASSERT_EQ(out_margin(i, j), in_margin(ridx, j));
         }

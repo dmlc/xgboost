@@ -35,8 +35,8 @@
 namespace xgboost {
 void TestInitOutPredictions(Context const *ctx) {
   for (bool vector_score : {false, true}) {
-    auto score = vector_score ? linalg::Vector<float>{{0.25f, 0.5f, 0.75f}, {3}, ctx->Device()}
-                              : linalg::Vector<float>{{0.5f}, {1}, ctx->Device()};
+    auto score = vector_score ? linalg::Vector<float>{ctx, {0.25f, 0.5f, 0.75f}, {3}}
+                              : linalg::Vector<float>{ctx, {0.5f}, {1}};
     LearnerModelState mparam{2, std::move(score), 1, 3, MultiStrategy::kMultiOutputTree};
     gbm::GBTreeModel model{&mparam, ctx};
     MetaInfo info;
@@ -51,7 +51,7 @@ void TestInitOutPredictions(Context const *ctx) {
       predictions.Fill(-1.0f);
     }
 
-    info.base_margin_ = linalg::Matrix<float>{{1, 2, 3, 4, 5, 6}, {2, 3}, ctx->Device()};
+    info.base_margin_ = linalg::Matrix<float>{ctx, {1, 2, 3, 4, 5, 6}, {2, 3}};
     predictor::InitOutPredictions(ctx, info, &predictions, model);
     EXPECT_EQ(predictions.ConstHostVector(), (std::vector<float>{1, 2, 3, 4, 5, 6}));
 
@@ -671,7 +671,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   size_t constexpr kCols = 5;
 
   LearnerModelState mparam{static_cast<bst_feature_t>(kCols),
-                           linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 1, 3,
+                           linalg::Vector<float>{ctx, {0.5}, {1}}, 1, 3,
                            MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;

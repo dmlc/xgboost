@@ -26,7 +26,7 @@ void AbsoluteErrorGradientCuda(Context const* ctx, HostDeviceVector<float> const
                                linalg::Matrix<GradientPair>* out_gpair) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   preds.SetDevice(device);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, n_targets);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
@@ -47,7 +47,7 @@ void AbsoluteErrorGradientCuda(Context const* ctx, HostDeviceVector<float> const
         return static_cast<double>(weights[row] *
                                    sqrtf(fabsf(predt(row, target) - labels(row, target))));
       });
-  auto stats = scale_stats.View(device);
+  auto stats = scale_stats.View(ctx);
   auto n_values = n_rows * n_stats;
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + n_values, value_it,
                         thrust::make_discard_iterator(), stats.Values().data());
@@ -63,9 +63,9 @@ void AbsoluteErrorGradientCuda(Context const* ctx, HostDeviceVector<float> const
     }
   });
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
   linalg::cuda_impl::ElementWiseKernel(
       gpair,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

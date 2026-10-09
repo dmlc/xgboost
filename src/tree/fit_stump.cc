@@ -81,12 +81,12 @@ inline void FitStump(Context const*, linalg::TensorView<GradientPair const, 2>,
 
 void FitStump(Context const* ctx, linalg::Matrix<GradientPair> const& gpair, bst_target_t n_targets,
               linalg::Vector<float>* out) {
-  out->SetDevice(ctx->Device());
+  out->SetDevice(ctx);
   out->Reshape(n_targets);
 
-  gpair.SetDevice(ctx->Device());
-  auto gpair_t = gpair.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
-  ctx->IsCUDA() ? cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->Device()))
+  gpair.SetDevice(ctx);
+  auto gpair_t = ctx->IsSycl() ? gpair.HostView() : gpair.View(ctx);
+  ctx->IsCUDA() ? cuda_impl::FitStump(ctx, gpair_t, out->View(ctx))
                 : cpu_impl::FitStump(ctx, gpair_t, out->HostView());
 }
 }  // namespace xgboost::tree

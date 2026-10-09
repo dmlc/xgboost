@@ -31,12 +31,12 @@ void NormalGradientCuda(Context const* ctx, HostDeviceVector<float> const& preds
   CHECK(device.IsCUDA());
   preds.SetDevice(device);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, 2);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, 2);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
   NormalGradient gradient;
   linalg::cuda_impl::ElementWiseKernel(
       labels,
@@ -59,8 +59,8 @@ void NormalInitEstimationCuda(Context const* ctx, MetaInfo const& info,
   }
   CHECK_EQ(mean.Size(), 1);
 
-  auto labels = info.labels.View(device);
-  auto mean_view = mean.View(device);
+  auto labels = info.labels.View(ctx);
+  auto mean_view = mean.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
   // Reduce in double before taking log, matching the CPU path without materializing
   // squared residuals in float (which can overflow for finite labels).
@@ -84,9 +84,9 @@ void NormalInitEstimationCuda(Context const* ctx, MetaInfo const& info,
   CHECK_GT(stats[1], 0.0);
   auto log_variance = static_cast<float>(std::log(stats[0] / stats[1] + kNormalMinVariance));
 
-  base_score->SetDevice(device);
+  base_score->SetDevice(ctx);
   base_score->Reshape(2);
-  auto out = base_score->View(device);
+  auto out = base_score->View(ctx);
   dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) mutable {
     out(0) = mean_view(0);
     out(1) = log_variance;

@@ -94,7 +94,8 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
     return DispatchAny(proxy, [&](auto const& value) {
       bst_idx_t n_threads = ctx->Threads();
       bst_idx_t n_features = info.column_sizes.size();
-      linalg::Tensor<bst_idx_t, 2> column_sizes_tloc({n_threads, n_features}, DeviceOrd::CPU());
+      auto cpu_ctx = ctx->MakeCPU();
+      linalg::Tensor<bst_idx_t, 2> column_sizes_tloc(&cpu_ctx, {n_threads, n_features});
       column_sizes_tloc.Data()->Fill(0ul);
       auto view = column_sizes_tloc.HostView();
       common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256), [&](auto i) {

@@ -28,9 +28,9 @@ struct GradientContainer {
 
   linalg::MatrixView<GradientPair const> ValueGrad(Context const* ctx) const {
     if (HasValueGrad()) {
-      return this->value_gpair.View(ctx->Device());
+      return this->value_gpair.View(ctx);
     }
-    return this->gpair.View(ctx->Device());
+    return this->gpair.View(ctx);
   }
 
   [[nodiscard]] linalg::Matrix<GradientPair> const* Grad() const { return &gpair; }

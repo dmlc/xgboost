@@ -168,7 +168,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_categories, false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(&ctx).Values(), ridx,
                              dh::ToSpan(cat_hist));
     });
   }
@@ -185,7 +185,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), encode_hist.size(), false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(&ctx).Values(), ridx,
                              dh::ToSpan(encode_hist));
     });
   }
@@ -384,8 +384,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
         builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                       force_global);
         impl->Visit(&ctx, {}, [&](auto&& acc) {
-          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                                 d_histogram);
+          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(&ctx).Values(), ridx, d_histogram);
         });
         ++k;
       }
@@ -412,8 +411,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                     force_global);
       concat.Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                               d_histogram);
+        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(&ctx).Values(), ridx, d_histogram);
       });
     }
 
@@ -473,15 +471,15 @@ struct HistInput {
   // Number of rows in each node.
   std::vector<std::size_t> sizes;
 
-  HistInput(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins, bst_target_t n_targets,
-            Layout layout, bool root, bool skewed = false)
+  HistInput(Context const* ctx, bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins,
+            bst_target_t n_targets, Layout layout, bool root, bool skewed = false)
       : n_samples{n_samples},
         n_features{n_features},
         feature_bins(n_features, n_bins),
         bin_ptrs(n_features + 1, 0),
         n_targets{n_targets},
         bins(n_samples * n_features),
-        gpair{{n_samples, static_cast<bst_idx_t>(n_targets)}, DeviceOrd::CPU(), linalg::kF},
+        gpair{ctx, {n_samples, static_cast<bst_idx_t>(n_targets)}, linalg::kF},
         ridx(n_samples) {
     if (skewed) {
       // The first half of the features have many bins, the second half have few. A group fits
@@ -540,6 +538,7 @@ struct HistInput {
 
   // Cut values are `b + 1` for bin `b` and the feature values are `b + 0.5`.
   [[nodiscard]] std::unique_ptr<EllpackPageImpl> MakeEllpack(Context const* ctx) const {
+    auto cpu_ctx = ctx->MakeCPU();
     auto p_cuts = std::make_shared<common::HistogramCuts>(this->n_features);
     p_cuts->cut_ptrs_.HostVector().assign(this->bin_ptrs.cbegin(), this->bin_ptrs.cend());
     std::vector<float> cut_values;
@@ -551,13 +550,12 @@ struct HistInput {
     p_cuts->cut_values_.HostVector() = std::move(cut_values);
 
     auto missing = std::numeric_limits<float>::quiet_NaN();
-    linalg::Matrix<float> x{{this->n_samples, static_cast<bst_idx_t>(this->n_features)},
-                            DeviceOrd::CPU()};
+    linalg::Matrix<float> x{&cpu_ctx, {this->n_samples, static_cast<bst_idx_t>(this->n_features)}};
     auto& h_x = x.Data()->HostVector();
     std::transform(this->bins.cbegin(), this->bins.cend(), h_x.begin(),
                    [&](bst_bin_t b) { return b < 0 ? missing : b + 0.5f; });
 
-    auto str = linalg::ArrayInterfaceStr(x.View(ctx->Device()));
+    auto str = linalg::ArrayInterfaceStr(x.View(ctx));
     auto adapter = data::CupyAdapter{StringView{str}};
     dh::device_vector<bst_idx_t> row_counts(this->n_samples);
     auto row_stride =
@@ -606,7 +604,8 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
                         bst_target_t n_targets, Layout layout, bool root, bool force_global,
                         bool small_groups, BuildInfo* info = nullptr, bool skewed = false) {
   auto ctx = MakeCUDACtx(0);
-  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root, skewed};
+  auto cpu_ctx = ctx.MakeCPU();
+  HistInput input{&cpu_ctx, n_samples, n_features, n_bins, n_targets, layout, root, skewed};
   auto expected = input.Expected();
 
   auto page = input.MakeEllpack(&ctx);
@@ -647,8 +646,8 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
-  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg, input.gpair.View(ctx.Device()),
-                         ridxs, hists);
+  builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg, input.gpair.View(&ctx), ridxs,
+                         hists);
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     std::vector<GradientPairInt64> got(hists[i].size());

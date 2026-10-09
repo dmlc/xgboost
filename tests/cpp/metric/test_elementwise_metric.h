@@ -322,7 +322,7 @@ inline void VerifyNormalNLogLik(DeviceOrd device) {
 inline void VerifyMultiRMSE(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   size_t n_samples = 32, n_targets = 8;
-  linalg::Tensor<float, 2> y{{n_samples, n_targets}, ctx.Device()};
+  linalg::Tensor<float, 2> y{&ctx, {n_samples, n_targets}};
   auto &h_y = y.Data()->HostVector();
   std::iota(h_y.begin(), h_y.end(), 0);
 
@@ -342,8 +342,9 @@ inline void VerifyMultiRMSE(DeviceOrd device) {
 }
 
 inline void VerifyMultiAlphaLayout(Metric *metric, bool expectile) {
+  Context cpu_ctx;
   metric->Configure({{expectile ? "expectile_alpha" : "quantile_alpha", "[0.25, 0.75]"}});
-  linalg::Tensor<float, 2> labels{{1.0f, 3.0f, 2.0f, 4.0f}, {2, 2}, DeviceOrd::CPU()};
+  linalg::Tensor<float, 2> labels{&cpu_ctx, {1.0f, 3.0f, 2.0f, 4.0f}, {2, 2}};
   HostDeviceVector<float> predts{0, 1, 3, 4, 1, 1, 3, 6};
   std::vector<float> weights{1, 3};
   auto expected = expectile ? 0.859375 : 0.421875;

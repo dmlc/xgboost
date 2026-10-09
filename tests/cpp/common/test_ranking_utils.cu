@@ -2,14 +2,14 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                          // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
-#include <xgboost/context.h>                       // for Context
-#include <xgboost/linalg.h>                        // for MakeTensorView, Vector
+#include <xgboost/base.h>     // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
+#include <xgboost/context.h>  // for Context
+#include <xgboost/linalg.h>   // for MakeTensorView, Vector
 
-#include <cstddef>                                 // for size_t
-#include <memory>                                  // for shared_ptr
-#include <numeric>                                 // for iota
-#include <vector>                                  // for vector
+#include <cstddef>  // for size_t
+#include <memory>   // for shared_ptr
+#include <numeric>  // for iota
+#include <vector>   // for vector
 
 #include "../../../src/common/algorithm.cuh"       // for SegmentedSequence
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext
@@ -35,13 +35,13 @@ void TestCalcQueriesInvIDCG() {
   auto d_scores = dh::ToSpan(scores);
   common::SegmentedSequence(&ctx, d_group_ptr, d_scores);
 
-  linalg::Vector<double> inv_IDCG({n_groups}, ctx.Device());
+  linalg::Vector<double> inv_IDCG(&ctx, {n_groups});
 
   ltr::LambdaRankParam p;
   p.UpdateAllowUnknown(Args{{"ndcg_exp_gain", "false"}});
 
   cuda_impl::CalcQueriesInvIDCG(&ctx, linalg::MakeTensorView(&ctx, d_scores, d_scores.size()),
-                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.Device()), p);
+                                dh::ToSpan(group_ptr), inv_IDCG.View(&ctx), p);
   for (std::size_t i = 0; i < n_groups; ++i) {
     double inv_idcg = inv_IDCG(i);
     ASSERT_NEAR(inv_idcg, 0.00551782, kRtEps);
