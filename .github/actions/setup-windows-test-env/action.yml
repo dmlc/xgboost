@@ -1,0 +1,55 @@
+# Avoid solving/downloading the Windows test environment on every ephemeral runner.
+# Remove this action when runner AMIs provide an environment matching the YAML.
+name: Set up Windows test environment
+description: Cache the installed Conda dependencies, before installing the XGBoost wheel.
+outputs:
+  prefix:
+    description: Absolute path of the prepared Conda environment.
+    value: ${{ steps.identity.outputs.prefix }}
+runs:
+  using: composite
+  steps:
+    - name: Identify environment cache
+      id: identity
+      shell: powershell
+      run: |
+        $info = conda info --json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0) { throw "conda info failed" }
+        # Conda prefixes contain absolute paths: always restore to this location.
+        "prefix=C:\xgboost-ci\win64-test" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $platform = "$([Environment]::OSVersion.Version)-$($info.conda_version)"
+        # Refresh unpinned dependencies monthly even when the YAML is unchanged.
+        $month = [DateTime]::UtcNow.ToString('yyyy-MM')
+        "key=windows-conda-v1-${{ runner.arch }}-$platform-$month-${{ hashFiles('ops/conda_env/win64_test.yml', '.github/actions/setup-windows-test-env/action.yml') }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+    - name: Restore test environment
+      id: cache
+      uses: actions/cache/restore@v5.0.3
+      continue-on-error: true
+      with:
+        path: ${{ steps.identity.outputs.prefix }}
+        # Exact matches only: never reuse an environment from a different spec.
+        key: ${{ steps.identity.outputs.key }}
+    - name: Create test environment
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: powershell
+      run: |
+        $prefix = '${{ steps.identity.outputs.prefix }}'
+        # Discard a partial restore in this action's dedicated environment directory.
+        if (Test-Path $prefix) { Remove-Item -Recurse -Force $prefix }
+        mamba env create --yes --prefix $prefix --file ops/conda_env/win64_test.yml
+        if ($LASTEXITCODE -ne 0) { throw "Creating test environment failed" }
+    - name: Verify test environment
+      shell: powershell
+      run: |
+        conda activate '${{ steps.identity.outputs.prefix }}'
+        if ($LASTEXITCODE -ne 0) { throw "Activating test environment failed" }
+        python -c "import numpy, scipy, sklearn, pandas, cupy, pytest, pyarrow"
+        if ($LASTEXITCODE -ne 0) { throw "Test environment imports failed" }
+    # Save before any test or wheel installation can modify the environment.
+    - name: Save test environment
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5.0.3
+      continue-on-error: true
+      with:
+        path: ${{ steps.identity.outputs.prefix }}
+        key: ${{ steps.identity.outputs.key }}
