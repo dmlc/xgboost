@@ -736,9 +736,9 @@ def run_recode_dmatrix(device: Device) -> None:
 
         assert cats_0.to_arrow() == cats_1.to_arrow()
 
-    # Recode
+    # Both matrix types use the same input; avoid loading the wide dataset twice.
+    enc, reenc, y, _, _ = make_recoded(device)
     for DMatrixT in (DMatrix, QuantileDMatrix):
-        enc, reenc, y, _, _ = make_recoded(device)
         Xy_0 = DMatrixT(enc, y, enable_categorical=True)
         cats_0 = Xy_0.get_categories(export_to_arrow=True)
 
@@ -792,16 +792,17 @@ def run_training_continuation(device: Device) -> None:
         eval_full = evals_result_2["Valid"]["rmse"]
         np.testing.assert_allclose(eval_full, eval_concat)
 
-        # Test inference
-        for a, b in itertools.product([enc, reenc], [enc, reenc]):
-            predt_0 = booster_1.inplace_predict(a)
-            predt_1 = booster_2.inplace_predict(b)
+        # Predict each encoding once per model, retaining every pairwise comparison.
+        # Repeated inplace_predict calls reconvert all 4096 dataframe columns.
+        predts_0 = [booster_1.inplace_predict(a) for a in (enc, reenc)]
+        predts_1 = [booster_2.inplace_predict(a) for a in (enc, reenc)]
+        for predt_0, predt_1 in itertools.product(predts_0, predts_1):
             assert_allclose(device, predt_0, predt_1, rtol=1e-5)
 
         # With DMatrix
-        for a, b in itertools.product([Xy_0, Xy_1], [Xy_0, Xy_1]):
-            predt_0 = booster_1.predict(a)
-            predt_1 = booster_2.predict(b)
+        predts_0 = [booster_1.predict(a) for a in (Xy_0, Xy_1)]
+        predts_1 = [booster_2.predict(a) for a in (Xy_0, Xy_1)]
+        for predt_0, predt_1 in itertools.product(predts_0, predts_1):
             assert_allclose(device, predt_0, predt_1, rtol=1e-5)
 
     for Train, Valid in itertools.product(
@@ -852,18 +853,19 @@ def run_recode_dmatrix_predict(device: Device) -> None:
     """Run prediction with re-coded DMatrix."""
     enc, reenc, y, _, _ = make_recoded(device)
 
-    for DMatrixT in (DMatrix, QuantileDMatrix):
-        Xy = DMatrix(enc, y, enable_categorical=True)
-        booster = train({"device": device}, Xy, num_boost_round=4)
-        cats_0 = booster.get_categories()
+    # Only the prediction matrix type varies; share the training and reference predictions.
+    Xy = DMatrix(enc, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=4)
+    cats_0 = booster.get_categories()
+    predt_0 = booster.predict(Xy)
+    predt_3 = booster.inplace_predict(enc)
 
+    for DMatrixT in (DMatrix, QuantileDMatrix):
         Xy_1 = _make_dm(DMatrixT, Xy, reenc, y, feature_types=cats_0)
         Xy_2 = _make_dm(DMatrixT, Xy, reenc, y)
 
-        predt_0 = booster.predict(Xy)
         predt_1 = booster.predict(Xy_1)
         predt_2 = booster.predict(Xy_2)
-        predt_3 = booster.inplace_predict(enc)
 
         for predt in (predt_1, predt_2, predt_3):
             assert_allclose(device, predt_0, predt)
