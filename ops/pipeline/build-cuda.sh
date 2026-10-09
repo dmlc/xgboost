@@ -84,20 +84,6 @@ source ops/pipeline/classify-git-branch.sh
 
 echo "--- Build with CUDA ${cuda_version}"
 
-# Allow CI to measure cache reuse with the same architecture targets as release builds.
-# An unset or empty override retains the normal branch-based selection.
-if [[ -z "${BUILD_ONLY_SM75:-}" ]]; then
-  if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]; then
-    BUILD_ONLY_SM75=1
-  else
-    BUILD_ONLY_SM75=0
-  fi
-fi
-case "${BUILD_ONLY_SM75}" in
-  0|1) export BUILD_ONLY_SM75 ;;
-  *) echo "BUILD_ONLY_SM75 must be 0 or 1" >&2; exit 1 ;;
-esac
-
 set -x
 
 # Configure the PyPI package variant
