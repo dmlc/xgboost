@@ -10,8 +10,6 @@
 #include <algorithm>    // for min
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
-#include <cstdlib>      // for malloc, free
-#include <new>          // for bad_alloc
 #include <thread>       // for thread
 #include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
 #include <utility>      // for forward
@@ -316,10 +314,7 @@ class MemStackAllocator {
     if (MaxStackSize >= required_size_) {
       ptr_ = stack_mem_;
     } else {
-      ptr_ = reinterpret_cast<T*>(std::malloc(required_size_ * sizeof(T)));
-    }
-    if (!ptr_) {
-      throw std::bad_alloc{};
+      ptr_ = new T[required_size_];
     }
   }
   MemStackAllocator(size_t required_size, T init) : MemStackAllocator{required_size} {
@@ -328,7 +323,7 @@ class MemStackAllocator {
 
   ~MemStackAllocator() {
     if (required_size_ > MaxStackSize) {
-      std::free(ptr_);
+      delete[] ptr_;
     }
   }
   T& operator[](size_t i) { return ptr_[i]; }
