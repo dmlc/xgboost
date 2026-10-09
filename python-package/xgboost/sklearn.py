@@ -51,6 +51,7 @@ from .compat import (
     _sklearn_Tags,
     _sklearn_version,
     import_cupy,
+    import_pandas,
     is_dataframe,
 )
 from .config import config_context
@@ -2102,6 +2103,33 @@ class XGBRFRegressor(XGBRegressor):
         return self
 
 
+def _pandas_drop_column(X: Any, name: str) -> Any:
+    """Drop a column from a pandas DataFrame without copying the remaining columns.
+
+    `DataFrame.drop` copies all the other columns unless copy-on-write is enabled,
+    doubling the memory usage for a large input. Instead, we build a new DataFrame
+    from views of the remaining columns. XGBoost consumes pandas inputs column by
+    column, so there's no need to consolidate them into a single block.
+
+    """
+    pd = import_pandas()
+
+    if (
+        int(pd.__version__.split(".", 1)[0]) >= 3
+        or getattr(pd.options.mode, "copy_on_write", False) is True
+    ):
+        # No copy with copy-on-write, which is the default since pandas 3.0.
+        return X.drop(name, axis=1)
+
+    keep = [i for i, c in enumerate(X.columns) if c != name]
+    # Use positional keys to support duplicated column names.
+    out = pd.DataFrame(
+        {j: X.iloc[:, i] for j, i in enumerate(keep)}, index=X.index, copy=False
+    )
+    out.columns = X.columns[keep]
+    return out
+
+
 def _get_qid(
     X: ArrayLike, qid: Optional[ArrayLike]
 ) -> Tuple[ArrayLike, Optional[ArrayLike]]:
@@ -2113,7 +2141,10 @@ def _get_qid(
                 "`fit` method. Please remove one of them."
             )
         q_x = X.qid
-        X = X.drop("qid", axis=1)
+        if _is_pandas_df(X):
+            X = _pandas_drop_column(X, "qid")
+        else:
+            X = X.drop("qid", axis=1)
         return X, q_x
     return X, qid
 
