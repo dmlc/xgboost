@@ -338,13 +338,69 @@ TEST(Tree, DumpDot) {
   str = tree.DumpModel(fmap, true, R"(dot:{"graph_attrs": {"bgcolor": "#FFFF00"}})");
   ASSERT_NE(str.find(R"(graph [ bgcolor="#FFFF00" ])"), std::string::npos);
 
-  // Default left for root.
-  ASSERT_NE(str.find(R"(0 -> 1 [label="yes, missing")"), std::string::npos);
+  // Default left for the indicator root means the feature is not present.
+  ASSERT_NE(str.find(R"(0 -> 1 [label="no, missing")"), std::string::npos);
   // Default right for node 1
   ASSERT_NE(str.find(R"(1 -> 4 [label="no, missing")"), std::string::npos);
 }
 
 TEST(Tree, DumpDotCategorical) { TestCategoricalTreeDump("dot", ","); }
+
+TEST(Tree, DumpIndicator) {
+  FeatureMap fmap;
+  fmap.PushBack(0, "present", "i");
+  for (bool default_left : {false, true}) {
+    RegTree tree;
+    tree.Expand({{0, 0, 0.0f, default_left}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+    tree.FinalizeLeaves(1.0f);
+    auto json = Json::Load(tree.DumpModel(fmap, false, "json"));
+    auto yes = std::to_string(default_left ? 2 : 1);
+    auto no = std::to_string(default_left ? 1 : 2);
+    ASSERT_EQ(std::to_string(get<Integer>(json["yes"])), yes);
+    ASSERT_EQ(std::to_string(get<Integer>(json["no"])), no);
+    ASSERT_EQ(std::to_string(get<Integer>(json["missing"])), no);
+    auto text = tree.DumpModel(fmap, false, "text");
+    ASSERT_NE(text.find("0:[present] yes=" + yes + ",no=" + no + ",missing=" + no),
+              std::string::npos)
+        << text;
+    auto dot = tree.DumpModel(fmap, false, "dot");
+    ASSERT_NE(dot.find("0 -> " + yes + R"( [label="yes")"), std::string::npos) << dot;
+    ASSERT_NE(dot.find("0 -> " + no + R"( [label="no, missing")"), std::string::npos) << dot;
+  }
+}
+
+TEST(Tree, DumpDotEdgeColors) {
+  for (std::string type : {"i", "q", "c"}) {
+    FeatureMap fmap;
+    fmap.PushBack(0, "feature", type.c_str());
+    for (bool default_left : {false, true}) {
+      SCOPED_TRACE(type + (default_left ? ", default left" : ", default right"));
+      RegTree tree;
+      if (type == "c") {
+        std::vector<uint32_t> categories{1};
+        tree.Expand({{0, 0, 0.0f, default_left, categories},
+                     {0.0f, 0.0f},
+                     {0.0f, 0.0f},
+                     {0.0f, 0.0f},
+                     0.0f});
+      } else {
+        tree.Expand({{0, 0, 0.0f, default_left}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+      }
+      tree.FinalizeLeaves(1.0f);
+      auto json = Json::Load(tree.DumpModel(fmap, false, "json"));
+      auto dot =
+          tree.DumpModel(fmap, false, R"(dot:{"edge":{"yes_color":"green","no_color":"red"}})");
+      for (std::string branch : {"yes", "no"}) {
+        auto child = get<Integer>(json[branch]);
+        auto label = branch + (child == tree[0].DefaultChild() ? ", missing" : "");
+        auto color = branch == "yes" ? "green" : "red";
+        auto edge =
+            "0 -> " + std::to_string(child) + " [label=\"" + label + "\" color=\"" + color + "\"]";
+        EXPECT_NE(dot.find(edge), std::string::npos) << dot;
+      }
+    }
+  }
+}
 
 TEST(Tree, JsonIO) {
   RegTree tree;
