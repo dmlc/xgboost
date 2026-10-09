@@ -1,8 +1,7 @@
 /**
  * Copyright 2021-2024, XGBoost Contributors
  */
-#ifndef XGBOOST_TESTS_CPP_DATA_TEST_METAINFO_H_
-#define XGBOOST_TESTS_CPP_DATA_TEST_METAINFO_H_
+#pragma once
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
@@ -73,4 +72,3 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
   }
 }
 }  // namespace xgboost
-#endif  // XGBOOST_TESTS_CPP_DATA_TEST_METAINFO_H_
