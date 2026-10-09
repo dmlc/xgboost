@@ -84,12 +84,6 @@ source ops/pipeline/classify-git-branch.sh
 
 echo "--- Build with CUDA ${cuda_version}"
 
-if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]; then
-  export BUILD_ONLY_SM75=1
-else
-  export BUILD_ONLY_SM75=0
-fi
-
 set -x
 
 # Configure the PyPI package variant
