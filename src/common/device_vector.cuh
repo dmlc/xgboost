@@ -30,6 +30,7 @@
 #include <cub/version.cuh>         // for CUB_VERSION
 #if CUB_VERSION >= 300200
 #include <cuda/memory_pool>        // for device_memory_pool
+#include <mutex>                   // for mutex, lock_guard
 #include <unordered_map>           // for unordered_map
 #else  // CUB_VERSION >= 300200
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
@@ -402,9 +403,11 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     };
     // A thread can switch devices; keep a separate pool for each device. The
     // default release threshold retains cached memory until the pool is destroyed.
+    static std::mutex mutex;
     static std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
-    int device;
-    safe_cuda(cudaGetDevice(&device));
+    auto device = cub::CurrentDevice();
+    // Protect the registry; allocations can use the pool concurrently after lookup.
+    std::lock_guard<std::mutex> lock{mutex};
     auto &pool = pools[device];
     if (!pool) {
       pool.reset(new cuda::device_memory_pool{cuda::device_ref{device}});
