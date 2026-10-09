@@ -389,14 +389,25 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 
 #if CUB_VERSION >= 300200
   static cuda::device_memory_pool &GetGlobalCachingAllocator() {
+    struct PoolDeleter {
+      void operator()(cuda::device_memory_pool *pool) const {
+        // Thread-local cleanup can run after CUDA driver/runtime teardown. Use the
+        // runtime API to tolerate shutdown errors instead of CCCL's noexcept destructor.
+        auto status = cudaMemPoolDestroy(pool->release());
+        delete pool;
+        if (status != cudaErrorCudartUnloading && status != cudaErrorInitializationError) {
+          safe_cuda(status);
+        }
+      }
+    };
     // A thread can switch devices; keep a separate pool for each device. The
     // default release threshold retains cached memory until the pool is destroyed.
-    thread_local std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool>> pools;
+    thread_local std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
     int device;
     safe_cuda(cudaGetDevice(&device));
     auto &pool = pools[device];
     if (!pool) {
-      pool = std::make_unique<cuda::device_memory_pool>(cuda::device_ref{device});
+      pool.reset(new cuda::device_memory_pool{cuda::device_ref{device}});
     }
     return *pool;
   }
