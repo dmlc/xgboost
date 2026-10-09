@@ -544,14 +544,14 @@ def run_cat_leaf(device: Device) -> None:
 
 # pylint: disable=too-many-locals
 @memory.cache
-def make_recoded(device: Device, *, n_features: int = 4096) -> Tuple:
+def make_recoded(device: Device, *, n_features: int = 16) -> Tuple:
     """Synthesize a test dataset with changed encoding."""
     Df, _ = get_df_impl(device)
 
     import pandas as pd
 
-    # Test large column numbers. XGBoost makes some specializations for slim datasets,
-    # make sure we cover all the cases.
+    # Keep the functional test matrix small. Prediction tests request 4096 columns
+    # explicitly to cover the GPU path that cannot stage rows in shared memory.
     n_samples = 1024
 
     # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
@@ -736,9 +736,9 @@ def run_recode_dmatrix(device: Device) -> None:
 
         assert cats_0.to_arrow() == cats_1.to_arrow()
 
-    # Recode
+    # Both matrix types use the same input; avoid loading the wide dataset twice.
+    enc, reenc, y, _, _ = make_recoded(device)
     for DMatrixT in (DMatrix, QuantileDMatrix):
-        enc, reenc, y, _, _ = make_recoded(device)
         Xy_0 = DMatrixT(enc, y, enable_categorical=True)
         cats_0 = Xy_0.get_categories(export_to_arrow=True)
 
@@ -792,16 +792,17 @@ def run_training_continuation(device: Device) -> None:
         eval_full = evals_result_2["Valid"]["rmse"]
         np.testing.assert_allclose(eval_full, eval_concat)
 
-        # Test inference
-        for a, b in itertools.product([enc, reenc], [enc, reenc]):
-            predt_0 = booster_1.inplace_predict(a)
-            predt_1 = booster_2.inplace_predict(b)
+        # Predict each encoding once per model, retaining every pairwise comparison.
+        # Repeated inplace_predict calls reconvert all 4096 dataframe columns.
+        predts_0 = [booster_1.inplace_predict(a) for a in (enc, reenc)]
+        predts_1 = [booster_2.inplace_predict(a) for a in (enc, reenc)]
+        for predt_0, predt_1 in itertools.product(predts_0, predts_1):
             assert_allclose(device, predt_0, predt_1, rtol=1e-5)
 
         # With DMatrix
-        for a, b in itertools.product([Xy_0, Xy_1], [Xy_0, Xy_1]):
-            predt_0 = booster_1.predict(a)
-            predt_1 = booster_2.predict(b)
+        predts_0 = [booster_1.predict(a) for a in (Xy_0, Xy_1)]
+        predts_1 = [booster_2.predict(a) for a in (Xy_0, Xy_1)]
+        for predt_0, predt_1 in itertools.product(predts_0, predts_1):
             assert_allclose(device, predt_0, predt_1, rtol=1e-5)
 
     for Train, Valid in itertools.product(
@@ -848,22 +849,34 @@ def run_update(device: Device) -> None:
     assert model_0 == model_1  # also compares the cat container inside
 
 
-def run_recode_dmatrix_predict(device: Device) -> None:
-    """Run prediction with re-coded DMatrix."""
-    enc, reenc, y, _, _ = make_recoded(device)
+def run_recode_dmatrix_predict(device: Device, *, n_features: int = 16) -> None:
+    """Run prediction with re-coded DMatrix and dataframe inputs."""
+    enc, reenc, y, col_numeric, col_categorical = make_recoded(
+        device, n_features=n_features
+    )
+
+    # Only the prediction matrix type varies; reuse the model and predictions.
+    Xy = DMatrix(enc, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=4)
+    cats_0 = booster.get_categories()
+    predt_0 = booster.predict(Xy)
+    # Cover both the categorical dataframe loader and the plain array loader at
+    # each width. The reordered dataframe must predict like the original encoding.
+    predt_3 = booster.inplace_predict(enc)
+    predt_4 = booster.inplace_predict(reenc)
+    array = np.empty(shape=enc.shape)
+    array[:, enc.dtypes == "category"] = col_categorical
+    array[:, enc.dtypes != "category"] = col_numeric
+    predt_5 = booster.inplace_predict(asarray(device, array))
+    for predt in (predt_3, predt_4, predt_5):
+        assert_allclose(device, predt_0, predt)
 
     for DMatrixT in (DMatrix, QuantileDMatrix):
-        Xy = DMatrix(enc, y, enable_categorical=True)
-        booster = train({"device": device}, Xy, num_boost_round=4)
-        cats_0 = booster.get_categories()
-
         Xy_1 = _make_dm(DMatrixT, Xy, reenc, y, feature_types=cats_0)
         Xy_2 = _make_dm(DMatrixT, Xy, reenc, y)
 
-        predt_0 = booster.predict(Xy)
         predt_1 = booster.predict(Xy_1)
         predt_2 = booster.predict(Xy_2)
-        predt_3 = booster.inplace_predict(enc)
 
-        for predt in (predt_1, predt_2, predt_3):
+        for predt in (predt_1, predt_2):
             assert_allclose(device, predt_0, predt)
