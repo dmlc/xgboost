@@ -855,7 +855,7 @@ def run_recode_dmatrix_predict(device: Device, *, n_features: int = 16) -> None:
         device, n_features=n_features
     )
 
-    # Only the prediction matrix type varies; share the training and reference predictions.
+    # Only the prediction matrix type varies; reuse the model and predictions.
     Xy = DMatrix(enc, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=4)
     cats_0 = booster.get_categories()
