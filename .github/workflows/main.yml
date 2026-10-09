@@ -656,8 +656,13 @@ jobs:
         run: python -m pip install -v wheelhouse/*.whl
       - name: Run Python tests
         run: |
-          python ops/pipeline/diagnose-macos-tests.py -s -v -rxXs --durations=0 tests/python
-          python ops/pipeline/diagnose-macos-tests.py -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+          python -m pytest -s -v -rxXs --durations=0 tests/python
+          python -m pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+
+      - name: Compare macOS performance configurations
+        if: always()
+        timeout-minutes: 22
+        run: python ops/pipeline/benchmark-macos.py
 
       - name: Upload macOS test diagnostics
         if: always()
