@@ -1140,7 +1140,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
                                      prepared.compressed[3], prepared.rule, out_contribs);
   });
 
-  p_fmat->Info().base_margin_.SetDevice(ctx->Device());
+  p_fmat->Info().base_margin_.SetDevice(ctx);
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
   auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
@@ -1189,7 +1189,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                                                 out_contribs);
   });
 
-  p_fmat->Info().base_margin_.SetDevice(ctx->Device());
+  p_fmat->Info().base_margin_.SetDevice(ctx);
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
   auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();

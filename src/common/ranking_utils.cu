@@ -185,14 +185,14 @@ common::Span<std::size_t const> RankingCache::MakeRankOnCUDA(Context const* ctx,
 
 void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   CUDAContext const* cuctx = ctx->CUDACtx();
-  auto labels = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
+  auto labels = info.labels.View(ctx).Slice(linalg::All(), 0);
   CheckNDCGLabels(this->Param(), labels, CheckNDCGOp{cuctx});
 
   auto d_group_ptr = this->DataGroupPtr(ctx);
 
   std::size_t n_groups = d_group_ptr.size() - 1;
   inv_idcg_ = linalg::Zeros<double>(ctx, n_groups);
-  auto d_inv_idcg = inv_idcg_.View(ctx->Device());
+  auto d_inv_idcg = inv_idcg_.View(ctx);
   cuda_impl::CalcQueriesInvIDCG(ctx, labels, d_group_ptr, d_inv_idcg, this->Param());
   CHECK_GE(this->Param().NumPair(), 1ul);
 
@@ -204,12 +204,12 @@ void NDCGCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
 }
 
 void PreCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
-  auto const d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
+  auto const d_label = info.labels.View(ctx).Slice(linalg::All(), 0);
   CheckPreLabels("pre", d_label, CheckMAPOp{ctx->CUDACtx()});
 }
 
 void MAPCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
-  auto const d_label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
+  auto const d_label = info.labels.View(ctx).Slice(linalg::All(), 0);
   CheckPreLabels("map", d_label, CheckMAPOp{ctx->CUDACtx()});
 }
 }  // namespace xgboost::ltr

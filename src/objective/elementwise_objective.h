@@ -46,7 +46,7 @@ void GradientCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaI
   auto labels = info.labels.HostView();
   common::OptionalWeights weights{info.weights_.ConstHostSpan()};
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
   auto gpair = out_gpair->HostView();
 

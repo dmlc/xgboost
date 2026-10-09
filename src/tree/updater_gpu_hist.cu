@@ -183,7 +183,7 @@ struct GPUHistMakerDevice {
     /**
      * Sampling
      */
-    auto gpairs = this->d_gpair.View(this->ctx_->Device());
+    auto gpairs = this->d_gpair.View(this->ctx_);
     this->sampler->Sample(ctx_, gpairs, this->quantiser->DeviceSpan());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
@@ -303,7 +303,7 @@ struct GPUHistMakerDevice {
     }
 
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
-    auto gpair = this->d_gpair.View(this->ctx_->Device());
+    auto gpair = this->d_gpair.View(this->ctx_);
     this->histogram_.BuildHistogram(ctx_, acc, *feature_groups_, gpair, h_ridxs, h_hists);
     monitor.Stop(__func__);
   }
@@ -469,7 +469,7 @@ struct GPUHistMakerDevice {
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
 
-    auto gpair = this->d_gpair.View(this->ctx_->Device());
+    auto gpair = this->d_gpair.View(this->ctx_);
 
     if (!p_fmat->SingleColBlock()) {
       for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
@@ -563,7 +563,7 @@ struct GPUHistMakerDevice {
     this->monitor.Start(__func__);
 
     constexpr bst_node_t kRootNIdx = RegTree::kRoot;
-    auto gpair_it = linalg::tcbegin(this->d_gpair.View(this->ctx_->Device()));
+    auto gpair_it = linalg::tcbegin(this->d_gpair.View(this->ctx_));
     GradientPairInt64 root_sum_quantised =
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + this->d_gpair.Size(),
                    GradientPairInt64{}, cuda::std::plus<GradientPairInt64>{});
@@ -684,7 +684,7 @@ class GPUHistMaker : public TreeUpdater {
   void Update(TrainParam const* param, GradientContainer* in_gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               std::vector<RegTree*> const& trees) override {
-    in_gpair->gpair.SetDevice(this->ctx_->Device());
+    in_gpair->gpair.SetDevice(this->ctx_);
 
     // build tree
     std::size_t t_idx{0};
@@ -741,7 +741,7 @@ class GPUHistMaker : public TreeUpdater {
   void UpdateTree(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     this->InitData(param, p_fmat, p_tree);
-    gpair->SetDevice(ctx_->Device());
+    gpair->SetDevice(ctx_);
     auto gpair_hdv = gpair->Data();
     CHECK(!p_tree->IsMultiTarget());
     p_scimpl_->UpdateTree(gpair_hdv, p_fmat, p_tree, p_out_position);
@@ -809,7 +809,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     hess_.resize(gpair->Size());
     auto hess = dh::ToSpan(hess_);
 
-    gpair->SetDevice(ctx_->Device());
+    gpair->SetDevice(ctx_);
     auto d_gpair = gpair->Data()->ConstDeviceSpan();
     auto cuctx = ctx_->CUDACtx();
     thrust::transform(cuctx->CTP(), dh::tcbegin(d_gpair), dh::tcend(d_gpair), dh::tbegin(hess),

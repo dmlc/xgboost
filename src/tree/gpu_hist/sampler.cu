@@ -134,7 +134,7 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
 
 void UniformSampling::ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(value_gpair->Shape(0), n_samples_);
-  auto d_value = value_gpair->View(ctx->Device());
+  auto d_value = value_gpair->View(ctx);
   auto n_targets = value_gpair->Shape(1);
   auto sampling = this->GetSamplingInfo();
   thrust::replace_if(
@@ -285,7 +285,7 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
 
 void GradientBasedSampling::ApplySampling(Context const* ctx,
                                           linalg::Matrix<GradientPair>* value_gpair) {
-  auto d_value = value_gpair->View(ctx->Device());
+  auto d_value = value_gpair->View(ctx);
   auto n_targets = value_gpair->Shape(1);
   auto n_samples = value_gpair->Shape(0);
   CHECK_EQ(n_samples, this->reg_abs_grad_.size());

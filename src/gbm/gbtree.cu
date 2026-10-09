@@ -11,10 +11,10 @@
 namespace xgboost::gbm {
 void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_gpair,
                      bst_group_t group_id, linalg::Matrix<GradientPair> *out_gpair) {
-  auto v_in = in_gpair->View(ctx->Device()).Slice(linalg::All(), group_id);
-  out_gpair->SetDevice(ctx->Device());
+  auto v_in = in_gpair->View(ctx).Slice(linalg::All(), group_id);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(v_in.Size(), 1);
-  auto d_out = out_gpair->View(ctx->Device());
+  auto d_out = out_gpair->View(ctx);
   auto cuctx = ctx->CUDACtx();
   auto it = dh::MakeTransformIterator<GradientPair>(
       dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v_in(i); });

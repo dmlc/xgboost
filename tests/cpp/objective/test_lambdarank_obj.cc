@@ -32,7 +32,7 @@ TEST(LambdaRank, InitEstimation) {
 
   MetaInfo info;
   info.num_row_ = 4;
-  info.labels = linalg::Tensor<float, 2>{{3.0f, 0.0f, 1.0f, 2.0f}, {4, 1}, ctx.Device()};
+  info.labels = linalg::Tensor<float, 2>{&ctx, {3.0f, 0.0f, 1.0f, 2.0f}, {4, 1}};
   info.group_ptr_ = {0, 4};
 
   linalg::Vector<float> base_score;
@@ -83,7 +83,7 @@ void TestNDCGGPair(Context const* ctx) {
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;
-  info.labels = linalg::Tensor<float, 2>{{0, 1, 0, 1}, {4, 1}, ctx->Device()};
+  info.labels = linalg::Tensor<float, 2>{ctx, {0, 1, 0, 1}, {4, 1}};
   info.group_ptr_ = {0, 2, 4};
   info.num_row_ = 4;
   linalg::Matrix<GradientPair> gpairs;
@@ -125,7 +125,7 @@ void TestNDCGGPair(Context const* ctx) {
 
     HostDeviceVector<float> predts;
     MetaInfo info;
-    info.labels = linalg::Tensor<float, 2>{{}, {0, 1}, ctx->Device()};
+    info.labels = linalg::Tensor<float, 2>{ctx, {}, {0, 1}};
     info.group_ptr_ = {0, 0};
     info.num_row_ = 0;
     linalg::Matrix<GradientPair> gpairs;

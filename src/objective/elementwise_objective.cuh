@@ -25,12 +25,12 @@ void GradientCuda(Context const* ctx, HostDeviceVector<float> const& preds, Meta
 
   preds.SetDevice(device);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, n_targets);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
 
   linalg::cuda_impl::ElementWiseKernel(
       gpair,
@@ -55,7 +55,7 @@ template <typename CheckFn>
 bool ValidationCuda(Context const* ctx, linalg::Matrix<float> const& values, CheckFn check) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  auto view = values.View(device);
+  auto view = values.View(ctx);
   auto iter = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
     auto [m, n] = linalg::UnravelIndex(i, view.Shape());
     return view(m, n);

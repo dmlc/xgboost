@@ -281,10 +281,10 @@ class RankingCache {
 
   [[nodiscard]] linalg::VectorView<GradientPair> CUDARounding(Context const* ctx) {
     if (roundings_.Size() == 0) {
-      roundings_.SetDevice(ctx->Device());
+      roundings_.SetDevice(ctx);
       roundings_.Reshape(Groups());
     }
-    return roundings_.View(ctx->Device());
+    return roundings_.View(ctx);
   }
   [[nodiscard]] common::Span<double> CUDACostRounding(Context const* ctx) {
     if (cost_rounding_.Size() == 0) {
@@ -332,17 +332,17 @@ class NDCGCache : public RankingCache {
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
   // This function doesn't have sycl-specific implementation yet.
   // For that reason we transfer data to host in case of sycl is used for propper execution.
-    return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
+  return ctx->IsSycl() ? inv_idcg_.HostView() : inv_idcg_.View(ctx);
   }
   common::Span<double const> Discount(Context const* ctx) const {
     return ctx->IsCUDA() ? discounts_.ConstDeviceSpan() : discounts_.ConstHostSpan();
   }
   linalg::VectorView<double> Dcg(Context const* ctx) {
     if (dcg_.Size() == 0) {
-      dcg_.SetDevice(ctx->Device());
+      dcg_.SetDevice(ctx);
       dcg_.Reshape(this->Groups());
     }
-    return dcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
+    return ctx->IsSycl() ? dcg_.HostView() : dcg_.View(ctx);
   }
 };
 

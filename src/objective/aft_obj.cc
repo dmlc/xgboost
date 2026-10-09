@@ -42,7 +42,7 @@ void AFTGradientCpuImpl(HostDeviceVector<float> const& preds, MetaInfo const& in
 void AFTGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
                     common::ProbabilityDistributionType distribution, float scale,
                     linalg::Matrix<GradientPair>* out_gpair) {
-  out_gpair->SetDevice(DeviceOrd::CPU());
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(preds.Size(), 1);
   switch (distribution) {
     case common::ProbabilityDistributionType::kNormal:

@@ -144,7 +144,7 @@ class MultiTargetHistMaker {
   void BuildHist(EllpackPage const& page, std::int32_t k, std::vector<bst_node_t> build_nodes) {
     xgboost_NVTX_FN_RANGE();
 
-    auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
+    auto d_gpair = this->split_gpair_.View(this->ctx_);
     CHECK(!this->partitioners_.Empty());
 
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
@@ -212,7 +212,7 @@ class MultiTargetHistMaker {
     /**
      * Initialize the gradient matrix
      */
-    auto in_gpair = gpair_all->View(ctx_->Device());
+    auto in_gpair = gpair_all->View(ctx_);
     CHECK(in_gpair.CContiguous());
 
     this->split_quantizer_ = std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair);
@@ -220,11 +220,11 @@ class MultiTargetHistMaker {
                         &this->split_gpair_);
 
     // Sampling
-    this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
+    this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_),
                           this->split_quantizer_->DeviceSpan());
     if (!this->value_gpair_.Empty()) {
       this->value_quantizer_ =
-          std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_->Device()));
+          std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_));
       this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
     }
 
@@ -243,7 +243,7 @@ class MultiTargetHistMaker {
   [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
-    auto d_gpair = split_gpair_.View(ctx_->Device());
+    auto d_gpair = split_gpair_.View(ctx_);
     auto n_targets = d_gpair.Shape(1);
 
     // Calculate the root sum
@@ -344,10 +344,10 @@ class MultiTargetHistMaker {
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
     auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
-    auto d_out_sum = out_sum.View(this->ctx_->Device());
+    auto d_out_sum = out_sum.View(this->ctx_);
     CHECK(d_out_sum.CContiguous());
 
-    auto d_full_grad = this->value_gpair_.View(this->ctx_->Device());
+    auto d_full_grad = this->value_gpair_.View(this->ctx_);
     auto d_roundings = this->value_quantizer_->DeviceSpan();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
@@ -385,8 +385,8 @@ class MultiTargetHistMaker {
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     dh::device_vector<bst_node_t> d_leaves{leaves_idx};
     LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
-               this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
-               out_weight.View(this->ctx_->Device()));
+               this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_),
+               out_weight.View(this->ctx_));
 
     p_tree->FinalizeLeaves(leaves_idx, out_weight.Data()->ConstHostSpan(),
                            this->param_.learning_rate);
@@ -628,8 +628,8 @@ class MultiTargetHistMaker {
 
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
-      this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
-      gpair->value_gpair.SetDevice(this->ctx_->Device());
+      this->value_gpair_ = linalg::Matrix<GradientPair>{ctx_, gpair->value_gpair.Shape()};
+      gpair->value_gpair.SetDevice(this->ctx_);
       this->value_gpair_.Data()->Copy(*gpair->value_gpair.Data());
     }
     CHECK_LE(split_grad->Shape(1), p_tree->NumTargets());

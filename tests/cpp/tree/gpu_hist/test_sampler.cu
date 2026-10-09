@@ -54,7 +54,7 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
   auto sum_gpair = sum_gradients(gpair.HostView());
   // sample
   Sampler sampler{kRows, subsample, sampling_method};
-  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()), quantizer.DeviceSpan());
+  sampler.Sample(&ctx, gpair_i64.View(&ctx), quantizer.DeviceSpan());
   // Refresh float gradient after sampling
   CalcFloatGrad(gpair_i64.HostView(), common::Span{h_quantizers}, &gpair);
   auto sum_sampled_gpair = sum_gradients(gpair.HostView());
@@ -100,11 +100,11 @@ TEST(GpuSampler, ApplySampling) {
   CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &original_split);
 
   Sampler sampler{n_samples, kSubsample, kSamplingMethod};
-  sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
+  sampler.Sample(&ctx, split_gpair.View(&ctx), quantizer.DeviceSpan());
 
   // Generate value gradient (more targets than split)
   auto value_gpair = GenerateRandomGradients(&ctx, n_samples, n_value_targets);
-  linalg::Matrix<GradientPair> value_before{value_gpair.gpair.Shape(), ctx.Device()};
+  linalg::Matrix<GradientPair> value_before{&ctx, value_gpair.gpair.Shape()};
   value_before.Data()->Copy(*value_gpair.gpair.Data());
   linalg::Matrix<GradientPair> sampled;
   CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &sampled);
@@ -146,7 +146,7 @@ TEST(GpuSampler, ZeroSampleRows) {
           GenerateGradientsFixedPoint(&ctx, kRows, kSplitTargets, 1.0f, 2.0f);
       auto value_gpair = GenerateRandomGradients(&ctx, kRows, kValueTargets, 1.0f, 2.0f);
       Sampler sampler{kRows, subsample, sampling_method};
-      sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
+      sampler.Sample(&ctx, split_gpair.View(&ctx), quantizer.DeviceSpan());
       sampler.ApplySampling(&ctx, &value_gpair.gpair);
 
       for (auto const& gpair : split_gpair.Data()->ConstHostVector()) {

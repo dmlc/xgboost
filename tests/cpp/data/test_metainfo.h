@@ -23,13 +23,13 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
     labels.Reshape(4, 2, 3);
     auto& h_label = labels.Data()->HostVector();
     std::iota(h_label.begin(), h_label.end(), 0.0);
-    auto t_labels = labels.View(device).Slice(linalg::All(), 0, linalg::All());
+    auto t_labels = labels.View(&ctx).Slice(linalg::All(), 0, linalg::All());
     ASSERT_EQ(t_labels.Shape().size(), 2);
 
     info.SetInfo(ctx, "label", StringView{ArrayInterfaceStr(t_labels)});
-    auto const& h_result = info.labels.View(DeviceOrd::CPU());
+    auto const& h_result = info.labels.HostView();
     ASSERT_EQ(h_result.Shape().size(), 2);
-    auto in_labels = labels.View(DeviceOrd::CPU());
+    auto in_labels = labels.HostView();
     linalg::cpu_impl::ElementWiseKernel(h_result, omp_get_max_threads(),
                                         [&](size_t i, std::size_t j) {
                                           // Sliced at second dimension.
@@ -44,7 +44,7 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
     qid.Reshape(32, 2);
     auto& h_qid = qid.Data()->HostVector();
     std::iota(h_qid.begin(), h_qid.end(), 0);
-    auto s = qid.View(device).Slice(linalg::All(), 0);
+    auto s = qid.View(&ctx).Slice(linalg::All(), 0);
     auto str = ArrayInterfaceStr(s);
     info.SetInfo(ctx, "qid", StringView{str});
     auto const& h_result = info.group_ptr_;
@@ -56,13 +56,13 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
     base_margin.Reshape(4, 2, 3);
     auto& h_margin = base_margin.Data()->HostVector();
     std::iota(h_margin.begin(), h_margin.end(), 0.0);
-    auto t_margin = base_margin.View(device).Slice(linalg::All(), 0, linalg::All());
+    auto t_margin = base_margin.View(&ctx).Slice(linalg::All(), 0, linalg::All());
     ASSERT_EQ(t_margin.Shape().size(), 2);
 
     info.SetInfo(ctx, "base_margin", StringView{ArrayInterfaceStr(t_margin)});
-    auto const& h_result = info.base_margin_.View(DeviceOrd::CPU());
+    auto const& h_result = info.base_margin_.HostView();
     ASSERT_EQ(h_result.Shape().size(), 2);
-    auto in_margin = base_margin.View(DeviceOrd::CPU());
+    auto in_margin = base_margin.HostView();
     linalg::cpu_impl::ElementWiseKernel(h_result, omp_get_max_threads(),
                                         [&](std::size_t i, std::size_t j) {
                                           // Sliced at second dimension.

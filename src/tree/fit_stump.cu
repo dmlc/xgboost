@@ -36,7 +36,7 @@ void FitStump(Context const* ctx, linalg::TensorView<GradientPair const, 2> gpai
         auto sample = i % gpair.Shape(0);
         return GradientPairPrecise{gpair(sample, target)};
       });
-  auto d_sum = sum.View(ctx->Device());
+  auto d_sum = sum.View(ctx);
   CHECK(d_sum.CContiguous());
 
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + gpair.Size(), grad_it,

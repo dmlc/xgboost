@@ -31,14 +31,15 @@ template <typename T, int32_t D>
 void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array(arr_interface);
   if (array.n == 0) {
-    p_out->SetDevice(DeviceOrd::CUDA(0));
+    auto device_ctx = ctx->MakeCUDA();
+    p_out->SetDevice(&device_ctx);
     p_out->Reshape(array.shape);
     return;
   }
   CHECK_EQ(array.valid.Capacity(), 0)
       << "Meta info like label or weight can not have missing value.";
-  auto ptr_device = DeviceOrd::CUDA(SetDeviceToPtr(array.data));
-  p_out->SetDevice(ptr_device);
+  auto device_ctx = ctx->MakeCUDA(SetDeviceToPtr(array.data));
+  p_out->SetDevice(&device_ctx);
 
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
@@ -52,7 +53,7 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
     return;
   }
   p_out->Reshape(array.shape);
-  auto t = p_out->View(ptr_device);
+  auto t = p_out->View(&device_ctx);
   linalg::cuda_impl::TransformIdxKernel(ctx, t, [=] XGBOOST_DEVICE(std::size_t i, T) {
     return std::apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
   });
@@ -185,7 +186,7 @@ void Gather(Context const* ctx, linalg::MatrixView<float const> in,
   }
   auto& out = *p_out;
   out.Reshape(ridx.size(), in.Shape(1));
-  auto d_out = out.View(ctx->Device());
+  auto d_out = out.View(ctx);
 
   auto cuctx = ctx->CUDACtx();
   auto map_it = thrust::make_transform_iterator(dh::make_counting_iterator(0ull),
@@ -223,8 +224,8 @@ void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_id
                    MetaInfo* p_out) {
   auto& out = *p_out;
 
-  Gather(ctx, info.labels.View(ctx->Device()), ridx, &p_out->labels);
-  Gather(ctx, info.base_margin_.View(ctx->Device()), ridx, &p_out->base_margin_);
+  Gather(ctx, info.labels.View(ctx), ridx, &p_out->labels);
+  Gather(ctx, info.base_margin_.View(ctx), ridx, &p_out->base_margin_);
 
   Gather(ctx, info.labels_lower_bound_, ridx, &out.labels_lower_bound_);
   Gather(ctx, info.labels_upper_bound_, ridx, &out.labels_upper_bound_);

@@ -27,7 +27,7 @@ inline void VerifyRankingKernelCache(DeviceOrd device, std::string const& name, 
   auto dmat = EmptyDMatrix();
   auto& info = dmat->Info();
   info.num_row_ = 6;
-  info.labels = linalg::Matrix<float>{{1, 0, 1, 0, 1, 0}, {6, 1}, device};
+  info.labels = linalg::Matrix<float>{&ctx, {1, 0, 1, 0, 1, 0}, {6, 1}};
   info.group_ptr_ = {0, 3, 6};
   info.weights_.HostVector() = {1, 3};
   HostDeviceVector<float> preds{3, 2, 1, 3, 2, 1};
@@ -162,7 +162,7 @@ inline void VerifyNDCGExpGain(DeviceOrd device) {
 
   auto p_fmat = xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix();
   MetaInfo& info = p_fmat->Info();
-  info.labels = linalg::Matrix<float>{{10.0f, 0.0f, 0.0f, 1.0f, 5.0f}, {5}, ctx.Device()};
+  info.labels = linalg::Matrix<float>{&ctx, {10.0f, 0.0f, 0.0f, 1.0f, 5.0f}, {5}};
   info.num_row_ = info.labels.Shape(0);
   info.group_ptr_.resize(2);
   info.group_ptr_[0] = 0;

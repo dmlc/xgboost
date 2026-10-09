@@ -153,7 +153,7 @@ class GBLinear : public GradientBooster {
                            bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
-    auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
+    auto base_margin = p_fmat->Info().base_margin_.HostView();
     const int ngroup = model_.learner_model_state->num_output_group;
     const size_t ncolumns = model_.learner_model_state->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
@@ -234,7 +234,7 @@ class GBLinear : public GradientBooster {
     monitor_.Start("PredictBatchInternal");
     model_.LazyInitModel();
     std::vector<bst_float>& preds = *out_preds;
-    auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
+    auto base_margin = p_fmat->Info().base_margin_.HostView();
     // start collecting the prediction
     const int ngroup = model_.learner_model_state->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);

@@ -9,6 +9,7 @@
 
 namespace xgboost::metric {
 inline void VerifyBinaryAUC(DeviceOrd device) {
+  Context cpu_ctx;
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
@@ -26,7 +27,7 @@ inline void VerifyBinaryAUC(DeviceOrd device) {
   // Invalid dataset
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
-  info.labels = linalg::Tensor<float, 2>{{0.0f, 0.0f}, {2}, DeviceOrd::CPU()};
+  info.labels = linalg::Tensor<float, 2>{&cpu_ctx, {0.0f, 0.0f}, {2}};
   float auc = metric->Evaluate({1, 1}, p_fmat);
   ASSERT_TRUE(std::isnan(auc));
   *info.labels.Data() = HostDeviceVector<float>{};
@@ -111,11 +112,12 @@ inline void VerifyMultiClassAUC(DeviceOrd device) {
 }
 
 inline void VerifyMultiLabelAUCImpl(char const* name, DeviceOrd device) {
+  Context cpu_ctx;
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
 
   // Two binary targets with different ranking quality exercise per-target aggregation.
-  linalg::Tensor<float, 2> labels{{4, 2}, DeviceOrd::CPU()};
+  linalg::Tensor<float, 2> labels{&cpu_ctx, {4, 2}};
   labels.Data()->HostVector() = {
       0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
   };
@@ -165,12 +167,12 @@ inline void VerifyMultiLabelAUCImpl(char const* name, DeviceOrd device) {
               (expected0 + expected1) / 2.0, 1e-6);
 
   // A target containing only one class makes the aggregate score invalid.
-  linalg::Tensor<float, 2> all_positive{{4, 2}, DeviceOrd::CPU()};
+  linalg::Tensor<float, 2> all_positive{&cpu_ctx, {4, 2}};
   all_positive.Data()->HostVector() = {
       0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
   };
   EXPECT_TRUE(std::isnan(GetMultiMetricEval(metric.get(), predts, all_positive, {}, {})));
-  linalg::Tensor<float, 2> all_negative{{4, 2}, DeviceOrd::CPU()};
+  linalg::Tensor<float, 2> all_negative{&cpu_ctx, {4, 2}};
   all_negative.Data()->HostVector() = {
       0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
   };

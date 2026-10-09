@@ -312,9 +312,9 @@ void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> cons
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device);
+  info.labels.SetDevice(ctx);
   preds.SetDevice(device);
-  out_gpair->SetDevice(ctx->Device());
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(preds.Size(), 1);
 
   CHECK(p_cache);
@@ -323,9 +323,9 @@ void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> cons
 
   CHECK_NE(d_rounding.Size(), 0);
 
-  auto label = info.labels.View(ctx->Device());
+  auto label = info.labels.View(ctx);
   auto predts = preds.ConstDeviceSpan();
-  auto gpairs = out_gpair->View(ctx->Device());
+  auto gpairs = out_gpair->View(ctx);
   thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.Values().data(), gpairs.Size(),
                  GradientPair{0.0f, 0.0f});
 
@@ -364,7 +364,7 @@ common::Span<std::size_t const> SortY(Context const* ctx, MetaInfo const& info,
                                       common::Span<std::size_t const> d_rank,
                                       std::shared_ptr<ltr::RankingCache> p_cache) {
   auto const d_group_ptr = p_cache->DataGroupPtr(ctx);
-  auto label = info.labels.View(ctx->Device());
+  auto label = info.labels.View(ctx);
   // The buffer for ranked y is necessary as cub segmented sort accepts only pointer.
   auto d_y_ranked = p_cache->RankedY(ctx, info.num_row_);
   thrust::for_each_n(ctx->CUDACtx()->CTP(), dh::make_counting_iterator(0ul), d_y_ranked.size(),
@@ -395,7 +395,7 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
   auto const d_inv_IDCG = p_cache->InvIDCG(ctx);
   auto const discount = p_cache->Discount(ctx);
 
-  info.labels.SetDevice(device);
+  info.labels.SetDevice(ctx);
   preds.SetDevice(device);
 
   auto const rank_idx = p_cache->SortedIdx(ctx, preds.ConstDeviceSpan());
@@ -426,7 +426,7 @@ void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t 
   auto key_it = dh::MakeTransformIterator<std::size_t>(
       dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) -> std::size_t { return dh::SegmentId(group_ptr, i); });
-  auto label = info.labels.View(ctx->Device()).Slice(linalg::All(), 0);
+  auto label = info.labels.View(ctx).Slice(linalg::All(), 0);
   auto const* cuctx = ctx->CUDACtx();
 
   {
@@ -468,7 +468,7 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::uint32_t seed,
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device);
+  info.labels.SetDevice(ctx);
   predt.SetDevice(device);
 
   CHECK(p_cache);
@@ -512,7 +512,7 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::uint32_t seed,
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device);
+  info.labels.SetDevice(ctx);
   predt.SetDevice(device);
 
   auto const rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
@@ -549,11 +549,11 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
   auto const d_group_ptr = p_cache->DataGroupPtr(ctx);
   auto n_groups = d_group_ptr.size() - 1;
 
-  auto ti_plus = p_ti_plus->View(ctx->Device());
-  auto tj_minus = p_tj_minus->View(ctx->Device());
+  auto ti_plus = p_ti_plus->View(ctx);
+  auto tj_minus = p_tj_minus->View(ctx);
 
-  auto li = p_li->View(ctx->Device());
-  auto lj = p_lj->View(ctx->Device());
+  auto li = p_li->View(ctx);
+  auto lj = p_lj->View(ctx);
   CHECK_EQ(li.Size(), ti_plus.Size());
 
   auto const& param = p_cache->Param();

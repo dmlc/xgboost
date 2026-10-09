@@ -93,7 +93,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   ss >> base_score_arr;
 
   std::size_t shape[1]{base_score_arr.size()};
-  linalg::Vector<float> base_score_vec{shape, ctx->Device()};
+  linalg::Vector<float> base_score_vec{ctx, shape};
   auto& h_base = base_score_vec.Data()->HostVector();
   h_base.assign(base_score_arr.cbegin(), base_score_arr.cend());
 
@@ -110,7 +110,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   // Keep both host/device views readable, matching LearnerModelState invariants.
   std::as_const(base_score_vec).HostView();
   if (!ctx->Device().IsCPU()) {
-    std::as_const(base_score_vec).View(ctx->Device());
+    std::as_const(base_score_vec).View(ctx);
   }
 
   auto n_features = static_cast<bst_feature_t>(std::stol(num_feature));
@@ -328,11 +328,11 @@ TEST(Predictor, DartShapOutputCPU) {
 
 void CheckShapHandlesDeepTree(Context const* ctx) {
   std::size_t shape[1]{1};
-  linalg::Vector<float> base_score{shape, ctx->Device()};
+  linalg::Vector<float> base_score{ctx, shape};
   base_score.Data()->HostVector()[0] = 0.0f;
   std::as_const(base_score).HostView();
   if (!ctx->Device().IsCPU()) {
-    std::as_const(base_score).View(ctx->Device());
+    std::as_const(base_score).View(ctx);
   }
   LearnerModelState mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
@@ -389,11 +389,11 @@ TEST(Predictor, ShapHandlesDeepTree) {
 
 void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
-  linalg::Vector<float> base_score{shape, ctx->Device()};
+  linalg::Vector<float> base_score{ctx, shape};
   base_score.Data()->HostVector()[0] = 0.0f;
   std::as_const(base_score).HostView();
   if (!ctx->Device().IsCPU()) {
-    std::as_const(base_score).View(ctx->Device());
+    std::as_const(base_score).View(ctx);
   }
   LearnerModelState mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};

@@ -39,7 +39,7 @@ namespace {
 template <typename Fn, typename Chk = common::NoOp<bool>, typename Err = common::NoOp<StringView>>
 void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&& fn,
                       Chk check = common::NoOp{true}, Err error = common::NoOp<StringView>{{}}) {
-  auto intercept = base_score->View(ctx->Device());
+  auto intercept = base_score->View(ctx);
   bool is_valid = ctx->DispatchDevice(
       [&] { return std::all_of(linalg::cbegin(intercept), linalg::cend(intercept), check); },
       [&] {

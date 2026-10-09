@@ -27,14 +27,14 @@ void ExpectileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pr
   CHECK(device.IsCUDA());
   preds.SetDevice(device);
   alpha.SetDevice(device);
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
   auto predt = linalg::MakeTensorView(ctx, &preds, info.num_row_, n_targets);
   auto alpha_d = alpha.ConstDeviceSpan();
 
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, n_targets);
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
   linalg::cuda_impl::ElementWiseKernel(
       gpair,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -72,16 +72,14 @@ void ExpectileInitEstimationCuda(Context const* ctx, MetaInfo const& info,
     common::WeightedSampleMean(ctx, info.labels, info.weights_, &label_mean);
   }
   CHECK_EQ(label_mean.Size(), 1);
-  auto mean = label_mean.View(device);
+  auto mean = label_mean.View(ctx);
 
   alpha.SetDevice(device);
   auto alpha_d = alpha.ConstDeviceSpan();
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   auto weights = common::MakeOptionalWeights(device, info.weights_);
-  linalg::Matrix<GradientPair> gpair;
-  gpair.SetDevice(device);
-  gpair.Reshape(info.num_row_, n_targets);
-  auto gpair_d = gpair.View(device);
+  auto gpair = linalg::Empty<GradientPair>(ctx, info.num_row_, n_targets);
+  auto gpair_d = gpair.View(ctx);
   linalg::cuda_impl::ElementWiseKernel(
       gpair_d,
       [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -92,7 +90,7 @@ void ExpectileInitEstimationCuda(Context const* ctx, MetaInfo const& info,
       ctx->CUDACtx()->Stream());
 
   tree::FitStump(ctx, gpair, n_targets, base_score);
-  auto out = base_score->View(device);
+  auto out = base_score->View(ctx);
   dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) mutable {
     auto mean_value = mean(0);
     for (std::size_t j{0}; j < n_targets; ++j) {

@@ -63,7 +63,7 @@ double EvalAMSCpu(Context const* ctx, HostDeviceVector<float> const& preds, Meta
   const double br = 10.0;
   unsigned thresindex = 0;
   double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-  const auto& labels = info.labels.View(DeviceOrd::CPU());
+  const auto& labels = info.labels.HostView();
   for (unsigned i = 0; i < static_cast<unsigned>(ndata - 1) && i < ntop; ++i) {
     const unsigned ridx = rec[i].second;
     const bst_float wt = info.GetWeight(ridx);

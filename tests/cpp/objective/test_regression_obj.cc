@@ -30,7 +30,7 @@ namespace xgboost {
 namespace {
 void CheckProbaToMargin(std::unique_ptr<ObjFunction> const& obj, float in, float expect,
                         float abs_error = 1e-2f) {
-  linalg::Vector<float> t{{in}, {1}, obj->Ctx()->Device()};
+  linalg::Vector<float> t{obj->Ctx(), {in}, {1}};
   obj->ProbToMargin(&t);
   ASSERT_NEAR(t(0), expect, abs_error);
 }
@@ -94,8 +94,7 @@ void TestSquaredLog(const Context* ctx) {
 
   MetaInfo info;
   info.num_row_ = 3;
-  info.labels =
-      linalg::Tensor<float, 2>{{0.0f, 3.0f, 3.0f, 3.0f, 15.0f, 3.0f}, {3, 2}, ctx->Device()};
+  info.labels = linalg::Tensor<float, 2>{ctx, {0.0f, 3.0f, 3.0f, 3.0f, 15.0f, 3.0f}, {3, 2}};
   linalg::Vector<float> base_score;
   obj->InitEstimation(info, &base_score);
   ASSERT_EQ(base_score.Size(), 2);
@@ -108,8 +107,7 @@ void TestSquaredLog(const Context* ctx) {
   ASSERT_NEAR(base_score(1), 3.0f, kRtEps);
 
   info.num_row_ = 1;
-  info.labels =
-      linalg::Tensor<float, 2>{{std::numeric_limits<float>::max()}, {1, 1}, ctx->Device()};
+  info.labels = linalg::Tensor<float, 2>{ctx, {std::numeric_limits<float>::max()}, {1, 1}};
   info.weights_.HostVector().clear();
   obj->InitEstimation(info, &base_score);
   ASSERT_EQ(base_score(0), std::numeric_limits<float>::max());
@@ -468,7 +466,7 @@ void TestCoxRegressionInitEstimation(const Context* ctx) {
 
   MetaInfo info;
   info.num_row_ = 4;
-  info.labels = linalg::Tensor<float, 2>{{1.0f, -2.0f, 3.0f, -4.0f}, {4, 1}, ctx->Device()};
+  info.labels = linalg::Tensor<float, 2>{ctx, {1.0f, -2.0f, 3.0f, -4.0f}, {4, 1}};
 
   linalg::Vector<float> base_score;
   obj->InitEstimation(info, &base_score);

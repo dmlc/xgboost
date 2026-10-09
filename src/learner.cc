@@ -101,13 +101,13 @@ void LearnerModelState::ConfigureDevice(Context const* ctx) {
   if (base_score_.Device() != ctx->Device()) {
     auto const& h_base_score = std::as_const(base_score_).Data()->ConstHostVector();
     linalg::Vector<float> base_score{
-        h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}, ctx->Device()};
+        ctx, h_base_score.cbegin(), h_base_score.cend(), {h_base_score.size()}};
     std::swap(base_score_, base_score);
   }
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (!ctx->IsCPU()) {
-    std::as_const(base_score_).View(ctx->Device());
+    std::as_const(base_score_).View(ctx);
   }
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
@@ -122,7 +122,9 @@ linalg::VectorView<float const> LearnerModelState::BaseScore(DeviceOrd device) c
   }
   // Make sure that we won't run into race condition.
   CHECK(base_score_.Data()->DeviceCanRead());
-  auto v = base_score_.View(device);
+  base_score_.Data()->SetDevice(device);
+  auto v =
+      linalg::MakeTensorView(device, base_score_.Data()->ConstDeviceSpan(), base_score_.Size());
   CHECK(base_score_.Data()->HostCanRead());  // make sure read access is not removed.
   return v;
 }
@@ -137,7 +139,7 @@ void LearnerModelState::Copy(LearnerModelState const& that) {
   base_score_.Data()->Copy(*that.base_score_.Data());
   std::as_const(base_score_).HostView();
   if (!that.base_score_.Device().IsCPU()) {
-    std::as_const(base_score_).View(that.base_score_.Device());
+    std::as_const(base_score_).Data()->ConstDeviceSpan();
   }
   CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
   CHECK(base_score_.Data()->HostCanRead());
@@ -251,7 +253,7 @@ class LearnerModelStateContainer : public Learner {
  private:
   void InitEstimation(MetaInfo const& info, bst_target_t output_length,
                       linalg::Vector<float>* base_score) {
-    base_score->SetDevice(this->Ctx()->Device());
+    base_score->SetDevice(this->Ctx());
     base_score->Reshape(output_length);
     UsePtr(obj_)->InitEstimation(info, base_score);
   }
@@ -320,10 +322,8 @@ class LearnerModelStateContainer : public Learner {
     auto output_length =
         std::max({n_targets, static_cast<bst_target_t>(n_classes), static_cast<bst_target_t>(1)});
     HandleOldFormat(&base_score_value, output_length);
-    linalg::Vector<float> base_score{base_score_value.cbegin(),
-                                     base_score_value.cend(),
-                                     {base_score_value.size()},
-                                     this->ctx_.Device()};
+    linalg::Vector<float> base_score{
+        &this->ctx_, base_score_value.cbegin(), base_score_value.cend(), {base_score_value.size()}};
     UsePtr(this->obj_)->ProbToMargin(&base_score);
     model_state_ = LearnerModelState{Ctx(),
                                      n_features,

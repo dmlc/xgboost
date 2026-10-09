@@ -78,13 +78,13 @@ TEST(CpuSampler, ZeroSampleRows) {
   Context ctx;
   constexpr std::size_t kRows = 2;
   std::size_t shape[2] = {kRows, 1};
-  linalg::Matrix<GradientPair> split_gpair{shape, ctx.Device()};
+  linalg::Matrix<GradientPair> split_gpair{&ctx, shape};
   auto h_split = split_gpair.HostView();
   std::fill(linalg::begin(h_split), linalg::end(h_split), GradientPair{1.0e20f, 1.0f});
-  linalg::Matrix<GradientPair> original_split{shape, ctx.Device()};
+  linalg::Matrix<GradientPair> original_split{&ctx, shape};
   original_split.Data()->Copy(*split_gpair.Data());
 
-  linalg::Matrix<GradientPair> value_gpair{shape, ctx.Device()};
+  linalg::Matrix<GradientPair> value_gpair{&ctx, shape};
   auto h_value = value_gpair.HostView();
   std::fill(linalg::begin(h_value), linalg::end(h_value), GradientPair{1.0f, 1.0f});
 
@@ -113,9 +113,9 @@ TEST(CpuSampler, ApplySampling) {
 
   // Generate and sample the split gradient
   std::size_t split_shape[2] = {n_samples, n_split_targets};
-  linalg::Matrix<GradientPair> split_gpair{split_shape, ctx.Device()};
+  linalg::Matrix<GradientPair> split_gpair{&ctx, split_shape};
   *split_gpair.Data() = GenerateRandomGradients(n_samples * n_split_targets, 0.0f, 1.0f);
-  linalg::Matrix<GradientPair> split_gpair_before{split_shape, ctx.Device()};
+  linalg::Matrix<GradientPair> split_gpair_before{&ctx, split_shape};
   auto h_split_before = split_gpair_before.HostView();
   auto h_split_init = split_gpair.HostView();
   std::copy(linalg::cbegin(h_split_init), linalg::cend(h_split_init),
@@ -125,9 +125,9 @@ TEST(CpuSampler, ApplySampling) {
 
   // Generate value gradient (more targets than split)
   std::size_t value_shape[2] = {n_samples, n_value_targets};
-  linalg::Matrix<GradientPair> value_gpair{value_shape, ctx.Device()};
+  linalg::Matrix<GradientPair> value_gpair{&ctx, value_shape};
   *value_gpair.Data() = GenerateRandomGradients(n_samples * n_value_targets, 0.0f, 1.0f);
-  linalg::Matrix<GradientPair> value_gpair_before{value_shape, ctx.Device()};
+  linalg::Matrix<GradientPair> value_gpair_before{&ctx, value_shape};
   value_gpair_before.Data()->Copy(*value_gpair.Data());
 
   sampler.ApplySampling(&ctx, split_gpair_before.HostView(), &value_gpair);

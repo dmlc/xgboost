@@ -26,7 +26,8 @@ TEST(Updater, Prune) {
 
   // These data are just place holders.
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>{{{0.50f, 0.25f},
+  gpair.gpair = linalg::Matrix<GradientPair>{&ctx,
+                                             {{0.50f, 0.25f},
                                               {0.50f, 0.25f},
                                               {0.50f, 0.25f},
                                               {0.50f, 0.25f},
@@ -34,8 +35,7 @@ TEST(Updater, Prune) {
                                               {0.25f, 0.24f},
                                               {0.25f, 0.24f},
                                               {0.25f, 0.24f}},
-                                             {8, 1},
-                                             ctx.Device()};
+                                             {8, 1}};
   std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{32, 10, 0}.GenerateDMatrix()};
 
   // prepare tree

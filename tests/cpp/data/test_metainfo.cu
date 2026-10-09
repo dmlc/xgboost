@@ -65,7 +65,7 @@ TEST(MetaInfo, FromInterface) {
   }
 
   info.SetInfo(ctx, "base_margin", str.c_str());
-  auto const h_base_margin = info.base_margin_.View(DeviceOrd::CPU());
+  auto const h_base_margin = info.base_margin_.HostView();
   ASSERT_EQ(h_base_margin.Size(), d_data.size());
   for (size_t i = 0; i < d_data.size(); ++i) {
     ASSERT_EQ(h_base_margin(i), d_data[i]);

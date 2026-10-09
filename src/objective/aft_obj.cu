@@ -30,7 +30,7 @@ void AFTGradientCudaImpl(Context const* ctx, HostDeviceVector<float> const& pred
   auto lower = info.labels_lower_bound_.ConstDeviceSpan();
   auto upper = info.labels_upper_bound_.ConstDeviceSpan();
   auto weights = info.weights_.ConstDeviceSpan();
-  auto gpair = out_gpair->View(device);
+  auto gpair = out_gpair->View(ctx);
   bool is_null_weight = weights.empty();
   dh::LaunchN(predt.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto grad = static_cast<float>(
@@ -47,7 +47,7 @@ void AFTGradientCuda(Context const* ctx, HostDeviceVector<float> const& preds, M
                      linalg::Matrix<GradientPair>* out_gpair) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  out_gpair->SetDevice(device);
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(preds.Size(), 1);
   switch (distribution) {
     case common::ProbabilityDistributionType::kNormal:
@@ -73,7 +73,7 @@ void AFTPredTransformCuda(Context const* ctx, HostDeviceVector<float>* predictio
 }
 
 void AFTProbToMarginCuda(Context const* ctx, linalg::Vector<float>* base_score) {
-  auto values = base_score->View(ctx->Device());
+  auto values = base_score->View(ctx);
   dh::LaunchN(values.Size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) mutable { values(i) = logf(values(i)); });
 }

@@ -111,6 +111,7 @@ TEST(RankingCache, InitFromCPU) {
 }
 
 void TestNDCGCache(Context const* ctx) {
+  Context cpu_ctx;
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
   LambdaRankParam param;
@@ -129,7 +130,7 @@ void TestNDCGCache(Context const* ctx) {
     auto fail = [&]() { NDCGCache cache{ctx, info, param}; };
     // empty label
     ASSERT_THROW(fail(), dmlc::Error);
-    info.labels = linalg::Matrix<float>{{0.0f, 0.1f, 0.2f}, {3}, DeviceOrd::CPU()};
+    info.labels = linalg::Matrix<float>{&cpu_ctx, {0.0f, 0.1f, 0.2f}, {3}};
     // invalid label
     ASSERT_THROW(fail(), dmlc::Error);
     auto h_labels = info.labels.HostView();

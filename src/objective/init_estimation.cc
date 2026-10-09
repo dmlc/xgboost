@@ -22,9 +22,7 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   bst_target_t n_targets = this->Targets(info);
   // Avoid altering any state in child objective.
   HostDeviceVector<float> dummy_predt(info.num_row_ * n_targets, 0.0f, this->ctx_->Device());
-  linalg::Matrix<GradientPair> gpair;
-  gpair.SetDevice(this->ctx_->Device());
-  gpair.Reshape(info.num_row_, n_targets);
+  auto gpair = linalg::Empty<GradientPair>(this->ctx_, info.num_row_, n_targets);
 
   Json config{Object{}};
   this->SaveConfig(&config);

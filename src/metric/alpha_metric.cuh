@@ -23,7 +23,7 @@ PackedReduceResult EvalCuda(Context const* ctx, HostDeviceVector<float> const& p
                             EvalFn eval) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   preds.SetDevice(device);
   alphas.SetDevice(device);
   auto alpha = alphas.ConstDeviceSpan();

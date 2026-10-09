@@ -79,10 +79,11 @@ void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> con
   auto grad_dev = dh::CudaGetPointerDevice(grad.data);
   auto hess_dev = dh::CudaGetPointerDevice(hess.data);
   CHECK_EQ(grad_dev, hess_dev) << "gradient and hessian should be on the same device.";
+  auto device_ctx = ctx->MakeCUDA(grad_dev);
   auto &gpair = *out_gpair;
-  gpair.SetDevice(DeviceOrd::CUDA(grad_dev));
+  gpair.SetDevice(&device_ctx);
   gpair.Reshape(grad.Shape<0>(), grad.Shape<1>());
-  auto d_gpair = gpair.View(DeviceOrd::CUDA(grad_dev));
+  auto d_gpair = gpair.View(&device_ctx);
   auto cuctx = ctx->CUDACtx();
 
   DispatchDType(grad, DeviceOrd::CUDA(grad_dev), [&](auto &&t_grad) {

@@ -232,7 +232,7 @@ std::pair<double, uint32_t> RankingAUC(Context const* ctx, std::vector<float> co
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
-  auto labels = info.labels.View(ctx->Device());
+  auto labels = info.labels.View(ctx);
   auto s_weights = info.weights_.ConstHostSpan();
 
   std::atomic<uint32_t> invalid_groups{0};

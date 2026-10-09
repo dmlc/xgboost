@@ -227,7 +227,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     }
     if (batch.BaseMargin() != nullptr) {
       info_.base_margin_ = decltype(info_.base_margin_){
-          batch.BaseMargin(), batch.BaseMargin() + batch.Size(), {batch.Size()}, DeviceOrd::CPU()};
+          &ctx, batch.BaseMargin(), batch.BaseMargin() + batch.Size(), {batch.Size()}};
     }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());

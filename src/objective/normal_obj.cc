@@ -34,7 +34,7 @@ void NormalGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds,
   auto labels = info.labels.HostView();
   auto weights = common::MakeOptionalWeights(DeviceOrd::CPU(), info.weights_);
 
-  out_gpair->SetDevice(DeviceOrd::CPU());
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(info.num_row_, 2);
   auto gpair = out_gpair->HostView();
   NormalGradient gradient;
@@ -71,7 +71,7 @@ void NormalInitEstimationCpu(Context const* ctx, MetaInfo const& info,
   collective::SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(stats.data(), stats.size())));
   CHECK_GT(stats[1], 0.0);
 
-  base_score->SetDevice(DeviceOrd::CPU());
+  base_score->SetDevice(ctx);
   base_score->Reshape(2);
   auto out = base_score->HostView();
   out(0) = mean_value;

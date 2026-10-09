@@ -223,12 +223,13 @@ TEST(Linalg, TensorView) {
 }
 
 TEST(Linalg, Tensor) {
+  Context cpu_ctx;
   {
-    Tensor<float, 3> t{{2, 3, 4}, CPU(), Order::kC};
-    auto view = t.View(CPU());
+    Tensor<float, 3> t{&cpu_ctx, {2, 3, 4}, Order::kC};
+    auto view = t.View(&cpu_ctx);
 
     auto const &as_const = t;
-    auto k_view = as_const.View(CPU());
+    auto k_view = as_const.View(&cpu_ctx);
 
     size_t n = 2 * 3 * 4;
     ASSERT_EQ(t.Size(), n);
@@ -243,7 +244,7 @@ TEST(Linalg, Tensor) {
   }
   {
     // Reshape
-    Tensor<float, 3> t{{2, 3, 4}, CPU(), Order::kC};
+    Tensor<float, 3> t{&cpu_ctx, {2, 3, 4}, Order::kC};
     t.Reshape(4, 3, 2);
     ASSERT_EQ(t.Size(), 24);
     ASSERT_EQ(t.Shape(2), 2);
@@ -260,6 +261,7 @@ TEST(Linalg, Tensor) {
 }
 
 TEST(Linalg, Empty) {
+  Context cpu_ctx;
   {
     auto t = TensorView<double, 2>{{}, {0, 3}, CPU(), Order::kC};
     for (int32_t i : {0, 1, 2}) {
@@ -270,9 +272,9 @@ TEST(Linalg, Empty) {
     }
   }
   {
-    auto t = Tensor<double, 2>{{0, 3}, CPU(), Order::kC};
+    auto t = Tensor<double, 2>{&cpu_ctx, {0, 3}, Order::kC};
     ASSERT_EQ(t.Size(), 0);
-    auto view = t.View(CPU());
+    auto view = t.HostView();
 
     for (int32_t i : {0, 1, 2}) {
       auto s = view.Slice(All(), i);
@@ -284,9 +286,9 @@ TEST(Linalg, Empty) {
 }
 
 TEST(Linalg, ArrayInterface) {
-  auto cpu = CPU();
-  auto t = Tensor<double, 2>{{3, 3}, cpu, Order::kC};
-  auto v = t.View(cpu);
+  Context ctx;
+  auto t = Tensor<double, 2>{&ctx, {3, 3}, Order::kC};
+  auto v = t.View(&ctx);
   std::iota(v.Values().begin(), v.Values().end(), 0);
   auto arr = Json::Load(StringView{ArrayInterfaceStr(v)});
   ASSERT_EQ(get<Integer>(arr["shape"][0]), 3);
@@ -329,16 +331,17 @@ TEST(Linalg, Popc) {
 }
 
 TEST(Linalg, Stack) {
-  Tensor<float, 3> l{{2, 3, 4}, CPU(), Order::kC};
-  cpu_impl::TransformIdxKernel(l.View(CPU()), omp_get_max_threads(),
+  Context cpu_ctx;
+  Tensor<float, 3> l{&cpu_ctx, {2, 3, 4}, Order::kC};
+  cpu_impl::TransformIdxKernel(l.HostView(), omp_get_max_threads(),
                                [=](size_t i, float) { return i; });
-  Tensor<float, 3> r_0{{2, 3, 4}, CPU(), Order::kC};
-  cpu_impl::TransformIdxKernel(r_0.View(CPU()), omp_get_max_threads(),
+  Tensor<float, 3> r_0{&cpu_ctx, {2, 3, 4}, Order::kC};
+  cpu_impl::TransformIdxKernel(r_0.HostView(), omp_get_max_threads(),
                                [=](size_t i, float) { return i; });
 
   Stack(&l, r_0);
 
-  Tensor<float, 3> r_1{{0, 3, 4}, CPU(), Order::kC};
+  Tensor<float, 3> r_1{&cpu_ctx, {0, 3, 4}, Order::kC};
   Stack(&l, r_1);
   ASSERT_EQ(l.Shape(0), 4);
 
@@ -375,9 +378,10 @@ TEST(Linalg, FOrder) {
 }
 
 TEST(Linalg, IO) {
+  Context cpu_ctx;
   std::vector<double> data(128, 0);
   std::iota(data.begin(), data.end(), 0.0f);
-  Vector<double> vec(data.begin(), data.end(), {data.size()}, DeviceOrd::CPU());
+  Vector<double> vec(&cpu_ctx, data.begin(), data.end(), {data.size()});
   Json jvec{F32Array{}};
   SaveVector(vec, &jvec);
 

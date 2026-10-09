@@ -40,7 +40,7 @@ void MulticlassGradientCpu(Context const* ctx, HostDeviceVector<float> const& pr
       linalg::MakeTensorView(DeviceOrd::CPU(), preds.ConstHostSpan(), n_samples, n_classes);
   auto labels = info.labels.HostView();
   common::OptionalWeights weights{info.weights_.ConstHostSpan()};
-  out_gpair->SetDevice(DeviceOrd::CPU());
+  out_gpair->SetDevice(ctx);
   out_gpair->Reshape(n_samples, n_classes);
   auto gpair = out_gpair->HostView();
 

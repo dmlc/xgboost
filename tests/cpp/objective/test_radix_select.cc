@@ -22,7 +22,7 @@ namespace xgboost::obj {
 namespace {
 void TestRadixSelect(Context const* ctx) {
   linalg::Matrix<float> values{
-      {-100.0f, 9.0f, 3.0f, -4.0f, 2.0f, 0.0f, 1.0f, 2.0f, 1.0e20f, 1.0f}, {5, 2}, ctx->Device()};
+      ctx, {-100.0f, 9.0f, 3.0f, -4.0f, 2.0f, 0.0f, 1.0f, 2.0f, 1.0e20f, 1.0f}, {5, 2}};
   HostDeviceVector<float> alphas{{0.0f, 0.5f, 1.0f}};
   linalg::Vector<float> out;
 
@@ -72,7 +72,7 @@ TEST(ObjectiveRadixSelect, Distributed) {
     auto empty = n_workers > 1 && rank == n_workers - 1;
     auto n_rows = empty ? 0 : 2;
     auto n_columns = empty ? 0 : 1;
-    linalg::Matrix<float> values({n_rows, n_columns}, ctx.Device());
+    linalg::Matrix<float> values(&ctx, {n_rows, n_columns});
     if (!empty) {
       auto first = static_cast<float>(2 * rank);
       auto h_values = values.HostView();

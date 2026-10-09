@@ -25,7 +25,7 @@ PackedReduceResult EvalCuda(Context const* ctx, HostDeviceVector<float> const& p
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
 
-  auto labels = info.labels.View(device);
+  auto labels = info.labels.View(ctx);
   preds.SetDevice(device);
   auto predts = preds.ConstDeviceSpan();
   auto weights = common::MakeOptionalWeights(device, info.weights_);
