@@ -96,7 +96,8 @@ class BoundedHistCollection {
       // Cap spare capacity at the cache limit; an oversized batch still fits exactly.
       auto max_bins = std::numeric_limits<std::size_t>::max() / sizeof(GradientPairPrecise);
       auto cache_size = std::min(max_cached_nodes_, max_bins / n_total_bins_) * n_total_bins_;
-      auto capacity = std::min(data_->size() + data_->size() / 2, cache_size);
+      auto size = static_cast<std::size_t>(data_->size());
+      auto capacity = std::min(size + size / 2, cache_size);
       data_->Resize(std::max(new_size, capacity));
     }
     for (auto nidx : nodes_to_build) {
