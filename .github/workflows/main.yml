@@ -115,6 +115,9 @@ jobs:
           runner: linux-amd64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8
           use_rmm: 0
+          # Temporary experiment: main's cache uses release architecture targets.
+          # Measure whether reusing it outweighs compiling more targets on PRs.
+          build_only_sm75: 0
     container:
       image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
@@ -132,6 +135,8 @@ jobs:
           bash ops/pipeline/build-cuda.sh
           --cuda-version ${{ matrix.cuda_version }}
           --use-rmm ${{ matrix.use_rmm }}
+        env:
+          BUILD_ONLY_SM75: ${{ matrix.build_only_sm75 }}
       - run: sccache --show-stats
       - name: Stash files
         run: |
@@ -139,6 +144,17 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda${{ matrix.cuda_version }}-${{ matrix.arch }} \
             build/testxgboost python-package/dist/*.whl
+
+      - name: Upload CUDA cache experiment timings
+        if: always() && matrix.cuda_version == 13 && matrix.arch == 'x86_64'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: cuda13-x86-cache-experiment
+          path: |
+            build/.ninja_log
+            build/CMakeCache.txt
+          include-hidden-files: true
+          retention-days: 14
 
   build-cuda-clang:
     name: Build CUDA 12.9 with clang 22.1.8 (x86_64)
