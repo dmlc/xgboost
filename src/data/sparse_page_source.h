@@ -256,9 +256,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   std::mutex single_threaded_;
   // The current page.
   std::shared_ptr<S> page_;
-  // Workers for fetching data from external memory.
-  common::ThreadPool workers_;
-
   bool at_end_{false};
   float missing_;
   std::int32_t nthreads_;
@@ -280,8 +277,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   // OOM error should be rare.
   ExceHandler exce_;
   common::Monitor monitor_;
+  // Destroy the workers before the state accessed by their tasks.
+  common::ThreadPool workers_;
 
   [[nodiscard]] bool ReadCache() {
+    CHECK_LE(page_.use_count(), 1) << "Cannot retain a page across iteration.";
     if (!cache_info_->written) {
       return false;
     }
@@ -371,11 +371,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features,
                        std::shared_ptr<Cache> cache)
-      : workers_{StringView{"ext-mem"}, std::max(2, std::min(nthreads, 16)), InitNewThread{}},
-        missing_{missing},
+      : missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},
-        cache_info_{std::move(cache)} {
+        cache_info_{std::move(cache)},
+        workers_{StringView{"ext-mem"}, std::max(2, std::min(nthreads, 16)), InitNewThread{}} {
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
   }
 
@@ -447,9 +447,9 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   bst_idx_t n_batches_{0};
 
   void Fetch() final {
-    page_ = std::make_shared<SparsePage>();
     // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
+      page_ = std::make_shared<SparsePage>();
       bool type_error{false};
       CHECK(proxy_);
       cpu_impl::DispatchAny(
