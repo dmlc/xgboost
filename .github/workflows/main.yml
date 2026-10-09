@@ -639,8 +639,10 @@ jobs:
         include:
         - os: macos-15-intel
           platform_id: macosx_x86_64
+          suite: basic
         - os: macos-14
           platform_id: macosx_arm64
+          suite: full
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -654,24 +656,8 @@ jobs:
           path: wheelhouse
       - name: Install XGBoost wheel
         run: python -m pip install -v wheelhouse/*.whl
-      - name: Run Python tests
-        run: |
-          python -m pytest -s -v -rxXs --durations=0 tests/python
-          python -m pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
-
-      - name: Compare macOS performance configurations
-        if: always()
-        timeout-minutes: 22
-        run: python ops/pipeline/benchmark-macos.py
-
-      - name: Upload macOS test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: macos-test-diagnostics-${{ matrix.os }}
-          path: macos-diagnostics/
-          if-no-files-found: ignore
-          retention-days: 14
+      - name: Run Python tests (${{ matrix.suite }})
+        run: bash ops/pipeline/test-python-macos.sh "${{ matrix.suite }}"
 
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
