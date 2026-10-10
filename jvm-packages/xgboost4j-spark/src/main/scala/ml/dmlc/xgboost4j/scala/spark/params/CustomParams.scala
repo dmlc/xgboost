@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -34,13 +34,21 @@ class CustomGeneralParam[T: Manifest](parent: Params,
   /** Creates a param pair with the given value (for Java). */
   override def w(value: T): ParamPair[T] = super.w(value)
 
+  // customObj and customEval default to null, so every save and load goes through here. The
+  // null case is handled without json4s: its AST classes moved between json4s 3.x (Spark 3.5) and
+  // 4.x (Spark 4.x), so a jar built against one cannot call json4s on the other. The output is
+  // what json4s writes for null, so saved metadata is unchanged.
   override def jsonEncode(value: T): String = {
-    implicit val format = Serialization.formats(Utils.getTypeHintsFromClass(value))
-    compact(render(Extraction.decompose(value)))
+    if (value == null) {
+      "null"
+    } else {
+      implicit val format = Serialization.formats(Utils.getTypeHintsFromClass(value))
+      compact(render(Extraction.decompose(value)))
+    }
   }
 
   override def jsonDecode(json: String): T = {
-    jsonDecodeT(json)
+    if (json == "null") null.asInstanceOf[T] else jsonDecodeT(json)
   }
 
   private def jsonDecodeT[T](jsonString: String)(implicit m: Manifest[T]): T = {
