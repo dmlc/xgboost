@@ -81,6 +81,53 @@ void TestAddHistRows(bool is_distributed) {
   }
 }
 
+TEST(CPUHistogram, CacheGrowth) {
+  BoundedHistCollection cache;
+  bst_bin_t constexpr kBins = 3;
+  std::size_t constexpr kLimit = 7;
+  cache.Reset(kBins, kLimit);
+  std::size_t allocations = 0;
+  for (bst_node_t n = 0; n < static_cast<bst_node_t>(kLimit); ++n) {
+    auto previous_capacity = cache.Capacity();
+    cache.AllocateHistograms(std::vector<bst_node_t>{n});
+    allocations += cache.Capacity() != previous_capacity;
+    ASSERT_EQ(cache.Size(), (n + 1) * kBins);
+    ASSERT_GE(cache.Capacity(), cache.Size());
+    ASSERT_LE(cache.Capacity(), kLimit * kBins);
+    for (auto &bin : cache[n]) {
+      bin = GradientPairPrecise{static_cast<double>(n), static_cast<double>(n + 1)};
+    }
+    // Growth must preserve every previously allocated histogram.
+    for (bst_node_t old = 0; old <= n; ++old) {
+      for (auto const &bin : cache[old]) {
+        ASSERT_EQ(bin.GetGrad(), old);
+        ASSERT_EQ(bin.GetHess(), old + 1);
+      }
+    }
+  }
+  ASSERT_EQ(allocations, 6);  // Bin capacities: 3, 6, 9, 13, 19, then the limit of 21.
+  std::vector<bst_node_t> next{7};
+  ASSERT_FALSE(cache.CanHost(next, {}));
+  auto capacity = cache.Capacity();
+  cache.Clear(true);
+  ASSERT_TRUE(cache.HasExceeded());
+  ASSERT_FALSE(cache.HistogramExists(0));
+  cache.AllocateHistograms(next);
+  ASSERT_EQ(cache.Size(), kBins);
+  ASSERT_EQ(cache.Capacity(), capacity);
+
+  // A batch may exceed the cache limit, but must not reserve additional spare capacity.
+  cache.Reset(kBins, 2);
+  std::vector<bst_node_t> batch(9);
+  std::iota(batch.begin(), batch.end(), 0);
+  ASSERT_FALSE(cache.CanHost(batch, {}));
+  cache.AllocateHistograms(batch);
+  ASSERT_EQ(cache.Size(), batch.size() * kBins);
+  ASSERT_EQ(cache.Capacity(), cache.Size());
+  ASSERT_FALSE(cache.HasExceeded());
+  ASSERT_EQ(cache[8].size(), kBins);
+}
+
 TEST(CPUHistogram, AddRows) {
   TestAddHistRows(true);
   TestAddHistRows(false);
