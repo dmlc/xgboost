@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2026, XGBoost Contributors
  */
-#include <dmlc/omp.h>  // for omp_in_parallel
+#include <dmlc/omp.h>  // for omp_get_num_threads, omp_get_thread_num, omp_in_parallel
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for std::size_t
@@ -41,11 +41,13 @@ TEST(ParallelFor2d, Test) {
   ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
   ASSERT_EQ(ctx.nthread, 4);
 
-  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
-    for (auto j = r.begin(); j < r.end(); ++j) {
-      matrix[i * kDim2 + j] += 1;
-    }
-  });
+  ParallelFor2d(space, ctx.Threads(), WithWorker([&](size_t i, Range1d r, Worker worker) {
+                  EXPECT_EQ(worker.Id(), omp_get_thread_num());
+                  EXPECT_EQ(worker.Count(), omp_get_num_threads());
+                  for (auto j = r.begin(); j < r.end(); ++j) {
+                    matrix[i * kDim2 + j] += 1;
+                  }
+                }));
 
   for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
@@ -97,6 +99,29 @@ TEST(ParallelFor, Basic) {
   });
   ASSERT_FALSE(omp_in_parallel());
   ParallelFor(n, 1, [&](auto) { ASSERT_FALSE(omp_in_parallel()); });
+}
+
+TEST(ParallelFor, WithWorker) {
+  for (auto n_threads : {1, 4}) {
+    auto check_worker = WithWorker([&](auto, Worker worker) {
+      EXPECT_EQ(worker.Id(), omp_get_thread_num());
+      EXPECT_EQ(worker.Count(), omp_get_num_threads());
+      EXPECT_GE(worker.Id(), 0);
+      EXPECT_LT(worker.Id(), worker.Count());
+      EXPECT_LE(worker.Count(), n_threads);
+    });
+    ParallelFor(17, n_threads, check_worker);
+    ParallelFor(17, n_threads, Sched::Dyn(2), check_worker);
+    ParallelFor1d<3>(17, n_threads, check_worker);
+    ParallelForBlock(17, n_threads, check_worker);
+  }
+  // Nested serial loops report worker {0, 1}, not the outer thread ID and team size.
+  ParallelFor(4, 4, [](auto) {
+    ParallelFor(1, 1, WithWorker([](auto, Worker inner) {
+                  EXPECT_EQ(inner.Id(), 0);
+                  EXPECT_EQ(inner.Count(), 1);
+                }));
+  });
 }
 
 TEST(OmpGetNumThreads, Max) {
