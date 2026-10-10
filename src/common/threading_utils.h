@@ -46,11 +46,9 @@ class Worker {
   std::int32_t id_;
   std::int32_t count_;
 
-  Worker(std::int32_t id, std::int32_t count) : id_{id}, count_{count} {}
-  template <typename Fn>
-  friend class WithWorker;
-
  public:
+  Worker(std::int32_t id, std::int32_t count) : id_{id}, count_{count} {}
+
   [[nodiscard]] std::int32_t Id() const { return id_; }
   [[nodiscard]] std::int32_t Count() const { return count_; }
 };
