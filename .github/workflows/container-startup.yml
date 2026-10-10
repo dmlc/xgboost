@@ -1,0 +1,38 @@
+name: Measure GPU container startup
+
+on:
+  # Collect measurements before merging; avoid running this GPU experiment on unrelated PRs.
+  pull_request:
+    paths:
+      - '.github/workflows/container-startup.yml'
+      - 'ops/pipeline/measure-container-startup.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Compare initial and cached container startup
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-gpu
+      - tag=container-startup-experiment
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Measure startup
+        run: bash ops/pipeline/measure-container-startup.sh
+      - name: Upload measurements
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: container-startup
+          path: container-startup-results/
+          retention-days: 14
