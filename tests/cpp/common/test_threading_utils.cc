@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for std::size_t
-#include <memory>   // for make_shared, shared_ptr
+#include <memory>   // for make_shared, make_unique, shared_ptr
 
 #include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
 #include "xgboost/context.h"                      // Context
@@ -41,13 +41,17 @@ TEST(ParallelFor2d, Test) {
   ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
   ASSERT_EQ(ctx.nthread, 4);
 
-  ParallelFor2d(space, ctx.Threads(), WithWorker([&](size_t i, Range1d r, Worker worker) {
-                  EXPECT_EQ(worker.Id(), omp_get_thread_num());
-                  EXPECT_EQ(worker.Count(), omp_get_num_threads());
-                  for (auto j = r.begin(); j < r.end(); ++j) {
-                    matrix[i * kDim2 + j] += 1;
-                  }
-                }));
+  auto const n_threads = ctx.Threads();
+  ParallelFor2d(
+      space, n_threads,
+      WithWorker([&, limit = std::make_unique<int>(n_threads)](size_t i, Range1d r, Worker worker) {
+        EXPECT_EQ(worker.Id(), omp_get_thread_num());
+        EXPECT_EQ(worker.Count(), omp_get_num_threads());
+        EXPECT_LE(worker.Count(), *limit);
+        for (auto j = r.begin(); j < r.end(); ++j) {
+          matrix[i * kDim2 + j] += 1;
+        }
+      }));
 
   for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
@@ -103,17 +107,20 @@ TEST(ParallelFor, Basic) {
 
 TEST(ParallelFor, WithWorker) {
   for (auto n_threads : {1, 4}) {
-    auto check_worker = WithWorker([&](auto, Worker worker) {
-      EXPECT_EQ(worker.Id(), omp_get_thread_num());
-      EXPECT_EQ(worker.Count(), omp_get_num_threads());
-      EXPECT_GE(worker.Id(), 0);
-      EXPECT_LT(worker.Id(), worker.Count());
-      EXPECT_LE(worker.Count(), n_threads);
-    });
-    ParallelFor(17, n_threads, check_worker);
-    ParallelFor(17, n_threads, Sched::Dyn(2), check_worker);
-    ParallelFor1d<3>(17, n_threads, check_worker);
-    ParallelForBlock(17, n_threads, check_worker);
+    // Owning the thread limit makes the callback move-only.
+    auto make_callback = [n_threads] {
+      return WithWorker([limit = std::make_unique<int>(n_threads)](auto, Worker worker) {
+        EXPECT_EQ(worker.Id(), omp_get_thread_num());
+        EXPECT_EQ(worker.Count(), omp_get_num_threads());
+        EXPECT_GE(worker.Id(), 0);
+        EXPECT_LT(worker.Id(), worker.Count());
+        EXPECT_LE(worker.Count(), *limit);
+      });
+    };
+    ParallelFor(17, n_threads, make_callback());
+    ParallelFor(17, n_threads, Sched::Dyn(2), make_callback());
+    ParallelFor1d<3>(17, n_threads, make_callback());
+    ParallelForBlock(17, n_threads, make_callback());
   }
   // Nested serial loops report worker {0, 1}, not the outer thread ID and team size.
   ParallelFor(4, 4, [](auto) {

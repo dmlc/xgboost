@@ -193,7 +193,7 @@ void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& f
 }
 
 template <typename Fn>
-void ParallelFor2d(BlockedSpace2d const& space, std::int32_t n_threads, WithWorker<Fn> fn) {
+void ParallelFor2d(BlockedSpace2d const& space, std::int32_t n_threads, WithWorker<Fn>&& fn) {
   ParallelFor2d(space, n_threads, fn.Bind(n_threads));
 }
 
@@ -283,7 +283,7 @@ void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
 }
 
 template <typename Index, typename Fn>
-void ParallelFor(Index size, std::int32_t n_threads, Sched sched, WithWorker<Fn> fn) {
+void ParallelFor(Index size, std::int32_t n_threads, Sched sched, WithWorker<Fn>&& fn) {
   ParallelFor(size, n_threads, sched, fn.Bind(n_threads));
 }
 
@@ -315,7 +315,7 @@ void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
 }
 
 template <std::size_t kBlockOfRowsSize, typename Index, typename Fn>
-void ParallelFor1d(Index size, std::int32_t n_threads, WithWorker<Fn> fn) {
+void ParallelFor1d(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
   ParallelFor1d<kBlockOfRowsSize>(size, n_threads, fn.Bind(n_threads));
 }
 
@@ -335,7 +335,7 @@ void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
 }
 
 template <typename Index, typename Fn>
-void ParallelForBlock(Index size, std::int32_t n_threads, WithWorker<Fn> fn) {
+void ParallelForBlock(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
   ParallelForBlock(size, n_threads, fn.Bind(n_threads));
 }
 
