@@ -409,8 +409,10 @@ def mknfold(
             out_idset = [x[1] for x in splits]
         nfold = len(out_idset)
     else:
-        # Do standard stratefied shuffle k-fold split
-        sfk = XGBStratifiedKFold(n_splits=nfold, shuffle=True, random_state=seed)
+        # Do standard stratified k-fold split
+        sfk = XGBStratifiedKFold(
+            n_splits=nfold, shuffle=shuffle, random_state=seed if shuffle else None
+        )
         splits = list(sfk.split(X=dall.get_label(), y=dall.get_label()))
         in_idset = [x[0] for x in splits]
         out_idset = [x[1] for x in splits]
