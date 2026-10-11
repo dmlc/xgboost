@@ -82,6 +82,7 @@ jobs:
         if: matrix.variant == 'sanitizer'
         run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
       - run: sccache --show-stats
+        if: ${{ success() || failure() }}
 
   build-cuda:
     name: Build CUDA ${{ matrix.cuda_version }} (${{ matrix.arch }})
