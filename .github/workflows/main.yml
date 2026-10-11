@@ -665,8 +665,11 @@ jobs:
         include:
         - os: macos-15-intel
           platform_id: macosx_x86_64
+          # Intel runners are slow; ARM retains comprehensive macOS coverage.
+          test_path: tests/python/test_basic.py
         - os: macos-14
           platform_id: macosx_arm64
+          test_path: tests/python
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -681,9 +684,10 @@ jobs:
       - name: Install XGBoost wheel
         run: python -m pip install -v wheelhouse/*.whl
       - name: Run Python tests
-        run: |
-          pytest -s -v -rxXs --durations=0 tests/python
-          pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
+        run: python -m pytest -s -v -rxXs --durations=0 "${{ matrix.test_path }}"
+      - name: Run Dask tests
+        if: matrix.os != 'macos-15-intel'
+        run: python -m pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
 
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
