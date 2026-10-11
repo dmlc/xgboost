@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 
@@ -65,6 +67,47 @@ class TestTreesToDataFrame:
         # Numerical splits have a real threshold; leaves have a missing split.
         assert non_leaf["Split"].notna().all()
         assert df[df.Feature == "Leaf"]["Split"].isna().all()
+
+    @pytest.mark.parametrize("feature_type", ["float", "int"])
+    @pytest.mark.parametrize(
+        "split, integer_split",
+        [
+            (-np.inf, -np.inf),
+            (np.inf, np.inf),
+            (-1.5, -1.0),
+            (0.0, 0.0),
+            (1.5, 2.0),
+        ],
+    )
+    def test_tree_to_df_split_thresholds(
+        self, feature_type: str, split: float, integer_split: float
+    ) -> None:
+        X = np.array([[1.0], [2.0], [np.nan], [np.nan]], dtype=np.float32)
+        dtrain = xgb.DMatrix(
+            X,
+            label=[0, 0, 1, 1],
+            feature_names=["count"],
+            feature_types=[feature_type],
+        )
+        booster = xgb.train(
+            {"max_depth": 1, "tree_method": "hist"}, dtrain, num_boost_round=1
+        )
+        model = json.loads(booster.save_raw(raw_format="json"))
+        tree = model["learner"]["gradient_booster"]["model"]["trees"][0]
+        assert tree["left_children"][0] != -1
+        # GPU hist can use -inf to separate missing values from all present values.
+        tree["split_conditions"][0] = split
+        booster.load_model(bytearray(json.dumps(model), encoding="utf-8"))
+
+        expected_split = integer_split if feature_type == "int" else split
+        dumped_tree = json.loads(booster.get_dump(dump_format="json")[0])
+        assert dumped_tree["split_condition"] == expected_split
+
+        df = booster.trees_to_dataframe()
+        assert df["Feature"].tolist() == ["count", "Leaf", "Leaf"]
+        assert str(df["Split"].dtype) == "Float64"
+        assert df.loc[0, "Split"] == expected_split
+        assert df.loc[1:, "Split"].isna().all()
 
     def test_tree_to_df_categorical(self) -> None:
         run_tree_to_df_categorical("approx", "cpu")
