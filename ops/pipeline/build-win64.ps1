@@ -43,7 +43,8 @@ if ($variant -eq "gpu") {
     "-DGOOGLE_TEST=ON",
     # Let nvcc find MSVC in PATH; CMake's short -ccbin path conflicts with sccache.
     "-DCMAKE_CUDA_HOST_COMPILER=",
-    "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
+    # Temporary cold-build experiment: bypass CUDA caching to measure Defender overhead.
+    "-DCMAKE_CUDA_COMPILER_LAUNCHER="
   )
 } else {
   Write-Host "--- Build libxgboost on Windows (CPU, minimal)"
