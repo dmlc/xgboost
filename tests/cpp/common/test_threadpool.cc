@@ -13,6 +13,23 @@
 #include "../../../src/common/threadpool.h"
 
 namespace xgboost::common {
+TEST(ThreadPool, Grow) {
+  ThreadPool pool{"test", 1, [] {}};
+  std::vector<std::future<void>> callers;
+  for (std::int32_t i = 1; i <= 4; ++i) {
+    callers.emplace_back(std::async(std::launch::async, [&, i] {
+      pool.EnsureCapacity(i);
+      EXPECT_GE(pool.NumWorkers(), i);
+      EXPECT_EQ(pool.Submit([i] { return i; }).get(), i);
+    }));
+  }
+  for (auto& caller : callers) {
+    caller.get();
+  }
+  pool.EnsureCapacity(1);
+  EXPECT_EQ(pool.NumWorkers(), 4);
+}
+
 TEST(ThreadPool, TaskException) {
   ThreadPool pool{"test", 1, [] {}};
   auto void_result = pool.Submit([] { throw std::runtime_error{"task failed"}; });

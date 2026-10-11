@@ -24,6 +24,9 @@ namespace xgboost::common {
  * @brief Simple implementation of a thread pool.
  */
 class ThreadPool {
+  std::string name_;
+  std::function<void()> worker_fn_;
+  mutable std::mutex grow_mu_;
   std::mutex mu_;
   std::queue<std::function<void()>> tasks_;
   std::condition_variable cv_;
@@ -37,31 +40,37 @@ class ThreadPool {
    * @param init_fn   Copyable function copied to and called once on each worker.
    */
   template <typename InitFn>
-  explicit ThreadPool(StringView name, std::int32_t n_threads, InitFn&& init_fn) {
-    for (std::int32_t i = 0; i < n_threads; ++i) {
-      pool_.emplace_back([this, init_fn] {
-        init_fn();
+  explicit ThreadPool(StringView name, std::int32_t n_threads, InitFn&& init_fn)
+      : name_{static_cast<std::string>(name)}, worker_fn_{[this, init_fn] {
+          init_fn();
 
-        while (true) {
-          std::unique_lock lock{mu_};
-          cv_.wait(lock, [this] { return !this->tasks_.empty() || stop_; });
+          while (true) {
+            std::unique_lock lock{mu_};
+            cv_.wait(lock, [this] { return !this->tasks_.empty() || stop_; });
 
-          if (this->stop_) {
-            while (!tasks_.empty()) {
-              auto fn = tasks_.front();
-              tasks_.pop();
-              fn();
+            if (this->stop_) {
+              while (!tasks_.empty()) {
+                auto fn = tasks_.front();
+                tasks_.pop();
+                fn();
+              }
+              return;
             }
-            return;
-          }
 
-          auto fn = tasks_.front();
-          tasks_.pop();
-          lock.unlock();
-          fn();
-        }
-      });
-      std::string name_i = name.c_str() + std::string{"-"} + std::to_string(i);  // NOLINT
+            auto fn = tasks_.front();
+            tasks_.pop();
+            lock.unlock();
+            fn();
+          }
+        }} {
+    this->EnsureCapacity(n_threads);
+  }
+
+  void EnsureCapacity(std::int32_t n_threads) {
+    std::unique_lock lock{grow_mu_};
+    for (auto i = static_cast<std::int32_t>(pool_.size()); i < n_threads; ++i) {
+      pool_.emplace_back(worker_fn_);
+      std::string name_i = name_ + "-" + std::to_string(i);
       NameThread(&pool_.back(), name_i);
     }
   }
@@ -117,6 +126,7 @@ class ThreadPool {
   }
 
   [[nodiscard]] auto NumWorkers() const {
+    std::unique_lock lock{grow_mu_};
     // Use the same type as the typical n_threads parameter in XGBoost.
     return static_cast<std::int32_t>(pool_.size());
   }
