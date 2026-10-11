@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #pragma once
 #include <condition_variable>  // for condition_variable
@@ -33,12 +33,12 @@ class ThreadPool {
   /**
    * @param name      Name prefix for threads.
    * @param n_threads The number of threads this pool should hold.
-   * @param init_fn   Function called once during thread creation.
+   * @param init_fn   Copyable function copied to and called once on each worker.
    */
   template <typename InitFn>
   explicit ThreadPool(StringView name, std::int32_t n_threads, InitFn&& init_fn) {
     for (std::int32_t i = 0; i < n_threads; ++i) {
-      pool_.emplace_back([&, init_fn = std::forward<InitFn>(init_fn)] {
+      pool_.emplace_back([this, init_fn] {
         init_fn();
 
         while (true) {
