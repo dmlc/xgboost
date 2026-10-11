@@ -246,6 +246,8 @@ jobs:
         run: bash ops/pipeline/build-test-jvm-packages.sh
 
   deploy-jvm-packages:
+    # Skip runner and container setup on PRs; only branch builds publish packages.
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
     name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
     needs: [ci-configure, build-jvm-gpu, build-test-jvm-packages-linux, test-jvm-packages-gpu]
     runs-on:
@@ -282,4 +284,3 @@ jobs:
           ls -lh lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
         run: bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} ${{ matrix.scala_version }}
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
