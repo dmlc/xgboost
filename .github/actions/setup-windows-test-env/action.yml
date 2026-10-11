@@ -45,9 +45,10 @@ runs:
         if ($LASTEXITCODE -ne 0) { throw "Activating test environment failed" }
         python -c "import numpy, scipy, sklearn, pandas, cupy, pytest, pyarrow"
         if ($LASTEXITCODE -ne 0) { throw "Test environment imports failed" }
+    # Only master publishes the shared cache; avoid compression/upload work on PRs.
     # Save before any test or wheel installation can modify the environment.
     - name: Save test environment
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: github.ref == 'refs/heads/master' && steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5.0.3
       continue-on-error: true
       with:
