@@ -91,12 +91,6 @@ jobs:
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v7.0.1
-        with:
-          submodules: "true"
-      - uses: dmlc/xgboost-devops/actions/sccache@main
-      - name: Build libxgboost4j.so with CUDA
-        run: bash ops/pipeline/build-jvm-gpu.sh
-      - run: sccache --show-stats
       - name: Build JVM docs
         run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
