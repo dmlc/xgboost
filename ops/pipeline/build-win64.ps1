@@ -37,16 +37,12 @@ if ($variant -eq "gpu") {
   nvcc --version
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-  # Add CUDA-specific flags
+  # Keep PR and main CUDA targets identical so their compiler-cache entries match.
   $cmake_args += @(
     "-DUSE_CUDA=ON",
-    "-DGOOGLE_TEST=ON"
+    "-DGOOGLE_TEST=ON",
+    "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
   )
-
-  # Only build SM75 for non-release branches (faster CI)
-  if ($is_release_branch -eq 0) {
-    $cmake_args += "-DGPU_COMPUTE_VER=75"
-  }
 } else {
   Write-Host "--- Build libxgboost on Windows (CPU, minimal)"
 }
