@@ -1150,12 +1150,14 @@ class IteratorForTest(DataIter):
         cache: Optional[str],
         on_host: bool = False,
         min_cache_page_bytes: Optional[int] = None,
+        force_gc: bool = False,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
+        self.force_gc = force_gc
         super().__init__(
             cache_prefix=cache,
             on_host=on_host,
@@ -1175,7 +1177,10 @@ class IteratorForTest(DataIter):
             label=self.y[self.it].copy(),
             weight=self.w[self.it].copy() if self.w else None,
         )
-        gc.collect()  # clear up the copy, see if XGBoost access freed memory.
+        # Full heap scans per batch dominate small matrix tests. Dedicated lifetime
+        # tests force collection; other tests still pass temporary copies above.
+        if self.force_gc:
+            gc.collect()
         self.it += 1
         return True
 

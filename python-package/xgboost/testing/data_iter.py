@@ -174,3 +174,25 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
 
     def reset(self) -> None:
         self._it = 0
+
+
+def check_iterator_gc(device: str, *, on_host: bool = False) -> None:
+    """Retain forced-GC coverage for temporary batches in each matrix constructor."""
+    from ..training import train
+
+    batches = tm.make_batches(32, 4, 2, use_cupy=device == "cuda")
+    params = {"device": device, "tree_method": "hist", "max_depth": 2}
+    reference = tm.IteratorForTest(*batches, cache=None).as_arrays()
+    Xy = DMatrix(reference[0], reference[1], weight=reference[2])
+    expected = train(params, Xy, num_boost_round=2).predict(Xy)
+
+    for matrix_type in (DMatrix, QuantileDMatrix, ExtMemQuantileDMatrix):
+        cache = None if matrix_type is QuantileDMatrix else "cache"
+        it = tm.IteratorForTest(*batches, cache=cache, on_host=on_host, force_gc=True)
+        matrix = matrix_type(it)
+        assert matrix.num_row() == 64
+        assert matrix.num_col() == 4
+        np.testing.assert_array_equal(matrix.get_label(), Xy.get_label())
+        np.testing.assert_array_equal(matrix.get_weight(), Xy.get_weight())
+        actual = train(params, matrix, num_boost_round=2).predict(matrix)
+        np.testing.assert_allclose(actual, expected)
