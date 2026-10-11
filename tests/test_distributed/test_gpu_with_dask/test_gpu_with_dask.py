@@ -672,6 +672,8 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
 
     def make_model() -> None:
         xgb.XGBRegressor(
+            # One boosting round exercises loading; further trees add no coverage here.
+            n_estimators=1,
             device="cuda",
             tree_method=tree_method,
             objective="reg:quantileerror",
