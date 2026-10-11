@@ -36,23 +36,9 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          # Avoid saving another snapshot during the temporary CUDA cache-bypass experiment.
-          restore-only: 'true'
-      - name: Exclude CUDA build files from Defender (temporary experiment)
-        shell: powershell
-        run: |
-          # Compare a full CUDA build with historical master runs, keeping C/C++ caching.
-          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled
-          $cuda_root = Split-Path (Split-Path (Get-Command nvcc -ErrorAction Stop).Source -Parent) -Parent
-          $exclusions = @($Env:GITHUB_WORKSPACE, $Env:TEMP, $cuda_root)
-          Write-Host "Requested Defender exclusions: $($exclusions -join ', ')"
-          try {
-            Add-MpPreference -ExclusionPath $exclusions -ErrorAction Stop
-            (Get-MpPreference).ExclusionPath
-          } catch {
-            Write-Warning "Defender exclusions could not be applied: $_"
-          }
-          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled
+          # Master seeds the shared SM75 cache; PRs restore without saving another snapshot.
+          cache-key-prefix: ${{ github.job }}-sm75
+          restore-only: ${{ github.ref != 'refs/heads/master' }}
       - run: ops/pipeline/build-win64.ps1 -variant gpu
       - run: sccache --show-stats
       - name: Stash files

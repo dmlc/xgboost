@@ -37,15 +37,16 @@ if ($variant -eq "gpu") {
   nvcc --version
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-  # Keep PR and main CUDA targets identical so their compiler-cache entries match.
   $cmake_args += @(
     "-DUSE_CUDA=ON",
     "-DGOOGLE_TEST=ON",
     # Let nvcc find MSVC in PATH; CMake's short -ccbin path conflicts with sccache.
-    "-DCMAKE_CUDA_HOST_COMPILER=",
-    # Temporary cold-build experiment: bypass CUDA caching to measure Defender overhead.
-    "-DCMAKE_CUDA_COMPILER_LAUNCHER="
+    "-DCMAKE_CUDA_HOST_COMPILER="
   )
+  if ($is_release_branch -eq 0 -or $Env:BRANCH_NAME -eq "master") {
+    # Master populates the same SM75 cache that PRs restore.
+    $cmake_args += @("-DGPU_COMPUTE_VER=75", "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache")
+  }
 } else {
   Write-Host "--- Build libxgboost on Windows (CPU, minimal)"
 }
@@ -59,6 +60,16 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 # Build
 cmake --build . -v
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+
+if ($variant -eq "gpu" -and $Env:BRANCH_NAME -eq "master") {
+  Write-Host "--- Build all CUDA architectures without CUDA caching"
+  # Reconfigure in place so the SM75 cache uses the same build paths as PRs.
+  # Clear both SM75 settings; the final wheel and tests use the full build.
+  & cmake .. @cmake_args "-DGPU_COMPUTE_VER=" "-DCMAKE_CUDA_COMPILER_LAUNCHER="
+  if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+  cmake --build . -v
+  if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+}
 
 Write-Host "--- Build binary wheel"
 cd ..
