@@ -18,7 +18,6 @@
 #include <tuple>        // for get, apply
 #include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "../collective/allgather.h"          // for AllgatherStrings
 #include "../collective/allreduce.h"          // for Allreduce
 #include "../common/algorithm.h"              // for StableSort
 #include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
@@ -1003,7 +1002,7 @@ template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, std::string const& cache_prefix);
 
-SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
+SparsePage SparsePage::GetTranspose(bst_feature_t num_columns, std::int32_t n_threads) const {
   CHECK_GE(n_threads, 1);
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
@@ -1014,24 +1013,24 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   auto const block_size = common::DivRoundUp(this->Size(), static_cast<std::size_t>(n_threads));
   auto page = this->GetView();
   auto for_each_row = [&](auto&& fn) {
-    common::ParallelFor(n_threads, n_threads, [&](auto partition) {
-      auto begin = partition * block_size;
+    common::ParallelFor(n_threads, n_threads, [&](auto block_id) {
+      auto begin = block_id * block_size;
       auto end = std::min(begin + block_size, this->Size());
       for (auto i = begin; i < end; ++i) {
-        fn(i, partition);
+        fn(i, block_id);
       }
     });
   };
-  for_each_row([&](auto i, auto partition) {
+  for_each_row([&](auto i, auto block_id) {
     for (auto const& entry : page[i]) {
-      builder.AddBudget(entry.index, partition);
+      builder.AddBudget(entry.index, block_id);
     }
   });
   builder.InitStorage();
-  for_each_row([&](auto i, auto partition) {
+  for_each_row([&](auto i, auto block_id) {
     for (auto const& entry : page[i]) {
       builder.Push(entry.index, Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
-                   partition);
+                   block_id);
     }
   });
 
