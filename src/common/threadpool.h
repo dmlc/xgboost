@@ -4,6 +4,7 @@
 #pragma once
 #include <condition_variable>  // for condition_variable
 #include <cstdint>             // for int32_t
+#include <exception>           // for current_exception
 #include <functional>          // for function
 #include <future>              // for promise
 #include <memory>              // for make_shared
@@ -93,12 +94,17 @@ class ThreadPool {
     // Use shared ptr to make the task copy constructible.
     auto p{std::make_shared<std::promise<R>>()};
     auto fut = p->get_future();
+
     auto ffn = std::function{[task = std::move(p), fn = std::forward<Fn>(fn)]() mutable {
-      if constexpr (std::is_void_v<R>) {
-        fn();
-        task->set_value();
-      } else {
-        task->set_value(fn());
+      try {
+        if constexpr (std::is_void_v<R>) {
+          fn();
+          task->set_value();
+        } else {
+          task->set_value(fn());
+        }
+      } catch (...) {
+        task->set_exception(std::current_exception());
       }
     }};
 

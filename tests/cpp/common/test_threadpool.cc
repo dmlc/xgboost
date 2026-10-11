@@ -4,14 +4,25 @@
 #include <gtest/gtest.h>
 #include <xgboost/global_config.h>  // for GlobalConfigThreadLocalStore
 
-#include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t
-#include <future>   // for future
-#include <thread>   // for sleep_for, thread
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <future>     // for future
+#include <stdexcept>  // for runtime_error
+#include <thread>     // for sleep_for, thread
 
 #include "../../../src/common/threadpool.h"
 
 namespace xgboost::common {
+TEST(ThreadPool, TaskException) {
+  ThreadPool pool{"test", 1, [] {}};
+  auto void_result = pool.Submit([] { throw std::runtime_error{"task failed"}; });
+  EXPECT_THROW(void_result.get(), std::runtime_error);
+  auto value_result = pool.Submit([]() -> int { throw std::runtime_error{"task failed"}; });
+  EXPECT_THROW(value_result.get(), std::runtime_error);
+  // The same worker can still execute tasks after an exception.
+  EXPECT_EQ(pool.Submit([] { return 42; }).get(), 42);
+}
+
 TEST(ThreadPool, Basic) {
   std::int32_t n_threads = std::thread::hardware_concurrency();
 
