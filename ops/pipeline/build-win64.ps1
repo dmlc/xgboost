@@ -37,14 +37,12 @@ if ($variant -eq "gpu") {
   nvcc --version
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-  # nvcc under sccache rejects CMake's short MSVC path when PATH uses the full path.
-  $cuda_host_compiler = (Get-Command cl.exe -CommandType Application -ErrorAction Stop).Path
-
   # Keep PR and main CUDA targets identical so their compiler-cache entries match.
   $cmake_args += @(
     "-DUSE_CUDA=ON",
     "-DGOOGLE_TEST=ON",
-    "-DCMAKE_CUDA_HOST_COMPILER=$cuda_host_compiler",
+    # Let nvcc find MSVC in PATH; CMake's short -ccbin path conflicts with sccache.
+    "-DCMAKE_CUDA_HOST_COMPILER=",
     "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
   )
 } else {
