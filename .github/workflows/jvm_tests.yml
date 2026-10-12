@@ -76,6 +76,10 @@ jobs:
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          # Main seeds both CUDA configurations; PRs avoid uploading duplicate snapshots.
+          cache-key-prefix: ${{ github.job }}-cuda
+          restore-only: ${{ github.ref != 'refs/heads/master' }}
       - name: Build libxgboost4j.so with CUDA
         run: bash ops/pipeline/build-jvm-gpu.sh
       - run: sccache --show-stats
