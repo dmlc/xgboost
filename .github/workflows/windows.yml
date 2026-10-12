@@ -89,6 +89,9 @@ jobs:
       - name: Set up Python test environment
         id: test-env
         uses: ./.github/actions/setup-windows-test-env
+        with:
+          # Only one suite compresses/uploads the shared environment on master.
+          save-cache: ${{ matrix.suite == 'cpu' }}
       - name: Unstash files
         shell: powershell
         run: |
