@@ -41,4 +41,19 @@ if (use_cmake) {
     "CXX20 := sccache $(CXX20)"
   )
 }
+if (!use_cmake && .Platform$OS.type != "windows") {
+  settings <- c(
+    settings,
+    "",
+    "# R CMD build installs under a random Rbuild directory for vignettes.",
+    "# Normalize that source root before hashing; sccache reads it at server startup.",
+    "# Keep R's default target and restart only for XGBoost's CMake build.",
+    "all:",
+    ".PHONY: xgboost-ci-sccache",
+    "xgboost-cmake: xgboost-ci-sccache",
+    "xgboost-ci-sccache:",
+    "\tsccache --stop-server",
+    "\tSCCACHE_BASEDIRS=\"$(CURDIR)\" sccache --start-server"
+  )
+}
 writeLines(settings, makevars)
