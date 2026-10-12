@@ -53,7 +53,8 @@ if (!use_cmake && .Platform$OS.type != "windows") {
     "xgboost-cmake: xgboost-ci-sccache",
     "xgboost-ci-sccache:",
     "\tsccache --stop-server",
-    "\tSCCACHE_BASEDIRS=\"$(CURDIR)\" sccache --start-server"
+    "# R CMD check can set TMPDIR beyond the Unix socket path limit on macOS.",
+    "\tTMPDIR=/tmp SCCACHE_BASEDIRS=\"$(CURDIR)\" sccache --start-server"
   )
 }
 writeLines(settings, makevars)
