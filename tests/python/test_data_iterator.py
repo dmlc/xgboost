@@ -377,7 +377,6 @@ def test_invalid_cat_batches() -> None:
     check_invalid_cat_batches("cpu")
 
 
-@pytest.mark.skipif(**tm.no_cupy())
 def test_uneven_sizes() -> None:
     check_uneven_sizes("cpu")
 
