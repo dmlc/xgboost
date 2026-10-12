@@ -38,19 +38,17 @@ namespace xgboost::common {
 /**
  * @brief Execution metadata for one invocation of a parallel loop.
  *
- * IDs satisfy 0 <= Id() < Count() <= requested threads. Serial calls supply
- * {0, 1}, including nested serial calls. IDs do not guarantee a work assignment
+ * IDs satisfy 0 <= Id() < requested threads. Serial calls supply ID 0,
+ * including nested serial calls. IDs do not guarantee a work assignment
  * across separate loops.
  */
 class Worker {
   std::int32_t id_;
-  std::int32_t count_;
 
  public:
-  Worker(std::int32_t id, std::int32_t count) : id_{id}, count_{count} {}
+  explicit Worker(std::int32_t id) : id_{id} {}
 
   [[nodiscard]] std::int32_t Id() const { return id_; }
-  [[nodiscard]] std::int32_t Count() const { return count_; }
 };
 
 /** @brief Opt in to receiving Worker as the final callback argument. */
@@ -64,8 +62,7 @@ class WithWorker {
   // The returned callable borrows *this and must not outlive it.
   auto Bind(std::int32_t n_threads) & {
     return [this, n_threads](auto&&... args) -> decltype(auto) {
-      auto worker =
-          n_threads == 1 ? Worker{0, 1} : Worker{omp_get_thread_num(), omp_get_num_threads()};
+      auto worker = Worker{n_threads == 1 ? 0 : omp_get_thread_num()};
       return fn_(std::forward<decltype(args)>(args)..., worker);
     };
   }
