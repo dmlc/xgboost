@@ -181,6 +181,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '8'
+      - uses: ./.github/actions/configure-macos-downloads
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal

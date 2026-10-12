@@ -628,6 +628,7 @@ jobs:
           submodules: 'true'
       - name: Set up libomp
         uses: ./.github/actions/setup-libomp
+      - uses: ./.github/actions/configure-macos-downloads
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal
@@ -675,6 +676,7 @@ jobs:
           test_path: tests/python
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/configure-macos-downloads
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_cpu_test
@@ -709,6 +711,7 @@ jobs:
         shell: bash -l {0}
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/configure-macos-downloads
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test

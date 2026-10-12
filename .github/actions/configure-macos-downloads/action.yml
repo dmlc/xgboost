@@ -1,0 +1,22 @@
+name: Configure macOS downloads
+description: Allow package downloads to recover from transient network failures.
+runs:
+  using: composite
+  steps:
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # macOS runners have intermittent DNS failures and 30-second connection timeouts.
+        # Set these before Miniforge setup so environment creation also benefits.
+        # Mamba has its own overrides; Conda settings alone do not change its limits.
+        cat >> "$GITHUB_ENV" <<'EOF'
+        CONDA_REMOTE_CONNECT_TIMEOUT_SECS=60
+        CONDA_REMOTE_READ_TIMEOUT_SECS=120
+        CONDA_REMOTE_MAX_RETRIES=5
+        CONDA_REMOTE_BACKOFF_FACTOR=2
+        MAMBA_REMOTE_CONNECT_TIMEOUT_SECS=60
+        MAMBA_REMOTE_MAX_RETRIES=5
+        MAMBA_REMOTE_BACKOFF_FACTOR=2
+        PIP_DEFAULT_TIMEOUT=60
+        PIP_RETRIES=8
+        EOF

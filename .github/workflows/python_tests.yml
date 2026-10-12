@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: 'true'
+      - uses: ./.github/actions/configure-macos-downloads
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: sdist_test
