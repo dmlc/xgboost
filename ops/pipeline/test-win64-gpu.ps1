@@ -1,3 +1,5 @@
+param([string]$CondaEnv)
+
 $ErrorActionPreference = "Stop"
 
 Write-Host "--- Test XGBoost on Windows with CUDA"
@@ -9,10 +11,14 @@ build/testxgboost.exe
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Set up Python env"
-conda activate
-$env_name = -join("win64_", (New-Guid).ToString().replace("-", ""))
-mamba env create -n ${env_name} --file=ops/conda_env/win64_test.yml
-conda activate ${env_name}
+if (-not $CondaEnv) {
+  conda activate
+  $CondaEnv = -join("win64_", (New-Guid).ToString().replace("-", ""))
+  mamba env create -n $CondaEnv --file=ops/conda_env/win64_test.yml
+  if ($LASTEXITCODE -ne 0) { throw "Creating test environment failed" }
+}
+conda activate $CondaEnv
+if ($LASTEXITCODE -ne 0) { throw "Activating test environment failed" }
 python -m pip install `
   (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }

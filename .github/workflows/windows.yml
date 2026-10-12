@@ -73,6 +73,9 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
+      - name: Set up Python test environment
+        id: test-env
+        uses: ./.github/actions/setup-windows-test-env
       - name: Unstash files
         shell: powershell
         run: |
@@ -85,4 +88,4 @@ jobs:
           New-Item -ItemType Directory -Path python-package/dist/ -Force
           Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
             -Destination python-package/dist/
-      - run: powershell ops/pipeline/test-win64-gpu.ps1
+      - run: powershell ops/pipeline/test-win64-gpu.ps1 -CondaEnv '${{ steps.test-env.outputs.prefix }}'
