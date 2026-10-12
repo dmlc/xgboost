@@ -5,9 +5,11 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>  // for atomic
 #include <functional>
 #include <limits>
 #include <memory>
+#include <numeric>  // for accumulate
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -16,8 +18,8 @@
 #include "../common/algorithm.h"  // ArgSort
 #include "../common/kernel.h"
 #include "../common/math.h"
-#include "../common/numeric.h"          // TransformReduce
 #include "../common/optional_weight.h"  // OptionalWeights
+#include "../common/threading_utils.h"  // ParallelFor, WithWorker
 #include "metric_common.h"              // MetricNoCache
 #include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
@@ -234,9 +236,12 @@ std::pair<double, uint32_t> RankingAUC(Context const* ctx, std::vector<float> co
   auto labels = info.labels.View(ctx->Device());
   auto s_weights = info.weights_.ConstHostSpan();
 
-  // Each group can be expensive; keep groups independently schedulable.
-  auto result = common::TransformReduce<1>(
-      n_groups, n_threads, PackedReduceResult{}, [&](size_t g) -> PackedReduceResult {
+  CHECK_GE(n_threads, 1);
+  n_threads = std::min(static_cast<std::uint32_t>(n_threads), n_groups);
+  std::vector<double> auc_sums(n_threads, 0.0);
+  std::atomic<std::uint32_t> invalid_groups{0};
+  common::ParallelFor(
+      n_groups, n_threads, common::WithWorker([&](std::size_t g, common::Worker worker) {
         auto begin = info.group_ptr_[g], end = info.group_ptr_[g + 1];
         float w = s_weights.empty() ? 1.0f : s_weights[g];
         auto g_predts = s_predts.subspan(begin, end - begin);
@@ -244,15 +249,20 @@ std::pair<double, uint32_t> RankingAUC(Context const* ctx, std::vector<float> co
         if (is_roc && g_labels.Size() < 3) {
           // With 2 documents, there's only 1 comparison can be made.  So either
           // TP or FP will be zero.
-          return {};
+          ++invalid_groups;
+          return;
         }
         auto auc =
             is_roc ? GroupRankingROC(ctx, g_predts, g_labels, w)
                    : std::get<2>(BinaryPRAUC(ctx, g_predts, g_labels, common::OptionalWeights{w}));
-        return std::isnan(auc) ? PackedReduceResult{} : PackedReduceResult{auc, 1.0};
-      });
-
-  return {result.Residue(), static_cast<uint32_t>(result.Weights())};
+        if (std::isnan(auc)) {
+          ++invalid_groups;
+        } else {
+          auc_sums[worker.Id()] += auc;
+        }
+      }));
+  auto sum_auc = std::accumulate(auc_sums.cbegin(), auc_sums.cend(), 0.0);
+  return {sum_auc, n_groups - invalid_groups.load()};
 }
 
 namespace {
