@@ -70,16 +70,19 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
+          # Keep sanitizer snapshots on master; PRs reuse them without uploading another copy.
+          restore-only: ${{ matrix.variant == 'sanitizer' && github.ref != 'refs/heads/master' }}
       - name: Build run C++ tests on CPU
         if: matrix.variant == 'default'
         shell: bash -l {0}
         run: |
           source activate linux_cpu_test
           bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
-      - run: sccache --show-stats
       - name: Build and test with sanitizer
         if: matrix.variant == 'sanitizer'
         run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
+      - run: sccache --show-stats
+        if: ${{ success() || failure() }}
 
   build-cuda:
     name: Build CUDA ${{ matrix.cuda_version }} (${{ matrix.arch }})
