@@ -62,10 +62,10 @@ cmake --build . -v
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 if ($variant -eq "gpu" -and $Env:BRANCH_NAME -eq "master") {
-  Write-Host "--- Build all CUDA architectures without CUDA caching"
+  Write-Host "--- Build all CUDA architectures with sccache"
   # Reconfigure in place so the SM75 cache uses the same build paths as PRs.
-  # Clear both SM75 settings; the final wheel and tests use the full build.
-  & cmake .. @cmake_args "-DGPU_COMPUTE_VER=" "-DCMAKE_CUDA_COMPILER_LAUNCHER="
+  # Keep sccache enabled for both builds; the final wheel and tests use all architectures.
+  & cmake .. @cmake_args "-DGPU_COMPUTE_VER="
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
   cmake --build . -v
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
