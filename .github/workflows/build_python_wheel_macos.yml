@@ -1,0 +1,62 @@
+name: Build macOS Python wheel
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      platform_id:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER:
+        required: false
+      AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build:
+    name: Build macOS wheel (${{ inputs.platform_id }})
+    runs-on: ${{ inputs.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: 'true'
+      - name: Set up libomp
+        uses: ./.github/actions/setup-libomp
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
+      - name: Build wheels
+        run: bash ops/pipeline/build-python-wheels-macos.sh ${{ inputs.platform_id }} ${{ github.sha }}
+      - name: Verify wheel can be installed
+        run: |
+          python -m pip install -vvv wheelhouse/*.whl
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: python-wheel-${{ inputs.platform_id }}
+          path: wheelhouse/*.whl
+          retention-days: 1
+      - name: Upload Python wheel to S3
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+        run: |
+          python ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            wheelhouse/*.whl
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
