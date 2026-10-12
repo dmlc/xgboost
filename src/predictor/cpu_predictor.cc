@@ -362,23 +362,17 @@ class ThreadTmp {
 
  public:
   /**
-   * @param blocked Whether block-based parallelism is used.
+   * @param n_threads Number of workers for which to allocate buffers.
    */
-  explicit ThreadTmp(std::int32_t n_threads) {
-    std::size_t n = n_threads * kBlockOfRowsSize;
-    std::size_t prev_thread_temp_size = feat_vecs_.size();
-    if (prev_thread_temp_size < n) {
-      feat_vecs_.resize(n, RegTree::FVec{});
-    }
-  }
+  explicit ThreadTmp(std::int32_t n_threads) : feat_vecs_(n_threads * kBlockOfRowsSize) {}
   /**
    * @brief Get a thread local buffer.
    *
    * @param n The size of the thread local block.
+   * @param worker Worker whose buffer to return.
    */
-  common::Span<RegTree::FVec> ThreadBuffer(std::size_t n) {
-    std::int32_t thread_idx = omp_get_thread_num();
-    auto const fvec_offset = thread_idx * kBlockOfRowsSize;
+  common::Span<RegTree::FVec> ThreadBuffer(std::size_t n, common::Worker worker) {
+    auto const fvec_offset = worker.Id() * kBlockOfRowsSize;
     auto fvec_tloc = common::Span{feat_vecs_}.subspan(fvec_offset, n);
     return fvec_tloc;
   }
@@ -414,14 +408,15 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
       });
     }
   }
-  common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
-    auto fvec_tloc = fvec.ThreadBuffer(block.Size());
+  common::ParallelFor1d<kBlockOfRowsSize>(
+      n_samples, n_threads, common::WithWorker([&](auto &&block, common::Worker worker) {
+        auto fvec_tloc = fvec.ThreadBuffer(block.Size(), worker);
 
-    batch.FVecFill(block, n_features, fvec_tloc);
-    DispatchArrayLayout(model, block.begin() + batch.base_rowid, fvec_tloc, block.Size(), out_predt,
-                        tree_depth, any_missing, tree_weights);
-    batch.FVecDrop(fvec_tloc);
-  });
+        batch.FVecFill(block, n_features, fvec_tloc);
+        DispatchArrayLayout(model, block.begin() + batch.base_rowid, fvec_tloc, block.Size(),
+                            out_predt, tree_depth, any_missing, tree_weights);
+        batch.FVecDrop(fvec_tloc);
+      }));
 }
 
 void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
@@ -439,22 +434,23 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
   auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
   LaunchPredict(ctx, p_fmat, model, [&](auto &&policy) {
     policy.ForEachBatch([&](auto &&batch) {
-      common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
-        auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
-        auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
-        batch.FVecFill(block, n_features, fvec_tloc);
+      common::ParallelFor1d<1>(
+          batch.Size(), n_threads, common::WithWorker([&](auto &&block, common::Worker worker) {
+            auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
+            auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size(), worker);
+            batch.FVecFill(block, n_features, fvec_tloc);
 
-        for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-          bst_node_t nidx = std::visit(
-              [&](auto &&tree) {
-                return GetLeafIndex<true, true>(tree, fvec_tloc.front(), tree.GetCategoriesMatrix(),
-                                                RegTree::kRoot);
-              },
-              h_model.Trees()[j]);
-          preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
-        }
-        batch.FVecDrop(fvec_tloc);
-      });
+            for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+              bst_node_t nidx = std::visit(
+                  [&](auto &&tree) {
+                    return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
+                                                    tree.GetCategoriesMatrix(), RegTree::kRoot);
+                  },
+                  h_model.Trees()[j]);
+              preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
+            }
+            batch.FVecDrop(fvec_tloc);
+          }));
     });
   });
 }

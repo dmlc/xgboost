@@ -46,8 +46,8 @@ TEST(ParallelFor2d, Test) {
       space, n_threads,
       WithWorker([&, limit = std::make_unique<int>(n_threads)](size_t i, Range1d r, Worker worker) {
         EXPECT_EQ(worker.Id(), omp_get_thread_num());
-        EXPECT_EQ(worker.Count(), omp_get_num_threads());
-        EXPECT_LE(worker.Count(), *limit);
+        EXPECT_LT(worker.Id(), omp_get_num_threads());
+        EXPECT_LT(worker.Id(), *limit);
         for (auto j = r.begin(); j < r.end(); ++j) {
           matrix[i * kDim2 + j] += 1;
         }
@@ -111,10 +111,9 @@ TEST(ParallelFor, WithWorker) {
     auto make_callback = [n_threads] {
       return WithWorker([limit = std::make_unique<int>(n_threads)](auto, Worker worker) {
         EXPECT_EQ(worker.Id(), omp_get_thread_num());
-        EXPECT_EQ(worker.Count(), omp_get_num_threads());
         EXPECT_GE(worker.Id(), 0);
-        EXPECT_LT(worker.Id(), worker.Count());
-        EXPECT_LE(worker.Count(), *limit);
+        EXPECT_LT(worker.Id(), omp_get_num_threads());
+        EXPECT_LT(worker.Id(), *limit);
       });
     };
     ParallelFor(17, n_threads, make_callback());
@@ -122,12 +121,9 @@ TEST(ParallelFor, WithWorker) {
     ParallelFor1d<3>(17, n_threads, make_callback());
     ParallelForBlock(17, n_threads, make_callback());
   }
-  // Nested serial loops report worker {0, 1}, not the outer thread ID and team size.
+  // Nested serial loops report worker ID 0, not the outer thread ID.
   ParallelFor(4, 4, [](auto) {
-    ParallelFor(1, 1, WithWorker([](auto, Worker inner) {
-                  EXPECT_EQ(inner.Id(), 0);
-                  EXPECT_EQ(inner.Count(), 1);
-                }));
+    ParallelFor(1, 1, WithWorker([](auto, Worker inner) { EXPECT_EQ(inner.Id(), 0); }));
   });
 }
 
