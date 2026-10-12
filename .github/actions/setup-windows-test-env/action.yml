@@ -1,7 +1,11 @@
 # Avoid solving/downloading the Windows test environment on every ephemeral runner.
 # Remove this action when runner AMIs provide an environment matching the YAML.
 name: Set up Windows test environment
-description: Cache the installed Conda dependencies, before installing the XGBoost wheel.
+description: Cache the installed Conda dependencies in S3, before installing the XGBoost wheel.
+inputs:
+  save-cache:
+    description: Publish the shared environment cache on master from this job.
+    default: 'false'
 outputs:
   prefix:
     description: Absolute path of the prepared Conda environment.
@@ -9,6 +13,19 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Install zstd
+      shell: powershell
+      run: |
+        # GitHub's cache toolkit otherwise falls back to slow gzip on these runners.
+        # Remove this step when the Windows AMI includes zstd in PATH.
+        $toolDir = Join-Path $env:RUNNER_TEMP 'zstd'
+        $archive = Join-Path $env:RUNNER_TEMP 'zstd.zip'
+        Invoke-WebRequest -Uri 'https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-v1.5.7-win64.zip' -OutFile $archive
+        Expand-Archive -Path $archive -DestinationPath $toolDir -Force
+        $binDir = Join-Path $toolDir 'zstd-v1.5.7-win64'
+        & "$binDir\zstd.exe" --version
+        if ($LASTEXITCODE -ne 0) { throw "zstd setup failed" }
+        $binDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Identify environment cache
       id: identity
       shell: powershell
@@ -20,10 +37,12 @@ runs:
         $platform = "$([Environment]::OSVersion.Version)-$($info.conda_version)"
         # Refresh unpinned dependencies monthly even when the YAML is unchanged.
         $month = [DateTime]::UtcNow.ToString('yyyy-MM')
-        "key=windows-conda-v1-${{ runner.arch }}-$platform-$month-${{ hashFiles('ops/conda_env/win64_test.yml', '.github/actions/setup-windows-test-env/action.yml') }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        "key=windows-conda-s3-v1-${{ runner.arch }}-$platform-$month-${{ hashFiles('ops/conda_env/win64_test.yml', '.github/actions/setup-windows-test-env/action.yml') }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
     - name: Restore test environment
       id: cache
-      uses: actions/cache/restore@v5.0.3
+      # Avoid falling back to GitHub's quota if a runner has no S3 bucket configured.
+      if: env.RUNS_ON_S3_BUCKET_CACHE != ''
+      uses: runs-on/cache/restore@3c223729b4fda74ee12f4976048dd69b420fdd26 # v5
       continue-on-error: true
       with:
         path: ${{ steps.identity.outputs.prefix }}
@@ -45,11 +64,13 @@ runs:
         if ($LASTEXITCODE -ne 0) { throw "Activating test environment failed" }
         python -c "import numpy, scipy, sklearn, pandas, cupy, pytest, pyarrow"
         if ($LASTEXITCODE -ne 0) { throw "Test environment imports failed" }
-    # Only master publishes the shared cache; avoid compression/upload work on PRs.
+    # One master job publishes the shared cache; PRs and the other suite only restore.
     # Save before any test or wheel installation can modify the environment.
     - name: Save test environment
-      if: github.ref == 'refs/heads/master' && steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v5.0.3
+      if: >-
+        github.ref == 'refs/heads/master' && inputs.save-cache == 'true' &&
+        env.RUNS_ON_S3_BUCKET_CACHE != '' && steps.cache.outputs.cache-hit != 'true'
+      uses: runs-on/cache/save@3c223729b4fda74ee12f4976048dd69b420fdd26 # v5
       continue-on-error: true
       with:
         path: ${{ steps.identity.outputs.prefix }}
