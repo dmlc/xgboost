@@ -11,7 +11,6 @@
 #include <cmath>        // for abs
 #include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
 #include <cstring>      // for size_t, strcmp, memcpy
-#include <functional>   // for logical_and
 #include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
 #include <map>          // for map, operator!=
 #include <numeric>      // for accumulate, partial_sum
@@ -26,7 +25,7 @@
 #include "../common/io.h"                     // for PeekableInStream
 #include "../common/linalg_op.h"              // for ElementWiseTransformHost
 #include "../common/math.h"                   // for CheckNAN
-#include "../common/numeric.h"                // for Iota, RunLengthEncode, TransformReduce
+#include "../common/numeric.h"                // for Iota, RunLengthEncode
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../common/version.h"                // for Version
 #include "../data/adapter.h"                  // for FileAdapter
@@ -1047,13 +1046,20 @@ bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_data = this->data.HostVector();
   n_threads = std::max(std::min(static_cast<std::size_t>(n_threads), this->Size()),
                        static_cast<std::size_t>(1));
-  return common::TransformReduce<1>(
-      this->Size(), n_threads, true,
-      [&](auto i) {
-        return std::is_sorted(h_data.begin() + h_offset[i], h_data.begin() + h_offset[i + 1],
-                              Entry::CmpIndex);
-      },
-      std::logical_and<>{});
+  common::MemStackAllocator<bool, common::DefaultMaxThreads()> sorted(n_threads, true);
+  auto const block_size = common::DivRoundUp(this->Size(), static_cast<std::size_t>(n_threads));
+  common::ParallelFor(n_threads, n_threads, [&](auto block_id) {
+    auto const begin = block_id * block_size;
+    auto const end = std::min(begin + block_size, this->Size());
+    for (auto i = begin; i < end; ++i) {
+      if (!std::is_sorted(h_data.begin() + h_offset[i], h_data.begin() + h_offset[i + 1],
+                          Entry::CmpIndex)) {
+        sorted[block_id] = false;
+        break;
+      }
+    }
+  });
+  return std::all_of(sorted.cbegin(), sorted.cend(), [](bool value) { return value; });
 }
 
 void SparsePage::SortIndices(int32_t n_threads) {
