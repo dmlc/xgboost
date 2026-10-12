@@ -76,6 +76,10 @@ jobs:
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          # Main seeds both CUDA configurations; PRs avoid uploading duplicate snapshots.
+          cache-key-prefix: ${{ github.job }}-cuda
+          restore-only: ${{ github.ref != 'refs/heads/master' }}
       - name: Build libxgboost4j.so with CUDA
         run: bash ops/pipeline/build-jvm-gpu.sh
       - run: sccache --show-stats
@@ -248,7 +252,8 @@ jobs:
   deploy-jvm-packages:
     # Skip runner and container setup on PRs; only branch builds publish packages.
     if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
-    name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
+    # Skipped PR jobs have no matrix values to interpolate into their display name.
+    name: Deploy JVM packages to S3
     needs: [ci-configure, build-jvm-gpu, build-test-jvm-packages-linux, test-jvm-packages-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
