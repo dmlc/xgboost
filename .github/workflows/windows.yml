@@ -35,6 +35,10 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          # Master caches both SM75 and full builds; PRs restore without saving snapshots.
+          cache-key-prefix: ${{ github.job }}-cuda
+          restore-only: ${{ github.ref != 'refs/heads/master' }}
       - run: ops/pipeline/build-win64.ps1 -variant gpu
       - run: sccache --show-stats
       - name: Stash files
