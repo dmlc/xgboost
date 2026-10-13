@@ -9,7 +9,6 @@
 
 #include <cmath>
 #include <cstddef>  // for size_t
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -109,27 +108,26 @@ TEST(QuantileHist, Partitioner) { TestPartitioner<CPUExpandEntry>(1); }
 TEST(QuantileHist, MultiPartitioner) { TestPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-void FillGradients(linalg::Matrix<GradientPair>* gpair) {
-  auto h = gpair->HostView();
-  for (std::size_t row = 0; row < h.Shape(0); ++row) {
-    for (std::size_t target = 0; target < h.Shape(1); ++target) {
-      h(row, target) = GradientPair{1.0f, 0.0f};
-    }
-  }
-}
-
-// Verify partitioner doesn't write past buffer end when doing
-// update on small dataset after large one.
+// Verify that partitioners from a previous multi-batch DMatrix are not reused.
 void TestPartitionerOverrun(bst_target_t n_targets) {
-  constexpr bst_idx_t kNBig = 1 << 16, kNSmall = 1024;
+  // Update with a multi-batch DMatrix, then reuse the updater on a single-batch DMatrix
+  // with the same number of rows. Partitioners left over from the first DMatrix would
+  // overwrite leaf positions of the second one, so the positions must match the ones from
+  // a fresh updater. Both DMatrix objects have the same number of rows to keep any stale
+  // write inside the position vector instead of its reserved storage.
+  constexpr bst_idx_t kRows = 1 << 16;
   constexpr int kCols = 3;
 
   Context ctx;
   ctx.InitAllowUnknown(Args{{"nthread", "1"}});
 
   ObjInfo task{ObjInfo::kRegression, true};
-  auto updater =
-      std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+  auto make_updater = [&] {
+    auto updater =
+        std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    return updater;
+  };
 
   TrainParam param;
   param.InitAllowUnknown(Args{{"max_depth", "1"},
@@ -137,62 +135,34 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
                               {"lambda", "0"},
                               {"gamma", "0"},
                               {"min_child_weight", "0"}});
-  updater->Configure(Args{});
 
-  auto const n_targets_size = static_cast<std::size_t>(n_targets);
+  auto update = [&](TreeUpdater* updater, DMatrix* dmat) {
+    // Random gradients so that the tree has more than one leaf.
+    auto gpair = GenerateRandomGradients(&ctx, dmat->Info().num_row_, n_targets);
 
-  auto dmat_large =
-      RandomDataGenerator{kNBig, kCols, 0.0f}.Seed(0).Batches(8).GenerateSparsePageDMatrix(
-          "part_resize_big_first", true);
+    RegTree tree{n_targets, static_cast<bst_feature_t>(kCols)};
+    std::vector<RegTree*> trees{&tree};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, dmat, common::Span{position.data(), 1}, trees);
+    return position.front().ConstHostVector();
+  };
 
-  std::size_t shape_large[2]{static_cast<std::size_t>(dmat_large->Info().num_row_), n_targets_size};
-  GradientContainer gpair_large;
-  gpair_large.gpair = linalg::Matrix<GradientPair>{shape_large, ctx.Device()};
-  FillGradients(&gpair_large.gpair);
+  auto dmat_multi = RandomDataGenerator{kRows, kCols, 0.0f}.Batches(8).GenerateSparsePageDMatrix(
+      "part_resize_multi_first", true);
+  // In-memory DMatrix with a single page. Unlike the external memory one above, it uses
+  // the seed, so the two DMatrix objects produce different trees.
+  auto dmat_single = RandomDataGenerator{kRows, kCols, 0.0f}.Seed(1).GenerateDMatrix(false);
 
-  RegTree tree_large{n_targets, static_cast<bst_feature_t>(kCols)};
-  std::vector<RegTree*> trees_large{&tree_large};
-  std::vector<HostDeviceVector<bst_node_t>> position_large(1);
-  common::Span<HostDeviceVector<bst_node_t>> pos_large{position_large.data(), 1};
-  updater->Update(&param, &gpair_large, dmat_large.get(), pos_large, trees_large);
+  auto reused = make_updater();
+  update(reused.get(), dmat_multi.get());
+  auto position = update(reused.get(), dmat_single.get());
 
-  auto dmat_small =
-      RandomDataGenerator{kNSmall, kCols, 0.0f}.Seed(1).Batches(1).GenerateSparsePageDMatrix(
-          "part_resize_small_second", false);
+  auto fresh = make_updater();
+  auto expected = update(fresh.get(), dmat_single.get());
 
-  std::vector<HostDeviceVector<bst_node_t>> position_small(1);
-  auto& pos = position_small.front();
-  pos.Resize(kNBig);    // Allocate large
-  pos.Resize(kNSmall);  // Shrink logical size, capacity remains large
-
-  auto& hv = pos.HostVector();
-  std::size_t cap = hv.capacity();
-  ASSERT_GE(cap, static_cast<std::size_t>(kNBig));
-
-  std::size_t tail_elems = cap - hv.size();
-  ASSERT_GT(tail_elems, 0u) << "Expected reserved tail storage";
-  std::vector<bst_node_t> tail_before(tail_elems);
-  std::memcpy(tail_before.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
-
-  std::size_t shape_small[2]{static_cast<std::size_t>(dmat_small->Info().num_row_), n_targets_size};
-  GradientContainer gpair_small;
-  gpair_small.gpair = linalg::Matrix<GradientPair>{shape_small, ctx.Device()};
-  FillGradients(&gpair_small.gpair);
-
-  RegTree tree_small{n_targets, static_cast<bst_feature_t>(kCols)};
-  std::vector<RegTree*> trees_small{&tree_small};
-  common::Span<HostDeviceVector<bst_node_t>> pos_small{position_small.data(), 1};
-  updater->Update(&param, &gpair_small, dmat_small.get(), pos_small, trees_small);
-
-  // Verify no buffer overrun: tail bytes should be unchanged
-  ASSERT_EQ(hv.capacity(), cap) << "Test precondition violated: capacity changed";
-  std::vector<bst_node_t> tail_after(tail_elems);
-  std::memcpy(tail_after.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
-
-  EXPECT_EQ(tail_before, tail_after)
-      << "Buffer overrun detected: writes past kNSmall when updating small "
-         "single-batch DMatrix after large multi-batch one. "
-         "Likely stale partitioner writing to buffer.";
+  ASSERT_EQ(position.size(), kRows);
+  EXPECT_EQ(position, expected) << "Leaf positions were written by a stale partitioner left "
+                                   "over from the previous multi-batch DMatrix.";
 }
 }  // anonymous namespace
 

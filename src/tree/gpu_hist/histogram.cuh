@@ -6,38 +6,20 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <memory>   // for unique_ptr
+#include <vector>   // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "feature_groups.cuh"               // for FeatureGroupsAccessor
+#include "feature_groups.cuh"               // for FeatureGroups
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Single-target shared memory policy
-[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
-  auto optin = dh::MaxSharedMemoryOptin(device);
-  return std::min(optin, std::size_t{96} * 1024);
-}
-
-// Multi-target shared memory policy
-[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
-  auto max_shared = dh::MaxSharedMemory(device);
-  // Use larger shared memory if available.
-  //
-  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
-  // have large optin size, like the H200. We expand the shared memory size for those
-  // large devices.
-  constexpr std::size_t kThreshold = 4;
-  if (max_shared_optin > max_shared * kThreshold) {
-    return 2 * max_shared;
-  }
-  return max_shared;
-}
+// Shared-memory budget per block for the architecture's histogram launch bounds.
+[[nodiscard]] std::size_t HistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
@@ -61,6 +43,37 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
+
+// An entry is one stored ELLPACK bin index or missing marker.
+// A segment contains one node's entries for one feature group, shared across targets.
+// A sub-segment is a contiguous range of entries processed by a single CUDA block.
+// A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
+// A flush adds a block's shared-memory histogram to the global histogram.
+
+// Wave target for load balance; determines the minimum entries per sub-segment.
+inline constexpr std::size_t kTargetWaves = 32;
+// Minimum wave target; limits entries per sub-segment even when the flush budget cannot be met.
+inline constexpr std::size_t kMinWaves = 4;
+// Histogram payload flushed across targets, as a percent of ELLPACK entry bytes counted once.
+inline constexpr std::size_t kMaxFlushPercent = 25;
+
+/**
+ * @brief Choose entries per sub-segment to amortize histogram flushes The result is
+ * rounded to whole tiles.
+ *
+ * @param n_total_entries            Entries across all nodes and feature groups, counted once for all
+ *                                   targets.
+ * @param entries_per_tile           Entries per full tile; equal to threads per block.
+ * @param n_resident_blks_per_target Estimated share of concurrent GPU blocks per target, at least one.
+ * @param n_targets                  Number of outputs being trained.
+ * @param hist_bytes_per_block       Largest feature group's bin count times sizeof(GradientPairInt64),
+ *                                   for one target; zero for global accumulation.
+ * @param symbol_bits                Bits per ELLPACK symbol.
+ */
+[[nodiscard]] bst_idx_t SliceSegment(bst_idx_t n_total_entries, std::size_t entries_per_tile,
+                                     std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                                     std::size_t hist_bytes_per_block, std::uint32_t symbol_bits);
+
 }  // namespace cuda_impl
 
 /**
@@ -167,10 +180,10 @@ class DeviceHistogramStorage {
   }
 };
 
-struct DeviceHistogramBuilderImpl;
+struct HistKernel;
 
 class DeviceHistogramBuilder {
-  std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;
+  std::unique_ptr<HistKernel> p_impl_;
   DeviceHistogramStorage hist_;
   common::Monitor monitor_;
 
@@ -180,19 +193,23 @@ class DeviceHistogramBuilder {
   // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
   void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
              bool force_global_memory);
-  // Build histogram for single target and single node.
+  // Build histogram for single target and single node, a wrapper of the batched version.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<std::uint32_t const> ridx,
                       common::Span<GradientPairInt64> histogram);
-  // Build histograms for multiple nodes and multiple targets
+  /**
+   * @brief Build histograms for multiple nodes and multiple targets.
+   *
+   * @param ridxs One span of row indices for each node, empty nodes are allowed.
+   * @param hists One histogram for each node, must match `ridxs`.
+   */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
+                      FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
-                      common::Span<common::Span<const std::uint32_t>> ridxs,
-                      common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum);
+                      std::vector<common::Span<std::uint32_t const>> const& ridxs,
+                      std::vector<common::Span<GradientPairInt64>> const& hists);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 

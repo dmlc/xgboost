@@ -10,11 +10,9 @@
 #include <algorithm>    // for min
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
-#include <cstdlib>      // for malloc, free
-#include <new>          // for bad_alloc
 #include <thread>       // for thread
 #include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
-#include <utility>      // for forward
+#include <utility>      // for forward, move
 #include <vector>       // for vector
 
 #include "common.h"  // for DivRoundUp
@@ -37,6 +35,39 @@ inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max
 #endif  // defined(_MSC_VER)
 
 namespace xgboost::common {
+/**
+ * @brief Execution metadata for one invocation of a parallel loop.
+ *
+ * IDs satisfy 0 <= Id() < requested threads. Serial calls supply ID 0,
+ * including nested serial calls. IDs do not guarantee a work assignment
+ * across separate loops.
+ */
+class Worker {
+  std::int32_t id_;
+
+ public:
+  explicit Worker(std::int32_t id) : id_{id} {}
+
+  [[nodiscard]] std::int32_t Id() const { return id_; }
+};
+
+/** @brief Opt in to receiving Worker as the final callback argument. */
+template <typename Fn>
+class WithWorker {
+  Fn fn_;
+
+ public:
+  explicit WithWorker(Fn fn) : fn_{std::move(fn)} {}
+
+  // The returned callable borrows *this and must not outlive it.
+  auto Bind(std::int32_t n_threads) & {
+    return [this, n_threads](auto&&... args) -> decltype(auto) {
+      auto worker = Worker{n_threads == 1 ? 0 : omp_get_thread_num()};
+      return fn_(std::forward<decltype(args)>(args)..., worker);
+    };
+  }
+};
+
 // Represent simple range of indexes [begin, end)
 // Inspired by tbb::blocked_range
 class Range1d {
@@ -158,6 +189,11 @@ void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& f
   exc.Rethrow();
 }
 
+template <typename Fn>
+void ParallelFor2d(BlockedSpace2d const& space, std::int32_t n_threads, WithWorker<Fn>&& fn) {
+  ParallelFor2d(space, n_threads, fn.Bind(n_threads));
+}
+
 /**
  * OpenMP schedule
  */
@@ -243,6 +279,11 @@ void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
   exc.Rethrow();
 }
 
+template <typename Index, typename Fn>
+void ParallelFor(Index size, std::int32_t n_threads, Sched sched, WithWorker<Fn>&& fn) {
+  ParallelFor(size, n_threads, sched, fn.Bind(n_threads));
+}
+
 template <typename Index, typename Func>
 void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
   ParallelFor(size, n_threads, Sched::Static(), std::forward<Func>(fn));
@@ -270,6 +311,11 @@ void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
   });
 }
 
+template <std::size_t kBlockOfRowsSize, typename Index, typename Fn>
+void ParallelFor1d(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
+  ParallelFor1d<kBlockOfRowsSize>(size, n_threads, fn.Bind(n_threads));
+}
+
 /** @brief Use n_threads as the number of blocks. */
 template <typename Index, typename Func>
 void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
@@ -283,6 +329,11 @@ void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
     }
     fn(common::Range1d{blk_beg, blk_end});
   });
+}
+
+template <typename Index, typename Fn>
+void ParallelForBlock(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
+  ParallelForBlock(size, n_threads, fn.Bind(n_threads));
 }
 
 inline std::int32_t OmpGetThreadLimit() {
@@ -316,10 +367,7 @@ class MemStackAllocator {
     if (MaxStackSize >= required_size_) {
       ptr_ = stack_mem_;
     } else {
-      ptr_ = reinterpret_cast<T*>(std::malloc(required_size_ * sizeof(T)));
-    }
-    if (!ptr_) {
-      throw std::bad_alloc{};
+      ptr_ = new T[required_size_];
     }
   }
   MemStackAllocator(size_t required_size, T init) : MemStackAllocator{required_size} {
@@ -328,7 +376,7 @@ class MemStackAllocator {
 
   ~MemStackAllocator() {
     if (required_size_ > MaxStackSize) {
-      std::free(ptr_);
+      delete[] ptr_;
     }
   }
   T& operator[](size_t i) { return ptr_[i]; }

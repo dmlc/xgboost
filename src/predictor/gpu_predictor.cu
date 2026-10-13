@@ -32,7 +32,6 @@
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree, MultiTargetTreeView
-#include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
 
@@ -118,8 +117,8 @@ struct DeviceAdapterLoader {
       dh::BlockFill(smem, shared_elements, std::numeric_limits<float>::quiet_NaN());
       __syncthreads();
       if (global_idx < n_samples) {
-        auto beg = global_idx * n_features;
-        auto end = (global_idx + 1) * n_features;
+        auto beg = static_cast<size_t>(global_idx) * n_features;
+        auto end = beg + n_features;
         for (size_t i = beg; i < end; ++i) {
           data::COOTuple const& e = this->batch_.GetElement(i);
           if (is_valid(e)) {
@@ -150,9 +149,8 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader*
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
     float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
-    bool is_missing = has_missing && common::CheckNAN(fvalue);
-    auto next = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing,
-                                                          tree.GetCategoriesMatrix());
+    auto next =
+        GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, tree.GetCategoriesMatrix());
     assert(nidx < next);
     nidx = next;
   }
@@ -217,14 +215,15 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
   }
 
   if (n_groups == 1u) {
-    float sum = 0;
+    // Match incremental training by accumulating onto the existing prediction.
+    float sum = d_out_predictions[global_idx];
     for (std::size_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
       auto const& d_tree = d_trees[tree_idx];
       auto const& sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
       float leaf = GetLeafWeight<has_missing>(global_idx, sc_tree, &loader);
       sum += leaf * tree_weights[tree_idx];
     }
-    d_out_predictions[global_idx] += sum;
+    d_out_predictions[global_idx] = sum;
   } else {
     for (std::size_t tree_idx = 0, k = d_trees.size(); tree_idx < k; tree_idx++) {
       // Both d_tree_group and d_tress are subset of trees.
@@ -481,153 +480,139 @@ void PredictFromLeafIdsCUDA(Context const* ctx,
   }
 }
 
+template <typename Adapter>
+void DispatchedInplacePredict(Context const* ctx, std::shared_ptr<Adapter> m,
+                              std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model,
+                              float missing, HostDeviceVector<float>* out_preds,
+                              bst_tree_t tree_begin, bst_tree_t tree_end,
+                              common::OptionalWeights tree_weights) {
+  CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
+      << "XGBoost is running on device: " << ctx->Device().Name() << ", "
+      << "but data is on: " << m->Device().Name();
+  InitOutPredictions(ctx, p_m->Info(), out_preds, model);
+  out_preds->SetDevice(m->Device());
+  using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
+
+  auto n_features = model.learner_model_state->num_feature;
+
+  DeviceModel d_model{ctx->Device(), model, false, tree_begin, tree_end, CopyViews{ctx}};
+
+  if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
+    if (m->HasCategorical()) {
+      auto new_enc = m->DCats();
+      LaunchPredict(ctx, false, new_enc, model, [&](auto&& cfg, auto&& acc) {
+        using EncAccessor = std::remove_reference_t<decltype(acc)>;
+        using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
+        using Loader =
+            typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
+        cfg.template AllocShmem<Loader>();
+        cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
+                                                 out_preds, tree_weights);
+      });
+      return;
+    }
+  }
+
+  LaunchPredict(ctx, false, enc::DeviceColumnsView{}, model, [&](auto&& cfg, auto&& acc) {
+    using EncAccessor = std::remove_reference_t<decltype(acc)>;
+    CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
+    using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
+    using Loader = typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
+    cfg.template AllocShmem<Loader>();
+    cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
+                                             out_preds, tree_weights);
+  });
+}
+
+[[nodiscard]] bool InplacePredictCUDA(Context const* ctx, std::shared_ptr<DMatrix> p_m,
+                                      gbm::GBTreeModel const& model, float missing,
+                                      HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
+                                      bst_tree_t tree_end) {
+  xgboost_NVTX_FN_RANGE();
+  curt::SetDevice(ctx->Ordinal());
+  auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
+  CHECK(proxy) << error::InplacePredictProxy();
+  if (tree_end == 0) {
+    tree_end = model.trees.size();
+  }
+  HostDeviceVector<float> weights;
+  auto pred_weights = common::OptionalWeights{1.0f};
+  auto const* tree_weights = model.TreeWeights();
+  if (tree_weights != nullptr) {
+    weights.SetDevice(ctx->Device());
+    weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
+                                tree_weights->cbegin() + tree_end);
+    pred_weights = common::MakeOptionalWeights(ctx->Device(), weights);
+  }
+  bool type_error = false;
+  data::cuda_impl::DispatchAny<false>(
+      proxy,
+      [&](auto x) {
+        CheckProxyDMatrix(x, proxy, model.learner_model_state);
+        DispatchedInplacePredict(ctx, x, p_m, model, missing, out_preds, tree_begin, tree_end,
+                                 pred_weights);
+      },
+      &type_error);
+  return !type_error;
+}
+
+common::KernelRegistration<InplacePredictKernel> const kInplacePredictCUDA{DeviceOrd::kCUDA,
+                                                                           &InplacePredictCUDA};
+
 common::KernelRegistration<PredictFromLeafIdsKernel> const kPredictFromLeafIdsCUDA{
     DeviceOrd::kCUDA, &PredictFromLeafIdsCUDA};
 
 common::KernelRegistration<PredictLeafKernel> const kPredictLeafCUDA{DeviceOrd::kCUDA,
                                                                      &PredictLeafCUDA};
 
-}  // namespace
-
-class GPUPredictor : public xgboost::Predictor {
- private:
-  void PredictDMatrix(DMatrix* p_fmat, HostDeviceVector<float>* out_preds,
+void PredictBatchCUDA(Context const* ctx, DMatrix* dmat, HostDeviceVector<float>* out_preds,
                       gbm::GBTreeModel const& model, bst_tree_t tree_begin, bst_tree_t tree_end,
-                      common::OptionalWeights tree_weights) const {
-    if (tree_end - tree_begin == 0) {
-      return;
-    }
-    out_preds->SetDevice(ctx_->Device());
-    auto const& info = p_fmat->Info();
+                      std::vector<float> const* tree_weights_override) {
+  xgboost_NVTX_FN_RANGE();
+  curt::SetDevice(ctx->Ordinal());
+  CHECK(ctx->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
+  if (tree_end == 0) {
+    tree_end = model.trees.size();
+  }
+  HostDeviceVector<float> weights;
+  auto pred_weights = common::OptionalWeights{1.0f};
+  auto const* tree_weights =
+      tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
+  if (tree_weights != nullptr) {
+    weights.SetDevice(ctx->Device());
+    weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
+                                tree_weights->cbegin() + tree_end);
+    pred_weights = common::MakeOptionalWeights(ctx->Device(), weights);
+  }
 
-    DeviceModel d_model{this->ctx_->Device(), model,    false,
-                        tree_begin,           tree_end, CopyViews{this->ctx_}};
+  if (tree_end - tree_begin == 0) {
+    return;
+  }
+  out_preds->SetDevice(ctx->Device());
 
-    CHECK_LE(p_fmat->Info().num_col_, model.learner_model_state->num_feature);
-    auto n_features = model.learner_model_state->num_feature;
+  DeviceModel d_model{ctx->Device(), model, false, tree_begin, tree_end, CopyViews{ctx}};
 
-    auto new_enc =
-        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
-    LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
-      bst_idx_t batch_offset = 0;
-      cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
-        using Loader = typename common::GetValueT<decltype(loader_t)>;
-        auto n_rows = batch.NumRows();
-        cfg.template LaunchPredictKernel<Loader>(
-            std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
-            batch_offset, out_preds, tree_weights);
-        batch_offset += n_rows * model.learner_model_state->OutputLength();
-      });
+  CHECK_LE(dmat->Info().num_col_, model.learner_model_state->num_feature);
+  auto n_features = model.learner_model_state->num_feature;
+
+  auto new_enc =
+      dmat->Cats()->NeedRecode() ? dmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
+  LaunchPredict(ctx, dmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
+    bst_idx_t batch_offset = 0;
+    cfg.ForEachBatch(dmat, [&](auto&& loader_t, auto&& batch) {
+      using Loader = typename common::GetValueT<decltype(loader_t)>;
+      auto n_rows = batch.NumRows();
+      cfg.template LaunchPredictKernel<Loader>(std::move(batch),
+                                               std::numeric_limits<float>::quiet_NaN(), n_features,
+                                               d_model, acc, batch_offset, out_preds, pred_weights);
+      batch_offset += n_rows * model.learner_model_state->OutputLength();
     });
-  }
+  });
+}
 
- public:
-  explicit GPUPredictor(Context const* ctx) : Predictor{ctx} {}
+common::KernelRegistration<PredictBatchKernel> const kPredictBatchCUDA{DeviceOrd::kCUDA,
+                                                                       &PredictBatchCUDA};
 
-  ~GPUPredictor() override {
-    if (ctx_->IsCUDA() && ctx_->Ordinal() < curt::AllVisibleGPUs()) {
-      dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    }
-  }
-
-  void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
-                    const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const* tree_weights_override = nullptr) const override {
-    xgboost_NVTX_FN_RANGE();
-    CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
-    if (tree_end == 0) {
-      tree_end = model.trees.size();
-    }
-    HostDeviceVector<float> weights;
-    auto pred_weights = common::OptionalWeights{1.0f};
-    auto const* tree_weights =
-        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
-    if (tree_weights != nullptr) {
-      weights.SetDevice(ctx_->Device());
-      weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
-                                  tree_weights->cbegin() + tree_end);
-      pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
-    }
-    this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
-  }
-
-  template <typename Adapter>
-  void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
-                                const gbm::GBTreeModel& model, float missing,
-                                HostDeviceVector<float>* out_preds, bst_tree_t tree_begin,
-                                bst_tree_t tree_end, common::OptionalWeights tree_weights) const {
-    CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
-        << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
-        << "but data is on: " << m->Device().Name();
-    InitOutPredictions(this->ctx_, p_m->Info(), out_preds, model);
-    out_preds->SetDevice(m->Device());
-    using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
-
-    auto n_features = model.learner_model_state->num_feature;
-
-    DeviceModel d_model{ctx_->Device(), model, false, tree_begin, tree_end, CopyViews{this->ctx_}};
-
-    if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
-      if (m->HasCategorical()) {
-        auto new_enc = m->DCats();
-        LaunchPredict(this->ctx_, false, new_enc, model, [&](auto&& cfg, auto&& acc) {
-          using EncAccessor = std::remove_reference_t<decltype(acc)>;
-          using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
-          using Loader =
-              typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
-          cfg.template AllocShmem<Loader>();
-          cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                                   out_preds, tree_weights);
-        });
-        return;
-      }
-    }
-
-    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, model, [&](auto&& cfg, auto&& acc) {
-      using EncAccessor = std::remove_reference_t<decltype(acc)>;
-      CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
-      using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
-      using Loader =
-          typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
-      cfg.template AllocShmem<Loader>();
-      cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                               out_preds, tree_weights);
-    });
-  }
-
-  [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
-                                    float missing, HostDeviceVector<float>* out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
-    xgboost_NVTX_FN_RANGE();
-    auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
-    CHECK(proxy) << error::InplacePredictProxy();
-    if (tree_end == 0) {
-      tree_end = model.trees.size();
-    }
-    HostDeviceVector<float> weights;
-    auto pred_weights = common::OptionalWeights{1.0f};
-    auto const* tree_weights = model.TreeWeights();
-    if (tree_weights != nullptr) {
-      weights.SetDevice(ctx_->Device());
-      weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
-                                  tree_weights->cbegin() + tree_end);
-      pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
-    }
-    bool type_error = false;
-    data::cuda_impl::DispatchAny<false>(
-        proxy,
-        [&](auto x) {
-          CheckProxyDMatrix(x, proxy, model.learner_model_state);
-          this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end,
-                                         pred_weights);
-        },
-        &type_error);
-    return !type_error;
-  }
-};
-
-XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
-    .describe("Make predictions using GPU.")
-    .set_body([](Context const* ctx) { return new GPUPredictor(ctx); });
+}  // namespace
 
 }  // namespace xgboost::predictor

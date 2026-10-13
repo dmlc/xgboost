@@ -380,7 +380,7 @@ class SparsePage {
   /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) { base_rowid = row_id; }
 
-  [[nodiscard]] SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
+  [[nodiscard]] SparsePage GetTranspose(bst_feature_t num_columns, std::int32_t n_threads) const;
 
   /**
    * \brief Sort the column index.

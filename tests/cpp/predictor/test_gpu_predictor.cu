@@ -5,7 +5,6 @@
 #include <xgboost/c_api.h>
 #include <xgboost/learner.h>
 #include <xgboost/logging.h>
-#include <xgboost/predictor.h>
 
 #include <limits>
 #include <memory>
@@ -32,11 +31,6 @@ TEST(GPUPredictor, Basic) {
   auto cpu_lparam = MakeCUDACtx(-1);
   auto gpu_lparam = MakeCUDACtx(0);
 
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
-
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
@@ -51,9 +45,11 @@ TEST(GPUPredictor, Basic) {
     HostDeviceVector<float> cpu_out_predictions;
 
     InitOutPredictions(&gpu_lparam, dmat->Info(), &gpu_out_predictions, model);
-    gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(
+        &gpu_lparam, dmat.get(), &gpu_out_predictions, model, 0, 0, nullptr);
     InitOutPredictions(&cpu_lparam, dmat->Info(), &cpu_out_predictions, model);
-    cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(
+        &cpu_lparam, dmat.get(), &cpu_out_predictions, model, 0, 0, nullptr);
 
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
     std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
@@ -119,14 +115,13 @@ void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_feature
   LearnerModelState mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
   std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, n_classes);
   auto const& model = *p_model;
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", ctx));
 
   for (auto p_fmat : {create_fn(400), create_fn(800), create_fn(2048)}) {
     p_fmat->Info().base_margin_ = linalg::Constant(ctx, 0.5f, p_fmat->Info().num_row_, n_classes);
     HostDeviceVector<float> out_predictions;
     InitOutPredictions(ctx, p_fmat->Info(), &out_predictions, model);
-    gpu_predictor->PredictBatch(p_fmat.get(), &out_predictions, model, 0);
+    common::DispatchKernel<predictor::PredictBatchKernel>(ctx, p_fmat.get(), &out_predictions,
+                                                          model, 0, 0, nullptr);
     ASSERT_EQ(out_predictions.Size(), p_fmat->Info().num_row_ * n_classes);
     auto const& h_predt = out_predictions.ConstHostVector();
     for (size_t i = 0; i < h_predt.size() / n_classes; i++) {

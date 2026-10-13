@@ -35,6 +35,7 @@ public class XGBoost {
   public static final String[] MAXIMIZ_METRICES = {
     "auc", "aucpr", "pre", "pre@", "map", "ndcg",
     "auc@", "aucpr@", "map@", "ndcg@",
+    "ams@", "interval-regression-accuracy",
   };
 
   /**

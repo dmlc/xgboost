@@ -67,8 +67,7 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
 
 template <std::uint32_t kBlockThreads, typename Kernel>
 std::uint32_t EstimateGridSize(DeviceOrd device, Kernel kernel, std::size_t shared_mem) {
-  int n_mps = 0;
-  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device.ordinal));
+  auto n_mps = curt::GetMpCnt(device.ordinal);
   int n_blocks_per_mp = 0;
   dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
                                                               kBlockThreads, shared_mem));

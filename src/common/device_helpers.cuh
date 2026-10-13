@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <cub/cub.cuh>
+#include <cub/device/device_reduce.cuh>  // for DeviceReduce
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
@@ -708,6 +708,16 @@ void CopyTo(Src const &src, Dst *dst,
   static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
+
+// The temporary array can't be resized, it must have the same size as the source.
+template <class Src, typename T>
+void CopyTo(Src const &src, TemporaryArray<T> *dst, ::xgboost::curt::StreamRef stream) {
+  CHECK_EQ(src.size(), dst->size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  static_assert(std::is_same_v<SVT, T>, "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(dst->data().get(), src.data(), src.size() * sizeof(T),
+                                cudaMemcpyDefault, stream));
 }
 
 /**

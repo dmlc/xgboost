@@ -17,7 +17,6 @@
 #include <tuple>        // for get, apply
 #include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "../collective/allgather.h"          // for AllgatherStrings
 #include "../collective/allreduce.h"          // for Allreduce
 #include "../common/algorithm.h"              // for StableSort
 #include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
@@ -1002,27 +1001,35 @@ template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
     float missing, int nthread, std::string const& cache_prefix);
 
-SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
+SparsePage SparsePage::GetTranspose(bst_feature_t num_columns, std::int32_t n_threads) const {
+  CHECK_GE(n_threads, 1);
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
   builder.InitBudget(num_columns, n_threads);
-  long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
+  // Use the same logical partitions for budgeting and filling, regardless of the
+  // number of workers the runtime supplies to either pass.
+  auto const block_size = common::DivRoundUp(this->Size(), static_cast<std::size_t>(n_threads));
   auto page = this->GetView();
-  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto inst = page[i];
-    for (const auto& entry : inst) {
-      builder.AddBudget(entry.index, tid);
+  auto for_each_row = [&](auto&& fn) {
+    common::ParallelFor(n_threads, n_threads, [&](auto block_id) {
+      auto begin = block_id * block_size;
+      auto end = std::min(begin + block_size, this->Size());
+      for (auto i = begin; i < end; ++i) {
+        fn(i, block_id);
+      }
+    });
+  };
+  for_each_row([&](auto i, auto block_id) {
+    for (auto const& entry : page[i]) {
+      builder.AddBudget(entry.index, block_id);
     }
   });
   builder.InitStorage();
-  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto inst = page[i];
-    for (const auto& entry : inst) {
+  for_each_row([&](auto i, auto block_id) {
+    for (auto const& entry : page[i]) {
       builder.Push(entry.index, Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
-                   tid);
+                   block_id);
     }
   });
 
@@ -1039,16 +1046,20 @@ bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_data = this->data.HostVector();
   n_threads = std::max(std::min(static_cast<std::size_t>(n_threads), this->Size()),
                        static_cast<std::size_t>(1));
-  std::vector<int32_t> is_sorted_tloc(n_threads, 0);
-  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
-    auto beg = h_offset[i];
-    auto end = h_offset[i + 1];
-    is_sorted_tloc[omp_get_thread_num()] +=
-        !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  common::MemStackAllocator<bool, common::DefaultMaxThreads()> sorted(n_threads, true);
+  auto const block_size = common::DivRoundUp(this->Size(), static_cast<std::size_t>(n_threads));
+  common::ParallelFor(n_threads, n_threads, [&](auto block_id) {
+    auto const begin = block_id * block_size;
+    auto const end = std::min(begin + block_size, this->Size());
+    for (auto i = begin; i < end; ++i) {
+      if (!std::is_sorted(h_data.begin() + h_offset[i], h_data.begin() + h_offset[i + 1],
+                          Entry::CmpIndex)) {
+        sorted[block_id] = false;
+        break;
+      }
+    }
   });
-  auto is_sorted = std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(),
-                                   static_cast<size_t>(0)) == this->Size();
-  return is_sorted;
+  return std::all_of(sorted.cbegin(), sorted.cend(), [](bool value) { return value; });
 }
 
 void SparsePage::SortIndices(int32_t n_threads) {

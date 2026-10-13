@@ -23,7 +23,6 @@
 #include "xgboost/linalg.h"
 #include "xgboost/linear_updater.h"
 #include "xgboost/logging.h"
-#include "xgboost/predictor.h"
 
 namespace xgboost::gbm {
 DMLC_REGISTRY_FILE_TAG(gblinear);

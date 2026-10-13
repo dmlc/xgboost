@@ -53,6 +53,39 @@ void TestSegmentedArgSort() {
 
 TEST(Algorithm, SegmentedArgSort) { TestSegmentedArgSort(); }
 
+TEST(Algorithm, SegmentedSortKeysInPlace) {
+  auto ctx = MakeCUDACtx(0);
+  // Include an empty segment and an untouched prefix and suffix.
+  std::vector<int> input{99, 4, 1, 3, 2, 8, 6, 7, 88};
+  std::vector<std::size_t> offsets{1, 5, 5, 8};
+  dh::device_vector<std::size_t> groups(offsets);
+  Span<std::size_t const> group_ptr{groups.data().get(), groups.size()};
+  for (bool descending : {false, true}) {
+    dh::device_vector<int> values(input);
+    if (descending) {
+      SegmentedSortKeys<true>(&ctx, group_ptr, dh::ToSpan(values));
+    } else {
+      SegmentedSortKeys<false>(&ctx, group_ptr, dh::ToSpan(values));
+    }
+    std::vector<int> result(values.size());
+    thrust::copy(values.begin(), values.end(), result.begin());
+    auto expected = descending ? std::vector<int>{99, 4, 3, 2, 1, 8, 7, 6, 88}
+                               : std::vector<int>{99, 1, 2, 3, 4, 6, 7, 8, 88};
+    EXPECT_EQ(result, expected);
+  }
+}
+
+TEST(Algorithm, InclusiveScanInPlace) {
+  auto ctx = MakeCUDACtx(0);
+  std::vector<int> input{1, 2, 3, 4};
+  dh::device_vector<int> values(input);
+  InclusiveScan(&ctx, values.data().get(), values.data().get(), std::plus<int>{},
+                std::size_t{input.size()});
+  std::vector<int> result(values.size());
+  thrust::copy(values.begin(), values.end(), result.begin());
+  EXPECT_EQ(result, (std::vector<int>{1, 3, 6, 10}));
+}
+
 TEST(Algorithm, GpuArgSort) {
   auto ctx = MakeCUDACtx(0);
 

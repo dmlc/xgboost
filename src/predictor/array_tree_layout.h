@@ -11,6 +11,7 @@
 #include <type_traits>  // for conditional_t
 
 #include "../common/categorical.h"  // for IsCat
+#include "../common/math.h"         // for CheckNAN
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -181,7 +182,7 @@ class ArrayTreeLayout {
         auto const fvalue = feats[i].GetFvalue(split);
         if constexpr (any_missing) {
           bool const go_left =
-              feats[i].IsMissing(split) ? default_left_[node] : GetDecision(fvalue, node);
+              common::CheckNAN(fvalue) ? default_left_[node] : GetDecision(fvalue, node);
           p_nidx[i] = 2 * idx + !go_left;
         } else {
           p_nidx[i] = 2 * idx + !GetDecision(fvalue, node);

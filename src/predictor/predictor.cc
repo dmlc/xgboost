@@ -1,8 +1,6 @@
 /**
  * Copyright 2017-2025, XGBoost Contributors
  */
-#include "xgboost/predictor.h"
-
 #include <dmlc/registry.h>  // for DMLC_REGISTRY_LINK_TAG
 
 #include <cstdint>  // for int32_t
@@ -18,22 +16,6 @@
 #include "xgboost/learner.h"             // for LearnerModelState
 #include "xgboost/linalg.h"              // for Tensor, TensorView
 #include "xgboost/logging.h"             // for CHECK_EQ, CHECK_NE, LOG
-
-namespace dmlc {
-DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
-}  // namespace dmlc
-
-namespace xgboost {
-Predictor* Predictor::Create(std::string const& name, Context const* ctx) {
-  auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown predictor type " << name;
-  }
-  auto p_predictor = (e->body)(ctx);
-  return p_predictor;
-}
-
-}  // namespace xgboost
 
 namespace xgboost::predictor {
 namespace {

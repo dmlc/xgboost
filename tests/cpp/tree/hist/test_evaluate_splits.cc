@@ -124,7 +124,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
   hist.AllocateHistograms({0});
   auto const &elem = row_set_collection[0];
   common::BuildHist<false>(row_gpairs, common::Span{elem.begin(), elem.end()}, gmat, hist[0],
-                           force_read_by_column);
+                           force_read_by_column, ctx.Threads());
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
