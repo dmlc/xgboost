@@ -34,7 +34,10 @@ using Executor = GlobalThreadPoolExecutor;
 // Inspired by tbb::blocked_range
 class Range1d {
  public:
-  Range1d(std::size_t begin, std::size_t end) : begin_{begin}, end_{end} { CHECK_LT(begin, end); }
+  Range1d(std::size_t begin, std::size_t end) : begin_{begin}, end_{end} {
+    // Avoid CHECK_LT's error-message temporary on the hot path.
+    CHECK(begin < end);
+  }
 
   [[nodiscard]] std::size_t begin() const {  // NOLINT
     return begin_;

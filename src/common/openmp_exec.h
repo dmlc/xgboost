@@ -9,7 +9,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 
-#include "executor.h"         // for Sched
+#include "executor.h"         // for Sched, BindWorker
 #include "xgboost/logging.h"  // for CHECK_GE
 
 #if defined(_MSC_VER)
