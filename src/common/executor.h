@@ -40,12 +40,12 @@ class WithWorker {
 namespace detail {
 // Bind an explicit worker only for callbacks that opt in with WithWorker.
 template <typename Fn, typename GetWorker>
-Fn& BindWorker(Fn& fn, GetWorker) {
+Fn& BindWorker(Fn& fn, GetWorker) {  // NOLINT
   return fn;
 }
 
 template <typename Fn, typename GetWorker>
-auto BindWorker(WithWorker<Fn>& fn, GetWorker get_worker) {
+auto BindWorker(WithWorker<Fn>& fn, GetWorker get_worker) {  // NOLINT
   return [&fn, get_worker](auto&&... args) -> decltype(auto) {
     return fn(get_worker(), std::forward<decltype(args)>(args)...);
   };
@@ -53,14 +53,14 @@ auto BindWorker(WithWorker<Fn>& fn, GetWorker get_worker) {
 
 // Adapt loop arguments while preserving whether the callback needs a worker ID.
 template <typename Fn, typename Adapter>
-auto TransformCallback(Fn& fn, Adapter adapter) {
+auto TransformCallback(Fn& fn, Adapter adapter) {  // NOLINT
   return [&fn, adapter](auto i) {
     return adapter(fn, i);
   };
 }
 
 template <typename Fn, typename Adapter>
-auto TransformCallback(WithWorker<Fn>& fn, Adapter adapter) {
+auto TransformCallback(WithWorker<Fn>& fn, Adapter adapter) {  // NOLINT
   return WithWorker{[&fn, adapter](auto i, Worker worker) {
     auto callback = BindWorker(fn, [worker] { return worker; });
     return adapter(callback, i);
