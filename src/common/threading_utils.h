@@ -17,17 +17,17 @@
 #include "xgboost/logging.h"      // for CHECK_LT
 #include "xgboost/string_view.h"  // for StringView
 
-#if defined(_OPENMP)
-#include "openmp_exec.h"  // for OpenMPExecutor
-#else
+#if defined(XGBOOST_USE_THREADPOOL)
 #include "threadpool.h"  // for GlobalThreadPoolExecutor
+#else
+#include "openmp_exec.h"  // for OpenMPExecutor
 #endif
 
 namespace xgboost::common {
-#if defined(_OPENMP)
-using Executor = OpenMPExecutor;
-#else
+#if defined(XGBOOST_USE_THREADPOOL)
 using Executor = GlobalThreadPoolExecutor;
+#else
+using Executor = OpenMPExecutor;
 #endif
 
 // Represent simple range of indexes [begin, end)

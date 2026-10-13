@@ -146,7 +146,7 @@ function(xgboost_set_cuda_flags target)
     message(FATAL_ERROR "Unsupported CUDA compiler: ${CMAKE_CUDA_COMPILER_ID}")
   endif()
 
-  if(OpenMP_CXX_FLAGS)
+  if(USE_OPENMP AND OpenMP_CXX_FLAGS)
     separate_arguments(cuda_openmp_flags NATIVE_COMMAND "${OpenMP_CXX_FLAGS}")
     xgboost_cuda_wrap_host_compiler_options(cuda_host_flags ${cuda_openmp_flags})
     list(APPEND cuda_compile_options ${cuda_host_flags})
@@ -281,6 +281,9 @@ endmacro()
 
 # Custom definitions used in xgboost.
 macro(xgboost_target_defs target)
+  if(USE_THREADPOOL)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_THREADPOOL=1)
+  endif()
   if(NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
     target_compile_definitions(${target}
       PRIVATE

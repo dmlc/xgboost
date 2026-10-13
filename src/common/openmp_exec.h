@@ -19,10 +19,13 @@
 #include "xgboost/base.h"  // for omp_ulong
 #endif
 
-#if defined(_OPENMP)
 namespace xgboost::common {
+// Without OpenMP, the pragmas are ignored and dmlc's OpenMP stubs run loops serially.
 struct OpenMPExecutor {
   [[nodiscard]] static std::int32_t MaxNumWorkers() noexcept {
+#if !defined(_OPENMP)
+    return 1;
+#else
     if (omp_in_parallel()) {
       return 1;
     }
@@ -34,6 +37,7 @@ struct OpenMPExecutor {
 #endif
     CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
     return std::min({omp_get_num_procs(), omp_get_max_threads(), limit});
+#endif
   }
 
   template <typename Index, typename Func>
@@ -101,6 +105,9 @@ struct OpenMPExecutor {
   static void Execute2d(Space const& space, std::int32_t n_threads, Func&& fn) {
     std::size_t n_blocks_in_space = space.Size();
     CHECK_GE(n_threads, 1);
+#if !defined(_OPENMP)
+    n_threads = 1;
+#endif
 
     dmlc::OMPException exc;
 #pragma omp parallel num_threads(n_threads)
@@ -122,4 +129,3 @@ struct OpenMPExecutor {
   }
 };
 }  // namespace xgboost::common
-#endif  // defined(_OPENMP)

@@ -192,6 +192,7 @@ install the package from source:
   - ``USE_DLOPEN_NCCL`` — load NCCL dynamically at runtime
   - ``HIDE_CXX_SYMBOLS`` — hide all C++ symbols in the shared library
   - ``USE_OPENMP`` — build with OpenMP (defaults to ON)
+  - ``USE_THREADPOOL`` — use the thread pool instead of OpenMP for parallel execution (defaults to OFF).
 
   .. note:: Verbose flag recommended
 

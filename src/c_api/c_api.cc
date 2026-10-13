@@ -108,6 +108,12 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["USE_OPENMP"] = Boolean{false};
 #endif
 
+#if defined(XGBOOST_USE_THREADPOOL)
+  info["USE_THREADPOOL"] = Boolean{true};
+#else
+  info["USE_THREADPOOL"] = Boolean{false};
+#endif
+
 #if defined(__GNUC__) && !defined(__clang__)
   info["GCC_VERSION"] = std::vector<Json>{Json{Integer{__GNUC__}}, Json{Integer{__GNUC_MINOR__}},
                                           Json{Integer{__GNUC_PATCHLEVEL__}}};
