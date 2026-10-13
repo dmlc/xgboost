@@ -16,7 +16,7 @@
 #include <utility>             // for move
 #include <vector>              // for vector
 
-#include "threading_utils.h"      // for NameThread
+#include "utils.h"                // for MakeCleanup
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
@@ -66,14 +66,7 @@ class ThreadPool {
     this->EnsureCapacity(n_threads);
   }
 
-  void EnsureCapacity(std::int32_t n_threads) {
-    std::unique_lock lock{grow_mu_};
-    for (auto i = static_cast<std::int32_t>(pool_.size()); i < n_threads; ++i) {
-      pool_.emplace_back(worker_fn_);
-      std::string name_i = name_ + "-" + std::to_string(i);
-      NameThread(&pool_.back(), name_i);
-    }
-  }
+  void EnsureCapacity(std::int32_t n_threads);
 
   ~ThreadPool() {
     std::unique_lock lock{mu_};
@@ -131,4 +124,41 @@ class ThreadPool {
     return static_cast<std::int32_t>(pool_.size());
   }
 };
+
+ThreadPool* GetGlobalThreadPool(std::int32_t n_threads);
+
+template <typename Index, typename Func>
+void GlobalThreadPoolExecutor(Index size, std::int32_t n_threads, Func&& fn) {
+  auto& pool = *GetGlobalThreadPool(n_threads);
+  std::vector<std::future<void>> futures;
+  futures.reserve(n_threads);
+
+  // The drain is used to handle submit failure.
+  auto drain = common::MakeCleanup([&] {
+    for (auto& future : futures) {
+      if (future.valid()) {
+        future.wait();
+      }
+    }
+  });
+
+  auto const block_size = DivRoundUp(size, static_cast<std::size_t>(n_threads));
+  auto worker_fn = [&](Index block_id) {
+    auto const begin = block_id * block_size;
+    auto const end = std::min(begin + block_size, size);
+    for (auto i = begin; i < end; ++i) {
+      fn(i);
+    }
+  };
+  for (std::int32_t t = 0; t < n_threads; ++t) {
+    futures.emplace_back(pool.Submit(worker_fn));
+  }
+  // After submitting all tasks:
+  for (auto& fut : futures) {
+    fut.wait();  // Waits without rethrowing the task's exception.
+  }
+  for (auto& fut : futures) {
+    fut.get();
+  }
+}
 }  // namespace xgboost::common

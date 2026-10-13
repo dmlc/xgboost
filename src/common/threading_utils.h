@@ -10,15 +10,12 @@
 #include <algorithm>    // for min
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
-#include <future>       // for future
 #include <thread>       // for thread
 #include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
 #include <utility>      // for forward, move
 #include <vector>       // for vector
 
 #include "common.h"  // for DivRoundUp
-#include "threadpool.h"
-#include "utils.h"  // for MakeCleanup
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // for StringView
 
@@ -214,43 +211,6 @@ struct Sched {
   Sched static Static(size_t n = 0) { return Sched{kStatic, n}; }
   Sched static Guided() { return Sched{kGuided}; }
 };
-
-template <typename Index, typename Func>
-void ThreadPoolExecutor(Index size, std::int32_t n_threads, Func&& fn) {
-  static ThreadPool pool("te", 1, InitNewThread{});
-  pool.EnsureCapacity(n_threads);
-
-  std::vector<std::future<void>> futures;
-  futures.reserve(n_threads);
-
-  // The drain is used to handle submit failure.
-  auto drain = common::MakeCleanup([&] {
-    for (auto& future : futures) {
-      if (future.valid()) {
-        future.wait();
-      }
-    }
-  });
-
-  auto const block_size = DivRoundUp(size, static_cast<std::size_t>(n_threads));
-  auto worker_fn = [&](Index block_id) {
-    auto const begin = block_id * block_size;
-    auto const end = std::min(begin + block_size, size);
-    for (auto i = begin; i < end; ++i) {
-      fn(i);
-    }
-  };
-  for (std::int32_t t = 0; t < n_threads; ++t) {
-    futures.emplace_back(pool.Submit(worker_fn));
-  }
-  // After submitting all tasks:
-  for (auto& fut : futures) {
-    fut.wait();  // Waits without rethrowing the task's exception.
-  }
-  for (auto& fut : futures) {
-    fut.get();
-  }
-}
 
 template <typename Index, typename Func>
 void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
