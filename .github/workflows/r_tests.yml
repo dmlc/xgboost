@@ -59,10 +59,16 @@ jobs:
 
   test-R-on-Debian:
     name: Test R package on Debian
-    runs-on: ubuntu-latest
+    # Keep the multi-GB compiler cache outside GitHub's shared cache quota.
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=r-debian
+      - extras=s3-cache
     container:
       image: rhub/ubuntu-release # rhub uses ubuntu for debian tests.
     steps:
+      - uses: runs-on/action@v2
       - name: Install system dependencies
         run: |
           # Must run before checkout to have the latest git installed.
