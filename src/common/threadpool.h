@@ -2,21 +2,25 @@
  * Copyright 2024-2026, XGBoost Contributors
  */
 #pragma once
+#include <algorithm>           // for max, min
 #include <condition_variable>  // for condition_variable
+#include <cstddef>             // for size_t
 #include <cstdint>             // for int32_t
 #include <exception>           // for current_exception
 #include <functional>          // for function
-#include <future>              // for promise
+#include <future>              // for future, promise
 #include <memory>              // for make_shared
 #include <mutex>               // for mutex, unique_lock
 #include <queue>               // for queue
 #include <string>              // for string
 #include <thread>              // for thread
-#include <type_traits>         // for invoke_result_t
-#include <utility>             // for move
+#include <type_traits>         // for invoke_result_t, is_void_v
+#include <utility>             // for forward, move
 #include <vector>              // for vector
 
+#include "executor.h"             // for Sched
 #include "utils.h"                // for MakeCleanup
+#include "xgboost/logging.h"      // for CHECK_GE
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
@@ -128,17 +132,35 @@ class ThreadPool {
 ThreadPool* GetGlobalThreadPool(std::int32_t n_threads);
 
 struct GlobalThreadPoolExecutor {
-  [[nodiscard]] std::int32_t MaxNumWorkers() const noexcept {
-    return std::thread::hardware_concurrency();
-  }
+  [[nodiscard]] static std::int32_t MaxNumWorkers() noexcept;
 
+  // Scheduling hints currently use contiguous blocks in the pool executor.
   template <typename Index, typename Func>
-  void Execute(Index size, std::int32_t n_threads, Func&& fn) {
+  static void Execute(Index size, std::int32_t n_threads, Sched, Func&& fn) {
+    CHECK_GE(n_threads, 1);
+    if (size <= 0) {
+      return;
+    }
+    n_threads = std::min<std::size_t>(n_threads, size);
+    auto const length = static_cast<std::size_t>(size);
+    auto const block_size = length / n_threads + (length % n_threads != 0);
+    auto run = [&](std::int32_t t) {
+      auto&& callback = detail::BindWorker(fn, [t] { return Worker{t}; });
+      auto const begin = t * block_size;
+      auto const end = std::min(begin + block_size, length);
+      for (auto i = begin; i < end; ++i) {
+        callback(static_cast<Index>(i));
+      }
+    };
+    if (n_threads == 1) {
+      run(0);
+      return;
+    }
     auto& pool = *GetGlobalThreadPool(n_threads);
     std::vector<std::future<void>> futures;
     futures.reserve(n_threads);
 
-    // The drain is used to handle submit failure.
+    // Keep borrowed callback state alive on either submission or task failure.
     auto drain = common::MakeCleanup([&] {
       for (auto& future : futures) {
         if (future.valid()) {
@@ -147,24 +169,20 @@ struct GlobalThreadPoolExecutor {
       }
     });
 
-    auto const block_size = DivRoundUp(size, static_cast<std::size_t>(n_threads));
-    auto worker_fn = [&](Index block_id) {
-      auto const begin = block_id * block_size;
-      auto const end = std::min(begin + block_size, size);
-      for (auto i = begin; i < end; ++i) {
-        fn(i);
-      }
-    };
     for (std::int32_t t = 0; t < n_threads; ++t) {
-      futures.emplace_back(pool.Submit(worker_fn));
-    }
-    // After submitting all tasks:
-    for (auto& fut : futures) {
-      fut.wait();  // Waits without rethrowing the task's exception.
+      futures.emplace_back(pool.Submit([&, t] { run(t); }));
     }
     for (auto& fut : futures) {
       fut.get();
     }
+  }
+
+  template <typename Space, typename Func>
+  static void Execute2d(Space const& space, std::int32_t n_threads, Func&& fn) {
+    Execute(space.Size(), n_threads, Sched::Static(),
+            detail::TransformCallback(fn, [&](auto& callback, auto i) {
+              callback(space.GetFirstDimension(i), space.GetRange(i));
+            }));
   }
 };
 }  // namespace xgboost::common

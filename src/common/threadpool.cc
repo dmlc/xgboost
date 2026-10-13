@@ -3,10 +3,22 @@
  */
 #include "threadpool.h"
 
+#include <algorithm>  // for max, min
+#include <cstdint>    // for int32_t
+#include <mutex>      // for unique_lock
+#include <string>     // for string, to_string
+#include <thread>     // for thread
+
 #include "threading_utils.h"        // for NameThread
-#include "xgboost/global_config.h"  // for InitNewThread
+#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore, InitNewThread
 
 namespace xgboost::common {
+std::int32_t GlobalThreadPoolExecutor::MaxNumWorkers() noexcept {
+  auto limit = std::max(1u, std::thread::hardware_concurrency());
+  auto configured = GlobalConfigThreadLocalStore::Get()->nthread;
+  return configured > 0 ? std::min(limit, static_cast<unsigned>(configured)) : limit;
+}
+
 void ThreadPool::EnsureCapacity(std::int32_t n_threads) {
   std::unique_lock lock{grow_mu_};
   for (auto i = static_cast<std::int32_t>(pool_.size()); i < n_threads; ++i) {
