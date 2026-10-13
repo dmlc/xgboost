@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkException
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.functions.col
@@ -73,6 +73,9 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(model.getAlpha === 0.97)
     assert(model.getLeafPredictionCol === "leaf")
     assert(model.getContribPredictionCol === "contrib")
+
+    assert(!estimator.getEnableSparseDataOptim)
+    assert(!model.getEnableSparseDataOptim)
   }
 
   test("camel case parameters") {
@@ -80,25 +83,29 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       "max_depth" -> 5,
       "featuresCol" -> "abc",
       "num_workers" -> 2,
-      "numRound" -> 11
+      "numRound" -> 11,
+      "enable_sparse_data_optim" -> true
     )
     val estimator = new XGBoostClassifier(xgbParams)
     assert(estimator.getFeaturesCol === "abc")
     assert(estimator.getNumWorkers === 2)
     assert(estimator.getNumRound === 11)
     assert(estimator.getMaxDepth === 5)
+    assert(estimator.getEnableSparseDataOptim)
 
     val xgbParams1: Map[String, Any] = Map(
       "maxDepth" -> 5,
       "features_col" -> "abc",
       "numWorkers" -> 2,
-      "num_round" -> 11
+      "num_round" -> 11,
+      "enableSparseDataOptim" -> true
     )
     val estimator1 = new XGBoostClassifier(xgbParams1)
     assert(estimator1.getFeaturesCol === "abc")
     assert(estimator1.getNumWorkers === 2)
     assert(estimator1.getNumRound === 11)
     assert(estimator1.getMaxDepth === 5)
+    assert(estimator1.getEnableSparseDataOptim)
   }
 
   test("get xgboost parameters") {
@@ -109,12 +116,52 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       "num_workers" -> 2,
       "tree_method" -> "hist",
       "numRound" -> 11,
+      "enable_sparse_data_optim" -> true,
       "not_exist_parameters" -> "hello"
     )
     val estimator = new XGBoostClassifier(params)
     val xgbParams = estimator.getXGBoostParams
     assert(xgbParams.size === 2)
     assert(xgbParams.contains("max_depth") && xgbParams.contains("tree_method"))
+  }
+
+  test("sparse data optimization parameter validation") {
+    val vectorDf = smallBinaryClassificationVector
+
+    val missingError = intercept[IllegalArgumentException] {
+      new XGBoostClassifier()
+        .setEnableSparseDataOptim(true)
+        .validate(vectorDf)
+    }
+    assert(missingError.getMessage.contains("missing must be 0.0"))
+
+    new XGBoostClassifier()
+      .setEnableSparseDataOptim(true)
+      .setMissing(0.0f)
+      .validate(vectorDf)
+
+    val arrayDf = ss.createDataFrame(sc.parallelize(Seq(
+      (0.0, Array(1.0f, 2.0f))
+    ))).toDF("label", "features")
+    val featureTypeError = intercept[IllegalArgumentException] {
+      new XGBoostClassifier()
+        .setEnableSparseDataOptim(true)
+        .setMissing(0.0f)
+        .validate(arrayDf)
+    }
+    assert(featureTypeError.getMessage.contains("featuresCol must have Spark ML Vector type"))
+
+    val columnarDf = ss.createDataFrame(sc.parallelize(Seq(
+      (0.0, 1.0, 2.0)
+    ))).toDF("label", "feature_0", "feature_1")
+    val featuresColsError = intercept[IllegalArgumentException] {
+      new XGBoostClassifier()
+        .setEnableSparseDataOptim(true)
+        .setMissing(0.0f)
+        .setFeaturesCol(Array("feature_0", "feature_1"))
+        .validate(columnarDf)
+    }
+    assert(featuresColsError.getMessage.contains("featuresCols is not supported"))
   }
 
   test("nthread") {
@@ -197,6 +244,166 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(predictPoint.indices() === trainPoint.indices())
     assert(predictPoint.values() === trainPoint.values())
     assert(predictPoint.size() === trainPoint.size())
+  }
+
+  test("asXGB preserves a sparse vector when sparse data optimization is enabled") {
+    import Utils.MLVectorToXGBLabeledPoint
+
+    val sparse = Vectors.sparse(1000000, Array(1, 999999), Array(2.2, 4.4))
+    val point = sparse.asXGB(enableSparseDataOptim = true)
+
+    assert(point.size() === 1000000)
+    assert(point.indices() === Array(1, 999999))
+    assert(point.values() === Array(2.2f, 4.4f))
+
+    val dense = Vectors.dense(1.0, 0.0, 3.0)
+    val densePoint = dense.asXGB(enableSparseDataOptim = true)
+    assert(densePoint.indices() == null)
+    assert(densePoint.values() === Array(1.0f, 0.0f, 3.0f))
+  }
+
+  test("sparse data optimization agrees with the training path") {
+    import Utils.MLVectorToXGBLabeledPoint
+
+    val sparse = Vectors.sparse(1000000, Array(1, 999999), Array(2.2, 4.4))
+    val df = ss.createDataFrame(sc.parallelize(Seq((1.0, sparse)))).toDF("label", "features")
+
+    val classifier = new XGBoostClassifier()
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+    val (input, columnIndexes) = classifier.preprocess(df)
+    val trainPoint = classifier.toXGBLabeledPoint(input, columnIndexes).collect()(0)
+    val predictPoint = sparse.asXGB(enableSparseDataOptim = true)
+
+    assert(trainPoint.indices() === Array(1, 999999))
+    assert(trainPoint.values() === Array(2.2f, 4.4f))
+    assert(predictPoint.indices() === trainPoint.indices())
+    assert(predictPoint.values() === trainPoint.values())
+    assert(predictPoint.size() === trainPoint.size())
+  }
+
+  test("sparse data optimization supports mixed dense and sparse vector rows") {
+    val rows: Seq[(Double, Vector)] = Seq(
+      (0.0, Vectors.dense(0.0, 2.0, 0.0, 4.0)),
+      (1.0, Vectors.sparse(4, Array(1, 3), Array(2.0, 4.0))))
+    val df = ss.createDataFrame(sc.parallelize(rows)).toDF("label", "features")
+
+    val classifier = new XGBoostClassifier()
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+    val (input, columnIndexes) = classifier.preprocess(df)
+    val points = classifier.toXGBLabeledPoint(input, columnIndexes).collect().sortBy(_.label)
+
+    assert(points(0).indices() == null)
+    assert(points(0).values() === Array(0.0f, 2.0f, 0.0f, 4.0f))
+    assert(points(1).indices() === Array(1, 3))
+    assert(points(1).values() === Array(2.0f, 4.0f))
+    assert(points.forall(_.size() === 4))
+  }
+
+  test("sparse data optimization parameter persists") {
+    val rows: Seq[(Double, Vector)] = Seq(
+      (0.0, Vectors.dense(1.0, 0.0, 3.0)),
+      (1.0, Vectors.sparse(3, Array(1), Array(2.0))))
+    val df = ss.createDataFrame(sc.parallelize(Seq.fill(4)(rows).flatten))
+      .toDF("label", "features")
+    val classifier = new XGBoostClassifier()
+      .setNumRound(1)
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+
+    val estimatorPath = new File(tempDir.toFile, "sparseEstimator").getPath
+    classifier.write.overwrite().save(estimatorPath)
+    val loadedClassifier = XGBoostClassifier.load(estimatorPath)
+    assert(loadedClassifier.getEnableSparseDataOptim)
+    assert(loadedClassifier.getMissing === 0.0f)
+
+    val model = loadedClassifier.fit(df)
+    val modelPath = new File(tempDir.toFile, "sparseModel").getPath
+    model.write.overwrite().save(modelPath)
+    val loadedModel = XGBoostClassificationModel.load(modelPath)
+    assert(loadedModel.getEnableSparseDataOptim)
+    assert(loadedModel.getMissing === 0.0f)
+    loadedModel.transform(df).collect()
+
+    val invalidModel = loadedModel.copy(ParamMap.empty).setMissing(Float.NaN)
+    val transformError = intercept[IllegalArgumentException] {
+      invalidModel.transform(df)
+    }
+    assert(transformError.getMessage.contains("missing must be 0.0"))
+  }
+
+  test("sparse data optimization preserves prediction semantics") {
+    val rng = new java.util.Random(42)
+    val size = 1000
+    val rows = (0 until 40).map { i =>
+      val idx = Array(i % size, (i * 23 + 101) % size).sorted.distinct
+      val vals = idx.map(_ => rng.nextDouble() + 1.0)
+      (i, i.toDouble % 3, Vectors.sparse(size, idx, vals))
+    }
+    val sparseDf = ss.createDataFrame(sc.parallelize(rows)).toDF("id", "label", "features")
+    val denseDf = ss.createDataFrame(sc.parallelize(
+      rows.map { case (id, label, v) => (id, label, Vectors.dense(v.toArray)) }))
+      .toDF("id", "label", "features")
+
+    val model = new XGBoostRegressor()
+      .setNumRound(5)
+      .setNumWorkers(1)
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+      .fit(sparseDf)
+
+    assert(model.getEnableSparseDataOptim)
+    val sparsePreds = model.transform(sparseDf).select("id", "prediction").collect()
+      .map(row => row.getInt(0) -> row.getDouble(1)).toMap
+    val densePreds = model.transform(denseDf).select("id", "prediction").collect()
+      .map(row => row.getInt(0) -> row.getDouble(1)).toMap
+    assert(sparsePreds.keySet === densePreds.keySet)
+    sparsePreds.foreach { case (id, fromSparse) =>
+      val fromDense = densePreds(id)
+      assert(math.abs(fromSparse - fromDense) < 1e-6,
+        s"sparse and dense encodings disagree for row $id: $fromSparse vs $fromDense")
+    }
+  }
+
+  test("sparse data optimization preserves empty rows and trailing empty columns") {
+    val size = 128
+    val rows = (0 until 40).map { i =>
+      val features = if (i % 5 == 0) {
+        Vectors.sparse(size, Array.empty[Int], Array.empty[Double])
+      } else {
+        Vectors.sparse(size, Array(i % 3), Array(i.toDouble % 4 + 1.0))
+      }
+      (i, i.toDouble % 2, features)
+    }
+    val sparseDf = ss.createDataFrame(sc.parallelize(rows)).toDF("id", "label", "features")
+    val denseDf = ss.createDataFrame(sc.parallelize(
+      rows.map { case (id, label, v) => (id, label, Vectors.dense(v.toArray)) }))
+      .toDF("id", "label", "features")
+
+    val model = new XGBoostRegressor()
+      .setNumRound(5)
+      .setNumWorkers(1)
+      .setInferBatchSize(1)
+      .setMissing(0.0f)
+      .setEnableSparseDataOptim(true)
+      .setContribPredictionCol("contrib")
+      .fit(sparseDf)
+
+    val sparseResults = model.transform(sparseDf).select("id", "prediction", "contrib")
+      .collect().map { row =>
+        val contrib = row.getAs[DenseVector](2)
+        assert(contrib.size === size + 1)
+        row.getInt(0) -> row.getDouble(1)
+      }.toMap
+    val denseResults = model.transform(denseDf).select("id", "prediction").collect()
+      .map(row => row.getInt(0) -> row.getDouble(1)).toMap
+
+    assert(sparseResults.keySet === denseResults.keySet)
+    sparseResults.foreach { case (id, fromSparse) =>
+      assert(math.abs(fromSparse - denseResults(id)) < 1e-6,
+        s"sparse and dense encodings disagree for row $id")
+    }
   }
 
   Seq(Float.NaN, 0.0f).foreach { missing =>
