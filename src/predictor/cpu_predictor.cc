@@ -8,13 +8,8 @@
 #include <memory>     // for unique_ptr, shared_ptr
 #include <vector>     // for vector
 
-#include "../collective/allreduce.h"          // for Allreduce
-#include "../collective/communicator-inl.h"   // for IsDistributed
-#include "../common/bitfield.h"               // for RBitField8
-#include "../common/column_matrix.h"          // for ColumnMatrix
 #include "../common/error_msg.h"              // for InplacePredictProxy
 #include "../common/kernel.h"                 // for DispatchKernel, KernelRegistration
-#include "../common/math.h"                   // for CheckNAN
 #include "../common/optional_weight.h"        // for OptionalWeights
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../data/adapter.h"                  // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
