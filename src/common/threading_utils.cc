@@ -62,7 +62,9 @@ std::int32_t GetCGroupV2Count(std::filesystem::path const& bandwidth_path) noexc
 
   std::int32_t a{0}, b{0};
 
-  auto warn = [] { LOG(WARNING) << "Invalid cgroupv2 file."; };
+  auto warn = [] {
+    LOG(WARNING) << "Invalid cgroupv2 file.";
+  };
   try {
     std::ifstream fin{bandwidth_path, std::ios::in};
     fin >> a;
