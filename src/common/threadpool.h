@@ -127,38 +127,44 @@ class ThreadPool {
 
 ThreadPool* GetGlobalThreadPool(std::int32_t n_threads);
 
-template <typename Index, typename Func>
-void GlobalThreadPoolExecutor(Index size, std::int32_t n_threads, Func&& fn) {
-  auto& pool = *GetGlobalThreadPool(n_threads);
-  std::vector<std::future<void>> futures;
-  futures.reserve(n_threads);
+struct GlobalThreadPoolExecutor {
+  [[nodiscard]] std::int32_t MaxNumWorkers() const noexcept {
+    return std::thread::hardware_concurrency();
+  }
 
-  // The drain is used to handle submit failure.
-  auto drain = common::MakeCleanup([&] {
-    for (auto& future : futures) {
-      if (future.valid()) {
-        future.wait();
+  template <typename Index, typename Func>
+  void Execute(Index size, std::int32_t n_threads, Func&& fn) {
+    auto& pool = *GetGlobalThreadPool(n_threads);
+    std::vector<std::future<void>> futures;
+    futures.reserve(n_threads);
+
+    // The drain is used to handle submit failure.
+    auto drain = common::MakeCleanup([&] {
+      for (auto& future : futures) {
+        if (future.valid()) {
+          future.wait();
+        }
       }
-    }
-  });
+    });
 
-  auto const block_size = DivRoundUp(size, static_cast<std::size_t>(n_threads));
-  auto worker_fn = [&](Index block_id) {
-    auto const begin = block_id * block_size;
-    auto const end = std::min(begin + block_size, size);
-    for (auto i = begin; i < end; ++i) {
-      fn(i);
+    auto const block_size = DivRoundUp(size, static_cast<std::size_t>(n_threads));
+    auto worker_fn = [&](Index block_id) {
+      auto const begin = block_id * block_size;
+      auto const end = std::min(begin + block_size, size);
+      for (auto i = begin; i < end; ++i) {
+        fn(i);
+      }
+    };
+    for (std::int32_t t = 0; t < n_threads; ++t) {
+      futures.emplace_back(pool.Submit(worker_fn));
     }
-  };
-  for (std::int32_t t = 0; t < n_threads; ++t) {
-    futures.emplace_back(pool.Submit(worker_fn));
+    // After submitting all tasks:
+    for (auto& fut : futures) {
+      fut.wait();  // Waits without rethrowing the task's exception.
+    }
+    for (auto& fut : futures) {
+      fut.get();
+    }
   }
-  // After submitting all tasks:
-  for (auto& fut : futures) {
-    fut.wait();  // Waits without rethrowing the task's exception.
-  }
-  for (auto& fut : futures) {
-    fut.get();
-  }
-}
+};
 }  // namespace xgboost::common
