@@ -41,7 +41,8 @@ if (use_cmake) {
     "CXX20 := sccache $(CXX20)"
   )
 }
-if (!use_cmake && .Platform$OS.type != "windows") {
+# Source-root normalization applies to both compiler wrappers and CMake launchers.
+if (.Platform$OS.type != "windows") {
   settings <- c(
     settings,
     "",
