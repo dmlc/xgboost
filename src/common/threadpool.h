@@ -53,6 +53,7 @@ class ThreadPool {
             cv_.wait(lock, [this] { return !this->tasks_.empty() || stop_; });
 
             if (this->stop_) {
+              // Drain
               while (!tasks_.empty()) {
                 auto fn = tasks_.front();
                 tasks_.pop();
@@ -132,6 +133,10 @@ class ThreadPool {
 ThreadPool* GetGlobalThreadPool(std::int32_t n_threads);
 
 struct GlobalThreadPoolExecutor {
+ private:
+  inline static thread_local bool in_parallel_{false};
+
+ public:
   [[nodiscard]] static std::int32_t MaxNumWorkers() noexcept;
 
   // Scheduling hints currently use contiguous blocks in the pool executor.
@@ -141,7 +146,7 @@ struct GlobalThreadPoolExecutor {
     if (size <= 0) {
       return;
     }
-    n_threads = std::min<std::size_t>(n_threads, size);
+    n_threads = in_parallel_ ? 1 : std::min<std::size_t>(n_threads, size);
     auto const length = static_cast<std::size_t>(size);
     auto const block_size = length / n_threads + (length % n_threads != 0);
     auto run = [&](std::int32_t t) {
@@ -170,7 +175,11 @@ struct GlobalThreadPoolExecutor {
     });
 
     for (std::int32_t t = 0; t < n_threads; ++t) {
-      futures.emplace_back(pool.Submit([&, t] { run(t); }));
+      futures.emplace_back(pool.Submit([&, t] {
+        in_parallel_ = true;
+        auto reset = common::MakeCleanup([] { in_parallel_ = false; });
+        run(t);
+      }));
     }
     for (auto& fut : futures) {
       fut.get();

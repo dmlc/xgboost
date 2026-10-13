@@ -14,7 +14,11 @@
 
 namespace xgboost::common {
 std::int32_t GlobalThreadPoolExecutor::MaxNumWorkers() noexcept {
-  auto limit = std::max(1u, std::thread::hardware_concurrency());
+  if (in_parallel_) {
+    return 1;
+  }
+  static auto max_n_threads = std::thread::hardware_concurrency();
+  auto limit = std::max(1u, max_n_threads);
   auto configured = GlobalConfigThreadLocalStore::Get()->nthread;
   return configured > 0 ? std::min(limit, static_cast<unsigned>(configured)) : limit;
 }
