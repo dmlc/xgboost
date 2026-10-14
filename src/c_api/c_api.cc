@@ -756,7 +756,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   auto const cats = p_fmat->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
-  if (cats->Empty()) {
+  if (!cats->HasCategorical()) {
     *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
@@ -778,7 +778,7 @@ XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const
   xgboost_CHECK_C_ARG_PTR(out);
   xgboost_CHECK_C_ARG_PTR(export_out);
 
-  if (cats->Empty()) {
+  if (!cats->HasCategorical()) {
     *out = nullptr;
     *export_out = nullptr;
   } else {
@@ -1736,7 +1736,7 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/
   auto *bst = static_cast<Learner *>(handle);
   auto const cats = bst->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
-  if (cats->Empty()) {
+  if (!cats->HasCategorical()) {
     *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
@@ -1758,7 +1758,7 @@ XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const
   xgboost_CHECK_C_ARG_PTR(out);
   xgboost_CHECK_C_ARG_PTR(export_out);
 
-  if (cats->Empty()) {
+  if (!cats->HasCategorical()) {
     *out = nullptr;
     *export_out = nullptr;
   } else {
