@@ -12,9 +12,17 @@ macro(find_openmp_macos)
     # Try again with extra path info. This step is required for libomp 15+ from Homebrew,
     # as libomp 15.0+ from brew is keg-only
     # See https://github.com/Homebrew/homebrew-core/issues/112107#issuecomment-1278042927.
-    execute_process(COMMAND brew --prefix libomp
+    execute_process(COMMAND brew --prefix --installed libomp
+                    RESULT_VARIABLE __BREW_LIBOMP_RESULT
                     OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+                    ERROR_VARIABLE __BREW_LIBOMP_ERROR
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_STRIP_TRAILING_WHITESPACE)
+    if(NOT "${__BREW_LIBOMP_RESULT}" STREQUAL "0")
+      message(FATAL_ERROR
+        "Failed to locate an installed Homebrew libomp. "
+        "Install it with 'brew install libomp'.\n${__BREW_LIBOMP_ERROR}")
+    endif()
     set(OpenMP_C_FLAGS
       "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
     set(OpenMP_CXX_FLAGS
