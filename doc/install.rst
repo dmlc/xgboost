@@ -52,12 +52,13 @@ Capabilities of binary wheels for each platform:
 +---------------------+---------+----------------------+
 | Windows             | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
-| Windows aarch64     | |cross| |  |cross|             |
+| Windows aarch64     | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
 
 Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on modern
 Jetson or Graviton machines provides the same GPU functionality as the Linux x86_64
-wheel.
+wheel. Likewise, the Windows aarch64 wheel is built with CUDA 13.x and supports NVIDIA
+GPUs on Windows on Arm devices.
 
 .. _wheel-cuda:
 
