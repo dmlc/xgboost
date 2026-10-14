@@ -4,75 +4,40 @@
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
 
-#include <dmlc/common.h>
-#include <dmlc/omp.h>
-
-#include <algorithm>    // for min
+#include <algorithm>    // for fill_n, min
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
 #include <thread>       // for thread
-#include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
+#include <type_traits>  // for is_integral_v, is_void_v, invoke_result_t
 #include <utility>      // for forward, move
 #include <vector>       // for vector
 
-#include "common.h"  // for DivRoundUp
-#include "xgboost/logging.h"
+#include "common.h"               // for DivRoundUp
+#include "executor.h"             // for Sched
+#include "xgboost/logging.h"      // for CHECK_LT
 #include "xgboost/string_view.h"  // for StringView
 
-#if !defined(_OPENMP)
-extern "C" {
-inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
-}
-#endif  // !defined(_OPENMP)
-
-// MSVC doesn't implement the thread limit.
-#if defined(_OPENMP) && defined(_MSC_VER)
-#include <limits>
-
-extern "C" {
-inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max(); }  // NOLINT
-}
-#endif  // defined(_MSC_VER)
+#if defined(XGBOOST_USE_THREADPOOL)
+#include "threadpool.h"  // for GlobalThreadPoolExecutor
+#else
+#include "openmp_exec.h"  // for OpenMPExecutor
+#endif
 
 namespace xgboost::common {
-/**
- * @brief Execution metadata for one invocation of a parallel loop.
- *
- * IDs satisfy 0 <= Id() < requested threads. Serial calls supply ID 0,
- * including nested serial calls. IDs do not guarantee a work assignment
- * across separate loops.
- */
-class Worker {
-  std::int32_t id_;
-
- public:
-  explicit Worker(std::int32_t id) : id_{id} {}
-
-  [[nodiscard]] std::int32_t Id() const { return id_; }
-};
-
-/** @brief Opt in to receiving Worker as the final callback argument. */
-template <typename Fn>
-class WithWorker {
-  Fn fn_;
-
- public:
-  explicit WithWorker(Fn fn) : fn_{std::move(fn)} {}
-
-  // The returned callable borrows *this and must not outlive it.
-  auto Bind(std::int32_t n_threads) & {
-    return [this, n_threads](auto&&... args) -> decltype(auto) {
-      auto worker = Worker{n_threads == 1 ? 0 : omp_get_thread_num()};
-      return fn_(std::forward<decltype(args)>(args)..., worker);
-    };
-  }
-};
+#if defined(XGBOOST_USE_THREADPOOL)
+using Executor = GlobalThreadPoolExecutor;
+#else
+using Executor = OpenMPExecutor;
+#endif
 
 // Represent simple range of indexes [begin, end)
 // Inspired by tbb::blocked_range
 class Range1d {
  public:
-  Range1d(std::size_t begin, std::size_t end) : begin_{begin}, end_{end} { CHECK_LT(begin, end); }
+  Range1d(std::size_t begin, std::size_t end) : begin_{begin}, end_{end} {
+    // Avoid CHECK_LT's error-message temporary on the hot path.
+    CHECK(begin < end);
+  }
 
   [[nodiscard]] std::size_t begin() const {  // NOLINT
     return begin_;
@@ -165,123 +130,30 @@ class BlockedSpace2d {
   std::vector<std::size_t> first_dimension_;
 };
 
-// Wrapper to implement nested parallelism with simple omp parallel for
 template <typename Func>
-void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& func) {
+void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& fn) {
   static_assert(std::is_void_v<std::invoke_result_t<Func, std::size_t, Range1d>>);
-  std::size_t n_blocks_in_space = space.Size();
-  CHECK_GE(n_threads, 1);
-
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      std::size_t tid = omp_get_thread_num();
-      std::size_t chunck_size = n_blocks_in_space / n_threads + !!(n_blocks_in_space % n_threads);
-
-      std::size_t begin = chunck_size * tid;
-      std::size_t end = std::min(begin + chunck_size, n_blocks_in_space);
-      for (auto i = begin; i < end; i++) {
-        func(space.GetFirstDimension(i), space.GetRange(i));
-      }
-    });
-  }
-  exc.Rethrow();
+  Executor::Execute2d(space, n_threads, std::forward<Func>(fn));
 }
 
 template <typename Fn>
 void ParallelFor2d(BlockedSpace2d const& space, std::int32_t n_threads, WithWorker<Fn>&& fn) {
-  ParallelFor2d(space, n_threads, fn.Bind(n_threads));
+  static_assert(std::is_void_v<std::invoke_result_t<Fn, std::size_t, Range1d, Worker>>);
+  Executor::Execute2d(space, n_threads, fn);
 }
-
-/**
- * OpenMP schedule
- */
-struct Sched {
-  enum {
-    kAuto,
-    kDynamic,
-    kStatic,
-    kGuided,
-  } sched;
-  size_t chunk{0};
-
-  Sched static Auto() { return Sched{kAuto}; }
-  Sched static Dyn(size_t n = 0) { return Sched{kDynamic, n}; }
-  Sched static Static(size_t n = 0) { return Sched{kStatic, n}; }
-  Sched static Guided() { return Sched{kGuided}; }
-};
 
 template <typename Index, typename Func>
 void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
   if (n_threads == 1) {
     // early exit
+    auto&& callback = detail::BindWorker(fn, [] { return Worker{0}; });
     for (Index i = 0; i < size; ++i) {
-      fn(i);
+      callback(i);
     }
     return;
   }
 
-#if defined(_MSC_VER)
-  // msvc doesn't support unsigned integer as openmp index.
-  using OmpInd = std::conditional_t<std::is_signed<Index>::value, Index, omp_ulong>;
-#else
-  using OmpInd = Index;
-#endif
-  OmpInd length = static_cast<OmpInd>(size);
-  CHECK_GE(n_threads, 1);
-
-  dmlc::OMPException exc;
-  switch (sched.sched) {
-    case Sched::kAuto: {
-#pragma omp parallel for num_threads(n_threads)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-      break;
-    }
-    case Sched::kDynamic: {
-      if (sched.chunk == 0) {
-#pragma omp parallel for num_threads(n_threads) schedule(dynamic)
-        for (OmpInd i = 0; i < length; ++i) {
-          exc.Run(fn, i);
-        }
-      } else {
-#pragma omp parallel for num_threads(n_threads) schedule(dynamic, sched.chunk)
-        for (OmpInd i = 0; i < length; ++i) {
-          exc.Run(fn, i);
-        }
-      }
-      break;
-    }
-    case Sched::kStatic: {
-      if (sched.chunk == 0) {
-#pragma omp parallel for num_threads(n_threads) schedule(static)
-        for (OmpInd i = 0; i < length; ++i) {
-          exc.Run(fn, i);
-        }
-      } else {
-#pragma omp parallel for num_threads(n_threads) schedule(static, sched.chunk)
-        for (OmpInd i = 0; i < length; ++i) {
-          exc.Run(fn, i);
-        }
-      }
-      break;
-    }
-    case Sched::kGuided: {
-#pragma omp parallel for num_threads(n_threads) schedule(guided)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-      break;
-    }
-  }
-  exc.Rethrow();
-}
-
-template <typename Index, typename Fn>
-void ParallelFor(Index size, std::int32_t n_threads, Sched sched, WithWorker<Fn>&& fn) {
-  ParallelFor(size, n_threads, sched, fn.Bind(n_threads));
+  Executor::Execute(size, n_threads, sched, std::forward<Func>(fn));
 }
 
 template <typename Index, typename Func>
@@ -302,44 +174,30 @@ void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
  */
 template <std::size_t kBlockOfRowsSize, typename Index, typename Func>
 void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
-  static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
   auto const n_blocks = DivRoundUp(size, kBlockOfRowsSize);
-  common::ParallelFor(n_blocks, n_threads, [&](auto block_id) {
-    std::size_t const block_beg = block_id * kBlockOfRowsSize;
-    auto const block_size = std::min(static_cast<std::size_t>(size - block_beg), kBlockOfRowsSize);
-    fn(common::Range1d{block_beg, block_beg + block_size});
-  });
-}
-
-template <std::size_t kBlockOfRowsSize, typename Index, typename Fn>
-void ParallelFor1d(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
-  ParallelFor1d<kBlockOfRowsSize>(size, n_threads, fn.Bind(n_threads));
+  common::ParallelFor(
+      n_blocks, n_threads, detail::TransformCallback(fn, [&](auto& callback, auto block_id) {
+        static_assert(std::is_void_v<std::invoke_result_t<decltype(callback), Range1d>>);
+        std::size_t const block_beg = block_id * kBlockOfRowsSize;
+        auto const block_size =
+            std::min(static_cast<std::size_t>(size - block_beg), kBlockOfRowsSize);
+        callback(Range1d{block_beg, block_beg + block_size});
+      }));
 }
 
 /** @brief Use n_threads as the number of blocks. */
 template <typename Index, typename Func>
 void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
-  static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
   std::size_t blk_size = size / n_threads + (size % n_threads > 0);
-  ParallelFor(n_threads, n_threads, [&](auto tid) {
-    auto blk_beg = tid * blk_size;
-    auto blk_end = std::min((tid + 1) * blk_size, static_cast<std::size_t>(size));
-    if (blk_end <= blk_beg) {
-      return;
-    }
-    fn(common::Range1d{blk_beg, blk_end});
-  });
-}
-
-template <typename Index, typename Fn>
-void ParallelForBlock(Index size, std::int32_t n_threads, WithWorker<Fn>&& fn) {
-  ParallelForBlock(size, n_threads, fn.Bind(n_threads));
-}
-
-inline std::int32_t OmpGetThreadLimit() {
-  std::int32_t limit = omp_get_thread_limit();
-  CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
-  return limit;
+  ParallelFor(n_threads, n_threads, detail::TransformCallback(fn, [&](auto& callback, auto tid) {
+                static_assert(std::is_void_v<std::invoke_result_t<decltype(callback), Range1d>>);
+                auto blk_beg = tid * blk_size;
+                auto blk_end = std::min((tid + 1) * blk_size, static_cast<std::size_t>(size));
+                if (blk_end <= blk_beg) {
+                  return;
+                }
+                callback(Range1d{blk_beg, blk_end});
+              }));
 }
 
 /**
@@ -352,7 +210,7 @@ std::int32_t GetCfsCPUCount() noexcept;
 /**
  * @brief Get the number of available threads based on n_threads specified by users.
  */
-std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
+std::int32_t GetNumThreads(std::int32_t n_threads) noexcept(true);
 
 /**
  * @brief A C-style array with in-stack allocation.
