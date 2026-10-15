@@ -38,6 +38,7 @@ from xgboost.testing.dask import (
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
     check_uneven_nan,
+    deterministic_dmatrix,
     get_rabit_args,
     make_categorical,
     run_recode,
@@ -468,23 +469,21 @@ def run_boost_from_prediction(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_boost_from_prediction(tree_method: str, client_one_worker: "Client") -> None:
+def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    # This test has strict reproducibility requirements. However, Dask is freed to move
-    # partitions between workers and modify the partitions' size during the test. Given
-    # the lack of control over the partitioning logic, here we use a single worker as a
-    # workaround.
-    X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-    run_boost_from_prediction(X, y, tree_method, "cpu", client_one_worker)
+    # Keep row assignments stable across the separate and combined training runs.
+    with deterministic_dmatrix(client):
+        X_, y_ = load_breast_cancer(return_X_y=True)
+        X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+        run_boost_from_prediction(X, y, tree_method, "cpu", client)
 
-    X_, y_ = load_digits(return_X_y=True)
-    X_, _, y_, _ = train_test_split(
-        X_, y_, train_size=300, stratify=y_, random_state=1994
-    )
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client_one_worker)
+        X_, y_ = load_digits(return_X_y=True)
+        X_, _, y_, _ = train_test_split(
+            X_, y_, train_size=300, stratify=y_, random_state=1994
+        )
+        X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+        run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
 def test_inplace_predict(client: "Client") -> None:
