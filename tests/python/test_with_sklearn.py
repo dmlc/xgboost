@@ -276,6 +276,37 @@ def test_ranking_qid_df():
     run_ranking_qid_df(pd, "hist", "cpu")
 
 
+@pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_qid_df_no_copy() -> None:
+    import pandas as pd
+
+    from xgboost.sklearn import _get_qid
+
+    rng = np.random.default_rng(2023)
+    n_samples = 64
+    # Numeric columns share a single block, plus duplicated names, a non-unique
+    # index, categorical and nullable columns.
+    X = pd.DataFrame(
+        rng.normal(size=(n_samples, 3)),
+        columns=["a", "a", "b"],
+        index=np.repeat(np.arange(n_samples // 2), 2),
+    )
+    X["c"] = pd.Categorical(rng.choice(["x", "y", "z"], size=n_samples))
+    X["qid"] = np.sort(rng.integers(0, 8, size=n_samples))
+    X["d"] = pd.array(rng.integers(0, 4, size=n_samples), dtype="Int64")
+
+    Xt, qid = _get_qid(X, None)
+    assert qid is not None
+    np.testing.assert_equal(np.asarray(qid), X["qid"].to_numpy())
+    pd.testing.assert_frame_equal(Xt, X.drop("qid", axis=1))
+    # The remaining columns are views of the input instead of copies.
+    for i in range(3):
+        assert np.shares_memory(Xt.iloc[:, i].to_numpy(), X.iloc[:, i].to_numpy())
+
+    with pytest.raises(ValueError, match="Found both"):
+        _get_qid(X, X["qid"])
+
+
 def test_stacking_regression():
     from sklearn.datasets import load_diabetes
     from sklearn.ensemble import RandomForestRegressor, StackingRegressor
