@@ -113,7 +113,7 @@ class ColMaker : public TreeUpdater {
     }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
-    interaction_constraints_.Configure(*param, dmat->Info().num_row_);
+    interaction_constraints_.Configure(*param, dmat->Info().num_col_);
     // build tree
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
