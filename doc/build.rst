@@ -122,6 +122,14 @@ To speed up compilation, the compute version specific to your GPU could be passe
 as, e.g., ``-DCMAKE_CUDA_ARCHITECTURES=75``. A quick explanation and numbers for some
 architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus>`_.
 
+.. note:: Building on Windows ARM64
+
+  Building with CUDA on Windows ARM64 requires CUDA 13.4 or newer and CMake 4.4 or newer.
+  NVIDIA provides the toolkit for this platform only as `redistributable archives
+  <https://developer.download.nvidia.com/compute/cuda/redist/>`_;
+  ``ops/pipeline/install-cuda-redist.ps1`` downloads and assembles the components needed
+  to build XGBoost.
+
 - Faster distributed GPU training with NCCL
 
   By default, distributed GPU training is enabled with the option

@@ -234,6 +234,12 @@ if(USE_CUDA)
     set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
   endif()
 
+  # Older versions of FindCUDAToolkit only search lib/x64 on Windows.
+  if(WIN32 AND CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "ARM64"
+      AND CMAKE_VERSION VERSION_LESS "4.4")
+    message(FATAL_ERROR "CMake 4.4 or newer is required to build with CUDA on Windows ARM64.")
+  endif()
+
   enable_language(CUDA)
   if(CMAKE_CUDA_COMPILER_TOOLKIT_VERSION)
     set(xgboost_cuda_toolkit_version ${CMAKE_CUDA_COMPILER_TOOLKIT_VERSION})
