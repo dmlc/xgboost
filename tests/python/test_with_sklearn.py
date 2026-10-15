@@ -1548,6 +1548,43 @@ def test_invalid_metric() -> None:
         clf.fit(X, y, eval_set=[(X, y)])
 
 
+@pytest.mark.parametrize(
+    "case", ["repeated", "same_name", "builtin_first", "builtin_last"]
+)
+def test_duplicate_custom_metric_names(case: str) -> None:
+    from sklearn.datasets import make_regression
+    from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+    X, y = make_regression(n_samples=32, n_features=4, random_state=2025)
+
+    def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+    metrics = {
+        "repeated": [mean_absolute_error, mean_squared_error, mean_absolute_error],
+        "same_name": [lambda a, b: 1.0, lambda a, b: 2.0],
+        "builtin_first": ["rmse", rmse],
+        "builtin_last": [rmse, "rmse"],
+    }
+    reg = xgb.XGBRegressor(eval_metric=metrics[case], n_estimators=2)
+    with pytest.raises(ValueError, match="Metric names must be distinct"):
+        reg.fit(X, y, eval_set=[(X, y)])
+
+
+def test_duplicate_builtin_metrics() -> None:
+    from sklearn.datasets import make_regression
+    from sklearn.metrics import mean_absolute_error
+
+    X, y = make_regression(n_samples=32, n_features=4, random_state=2025)
+    reg = xgb.XGBRegressor(
+        eval_metric=["rmse", "rmse", mean_absolute_error], n_estimators=2
+    )
+    reg.fit(X, y, eval_set=[(X, y)], verbose=False)
+    results = reg.evals_result()["validation_0"]
+    assert list(results) == ["rmse", "mean_absolute_error"]
+    assert all(len(values) == 2 for values in results.values())
+
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss

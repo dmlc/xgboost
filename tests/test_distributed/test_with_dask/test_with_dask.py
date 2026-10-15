@@ -1813,6 +1813,12 @@ class TestWithDask:
                 assert len(results[name]) == 2
                 assert np.all(np.isfinite(results[name]))
 
+        clf = dxgb.DaskXGBClassifier(
+            eval_metric=[hinge_loss, log_loss, hinge_loss], n_estimators=2
+        )
+        with pytest.raises(ValueError, match="Metric names must be distinct"):
+            clf.fit(X, y, eval_set=[(X, y)])
+
     def test_no_duplicated_partition(self) -> None:
         """Assert each worker has the correct amount of data, and DMatrix initialization
         doesn't generate unnecessary copies of data.

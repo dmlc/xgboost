@@ -524,7 +524,8 @@ __model_doc = f"""
         looks like `sklearn.metrics`, or a list containing strings and callables.
         Predefined metrics are evaluated first, followed by callable metrics in their
         supplied order. Each callable's ``__name__`` is used as its metric name;
-        metric names should be distinct.
+        callable names must be distinct from one another and from predefined metric
+        strings in the same list.
 
         .. versionchanged:: 3.5.0
 
@@ -1299,6 +1300,11 @@ class XGBModel(XGBModelBase):
                         builtin_metrics.append(m)
                     else:
                         invalid_type(m)
+                callable_names = [m.__name__ for m in self.eval_metric if callable(m)]
+                if len(callable_names) != len(set(callable_names)) or set(
+                    callable_names
+                ).intersection(builtin_metrics):
+                    raise ValueError("Metric names must be distinct.")
                 params.pop("eval_metric", None)
                 if builtin_metrics:
                     params.update({"eval_metric": builtin_metrics})
