@@ -270,6 +270,34 @@ def test_ranking_metric() -> None:
 
 
 @pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_multiple_metrics() -> None:
+    import pandas as pd
+    from sklearn.metrics import mean_squared_error, roc_auc_score
+
+    X, y, qid, _ = make_ltr(128, 4, 4, 1)
+    df = pd.DataFrame(X)
+    df["qid"] = qid
+    metrics = [roc_auc_score, mean_squared_error]
+    ranker = xgb.XGBRanker(
+        eval_metric=metrics, n_estimators=3, disable_default_eval_metric=True
+    )
+    ranker.fit(df, y, eval_set=[(df, y)], verbose=False)
+    results = ranker.evals_result()["validation_0"]
+    assert list(results) == [m.__name__ for m in metrics]
+    assert ranker.score(df, y) == results["mean_squared_error"][-1]
+    for metric in metrics:
+        single = xgb.XGBRanker(
+            eval_metric=metric, n_estimators=3, disable_default_eval_metric=True
+        )
+        single.fit(df, y, eval_set=[(df, y)], verbose=False)
+        assert len(results[metric.__name__]) == 3
+        np.testing.assert_allclose(
+            results[metric.__name__],
+            single.evals_result()["validation_0"][metric.__name__],
+        )
+
+
+@pytest.mark.skipif(**tm.no_pandas())
 def test_ranking_qid_df():
     import pandas as pd
 
@@ -1471,24 +1499,50 @@ def test_verbose_default_consistency() -> None:
     assert clf_default == reg_default == rank_default == rfc_default == rfr_default
 
 
-def test_mixed_metrics() -> None:
+@pytest.mark.parametrize("weighted", [False, True])
+@pytest.mark.parametrize("kind", ["single", "custom", "mixed"])
+def test_mixed_metrics(weighted: bool, kind: str) -> None:
     from sklearn.datasets import make_classification
-    from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+    from sklearn.metrics import hinge_loss, log_loss
 
     X, y = make_classification(random_state=2025)
+    weight = np.linspace(0.5, 2.0, len(y)) if weighted else None
+    metrics = [hinge_loss] if kind == "single" else [hinge_loss, log_loss]
+    names = [m.__name__ for m in metrics]
+    eval_metric = (
+        [hinge_loss, "logloss", log_loss, "error"] if kind == "mixed" else metrics
+    )
+    if kind == "mixed":
+        names = ["logloss", "error"] + names
 
-    clf = xgb.XGBClassifier(eval_metric=["logloss", hinge_loss], n_estimators=2)
-    clf.fit(X, y, eval_set=[(X, y)])
+    clf = xgb.XGBClassifier(
+        eval_metric=eval_metric,
+        n_estimators=3,
+        early_stopping_rounds=2,
+        disable_default_eval_metric=True,
+    )
+    clf.fit(X, y, eval_set=[(X, y)], sample_weight_eval_set=[weight], verbose=False)
     results = clf.evals_result()["validation_0"]
-    assert "logloss" in results
-    assert "hinge_loss" in results
+    assert list(results) == names
+    for metric in metrics:
+        expected = [
+            metric(
+                y,
+                clf.predict_proba(X, iteration_range=(0, i + 1))[:, 1],
+                sample_weight=weight,
+            )
+            for i in range(clf.get_booster().num_boosted_rounds())
+        ]
+        np.testing.assert_allclose(results[metric.__name__], expected, atol=1e-6)
+    assert clf.best_score == min(results[names[-1]])
+    assert clf.best_iteration == np.argmin(results[names[-1]])
 
-    clf = xgb.XGBClassifier(eval_metric=[hamming_loss, log_loss], n_estimators=2)
-    with pytest.raises(
-        NotImplementedError, match="multiple custom metrics is not yet supported."
-    ):
-        clf.fit(X, y, eval_set=[(X, y)])
 
+def test_invalid_metric() -> None:
+    from sklearn.datasets import make_classification
+    from sklearn.metrics import log_loss
+
+    X, y = make_classification(random_state=2025)
     clf = xgb.XGBClassifier(eval_metric=[123, log_loss], n_estimators=2)
     with pytest.raises(TypeError, match="Invalid type for the `eval_metric`"):
         clf.fit(X, y, eval_set=[(X, y)])
