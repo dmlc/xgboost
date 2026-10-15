@@ -1744,7 +1744,9 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
 
 PlainObj = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 CustomObj = Union[PlainObj, Objective]
-Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+Metric = Callable[
+    [np.ndarray, DMatrix], Union[Tuple[str, float], List[Tuple[str, float]]]
+]
 
 
 def _configure_metrics(params: BoosterParam) -> BoosterParam:
