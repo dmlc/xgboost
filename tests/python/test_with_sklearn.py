@@ -756,6 +756,37 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
 
 
+@pytest.mark.parametrize(
+    "feature", ["plain", "feature(1)", "feature+1", "feature.1", "feature|1"]
+)
+@pytest.mark.parametrize("as_pandas", [False, True])
+def test_split_value_histogram_literal_feature_name(
+    feature: str, as_pandas: bool
+) -> None:
+    X = np.arange(8, dtype=np.float32).reshape(-1, 1)
+    dm = xgb.DMatrix(X, label=X[:, 0] >= 4, feature_names=[feature])
+    booster = xgb.train({"max_depth": 1, "nthread": 1}, dm, num_boost_round=1)
+    histogram = booster.get_split_value_histogram(feature, as_pandas=as_pandas)
+
+    booster.feature_names = ["plain"]
+    expected = booster.get_split_value_histogram("plain", as_pandas=as_pandas)
+    assert np.asarray(expected)[:, 1].sum() == 1
+    np.testing.assert_array_equal(histogram, expected)
+
+
+def test_split_value_histogram_does_not_match_other_feature() -> None:
+    X = np.column_stack((np.arange(8, dtype=np.float32), np.zeros(8)))
+    dm = xgb.DMatrix(X, label=X[:, 0] >= 4, feature_names=["featureX1", "feature.1"])
+    booster = xgb.train({"max_depth": 1, "nthread": 1}, dm, num_boost_round=1)
+    assert (
+        booster.get_split_value_histogram("featureX1", as_pandas=False)[:, 1].sum() == 1
+    )
+    assert booster.get_split_value_histogram("feature.1", as_pandas=False).shape == (
+        0,
+        2,
+    )
+
+
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
     assert clf.get_xgb_params()["random_state"] == 402
