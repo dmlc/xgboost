@@ -139,12 +139,23 @@ jobs:
           # Master caches both SM75 and full CUDA builds; PRs restore without saving snapshots.
           restore-only: ${{ matrix.variant == 'gpu' && github.ref != 'refs/heads/master' }}
       - run: ops/pipeline/build-win64.ps1 -variant ${{ matrix.variant }}
+      - run: sccache --show-stats
+      - name: Upload Python wheel to S3
+        # GitHub-hosted runners have no instance role for the nightly wheel upload, so only
+        # this release-only step receives the uploader credentials.
+        # TODO(win-arm64-runner): Remove if the self-hosted runner has an instance role, and
+        # let build-win64.ps1 upload the wheel like on x64.
+        if: >-
+          github.event_name == 'push' &&
+          (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_'))
+        run: |
+          python ops/pipeline/manage-artifacts.py upload `
+            --s3-bucket xgboost-nightly-builds `
+            --prefix "$Env:BRANCH_NAME/$Env:GITHUB_SHA" --make-public `
+            (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
         env:
-          # GitHub-hosted runners have no instance role for the nightly wheel upload.
-          # TODO(win-arm64-runner): Remove if the self-hosted runner has an instance role.
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-      - run: sccache --show-stats
       - name: Upload Python wheel as workflow artifact
         if: matrix.variant == 'gpu'
         uses: actions/upload-artifact@v7.0.1

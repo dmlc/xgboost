@@ -9,6 +9,8 @@
 ##
 ## The target architecture follows the runner (RUNNER_ARCH). GPU builds on ARM64 require
 ## CUDA 13.4+ (see ops/pipeline/install-cuda-redist.ps1) and CMake 4.4+.
+## On release branches, x64 wheels are uploaded to S3 by this script; ARM64 wheels are
+## uploaded by a separate workflow step.
 ##
 ## Examples:
 ##   # Build CPU wheel (xgboost-cpu)
@@ -108,9 +110,12 @@ python -m wheel tags --python-tag py3 --abi-tag none `
   (Get-ChildItem dist/*.whl | Select-Object -Expand FullName)
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-Write-Host "--- Upload Python wheel"
 cd ..
-if ($is_release_branch -eq 1) {
+# On ARM64, a separate release-only workflow step uploads the wheel so that the S3
+# credentials are never exposed to the build.
+# TODO(win-arm64-runner): Upload from here if the self-hosted runner has an instance role.
+if ($is_release_branch -eq 1 -and -not $is_arm64) {
+  Write-Host "--- Upload Python wheel"
   python ops/pipeline/manage-artifacts.py upload `
     --s3-bucket 'xgboost-nightly-builds' `
     --prefix "$Env:BRANCH_NAME/$Env:GITHUB_SHA" --make-public `
