@@ -9,8 +9,7 @@
 #include <thrust/sort.h>      // for stable_sort_by_key
 
 #include <cuda/std/tuple>  // for make_tuple, get
-
-#include <vector>  // for vector
+#include <vector>          // for vector
 
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
@@ -22,7 +21,7 @@
 namespace xgboost::tree {
 namespace {
 XGBOOST_DEVICE std::uint32_t CatBin(common::Span<std::uint32_t const> ptr,
-                                   common::Span<std::uint32_t const> bin, std::uint32_t local) {
+                                    common::Span<std::uint32_t const> bin, std::uint32_t local) {
   auto seg = dh::SegmentId(ptr, local);
   return bin[seg] + static_cast<std::uint32_t>(local - ptr[seg]);
 }
@@ -57,8 +56,9 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
         });
 
     auto const &host_ptrs = cuts.Ptrs();
+    CHECK_EQ(ft.size(), n_features);
     std::vector<FeatureType> host_ft(static_cast<std::size_t>(n_features));
-    if (n_features > 0 && !ft.empty()) {
+    if (n_features > 0) {
       dh::safe_cuda(cudaMemcpyAsync(host_ft.data(), ft.data(), sizeof(FeatureType) * n_features,
                                     cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
       dh::safe_cuda(cudaStreamSynchronize(ctx->CUDACtx()->Stream()));
@@ -177,7 +177,8 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                              });
   thrust::for_each(ctx->CUDACtx()->CTP(), it, it + compact_n, [=] XGBOOST_DEVICE(std::uint32_t k) {
     auto node = k / cat_bins;
-    auto dst = node * static_cast<std::uint32_t>(total_bins) + CatBin(seg_ptr, seg_bin, k % cat_bins);
+    auto dst =
+        node * static_cast<std::uint32_t>(total_bins) + CatBin(seg_ptr, seg_bin, k % cat_bins);
     sorted_idx[dst] = compact_val[k];
   });
 

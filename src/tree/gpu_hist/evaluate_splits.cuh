@@ -87,9 +87,13 @@ class GPUHistEvaluator {
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
+  // gathered histogram indices for the compact categorical sort.
   dh::device_vector<bst_feature_t> cat_compact_val_;
+  // first global histogram bin of each partition feature.
   dh::device_vector<std::uint32_t> cat_seg_bin_;
+  // segment offsets for partition-feature bins in the compact histogram.
   dh::device_vector<std::uint32_t> cat_seg_ptr_;
+  // number of partition-feature bins in one node.
   std::uint32_t n_cat_bins_ = 0;
   // Training param used for evaluation
   TrainParam param_;
