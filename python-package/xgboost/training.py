@@ -309,6 +309,7 @@ def mkgroupfold(
     dall: DMatrix,
     nfold: int,
     param: BoosterParam,
+    rng: np.random.RandomState,
     evals: Sequence[str] = (),
     fpreproc: Optional[FPreProcCallable] = None,
     shuffle: bool = True,
@@ -322,7 +323,7 @@ def mkgroupfold(
     group_sizes = np.diff(group_boundaries)
 
     if shuffle is True:
-        idx = np.random.permutation(len(group_sizes))
+        idx = rng.permutation(len(group_sizes))
     else:
         idx = np.arange(len(group_sizes))
     # list by fold of test group indexes
@@ -374,7 +375,9 @@ def mknfold(
     Make an n-fold list of CVPack from random indices.
     """
     evals = list(evals)
-    np.random.seed(seed)
+    # Same folds as seeding the global generator with `np.random.seed(seed)`, without
+    # resetting the global NumPy random state of the caller.
+    rng = np.random.RandomState(seed)
 
     if stratified is False and folds is None:
         # Do standard k-fold cross validation. Automatically determine the folds.
@@ -383,13 +386,14 @@ def mknfold(
                 dall=dall,
                 nfold=nfold,
                 param=param,
+                rng=rng,
                 evals=evals,
                 fpreproc=fpreproc,
                 shuffle=shuffle,
             )
 
         if shuffle is True:
-            idx = np.random.permutation(dall.num_row())
+            idx = rng.permutation(dall.num_row())
         else:
             idx = np.arange(dall.num_row())
         out_idset = np.array_split(idx, nfold)
@@ -507,7 +511,7 @@ def cv(
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
     seed : int
-        Seed used to generate the folds (passed to numpy.random.seed).
+        Seed used to generate the folds. The global NumPy random state is not modified.
     callbacks :
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using

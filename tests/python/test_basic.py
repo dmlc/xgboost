@@ -234,6 +234,49 @@ class TestBasic:
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    def test_cv_keeps_global_random_state(self) -> None:
+        n_samples = 60
+        X = np.random.RandomState(1).randn(n_samples, 3)
+        y = np.arange(n_samples) % 2
+        dm = xgb.DMatrix(X, y)
+        params = {"max_depth": 2, "objective": "binary:logistic"}
+
+        rank_dm = xgb.DMatrix(X, y, group=[10] * 6)
+        rank_params = {"max_depth": 2, "objective": "rank:ndcg"}
+
+        np.random.seed(2024)
+        expected = np.random.get_state()
+        for d, p in [(dm, params), (rank_dm, rank_params)]:
+            xgb.cv(p, d, num_boost_round=1, nfold=3, seed=7, as_pandas=False)
+            state = np.random.get_state()
+            assert state[0] == expected[0]
+            np.testing.assert_array_equal(state[1], expected[1])
+            assert state[2:] == expected[2:]
+
+    def test_cv_folds_follow_seed(self) -> None:
+        n_samples, nfold, seed = 60, 3, 7
+        dm = xgb.DMatrix(
+            np.random.RandomState(1).randn(n_samples, 3), np.arange(n_samples)
+        )
+        params = {"max_depth": 2, "objective": "reg:squarederror"}
+
+        class Callback(xgb.callback.TrainingCallback):
+            def __init__(self) -> None:
+                super().__init__()
+                self.test_labels: list = []
+
+            def after_iteration(self, model, epoch: int, evals_log) -> bool:
+                self.test_labels = [fold.dtest.get_label() for fold in model.cvfolds]
+                return False
+
+        cb = Callback()
+        xgb.cv(params, dm, num_boost_round=1, nfold=nfold, seed=seed, callbacks=[cb])
+        idx = np.random.RandomState(seed).permutation(n_samples)
+        for labels, fold in zip(
+            cb.test_labels, np.array_split(idx, nfold), strict=True
+        ):
+            np.testing.assert_array_equal(labels, fold)
+
     def test_cv_explicit_fold_indices(self):
         dm, _ = tm.load_agaricus(__file__)
         params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
