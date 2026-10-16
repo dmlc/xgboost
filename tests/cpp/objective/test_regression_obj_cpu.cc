@@ -44,6 +44,11 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   TestLogisticRegressionGPair(&ctx);
 }
 
+TEST(Objective, DeclareUnifiedTest(LogisticRegressionInitEstimation)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestLogisticRegressionInitEstimation(&ctx);
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestLogisticRegressionBasic(&ctx);
@@ -134,11 +139,21 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
   TestTweedieRegressionBasic(&ctx);
 }
 
+TEST(Objective, DeclareUnifiedTest(NormalRegression)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestNormalRegression(&ctx);
+}
+
 // CoxRegression not implemented in GPU code, no need for testing.
 #if !defined(__CUDACC__)
 TEST(Objective, CoxRegressionGPair) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestCoxRegressionGPair(&ctx);
+}
+
+TEST(Objective, CoxRegressionInitEstimation) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestCoxRegressionInitEstimation(&ctx);
 }
 #endif
 

@@ -17,6 +17,7 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,7 @@ class ObjFunction;
 class CatContainer;
 
 struct Context;
-struct LearnerModelParam;
+struct LearnerModelState;
 
 /*!
  * \brief interface of gradient boosting model.
@@ -46,8 +47,9 @@ class GradientBooster : public Model, public Configurable {
    *  User must call configure once before InitModel and Training.
    *
    * @param cfg configurations on both training and model parameters.
+   * @return Names of parameters consumed by the booster and its components.
    */
-  virtual void Configure(Args const& cfg) = 0;
+  virtual std::set<std::string> Configure(Args const& cfg) = 0;
 
   /**
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
@@ -64,11 +66,6 @@ class GradientBooster : public Model, public Configurable {
    * @brief Return number of boosted rounds.
    */
   [[nodiscard]] virtual std::int32_t BoostedRounds() const = 0;
-  /**
-   * \brief Whether the model has already been trained. When tree booster is chosen, then
-   *        returns true when there are existing trees.
-   */
-  [[nodiscard]] virtual bool ModelFitted() const = 0;
   /**
    * @brief perform update to the model(boosting)
    *
@@ -160,11 +157,11 @@ class GradientBooster : public Model, public Configurable {
    * @brief create a gradient booster from given name
    * @param name name of gradient booster
    * @param generic_param Pointer to runtime parameters
-   * @param learner_model_param pointer to global model parameters
+   * @param learner_model_state pointer to global model parameters
    * @return The created booster.
    */
   static GradientBooster* Create(const std::string& name, Context const* ctx,
-                                 LearnerModelParam const* learner_model_param);
+                                 LearnerModelState const* learner_model_state);
 };
 
 /*!
@@ -173,7 +170,7 @@ class GradientBooster : public Model, public Configurable {
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
           GradientBoosterReg,
-          std::function<GradientBooster*(LearnerModelParam const* learner_model_param,
+          std::function<GradientBooster*(LearnerModelState const* learner_model_state,
                                          Context const* ctx)> > {};
 
 /*!

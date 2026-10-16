@@ -10,7 +10,7 @@
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
-#include <xgboost/learner.h>  // for LearnerModelParam
+#include <xgboost/learner.h>  // for LearnerModelState
 #include <xgboost/model.h>    // for Configurable
 
 #include <cstdint>  // std::int32_t
@@ -48,7 +48,7 @@
 namespace xgboost {
 class ObjFunction;
 class Metric;
-struct LearnerModelParam;
+struct LearnerModelState;
 class GradientBooster;
 }  // namespace xgboost
 
@@ -244,7 +244,6 @@ class RandomDataGenerator {
   std::shared_ptr<DMatrix> ref_{nullptr};
   std::int64_t min_cache_page_bytes_{0};
   float cache_host_ratio_;
-  float hw_decomp_ratio_{true};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -283,10 +282,6 @@ class RandomDataGenerator {
   }
   [[nodiscard]] RandomDataGenerator& CacheHostRatio(float cache_host_ratio) {
     this->cache_host_ratio_ = cache_host_ratio;
-    return *this;
-  }
-  [[nodiscard]] RandomDataGenerator& HwDecompRatio(float hw_decomp_ratio) {
-    this->hw_decomp_ratio_ = hw_decomp_ratio;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {
@@ -367,7 +362,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
-                                                  LearnerModelParam const* learner_model_param,
+                                                  LearnerModelState const* learner_model_state,
                                                   Context const* generic_param);
 
 /**
@@ -492,10 +487,10 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
 /*
  * \brief Make learner model param
  */
-inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
+inline LearnerModelState MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
                                 DeviceOrd device = DeviceOrd::CPU()) {
   size_t shape[1]{1};
-  LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
+  LearnerModelState mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
                            n_groups, 1, MultiStrategy::kOneOutputPerTree);
   return mparam;
 }

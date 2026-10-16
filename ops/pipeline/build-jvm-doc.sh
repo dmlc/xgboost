@@ -1,7 +1,6 @@
 #!/bin/bash
 ## Build docs for the JVM packages and package it in a tarball.
-## Note: this script assumes that the user has already built libxgboost4j.so
-## and placed it in the lib/ directory.
+## The docs Maven profile skips native compilation and tests, so no JNI library is needed.
 
 set -euo pipefail
 
@@ -10,17 +9,8 @@ if [[ -z ${BRANCH_NAME:-} ]]; then
   exit 1
 fi
 
-if [[ ! -f lib/libxgboost4j.so ]]; then
-  echo "Must place libxgboost4j.so in lib/ first"
-  exit 2
-fi
-
 echo "--- Build JVM packages doc"
 set -x
-
-# Copy in libxgboost4j.so
-mkdir -p jvm-packages/xgboost4j/src/main/resources/lib/linux/x86_64/
-cp -v lib/libxgboost4j.so jvm-packages/xgboost4j/src/main/resources/lib/linux/x86_64/
 
 cd jvm-packages/
 # Install JVM packages in local Maven repository

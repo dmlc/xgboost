@@ -9,7 +9,8 @@ system_profiler SPSoftwareDataType
 sysctl -n machdep.cpu.brand_string
 uname -m
 
-brew install ninja libomp
+# Use the runner image's Homebrew without auto-updating its taps.
+HOMEBREW_NO_AUTO_UPDATE=1 brew install ninja libomp
 
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.dylib"

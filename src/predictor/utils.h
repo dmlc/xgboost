@@ -6,12 +6,12 @@
 
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "xgboost/data.h"           // for DMatrix
-#include "xgboost/learner.h"        // LearnerModelParam
+#include "xgboost/learner.h"        // LearnerModelState
 
 namespace xgboost::predictor {
 template <typename Adapter>
 void CheckProxyDMatrix(std::shared_ptr<Adapter> m, data::DMatrixProxy const* proxy,
-                       LearnerModelParam const* p) {
+                       LearnerModelState const* p) {
   CHECK(proxy);
   auto n_features_data = m->NumColumns();
   auto n_features_model = p->num_feature;

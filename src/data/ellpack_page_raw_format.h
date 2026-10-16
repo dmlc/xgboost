@@ -22,6 +22,7 @@ class HistogramCuts;
 namespace xgboost::data {
 
 class EllpackHostCacheStream;
+class EllpackPagePool;
 
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   std::shared_ptr<common::HistogramCuts const> cuts_;
@@ -30,16 +31,20 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   // Supports CUDA HMM or ATS
   bool has_hmm_ats_{false};
   Context const* ctx_;
+  EllpackPagePool* pool_;
 
  public:
   explicit EllpackPageRawFormat(Context const* ctx,
                                 std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device,
-                                BatchParam param, bool has_hmm_ats)
+                                BatchParam param, bool has_hmm_ats, EllpackPagePool* pool)
       : cuts_{std::move(cuts)},
         device_{device},
         param_{std::move(param)},
         has_hmm_ats_{has_hmm_ats},
-        ctx_{ctx} {}
+        ctx_{ctx},
+        pool_{pool} {
+    CHECK(pool_);
+  }
   [[nodiscard]] bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override;
   [[nodiscard]] std::size_t Write(EllpackPage const& page,
                                   common::AlignedFileWriteStream* fo) override;

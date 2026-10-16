@@ -18,10 +18,9 @@ can be simultaneously classified as both sci-fi and comedy.  For detailed explan
 terminologies related to different multi-output models please refer to the
 :doc:`scikit-learn user guide <sklearn:modules/multiclass>`.
 
-.. note::
+.. note:: As of XGBoost 3.4.0, the feature is experimental.
 
-   As of XGBoost 3.0, the feature is experimental and has limited features. Only the
-   Python package is tested. In addition, ``glinear`` is not supported.
+   The ``hist`` tree method is feature complete. In addition, the Python interface along with the Dask interface are supported. See the end of the doc for a brief history.
 
 **********************************
 Training with One-Model-Per-Target
@@ -133,6 +132,15 @@ implement the ``split_grad`` method.
 See :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py` for a complete worked
 example. The feature supports only the ``multi_strategy=multi_output_tree``.
 
+*************
+Brief History
+*************
+Some milestones of multi-output support are recorded below:
+
+- XGBoost introduced basic concepts for multi-output in v1.6.0.
+- v2.0.0 introduced a prototype for training CPU-based vector-leaf models, which established the vector-leaf model format.
+- v3.2.0 saw a major upgrade to the prototype for CUDA implementation, added reduced gradient, vector intercept, along with external memory.
+- v3.4.0 completes the ``hist`` tree method implementation, for both CPU, GPU, distributed training (Dask), and categorical features, along with various metrics, objectives, and model visualization.
 
 **********
 References

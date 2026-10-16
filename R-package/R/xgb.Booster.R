@@ -855,9 +855,9 @@ xgb.config <- function(object) {
     }
   })
   handle <- xgb.get.handle(object)
-  for (i in seq_along(p)) {
-    .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
-  }
+  params <- Map(function(name, value) unname(list(name, value)), names(p), p)
+  config <- jsonlite::toJSON(list(params = unname(params)), auto_unbox = TRUE)
+  .Call(XGBoosterSetParams_R, handle, config)
   return(object)
 }
 

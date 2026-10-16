@@ -242,16 +242,13 @@ class MultiTargetHistBuilder {
                                       HistBatch(param_));
 
     auto weight = evaluator_->InitRoot(h_root_sum);
-    auto weight_t = weight.HostView();
-    std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
-                   [&](float w) { return w * param_->learning_rate; });
 
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
     for (bst_target_t t{0}; t < n_targets; ++t) {
       root_sum_hess += static_cast<float>(h_root_sum(t).GetHess());
     }
-    p_tree->SetRoot(weight_t, root_sum_hess);
+    p_tree->SetRoot(weight.HostView(), root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
 
@@ -305,13 +302,12 @@ class MultiTargetHistBuilder {
   }
 
   /**
-   * @brief Calculate leaf weights using value gradient.
+   * @brief Calculate output weights using value gradients and finalize prediction leaves.
    *
-   * This method supports reduced gradient. Weights in p_tree are calculated using split
-   * gradient during tree building. This function replaces those weights with new weights
-   * calculated from value gradient.
+   * Split-gradient base weights remain unchanged. The tree applies the learning rate when
+   * storing the output weights.
    */
-  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const &full_grad, RegTree *p_tree) {
+  void FinalizeLeafWeights(linalg::Matrix<GradientPair> const &full_grad, RegTree *p_tree) {
     CHECK(p_last_fmat_);
     CHECK_EQ(full_grad.Shape(1), p_tree->NumTargets());
     auto tree = p_tree->HostMtView();
@@ -348,16 +344,18 @@ class MultiTargetHistBuilder {
           n_leaves, [&](std::size_t leaf_idx) { return part[leaves_idx[leaf_idx]].Size(); }, 1024);
       // when Size() is 0 (node has no rows in a partition), no blocks are created for
       // that leaf and the lambda is never called.
-      common::ParallelFor2d(space, n_threads, [&](std::size_t leaf_idx, common::Range1d r) {
-        auto const &node = part[leaves_idx[leaf_idx]];
-        auto tidx = omp_get_thread_num();
-        // Sum gradients for rows in this leaf (row indices are global)
-        for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
-          for (bst_target_t t = 0; t < n_targets; ++t) {
-            h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
-          }
-        }
-      });
+      common::ParallelFor2d(
+          space, n_threads,
+          common::WithWorker([&](std::size_t leaf_idx, common::Range1d r, common::Worker worker) {
+            auto const &node = part[leaves_idx[leaf_idx]];
+            auto tidx = worker.Id();
+            // Sum gradients for rows in this leaf (row indices are global)
+            for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
+              for (bst_target_t t = 0; t < n_targets; ++t) {
+                h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
+              }
+            }
+          }));
     }
 
     // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]
@@ -372,20 +370,16 @@ class MultiTargetHistBuilder {
     // Calculate weights for each leaf
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
-    auto eta = this->param_->learning_rate;
     auto evaluator = this->evaluator_->Evaluator();
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
       auto weight = h_weights.Slice(leaf_idx, linalg::All());
       evaluator.CalcWeight(leaves_idx[leaf_idx], *param_, grad_sum, weight);
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        weight(t) *= eta;
-      }
     });
 
     // Set leaf weights
-    p_tree->SetLeaves(leaves_idx, h_weights.Values());
+    p_tree->FinalizeLeaves(leaves_idx, h_weights.Values(), this->param_->learning_rate);
   }
 
  public:
@@ -515,9 +509,7 @@ class HistUpdater {
       }
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});
-      p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
-      p_tree->Stat(RegTree::kRoot).base_weight = weight;
-      (*p_tree)[RegTree::kRoot].SetLeaf(param_->learning_rate * weight);
+      p_tree->SetRoot(weight, grad_stat.GetHess());
 
       std::vector<CPUExpandEntry> entries{node};
       monitor_->Start("EvaluateSplits");
@@ -580,7 +572,9 @@ class QuantileHistMaker : public TreeUpdater {
   explicit QuantileHistMaker(Context const *ctx, ObjInfo const *)
       : TreeUpdater{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()} {}
 
-  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const &args) override {
+    return UpdateAndGetUsedParameters(&hist_param_, args);
+  }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
@@ -635,23 +629,24 @@ class QuantileHistMaker : public TreeUpdater {
       if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
-        if (in_gpair->HasValueGrad()) {
-          // Copy the value gradient and replay sampling from the original split gradient.
-          auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
-                                                        in_gpair->value_gpair.Shape(1));
-          auto h_value_grad = value_grad.HostView();
-          auto h_value_grad_in = in_gpair->value_gpair.HostView();
-          std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
-                    linalg::begin(h_value_grad));
-          sampler.ApplySampling(ctx_, h_gpair, &value_grad);
-          // Refresh the leaf weights.
-          p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
-        } else {
-          (*tree_it)->GetMultiTargetTree()->SetLeaves();
-        }
       } else {
         UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
                                    h_out_position, *tree_it);
+      }
+
+      if (in_gpair->HasValueGrad()) {
+        CHECK((*tree_it)->IsMultiTarget());
+        // Copy the value gradient and replay sampling from the original split gradient.
+        auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
+                                                      in_gpair->value_gpair.Shape(1));
+        auto h_value_grad = value_grad.HostView();
+        auto h_value_grad_in = in_gpair->value_gpair.HostView();
+        std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
+                  linalg::begin(h_value_grad));
+        sampler.ApplySampling(ctx_, h_gpair, &value_grad);
+        p_mtimpl_->FinalizeLeafWeights(value_grad, *tree_it);
+      } else {
+        (*tree_it)->FinalizeLeaves(param->learning_rate);
       }
 
       hist_param_.CheckTreesSynchronized(ctx_, *tree_it);

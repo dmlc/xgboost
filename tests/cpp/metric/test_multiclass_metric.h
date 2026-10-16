@@ -4,6 +4,7 @@
 
 #include <xgboost/metric.h>
 
+#include <cmath>
 #include <string>
 
 #include "../helpers.h"
@@ -58,6 +59,10 @@ inline void TestMultiClassError(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}, {}, {}),
               0.666f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(metric, {0.9f, 0.1f, 0.8f, 0.2f}, {0, 1}, {1, 3}, {}), 0.75f, 1e-6);
+  EXPECT_THROW(GetMetricEval(metric, {0.9f, 0.1f}, {-1}, {}, {}), dmlc::Error);
+  EXPECT_THROW(GetMetricEval(metric, {0.9f, 0.1f}, {2}, {}, {}), dmlc::Error);
+  EXPECT_NEAR(GetMetricEval(metric, {0.9f, 0.1f}, {0}, {}, {}), 0.0f, 1e-6);
   delete metric;
 }
 
@@ -77,6 +82,12 @@ inline void TestMultiClassLogLoss(DeviceOrd device) {
                             {0, 1, 2}, {}, {}),
               2.302f, 0.001f);
 
+  EXPECT_NEAR(GetMetricEval(metric, {0.8f, 0.2f, 0.6f, 0.4f}, {0, 1}, {1, 3}, {}),
+              (-std::log(0.8) - 3.0 * std::log(0.4)) / 4.0, 1e-6);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0}, {}, {}), -std::log(1e-16), 1e-5);
+  EXPECT_THROW(GetMetricEval(metric, {0.9f, 0.1f}, {-1}, {}, {}), dmlc::Error);
+  EXPECT_THROW(GetMetricEval(metric, {0.9f, 0.1f}, {2}, {}, {}), dmlc::Error);
+  EXPECT_NEAR(GetMetricEval(metric, {1, 0}, {0}, {}, {}), 0.0f, 1e-6);
   delete metric;
 }
 

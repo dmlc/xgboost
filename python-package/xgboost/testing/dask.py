@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, List, Literal, Tuple, Type, Union, cast, overload
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -15,7 +18,7 @@ from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
 import xgboost.testing as tm
-from xgboost.compat import concat
+from xgboost.compat import concat, import_cudf
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
@@ -396,9 +399,7 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     if device == "cpu":
         DF: DF_T_union = pd.DataFrame
     else:
-        from cudf import DataFrame as CudfDataFrame
-
-        DF = CudfDataFrame
+        DF = import_cudf().DataFrame
 
     def make(n: int, seed: int) -> DF_union:
         rng = np.random.default_rng(seed)
@@ -560,6 +561,39 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     return X, y
 
 
+@contextmanager
+def deterministic_dmatrix(client: Client) -> Generator[None, None, None]:
+    """Assign partitions consistently for matrices constructed within this context."""
+    workers = sorted(get_client_workers(client))
+    map_local_data = dxgb.DaskDMatrix._map_local_data  # pylint: disable=protected-access
+
+    async def assign_partitions(
+        self: dxgb.DaskDMatrix, **kwargs: Any
+    ) -> dxgb.DaskDMatrix:
+        dmatrix = await map_local_data(self, **kwargs)
+        # Assign packed partitions in row order so repeated fits and validation use
+        # the same worker assignment. Only future handles are rearranged here;
+        # partition data stays on workers and transfers directly between them as
+        # needed for training and prediction.
+        parts = sorted(
+            (
+                part
+                for worker_parts in dmatrix.worker_map.values()
+                for part in worker_parts
+            ),
+            key=lambda part: dmatrix.partition_order[part.key],
+        )
+        to = workers[: len(parts)]
+        dmatrix.worker_map = {
+            worker: parts[i :: len(to)] for i, worker in enumerate(to)
+        }
+        return dmatrix
+
+    # Apply the assignment to matrices created internally by the sklearn API too.
+    with patch.object(dxgb.DaskDMatrix, "_map_local_data", assign_partitions):
+        yield
+
+
 # pylint: disable=too-many-locals
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
@@ -629,5 +663,6 @@ def run_recode(client: Client, device: Device) -> None:
         predt_1 = dxgb.predict(client, results, Xy_valid).compute()
         assert_allclose(device, predt_0, predt_1)
 
-    for DMatrixT in [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]:
-        run(DMatrixT)
+    with deterministic_dmatrix(client):
+        for DMatrixT in [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]:
+            run(DMatrixT)

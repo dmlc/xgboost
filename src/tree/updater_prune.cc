@@ -31,7 +31,7 @@ class TreePruner : public TreeUpdater {
   explicit TreePruner(Context const* ctx) : TreeUpdater(ctx) { pruner_monitor_.Init("TreePruner"); }
   [[nodiscard]] char const* Name() const override { return "prune"; }
   // set training parameter
-  void Configure(const Args&) override {}
+  std::set<std::string> Configure(const Args&) override { return {}; }
 
   void LoadConfig(Json const&) override {}
   void SaveConfig(Json*) const override {}
@@ -83,7 +83,7 @@ class TreePruner : public TreeUpdater {
     while (!sc_tree.IsLeaf(nidx)) {
       auto split_index = sc_tree.SplitIndex(nidx);
       nidx = predictor::GetNextNode<true, has_categorical>(
-          sc_tree, nidx, feats.GetFvalue(split_index), feats.IsMissing(split_index), sc_tree.cats);
+          sc_tree, nidx, feats.GetFvalue(split_index), sc_tree.cats);
     }
     return nidx;
   }

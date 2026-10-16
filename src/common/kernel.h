@@ -4,9 +4,10 @@
 #ifndef XGBOOST_COMMON_KERNEL_H_
 #define XGBOOST_COMMON_KERNEL_H_
 
-#include <type_traits>  // for is_function_v, is_invocable_v
-#include <utility>      // for forward
-#include <vector>       // for vector
+#include <initializer_list>  // for initializer_list
+#include <type_traits>       // for is_function_v, is_invocable_v
+#include <utility>           // for forward
+#include <vector>            // for vector
 
 #include "xgboost/context.h"  // for Context, DeviceOrd
 #include "xgboost/logging.h"  // for CHECK
@@ -57,8 +58,13 @@ class KernelRegistration {
  public:
   using Function = typename KernelRegistry<Kernel>::Function;
 
-  KernelRegistration(DeviceOrd::Type device, Function implementation) {
-    GetKernelRegistry<Kernel>().Register(device, implementation);
+  KernelRegistration(DeviceOrd::Type device, Function implementation)
+      : KernelRegistration{{device}, implementation} {}
+
+  KernelRegistration(std::initializer_list<DeviceOrd::Type> devices, Function implementation) {
+    for (auto device : devices) {
+      GetKernelRegistry<Kernel>().Register(device, implementation);
+    }
   }
 };
 

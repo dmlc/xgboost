@@ -12,7 +12,7 @@ from sklearn.datasets import make_regression
 import xgboost.testing as tm
 
 from ..callback import TrainingCallback
-from ..compat import import_cupy
+from ..compat import import_cudf, import_cupy
 from ..core import (
     Booster,
     DataIter,
@@ -21,6 +21,7 @@ from ..core import (
     QuantileDMatrix,
 )
 from ..data import is_pd_cat_dtype
+from ..objective import Objective
 from ..sklearn import XGBModel, XGBRegressor
 from ..training import train
 from .data import IteratorForTest, make_batches, make_categorical
@@ -57,6 +58,59 @@ def get_basescore(
 
 
 # pylint: disable=too-many-locals
+def check_base_weights(
+    params: Dict[str, Any],
+    data: DMatrix,
+    obj: Optional[Objective] = None,
+) -> None:
+    """Check unscaled base weights and eta-scaled scalar or vector prediction leaves."""
+    params = {**params, "base_score": 0.0, "max_depth": 2}
+
+    def trees(booster: Booster) -> list[dict]:
+        model = json.loads(booster.save_raw(raw_format="json"))
+        return model["learner"]["gradient_booster"]["model"]["trees"]
+
+    for is_stump, num_parallel_tree in ((False, 1), (True, 1), (False, 2)):
+        params.update(
+            learning_rate=1.0,
+            num_parallel_tree=1,
+            min_split_loss=1e20 if is_stump else 0.0,
+        )
+        ref = train(params, data, num_boost_round=1, obj=obj)
+        ref_tree = trees(ref)[0]
+        ref_prediction = ref.predict(data)
+        assert (ref_tree["left_children"][0] == -1) == is_stump
+        if not is_stump:
+            assert len(ref_tree["left_children"]) > 3
+
+        params["num_parallel_tree"] = num_parallel_tree
+        for learning_rate in (0.0, 2.0):
+            params["learning_rate"] = learning_rate
+            booster = train(params, data, num_boost_round=1, obj=obj)
+            model_trees = trees(booster)
+            assert len(model_trees) == num_parallel_tree
+            for tree in model_trees:
+                np.testing.assert_equal(tree["base_weights"], ref_tree["base_weights"])
+            np.testing.assert_allclose(
+                booster.predict(data), ref_prediction * learning_rate, rtol=1e-6
+            )
+
+
+def check_scalar_base_weights(
+    tree_method: str, device: Device, categorical: bool
+) -> None:
+    """Run the shared eta checks for scalar tree builders."""
+    features = np.repeat(np.arange(4, dtype=np.float32), 4).reshape(-1, 1)
+    labels = 2 * features[:, 0] + 1
+    data = DMatrix(features, labels, feature_types=["c" if categorical else "q"])
+    params = {
+        "tree_method": tree_method,
+        "device": device,
+        "max_cat_to_onehot": 1,
+    }
+    check_base_weights(params, data)
+
+
 def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for quantile loss."""
     from sklearn.metrics import mean_pinball_loss
@@ -362,7 +416,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         n_samples, n_features, n_categories, onehot=False, sparsity=0.8
     )
     if use_cupy:
-        import cudf
+        cudf = import_cudf()
 
         cp = import_cupy()
 
@@ -689,7 +743,9 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
         train({"tree_method": tree_method, "device": device}, Xy)
 
     # mixed positive and negative values
-    X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)  # type: ignore[assignment]
+    X = rng.normal(loc=0, scale=1, size=1000).reshape(  # type: ignore[assignment]
+        100, 10
+    )
     y = rng.normal(loc=0, scale=1, size=100)
 
     Xy = DMatrix(X, y, feature_types=["c"] * 10)

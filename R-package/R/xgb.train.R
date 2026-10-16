@@ -453,7 +453,6 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"binary:logitraw"`: logistic regression for binary classification, output score before logistic transformation
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 #' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
-#'   `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 #' - `"survival:cox"`: Cox regression for right censored survival time data (negative values are considered right censored).
 #'
 #'   Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function `h(t) = h0(t) * HR`).
@@ -685,10 +684,11 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #'
 #' - For most of the cases this parameter should not be set except for growing deep
 #'   trees. After 3.0, this parameter affects GPU algorithms as well.
-#' @param max_cat_to_onehot (for Non-Exact Tree Methods)
-#' A threshold for deciding whether XGBoost should use one-hot encoding based split for
-#' categorical data.  When number of categories is lesser than the threshold then one-hot
-#' encoding is chosen, otherwise the categories will be partitioned into children nodes.
+#' @param max_cat_to_onehot (for Non-Exact Tree Methods) (default = `2^32 - 1`)
+#' Features with fewer categories than this threshold use one-hot encoding based splits;
+#' otherwise, partition-based splits are used.
+#' Since 3.5.0, all categorical features use one-hot encoding based splits by default. Set this
+#' parameter to `1` to use partitioning, or `4` to restore the previous default behavior.
 #'
 #' Version added: 1.6.0
 #' @param max_cat_threshold (for Non-Exact Tree Methods)

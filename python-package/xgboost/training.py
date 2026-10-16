@@ -483,7 +483,7 @@ def cv(
         </tutorials/custom_metric_obj>` for details.
 
     maximize : bool
-        Whether to maximize the evaluataion metric (score or error).
+        Whether to maximize the evaluation metric (score or error).
 
     early_stopping_rounds: int
         Activates early stopping. Cross-Validation metric (average of validation

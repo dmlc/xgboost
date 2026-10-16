@@ -4,12 +4,8 @@
 
 set -euox pipefail
 
-if [[ "${BUILD_ONLY_SM75:-}" == 1 ]]
-then
-  cmake_args='-DGPU_COMPUTE_VER=75'
-else
-  cmake_args=''
-fi
+# Keep PR and main builds on the same CUDA targets so they share compiler-cache entries.
+cmake_args=''
 
 cmake_prefix_path=''
 if [[ "${USE_RMM:-0}" == 1 ]]
@@ -23,6 +19,12 @@ fi
 echo "--- Build libxgboost from the source"
 mkdir -p build
 pushd build
+# CTK 13.3 error:
+#   nvcc_internal_extended_lambda_implementation:357:85: error:
+#   '*((void*)(&<anonymous>)+8).__nv_hdl_wrapper_t...'
+#   may be used uninitialized in this function [-Werror=maybe-uninitialized]
+#
+# As a result, the speical `-DCMAKE_CUDA_FLAGS` is employed.
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
@@ -36,9 +38,9 @@ cmake .. \
   -DNCCL_INCLUDE_DIR=/usr/include \
   -DUSE_DLOPEN_NCCL=ON \
   -DGOOGLE_TEST=ON \
-  -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+  -DCMAKE_CUDA_FLAGS="-Xcompiler=-Wno-error=maybe-uninitialized" \
   ${cmake_args}
 time ninja -v
 popd

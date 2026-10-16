@@ -27,10 +27,38 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 struct TweedieGradient {
   float rho;
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    auto grad = -label * expf((1 - rho) * predt) + expf((2 - rho) * predt);
-    auto hess =
-        -label * (1 - rho) * std::exp((1 - rho) * predt) + (2 - rho) * expf((2 - rho) * predt);
-    return {grad * weight, hess * weight};
+    auto a = label * expf((1.0f - rho) * predt);
+    auto b = expf((2.0f - rho) * predt);
+    auto grad = (b - a) * weight;
+    // For Tweedie loss, the exact gradient is b - a and the exact Hessian is
+    // (rho - 1) * a + (2 - rho) * b. Let A = sum(w_i * a_i) and
+    // B = sum(w_i * b_i) in a leaf. Its Newton update is
+    //
+    //   d = (A - B) / ((rho - 1) * A + (2 - rho) * B).
+    //
+    // The third derivative is -(rho - 1)^2 * a + (2 - rho)^2 * b. Since both terms
+    // vary exponentially with the margin, a large Newton update can leave the region
+    // where its local quadratic approximation is accurate.
+    //
+    // Instead, consider XGBoost's leaf update d = -G/H and quadratic gain
+    // q = G^2/(2H). For 1 < rho < 2, the exact leaf loss is
+    //
+    //   L(d) = A * exp((1 - rho) * d) / (rho - 1)
+    //        + B * exp((2 - rho) * d) / (2 - rho),
+    //
+    // with optimum d* = log(A/B). Matching q to the oracle reduction through cubic
+    // order near A = B gives H = (rho * A + (3 - rho) * B)/3, implemented row-wise
+    // below. The resulting step
+    //
+    //   d = 3 * (A - B) / (rho * A + (3 - rho) * B)
+    //
+    // lies between -3/(3 - rho) and 3/rho. It also satisfies
+    //
+    //   q <= L(0) - L(d) <= L(0) - L(d*),
+    //
+    // so the quadratic gain is a conservative estimate of the realized reduction.
+    auto hess = (rho * a + (3.0f - rho) * b) * weight / 3.0f;
+    return {grad, hess};
   }
 };
 

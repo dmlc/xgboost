@@ -67,7 +67,7 @@ class TestL1MultiTarget : public ::testing::Test {
   void RunTest(Context const* ctx, std::string const& tree_method, bool weight) {
     auto p_fmat = weight ? Xyw_ : Xy_;
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-    learner->SetParams(Args{{"tree_method", tree_method},
+    learner->Configure(Args{{"tree_method", tree_method},
                             {"objective", "reg:absoluteerror"},
                             {"device", ctx->DeviceName()}});
     learner->Configure();
@@ -84,7 +84,7 @@ class TestL1MultiTarget : public ::testing::Test {
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
       auto t_Xy = weight ? single_w_[t] : single_[t];
       std::unique_ptr<Learner> sl{Learner::Create({t_Xy})};
-      sl->SetParams(Args{{"tree_method", tree_method},
+      sl->Configure(Args{{"tree_method", tree_method},
                          {"objective", "reg:absoluteerror"},
                          {"device", ctx->DeviceName()}});
       sl->Configure();
@@ -130,11 +130,13 @@ TEST(MultiStrategy, Configure) {
   auto p_fmat = RandomDataGenerator{12ul, 3ul, 0.0}.GenerateDMatrix();
   p_fmat->Info().labels.Reshape(p_fmat->Info().num_row_, 2);
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-  learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
-  learner->Configure();
+  learner->Configure(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "2"}});
+  EXPECT_THROW(learner->Groups(), dmlc::Error);
+  learner->UpdateOneIter(0, p_fmat);
   ASSERT_EQ(learner->Groups(), 2);
 
-  learner->SetParams(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}});
-  ASSERT_THROW({ learner->Configure(); }, dmlc::Error);
+  ASSERT_THROW(
+      learner->Configure(Args{{"multi_strategy", "multi_output_tree"}, {"num_target", "0"}}),
+      dmlc::Error);
 }
 }  // namespace xgboost

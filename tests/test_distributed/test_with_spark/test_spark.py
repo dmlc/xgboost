@@ -8,7 +8,6 @@ from typing import Generator, Iterable, Iterator, List
 import numpy as np
 import pandas as pd
 import pytest
-import xgboost as xgb
 from pyspark import SparkConf
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
@@ -18,6 +17,8 @@ from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
+
+import xgboost as xgb
 from xgboost import XGBClassifier, XGBRegressor
 from xgboost import testing as tm
 from xgboost.callback import LearningRateScheduler

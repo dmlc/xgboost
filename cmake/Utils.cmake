@@ -77,9 +77,9 @@ function(compute_cmake_cuda_archs archs)
   # Remember to update arch-specific tunings when supporting new archs.
   if(NOT CMAKE_CUDA_ARCHITECTURES)
     if(CUDA_VERSION VERSION_GREATER_EQUAL "13.0")
-      set(CMAKE_CUDA_ARCHITECTURES 75 80 90 100 120)
+      set(CMAKE_CUDA_ARCHITECTURES 75 80 86 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "12.9")
-      set(CMAKE_CUDA_ARCHITECTURES 75 80 90 100 120)
+      set(CMAKE_CUDA_ARCHITECTURES 70 75 80 86 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "12.8")
       set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
@@ -146,7 +146,7 @@ function(xgboost_set_cuda_flags target)
     message(FATAL_ERROR "Unsupported CUDA compiler: ${CMAKE_CUDA_COMPILER_ID}")
   endif()
 
-  if(OpenMP_CXX_FLAGS)
+  if(USE_OPENMP AND OpenMP_CXX_FLAGS)
     separate_arguments(cuda_openmp_flags NATIVE_COMMAND "${OpenMP_CXX_FLAGS}")
     xgboost_cuda_wrap_host_compiler_options(cuda_host_flags ${cuda_openmp_flags})
     list(APPEND cuda_compile_options ${cuda_host_flags})
@@ -281,6 +281,9 @@ endmacro()
 
 # Custom definitions used in xgboost.
 macro(xgboost_target_defs target)
+  if(USE_THREADPOOL)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_THREADPOOL=1)
+  endif()
   if(NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
     target_compile_definitions(${target}
       PRIVATE
@@ -305,9 +308,6 @@ macro(xgboost_target_defs target)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
 
-  if(USE_NVCOMP)
-    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
-  endif()
   if(BUILD_WITH_GIT_HASH)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_GIT_HASH="${XGBOOST_GIT_HASH}")
   endif()
@@ -337,10 +337,6 @@ macro(xgboost_target_link_libraries target)
 
   if(PLUGIN_RMM)
     target_link_libraries(${target} PRIVATE rmm::rmm)
-  endif()
-
-  if(USE_NVCOMP)
-    target_link_libraries(${target} PRIVATE nvcomp::nvcomp)
   endif()
 
   if(USE_NCCL)

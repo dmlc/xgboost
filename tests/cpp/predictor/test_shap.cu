@@ -33,7 +33,7 @@ TEST(GPUPredictor, CompareCPUShap) {
   }
 
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(Args{{"objective", "binary:logistic"},
+  learner->Configure(Args{{"objective", "binary:logistic"},
                           {"max_depth", "12"},
                           {"min_split_loss", "0"},
                           {"min_child_weight", "0"},
@@ -52,18 +52,26 @@ TEST(GPUPredictor, CompareCPUShap) {
 
   std::unique_ptr<Learner> learner_gpu{Learner::Create({})};
   learner_gpu->LoadModel(model);
-  learner_gpu->SetParam("device", ctx.DeviceName());
+  learner_gpu->Configure({{"device", ctx.DeviceName()}});
   learner_gpu->Configure();
 
   std::unique_ptr<Learner> learner_cpu{Learner::Create({})};
   learner_cpu->LoadModel(model);
-  learner_cpu->SetParam("device", cpu_ctx.DeviceName());
+  learner_cpu->Configure({{"device", cpu_ctx.DeviceName()}});
   learner_cpu->Configure();
 
   learner_gpu->Predict(dmat, false, &predictions, 0, 0, false, false, true, false, false);
   learner_cpu->Predict(dmat, false, &cpu_predictions, 0, 0, false, false, true, false, false);
   learner_gpu->Predict(dmat, false, &interactions, 0, 0, false, false, false, false, true);
   learner_cpu->Predict(dmat, false, &cpu_interactions, 0, 0, false, false, false, false, true);
+  ASSERT_TRUE(predictions.DeviceCanRead());
+  ASSERT_TRUE(interactions.DeviceCanRead());
+  EXPECT_THROW(
+      learner_gpu->Predict(dmat, false, &predictions, 0, 0, false, false, true, true, false),
+      dmlc::Error);
+  EXPECT_THROW(
+      learner_gpu->Predict(dmat, false, &interactions, 0, 0, false, false, false, true, true),
+      dmlc::Error);
   auto& phis = predictions.HostVector();
   auto& cpu_phis = cpu_predictions.HostVector();
   for (auto i = 0ull; i < phis.size(); i++) {
@@ -74,6 +82,49 @@ TEST(GPUPredictor, CompareCPUShap) {
   auto& cpu_inter = cpu_interactions.HostVector();
   for (auto i = 0ull; i < inter.size(); i++) {
     EXPECT_NEAR(cpu_inter[i], inter[i], 1e-3);
+  }
+}
+
+// Exercise independently advancing row subgroups under compute-sanitizer racecheck.
+TEST(GPUPredictor, ShapPartialRowTiles) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t constexpr kCols{3};
+  bst_idx_t constexpr kTrainRows{128};
+  auto train = RandomDataGenerator(kTrainRows, kCols, 0.0).GenerateDMatrix();
+  train->Info().labels.Reshape(kTrainRows, 1);
+  auto& labels = train->Info().labels.Data()->HostVector();
+  for (bst_idx_t i = 0; i < kTrainRows; ++i) {
+    labels[i] = static_cast<float>(i % 7);
+  }
+  std::unique_ptr<Learner> cpu{Learner::Create({train})};
+  cpu->Configure({{"tree_method", "hist"}, {"max_depth", "5"}, {"min_child_weight", "0"}});
+  cpu->Configure();
+  for (int i = 0; i < 3; ++i) {
+    cpu->UpdateOneIter(i, train);
+  }
+  Json model{Object{}};
+  cpu->SaveModel(&model);
+  std::unique_ptr<Learner> gpu{Learner::Create({})};
+  gpu->LoadModel(model);
+  gpu->Configure({{"device", ctx.DeviceName()}});
+  gpu->Configure();
+
+  for (bst_idx_t rows : {1, 2, 3, 4, 5, 7, 8, 9}) {
+    SCOPED_TRACE(rows);
+    auto data = RandomDataGenerator(rows, kCols, 0.2).GenerateDMatrix();
+    for (bool interactions : {false, true}) {
+      SCOPED_TRACE(interactions);
+      HostDeviceVector<float> expected, actual;
+      cpu->Predict(data, false, &expected, 0, 0, false, false, !interactions, false, interactions);
+      gpu->Predict(data, false, &actual, 0, 0, false, false, !interactions, false, interactions);
+      ASSERT_TRUE(actual.DeviceCanRead());
+      auto const& h_expected = expected.ConstHostVector();
+      auto const& h_actual = actual.ConstHostVector();
+      ASSERT_EQ(h_expected.size(), h_actual.size());
+      for (std::size_t i = 0; i < h_expected.size(); ++i) {
+        ASSERT_NEAR(h_expected[i], h_actual[i], 1e-4);
+      }
+    }
   }
 }
 

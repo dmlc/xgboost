@@ -79,6 +79,18 @@ void TestQuantile(Context const* ctx) {
   ASSERT_NEAR(h_gpair(0, 0).GetHess(), 0.5 / 0.04, 1.0e-5);
   ASSERT_NEAR(h_gpair(2, 0).GetHess(), 1.0e-3 * 0.5 / 0.04 * 3.0e-4, 1.0e-10);
 
+  // Positive weights must not be treated as zero based on their magnitude.
+  MetaInfo tiny_weight_info;
+  tiny_weight_info.num_row_ = 1;
+  tiny_weight_info.labels.Reshape(1, 1);
+  tiny_weight_info.labels.Data()->HostVector() = {0.0f};
+  tiny_weight_info.weights_.HostVector() = {1.0e-8f};
+  HostDeviceVector<float> tiny_weight_predt{{1.0f}};
+  floor_obj->GetGradient(tiny_weight_predt, tiny_weight_info, 0, &gpair);
+  h_gpair = gpair.HostView();
+  ASSERT_GT(std::abs(h_gpair(0, 0).GetGrad()), 0.0f);
+  ASSERT_GT(h_gpair(0, 0).GetHess(), 0.0f);
+
   info.weights_.HostVector() = {0.0f, 0.0f, 0.0f};
   obj->GetGradient(predt, info, 1, &gpair);
   for (auto const& pair : gpair.Data()->HostVector()) {
@@ -121,19 +133,23 @@ void TestQuantileIntercept(Context const* ctx) {
     }
   });
 
-  linalg::Vector<float> base_scores;
-  obj->InitEstimation(info, &base_scores);
-  ASSERT_EQ(base_scores.Size(), 2);
-  ASSERT_NEAR(base_scores(0), 5.6, kRtEps);
-  ASSERT_NEAR(base_scores(1), 7.8, kRtEps);
+  auto check_init = [&](std::vector<float> const& expected) {
+    auto n_targets = obj->Targets(info);
+    linalg::Vector<float> base_scores;
+    obj->InitEstimation(info, &base_scores);
+    ASSERT_EQ(base_scores.Size(), n_targets);
+    auto h_base_scores = base_scores.HostView();
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      ASSERT_EQ(h_base_scores(target), expected[target]);
+    }
+  };
+
+  check_init({6.0f, 8.0f});
 
   for (std::size_t i = 0; i < info.num_row_; ++i) {
     info.weights_.HostVector().emplace_back(info.num_row_ - i - 1.0);
   }
 
-  obj->InitEstimation(info, &base_scores);
-  ASSERT_EQ(base_scores.Size(), 2);
-  ASSERT_NEAR(base_scores(0), 3.0, kRtEps);
-  ASSERT_NEAR(base_scores(1), 5.0, kRtEps);
+  check_init({3.0f, 5.0f});
 }
 }  // namespace xgboost

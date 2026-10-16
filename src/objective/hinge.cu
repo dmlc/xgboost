@@ -15,5 +15,6 @@ DMLC_REGISTRY_FILE_TAG(hinge_kernel_cuda);
 namespace {
 auto const kRegisterHingeGradientCuda = elementwise::RegisterGradientCuda<HingeLoss>();
 auto const kRegisterHingePredTransformCuda = elementwise::RegisterTransformCuda<HingeLoss>();
+auto const kRegisterHingeValidationCuda = elementwise::RegisterValidationCuda<HingeLabelCheck>();
 }  // namespace
 }  // namespace xgboost::obj

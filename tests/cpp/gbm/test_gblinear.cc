@@ -17,11 +17,11 @@ TEST(GBLinear, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gblinear", Args{}, kRows, kCols, &mparam, &ctx)};
-  Json model { Object() };
+  Json model{Object()};
   gbm->SaveModel(&model);
   ASSERT_TRUE(IsA<Object>(model));
 
@@ -41,7 +41,7 @@ TEST(GBLinear, JsonIO) {
 TEST(GBLinear, Dump) {
   Context ctx;
   size_t constexpr kRows = 16, kCols = 16;
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gblinear", Args{}, kRows, kCols, &mparam, &ctx)};

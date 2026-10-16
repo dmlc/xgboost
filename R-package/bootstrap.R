@@ -4,27 +4,35 @@
 system("git submodule init")
 system("git submodule update")
 
-## core
-file.copy("../src", "./src/", recursive = TRUE)
-file.copy("../include", "./src/", recursive = TRUE)
-file.copy("../amalgamation", "./src/", recursive = TRUE)
+manifest <- readLines("tools/cmake-source-files")
+manifest <- trimws(manifest)
+manifest <- manifest[nzchar(manifest) & !startsWith(manifest, "#")]
+embedded_root <- "src"
 
-## dmlc-core
-dir.create("./src/dmlc-core")
-file.copy("../dmlc-core/include", "./src/dmlc-core/", recursive = TRUE)
-file.copy("../dmlc-core/src", "./src/dmlc-core/", recursive = TRUE)
-
-pkgroot <- function(path) {
-  ## read the file from path, replace the PKGROOT=../../ with PKGROOT=.
-  lines <- readLines(path)
-  lines <- gsub("PKGROOT=../../", "PKGROOT=.", lines, fixed = TRUE)
-  writeLines(lines, path)
+copy_cmake_source <- function(relative_path) {
+  source <- file.path("..", relative_path)
+  target <- file.path(embedded_root, relative_path)
+  print(paste0("copy: ", source, " -> ", target))
+  if (!file.exists(source) && !dir.exists(source)) {
+    stop("Missing CMake source manifest entry: ", source)
+  }
+  dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+  if (dir.exists(source)) {
+    dir.create(target, recursive = TRUE, showWarnings = FALSE)
+    files <- list.files(source, all.files = TRUE, full.names = TRUE)
+    files <- files[!basename(files) %in% c(".", "..")]
+    if (length(files) && !all(file.copy(files, target, recursive = TRUE))) {
+      stop("Failed to copy CMake source directory: ", source)
+    }
+  } else if (!file.copy(source, target)) {
+    stop("Failed to copy CMake source file: ", source)
+  }
 }
 
-## makefile and license
+invisible(lapply(manifest, copy_cmake_source))
+
+## license
 file.copy("../LICENSE", "./LICENSE")
-pkgroot("./src/Makevars.in")
-pkgroot("./src/Makevars.win.in")
 
 ## misc
 path <- file.path("remove_warning_suppression_pragma.sh")

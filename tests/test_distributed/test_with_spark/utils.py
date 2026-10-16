@@ -1,6 +1,7 @@
 import unittest
 
 import pytest
+
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]

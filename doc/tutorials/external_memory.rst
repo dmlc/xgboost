@@ -503,7 +503,6 @@ undergone multiple development iterations. Here's a brief summary of major chang
   objectives support.
 - In addition, we begin support for distributed training in 3.0
 - 3.1 added support for having divided cache pages. One can have part of a cache page in
-  the GPU and the rest of the cache in the host memory. In addition, XGBoost works with
-  the Grace Blackwell hardware decompression engine when data is sparse.
+  the GPU and the rest of the cache in the host memory.
 - The text file cache format has been removed in 3.1.0.
 - The page concatenation option has been removed in 3.2.0.

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ## Log into AWS ECR (Elastic Container Registry) to be able to pull containers from it
 ## Note. Requires valid AWS credentials
 

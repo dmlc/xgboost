@@ -670,6 +670,27 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParam(
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterSetParams
+ * Signature: (JLjava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetParams(JNIEnv *jenv,
+                                                                                 jclass jcls,
+                                                                                 jlong jhandle,
+                                                                                 jstring jconfig) {
+  auto handle = reinterpret_cast<BoosterHandle>(jhandle);
+  std::unique_ptr<char const, Deleter<char const>> config{
+      jenv->GetStringUTFChars(jconfig, nullptr), [&](char const *ptr) {
+        if (ptr) {
+          jenv->ReleaseStringUTFChars(jconfig, ptr);
+        }
+      }};
+  int ret = XGBoosterSetParams(handle, config.get());
+  JVM_CHECK_CALL(ret);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterUpdateOneIter
  * Signature: (JIJ)V
  */
@@ -767,11 +788,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterPredictFromDMatrix
- * Signature: (JJII[[F)I
+ * Signature: (JJIIZ[[F)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDMatrix(
     JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint jpredict_type, jint jiteration_end,
-    jobjectArray jout) {
+    jboolean jtraining, jobjectArray jout) {
   API_BEGIN();
   auto handle = reinterpret_cast<BoosterHandle>(jhandle);
   auto dmat = reinterpret_cast<DMatrixHandle>(jdmat);
@@ -780,7 +801,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   config["type"] = xgboost::Integer{static_cast<std::int32_t>(jpredict_type)};
   config["iteration_begin"] = xgboost::Integer{0};
   config["iteration_end"] = xgboost::Integer{static_cast<xgboost::bst_layer_t>(jiteration_end)};
-  config["training"] = xgboost::Boolean{false};
+  config["training"] = xgboost::Boolean{static_cast<bool>(jtraining)};
   config["strict_shape"] = xgboost::Boolean{false};
   auto s_config = xgboost::Json::Dump(config);
 

@@ -2,8 +2,8 @@
 
 import argparse
 import os
-
 import tomllib
+
 from packaging.version import Version
 from test_utils import PY_PACKAGE
 
@@ -31,8 +31,7 @@ def make_pyproject(
 ) -> None:
     if use_suffix == "cpu" and require_nccl_dep != "na":
         raise ValueError(
-            "xgboost-cpu cannot require NCCL dependency. "
-            "When setting --use-suffix='cpu', you must also set --require-nccl-dep='na'."
+            "xgboost-cpu cannot require NCCL dependency. When setting --use-suffix='cpu', you must also set --require-nccl-dep='na'."
         )
     if (
         use_suffix in CUDA_VARIANTS
@@ -95,8 +94,7 @@ if __name__ == "__main__":
         choices=["na", "cpu"] + CUDA_VARIANTS,
         default="na",
         help=(
-            "When using this option, rename the package name to xgboost-[suffix]. "
-            "Set to 'na' to disable"
+            "When using this option, rename the package name to xgboost-[suffix]. Set to 'na' to disable"
         ),
     )
     parser.add_argument(
