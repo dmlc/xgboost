@@ -72,5 +72,5 @@ Imports:
     jsonlite (>= 1.0)
 Roxygen: list(markdown = TRUE)
 Encoding: UTF-8
-SystemRequirements: GNU make, C++17
+SystemRequirements: C++17, GNU make, cmake (>= 3.18)
 Config/roxygen2/version: 8.1.0

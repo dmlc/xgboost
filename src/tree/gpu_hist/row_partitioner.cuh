@@ -2,15 +2,16 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
 #include <algorithm>        // for max
 #include <cstddef>          // for size_t
 #include <cstdint>          // for int32_t, uint32_t
+#include <cub/device/device_scan.cuh>  // for DeviceScan
 #include <cuda/functional>  // for proclaim_return_type
 #include <vector>           // for vector
 
+#include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
@@ -154,7 +155,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
 
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
-  auto counting = thrust::make_counting_iterator(0llu);
+  auto counting = dh::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
@@ -164,35 +165,23 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
       }));
-  // Reach down to the dispatch function to avoid using int as the offset type.
   std::size_t n_bytes = 0;
+  auto scan = [&](void* storage) {
+    return cub::DeviceScan::InclusiveScan(storage, n_bytes, input_iterator,
+                                          discard_write_iterator, IndexFlagOp{},
+                                          static_cast<std::uint64_t>(total_rows),
+                                          ctx->CUDACtx()->Stream());
+  };
   if (tmp->empty()) {
     // The size of temporary storage is calculated based on the total number of
     // rows. Since the root node has all the rows, subsequence allocatioin must be smaller
     // than the root node. As a result, we can calculate this once and reuse it throughout
     // the iteration.
-    auto ret =
-        cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                          cub::NullType, std::uint64_t>::Dispatch(nullptr, n_bytes, input_iterator,
-                                                                  discard_write_iterator,
-                                                                  IndexFlagOp{}, cub::NullType{},
-                                                                  static_cast<std::uint64_t>(
-                                                                      total_rows),
-                                                                  ctx->CUDACtx()->Stream());
-    dh::safe_cuda(ret);
+    dh::safe_cuda(scan(nullptr));
     tmp->resize(n_bytes);
   }
   n_bytes = tmp->size();
-  auto ret =
-      cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                        cub::NullType, std::uint64_t>::Dispatch(tmp->data(), n_bytes,
-                                                                input_iterator,
-                                                                discard_write_iterator,
-                                                                IndexFlagOp{}, cub::NullType{},
-                                                                static_cast<std::uint64_t>(
-                                                                    total_rows),
-                                                                ctx->CUDACtx()->Stream());
-  dh::safe_cuda(ret);
+  dh::safe_cuda(scan(tmp->data()));
 
   constexpr int kBlockSize = 256;
 

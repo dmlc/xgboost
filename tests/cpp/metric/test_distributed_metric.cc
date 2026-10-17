@@ -117,6 +117,10 @@ auto MakeParamsForTest() {
   REFLECT_NAME(LogLoss);
   REFLECT_NAME(Error);
   REFLECT_NAME(PoissonNegLogLik);
+  REFLECT_NAME(GammaDeviance);
+  REFLECT_NAME(GammaNLogLik);
+  REFLECT_NAME(TweedieNLogLik);
+  REFLECT_NAME(NormalNLogLik);
   REFLECT_NAME(MultiRMSE);
   REFLECT_NAME(Quantile);
   REFLECT_NAME(Expectile);

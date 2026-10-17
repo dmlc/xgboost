@@ -37,8 +37,10 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
         "colsample_bylevel": strategies.floats(0.5, 1.0),
     }
 ).filter(
-    lambda x: (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
-    and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
+    lambda x: (
+        (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
+        and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
+    )
 )
 
 hist_cache_strategy = strategies.fixed_dictionaries(
@@ -61,8 +63,10 @@ hist_multi_parameter_strategy = strategies.fixed_dictionaries(
         "colsample_bylevel": strategies.floats(0.5, 1.0),
     }
 ).filter(
-    lambda x: (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
-    and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
+    lambda x: (
+        (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
+        and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
+    )
 )
 
 cat_parameter_strategy = strategies.fixed_dictionaries(

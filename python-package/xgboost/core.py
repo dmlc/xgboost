@@ -96,13 +96,28 @@ if TYPE_CHECKING:
 XGBoostError = _XGBoostError
 
 
+def _metric_str_to_float(value: str) -> float:
+    """Convert a metric value from the native library's eval string into a float.
+
+    MSVC builds print an indeterminate NaN as ``-nan(ind)``, which ``float()``
+    rejects.
+
+    """
+    try:
+        return float(value)
+    except ValueError:
+        if "nan" in value.lower():
+            return float("nan")
+        raise
+
+
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
     """Parse an eval result string from the booster."""
     splited = result.split()[1:]
     # split up `test-error:0.1234`
     metric_score_str = [tuple(s.split(":")) for s in splited]
     # convert to float
-    metric_score = [(n, float(s)) for n, s in metric_score_str]
+    metric_score = [(n, _metric_str_to_float(s)) for n, s in metric_score_str]
     return metric_score
 
 
@@ -533,7 +548,7 @@ def require_keyword_args(
 
         Parameters
         ----------
-        f :
+        func :
             function to check arguments on.
 
         """
@@ -1813,7 +1828,30 @@ class Booster:
         else:
             params_processed["validate_parameters"] = True
 
-        self.set_param(params_processed or {})
+        if isinstance(params_processed, dict):
+            prepared = self._prepare_parameters(params_processed.items())
+        else:
+            prepared = self._prepare_parameters(params_processed)
+        if cache or model_file is not None or params:
+            self._set_params(prepared)
+
+    @staticmethod
+    def _prepare_parameters(params: Iterable[Tuple[str, Any]]) -> List[Tuple[str, str]]:
+        prepared = []
+        for key, val in params:
+            if isinstance(val, np.ndarray):
+                val = val.tolist()
+            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
+                val = val.tolist()
+            if val is not None:
+                prepared.append((key, str(val)))
+        return prepared
+
+    def _set_params(self, params: List[Tuple[str, str]]) -> None:
+        if params:
+            _check_call(
+                _LIB.XGBoosterSetParams(self.handle, make_jcargs(params=params))
+            )
 
     def _transform_monotone_constrains(
         self, value: Union[Dict[str, int], str, Tuple[int, ...]]
@@ -2182,15 +2220,8 @@ class Booster:
             params = params.items()
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
-        for key, val in cast(Iterable[Tuple[str, str]], params):
-            if isinstance(val, np.ndarray):
-                val = val.tolist()
-            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
-                val = val.tolist()
-            if val is not None:
-                _check_call(
-                    _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
-                )
+        prepared = self._prepare_parameters(cast(Iterable[Tuple[str, Any]], params))
+        self._set_params(prepared)
 
     def update(
         self,
@@ -3295,8 +3326,8 @@ class Booster:
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
-                "data did not contain feature names, but the following fields are expected: "
-                + ", ".join(self.feature_names)
+                "data did not contain feature names, but the following fields "
+                "are expected: " + ", ".join(self.feature_names)
             )
 
         if self.feature_names != feature_names:
@@ -3339,7 +3370,7 @@ class Booster:
             The name of the feature.
         fmap:
             The name of feature map file.
-        bin :
+        bins :
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.

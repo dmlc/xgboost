@@ -1038,13 +1038,31 @@ XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer, int end_layer,
 XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int *out);
 
 /**
- * @brief set parameters
+ * @brief Set and apply one parameter as a single-element configuration batch.
+ *
+ * @deprecated Prefer XGBoosterSetParams when setting multiple parameters so they are configured
+ * together.
+ *
  * @param handle handle
  * @param name  parameter name
  * @param value value of parameter
  * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle, const char *name, const char *value);
+
+/**
+ * @brief Set and apply multiple parameters as one configuration step.
+ *
+ * The configuration is a JSON object with a `params` array containing name-value pairs. The array
+ * is ordered and preserves repeated parameters such as `eval_metric`. A successful return means
+ * that no configuration is pending. For example:
+ * `{"params": [["tree_method", "hist"], ["eval_metric", "mae"], ["eval_metric", "rmse"]]}`.
+ *
+ * @param handle Handle to the booster.
+ * @param config JSON-encoded parameter batch.
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config);
 /**
  * @example c-api-demo.c
  */

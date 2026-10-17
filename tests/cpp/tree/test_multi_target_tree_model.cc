@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 #include <xgboost/linalg.h>   // for Vector
+#include <xgboost/logging.h>  // for Error
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
@@ -20,11 +21,13 @@ void Expand(RegTree* p_tree, bst_node_t nidx, bst_feature_t fidx, float cond, bo
             linalg::VectorView<float const> base_weight,
             linalg::VectorView<float const> left_weight,
             linalg::VectorView<float const> right_weight, float loss_chg, double left_sum,
-            double right_sum, float eta = 1.0f, common::Span<tree::CatWordT const> cat_bits = {}) {
+            double right_sum, common::Span<tree::CatWordT const> cat_bits = {}) {
   Context ctx;
-  tree::ExpandBatch batch{eta};
-  batch.Push(nidx, fidx, cond, dft_left, base_weight.Values(), left_weight.Values(),
-             right_weight.Values(), loss_chg, left_sum, right_sum, cat_bits);
+  tree::ExpandBatch batch{{tree::SplitInfo{nidx, fidx, cond, dft_left, cat_bits},
+                           {base_weight.Values(), left_sum + right_sum},
+                           {left_weight.Values(), left_sum},
+                           {right_weight.Values(), right_sum},
+                           loss_chg}};
   p_tree->Expand(&ctx, batch);
 }
 }  // namespace
@@ -60,7 +63,7 @@ std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
   Expand(tree.get(), RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
          left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
          /*left_sum=*/0.6f, /*right_sum=*/0.4f);
-  tree->GetMultiTargetTree()->SetLeaves();
+  tree->FinalizeLeaves(1.0f);
   return tree;
 }
 
@@ -130,7 +133,7 @@ void TestTreeDump(std::string format, std::string leaf_key) {
     Expand(&tree, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(), weight.HostView(),
            weight.HostView(), /*loss_chg=*/0.5f,
            /*left_sum=*/0.6f, /*right_sum=*/0.4f);
-    tree.GetMultiTargetTree()->SetLeaves();
+    tree.FinalizeLeaves(1.0f);
     auto str = tree.DumpModel(fmap, false, format);
     if (format != "json") {
       ASSERT_NE(str.find(leaf_key + "[1, 2, ..., 4]"), std::string::npos);
@@ -156,7 +159,7 @@ TEST(MultiTargetTree, View) {
   ASSERT_EQ(v.RightChild(0), 2);
 }
 
-TEST(MultiTargetTree, SetLeaves) {
+TEST(MultiTargetTree, FinalizeLeaves) {
   bst_target_t n_targets{5};
   bst_feature_t n_features{4};
   std::unique_ptr<RegTree> tree{std::make_unique<RegTree>(n_targets, n_features)};
@@ -174,7 +177,8 @@ TEST(MultiTargetTree, SetLeaves) {
 
   std::vector<float> leaf_weights(n_targets * 2);
   std::iota(leaf_weights.begin(), leaf_weights.end(), 0);
-  tree->SetLeaves({1, 2}, {leaf_weights});
+  std::vector<bst_node_t> leaves_idx{1, 2};
+  tree->FinalizeLeaves(leaves_idx, leaf_weights, 1.0f);
   ASSERT_TRUE(tree->HostMtView().IsLeaf(1));
   ASSERT_TRUE(tree->HostMtView().IsLeaf(2));
   auto mt_tree = tree->HostMtView();
@@ -195,6 +199,7 @@ TEST(MultiTargetTree, SetLeaves) {
   for (std::size_t i = 0; i < right.Size(); ++i) {
     ASSERT_EQ(right.Values()[i], i + left.Size());
   }
+  ASSERT_THROW(tree->FinalizeLeaves(leaves_idx, leaf_weights, 1.0f), dmlc::Error);
 }
 
 TEST(MultiTargetTree, Statistics) {

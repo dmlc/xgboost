@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by Contributors
+ * Copyright 2018-2026 by Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for bst_node_t, bst_bin_t, Gradient...
@@ -60,9 +60,9 @@ void TestAddHistRows(bool is_distributed) {
 
   RegTree tree;
 
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.Expand({SplitInfo{0, 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
+  tree.Expand({SplitInfo{tree[0].LeftChild(), 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
+  tree.Expand({SplitInfo{tree[0].RightChild(), 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
   nodes_to_build.emplace_back(3);
   nodes_to_build.emplace_back(4);
   nodes_to_sub.emplace_back(5);
@@ -79,6 +79,53 @@ void TestAddHistRows(bool is_distributed) {
   for (bst_node_t const &nidx : nodes_to_sub) {
     ASSERT_TRUE(histogram_builder.Histogram().HistogramExists(nidx));
   }
+}
+
+TEST(CPUHistogram, CacheGrowth) {
+  BoundedHistCollection cache;
+  bst_bin_t constexpr kBins = 3;
+  std::size_t constexpr kLimit = 7;
+  cache.Reset(kBins, kLimit);
+  std::size_t allocations = 0;
+  for (bst_node_t n = 0; n < static_cast<bst_node_t>(kLimit); ++n) {
+    auto previous_capacity = cache.Capacity();
+    cache.AllocateHistograms(std::vector<bst_node_t>{n});
+    allocations += cache.Capacity() != previous_capacity;
+    ASSERT_EQ(cache.Size(), (n + 1) * kBins);
+    ASSERT_GE(cache.Capacity(), cache.Size());
+    ASSERT_LE(cache.Capacity(), kLimit * kBins);
+    for (auto &bin : cache[n]) {
+      bin = GradientPairPrecise{static_cast<double>(n), static_cast<double>(n + 1)};
+    }
+    // Growth must preserve every previously allocated histogram.
+    for (bst_node_t old = 0; old <= n; ++old) {
+      for (auto const &bin : cache[old]) {
+        ASSERT_EQ(bin.GetGrad(), old);
+        ASSERT_EQ(bin.GetHess(), old + 1);
+      }
+    }
+  }
+  ASSERT_EQ(allocations, 6);  // Bin capacities: 3, 6, 9, 13, 19, then the limit of 21.
+  std::vector<bst_node_t> next{7};
+  ASSERT_FALSE(cache.CanHost(next, {}));
+  auto capacity = cache.Capacity();
+  cache.Clear(true);
+  ASSERT_TRUE(cache.HasExceeded());
+  ASSERT_FALSE(cache.HistogramExists(0));
+  cache.AllocateHistograms(next);
+  ASSERT_EQ(cache.Size(), kBins);
+  ASSERT_EQ(cache.Capacity(), capacity);
+
+  // A batch may exceed the cache limit, but must not reserve additional spare capacity.
+  cache.Reset(kBins, 2);
+  std::vector<bst_node_t> batch(9);
+  std::iota(batch.begin(), batch.end(), 0);
+  ASSERT_FALSE(cache.CanHost(batch, {}));
+  cache.AllocateHistograms(batch);
+  ASSERT_EQ(cache.Size(), batch.size() * kBins);
+  ASSERT_EQ(cache.Capacity(), cache.Size());
+  ASSERT_FALSE(cache.HasExceeded());
+  ASSERT_EQ(cache[8].size(), kBins);
 }
 
 TEST(CPUHistogram, AddRows) {
@@ -118,7 +165,7 @@ void TestSyncHist(bool is_distributed) {
   histogram.AddHistRows(tree.HostScView(), &nodes_for_explicit_hist_build,
                         &nodes_for_subtraction_trick, false);
 
-  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.Expand({SplitInfo{0, 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
   nodes_for_explicit_hist_build.clear();
   nodes_for_subtraction_trick.clear();
 
@@ -129,8 +176,8 @@ void TestSyncHist(bool is_distributed) {
   histogram.AddHistRows(tree.HostScView(), &nodes_for_explicit_hist_build,
                         &nodes_for_subtraction_trick, false);
 
-  tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-  tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  tree.Expand({SplitInfo{tree[0].LeftChild(), 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
+  tree.Expand({SplitInfo{tree[0].RightChild(), 0, 0, false}, {0, 0}, {0, 0}, {0, 0}, 0});
 
   nodes_for_explicit_hist_build.clear();
   nodes_for_subtraction_trick.clear();
@@ -539,11 +586,11 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
                                best, batch);
 
     best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
-    tree.ExpandNode(best.nid, best.split.SplitIndex(), best.split.split_value, false,
-                    /*base_weight=*/2.0f,
-                    /*left_leaf_weight=*/1.0f, /*right_leaf_weight=*/1.0f, best.GetLossChange(),
-                    /*sum_hess=*/2.0f, best.split.left_sum.GetHess(),
-                    best.split.right_sum.GetHess());
+    tree.Expand({{best.nid, best.split.SplitIndex(), best.split.split_value, false},
+                 {2.0f, 2.0f},
+                 {1.0f, best.split.left_sum.GetHess()},
+                 {1.0f, best.split.right_sum.GetHess()},
+                 best.GetLossChange()});
 
     std::vector<CPUExpandEntry> valid_candidates{best};
     for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {

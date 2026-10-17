@@ -1,3 +1,10 @@
+##################################
+3.4.1 Patch Release (Aug 14, 2026)
+##################################
+
+- Fix model slicing with category container. (:pr:`12462`)
+- [JVM Packages] Fix batch predict for SparseVector features (:pr:`12347`)
+
 ###################
 3.4.0 (Aug 4, 2026)
 ###################

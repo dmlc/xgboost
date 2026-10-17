@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
 
-#include "../../src/encoder/ordinal.cuh"
+#include "../../../src/encoder/ordinal.cuh"
 #include "df_mock.cuh"
 #include "test_ordinal.h"
 

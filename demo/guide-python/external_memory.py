@@ -40,8 +40,9 @@ import tempfile
 from typing import TYPE_CHECKING, Callable, List, Literal, Tuple
 
 import numpy as np
-import xgboost
 from sklearn.datasets import make_regression
+
+import xgboost
 
 if TYPE_CHECKING:
     from cuda.bindings.runtime import cudaError_t

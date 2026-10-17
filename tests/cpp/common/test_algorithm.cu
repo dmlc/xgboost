@@ -6,8 +6,9 @@
 #include <thrust/sequence.h>  // sequence
 #include <thrust/sort.h>      // is_sorted
 
-#include <algorithm>          // is_sorted
-#include <cstddef>            // size_t
+#include <algorithm>            // is_sorted
+#include <cstddef>              // size_t
+#include <cuda/std/functional>  // for greater
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
@@ -52,6 +53,39 @@ void TestSegmentedArgSort() {
 
 TEST(Algorithm, SegmentedArgSort) { TestSegmentedArgSort(); }
 
+TEST(Algorithm, SegmentedSortKeysInPlace) {
+  auto ctx = MakeCUDACtx(0);
+  // Include an empty segment and an untouched prefix and suffix.
+  std::vector<int> input{99, 4, 1, 3, 2, 8, 6, 7, 88};
+  std::vector<std::size_t> offsets{1, 5, 5, 8};
+  dh::device_vector<std::size_t> groups(offsets);
+  Span<std::size_t const> group_ptr{groups.data().get(), groups.size()};
+  for (bool descending : {false, true}) {
+    dh::device_vector<int> values(input);
+    if (descending) {
+      SegmentedSortKeys<true>(&ctx, group_ptr, dh::ToSpan(values));
+    } else {
+      SegmentedSortKeys<false>(&ctx, group_ptr, dh::ToSpan(values));
+    }
+    std::vector<int> result(values.size());
+    thrust::copy(values.begin(), values.end(), result.begin());
+    auto expected = descending ? std::vector<int>{99, 4, 3, 2, 1, 8, 7, 6, 88}
+                               : std::vector<int>{99, 1, 2, 3, 4, 6, 7, 8, 88};
+    EXPECT_EQ(result, expected);
+  }
+}
+
+TEST(Algorithm, InclusiveScanInPlace) {
+  auto ctx = MakeCUDACtx(0);
+  std::vector<int> input{1, 2, 3, 4};
+  dh::device_vector<int> values(input);
+  InclusiveScan(&ctx, values.data().get(), values.data().get(), std::plus<int>{},
+                std::size_t{input.size()});
+  std::vector<int> result(values.size());
+  thrust::copy(values.begin(), values.end(), result.begin());
+  EXPECT_EQ(result, (std::vector<int>{1, 3, 6, 10}));
+}
+
 TEST(Algorithm, GpuArgSort) {
   auto ctx = MakeCUDACtx(0);
 
@@ -60,7 +94,7 @@ TEST(Algorithm, GpuArgSort) {
   dh::device_vector<size_t> sorted_idx(20);
   ArgSort<false>(&ctx, dh::ToSpan(values), dh::ToSpan(sorted_idx));  // sort to descending
   ASSERT_TRUE(thrust::is_sorted(ctx.CUDACtx()->CTP(), sorted_idx.begin(), sorted_idx.end(),
-                                thrust::greater<size_t>{}));
+                                cuda::std::greater<size_t>{}));
 
   dh::Iota(dh::ToSpan(values), ctx.CUDACtx()->Stream());
   dh::device_vector<size_t> groups(3);
@@ -70,11 +104,11 @@ TEST(Algorithm, GpuArgSort) {
   SegmentedArgSort<false, false>(&ctx, dh::ToSpan(values), dh::ToSpan(groups),
                                  dh::ToSpan(sorted_idx));
   ASSERT_FALSE(thrust::is_sorted(thrust::device, sorted_idx.begin(), sorted_idx.end(),
-                                 thrust::greater<size_t>{}));
+                                 cuda::std::greater<size_t>{}));
   ASSERT_TRUE(
-      thrust::is_sorted(sorted_idx.begin(), sorted_idx.begin() + 10, thrust::greater<size_t>{}));
+      thrust::is_sorted(sorted_idx.begin(), sorted_idx.begin() + 10, cuda::std::greater<size_t>{}));
   ASSERT_TRUE(
-      thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(), thrust::greater<size_t>{}));
+      thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(), cuda::std::greater<size_t>{}));
 }
 
 TEST(Algorithm, SegmentedSequence) {

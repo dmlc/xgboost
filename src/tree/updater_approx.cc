@@ -116,9 +116,7 @@ class GlobalApproxBuilder {
                                            best, BatchSpec(*param_, hess));
 
     auto weight = evaluator_.InitRoot(root_sum);
-    p_tree->Stat(RegTree::kRoot).sum_hess = root_sum.GetHess();
-    p_tree->Stat(RegTree::kRoot).base_weight = weight;
-    (*p_tree)[RegTree::kRoot].SetLeaf(param_->learning_rate * weight);
+    p_tree->SetRoot(weight, root_sum.GetHess());
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
@@ -228,6 +226,7 @@ class GlobalApproxBuilder {
 
     auto &h_position = p_out_position->HostVector();
     this->LeafPartition(tree, hess, &h_position);
+    p_tree->FinalizeLeaves(param_->learning_rate);
   }
 };
 
@@ -251,7 +250,9 @@ class GlobalApproxUpdater : public TreeUpdater {
     monitor_.Init(__func__);
   }
 
-  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(Args const &args) override {
+    return UpdateAndGetUsedParameters(&hist_param_, args);
+  }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);

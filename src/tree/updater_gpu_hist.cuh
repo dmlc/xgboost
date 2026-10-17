@@ -151,8 +151,6 @@ class MultiTargetHistMaker {
 
     std::vector<common::Span<GradientPairInt64>> h_hists;
     std::vector<common::Span<RowIndexT const>> h_ridxs;
-    std::vector<std::size_t> h_sizes_csum{0};
-    std::size_t nidx_in_set = 0;
     // TODO(jiamingy): We can assume the histogram buffers contiguous if we don't skip
     // nodes here.
     for (auto nidx : build_nodes) {
@@ -163,20 +161,11 @@ class MultiTargetHistMaker {
         continue;
       }
       h_ridxs.push_back(d_ridx);
-      auto d_hist = histogram_.GetNodeHistogram(nidx);
-      h_hists.push_back(d_hist);
-
-      h_sizes_csum.push_back(d_ridx.size() + h_sizes_csum[nidx_in_set]);
-
-      ++nidx_in_set;
+      h_hists.push_back(histogram_.GetNodeHistogram(nidx));
     }
 
-    dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
-    dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
-
-    this->histogram_.BuildHistogram(this->ctx_, acc,
-                                    this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
-                                    d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum);
+    this->histogram_.BuildHistogram(this->ctx_, acc, *this->feature_groups_, d_gpair, h_ridxs,
+                                    h_hists);
   }
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
@@ -290,14 +279,8 @@ class MultiTargetHistMaker {
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    auto root_weight = linalg::Empty<float>(this->ctx_, n_targets);
-    auto d_root_weight = root_weight.View(this->ctx_->Device());
     auto base_weight = weights.Base(RegTree::kRoot);
-    auto eta = this->param_.learning_rate;
-    dh::LaunchN(
-        n_targets, this->ctx_->CUDACtx()->Stream(),
-        [=] XGBOOST_DEVICE(std::size_t t) mutable { d_root_weight(t) = base_weight[t] * eta; });
-    p_tree->SetRoot(d_root_weight, root_sum_hess);
+    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), base_weight), root_sum_hess);
 
     return entry;
   }
@@ -313,7 +296,7 @@ class MultiTargetHistMaker {
     // look up the persistent weight storage by node ID.
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
 
-    ExpandBatch batch{this->param_.learning_rate};
+    ExpandBatch batch;
 
     for (auto const& candidate : h_candidates) {
       auto base_weight = weights.Base(candidate.nidx);
@@ -329,9 +312,12 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, node_cats.size());
         cat_bits = node_cats.subspan(0, n_words);
       }
-      batch.Push(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                 candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                 candidate.split.loss_chg, candidate.left_sum, candidate.right_sum, cat_bits);
+      batch.push_back({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+                        candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
+                       {base_weight, candidate.left_sum + candidate.right_sum},
+                       {left_weight, candidate.left_sum},
+                       {right_weight, candidate.right_sum},
+                       candidate.split.loss_chg});
     }
 
     p_tree->Expand(this->ctx_, batch);
@@ -347,13 +333,12 @@ class MultiTargetHistMaker {
                                     dh::ToSpan(candidates), n_targets);
   }
   /**
-   * @brief Calculate the leaf weight based on the node sum for each leaf.
+   * @brief Calculate output weights using value gradients and finalize prediction leaves.
    *
-   * This method helps support reduced gradient. Weights in p_tree are calculated using
-   * split gradient. This function replaces those weights with new weights calculated from
-   * value gradient.
+   * Split-gradient base weights remain unchanged. The tree applies the learning rate when
+   * storing the output weights.
    */
-  void ExpandTreeLeaf(RegTree* p_tree) const {
+  void FinalizeLeafWeights(RegTree* p_tree) const {
     CHECK(!this->value_gpair_.Empty());
     CHECK(this->value_quantizer_);
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
@@ -403,7 +388,8 @@ class MultiTargetHistMaker {
                this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
                out_weight.View(this->ctx_->Device()));
 
-    p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
+    p_tree->FinalizeLeaves(leaves_idx, out_weight.Data()->ConstHostSpan(),
+                           this->param_.learning_rate);
   }
 
   struct NodeSplitData {
@@ -651,9 +637,9 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(p_tree);
+      this->FinalizeLeafWeights(p_tree);
     } else {
-      p_tree->GetMultiTargetTree()->SetLeaves();
+      p_tree->FinalizeLeaves(this->param_.learning_rate);
     }
   }
 
@@ -707,7 +693,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        DftMtHistShmemBytes(ctx_->Ordinal()))},
+                                                        HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}

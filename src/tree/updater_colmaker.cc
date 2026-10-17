@@ -61,7 +61,9 @@ class ColMaker : public TreeUpdater {
  public:
   explicit ColMaker(Context const *ctx)
       : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()} {}
-  void Configure(const Args &args) override { colmaker_param_.UpdateAllowUnknown(args); }
+  std::set<std::string> Configure(const Args &args) override {
+    return UpdateAndGetUsedParameters(&colmaker_param_, args);
+  }
 
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
@@ -111,7 +113,7 @@ class ColMaker : public TreeUpdater {
     }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
-    interaction_constraints_.Configure(*param, dmat->Info().num_row_);
+    interaction_constraints_.Configure(*param, dmat->Info().num_col_);
     // build tree
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
@@ -197,10 +199,6 @@ class ColMaker : public TreeUpdater {
         // if nothing left to be expand, break
         if (qexpand_.size() == 0) break;
       }
-      // set all the rest expanding nodes to leaf
-      for (const int nid : qexpand_) {
-        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-      }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
         auto &stat = p_tree->Stat(nid);
@@ -208,6 +206,7 @@ class ColMaker : public TreeUpdater {
         stat.base_weight = snode_[nid].weight;
         stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
+      p_tree->FinalizeLeaves(param_.learning_rate);
       CHECK(p_out_position);
       auto &h_position = p_out_position->HostVector();
       h_position.resize(position_.size());
@@ -287,11 +286,12 @@ class ColMaker : public TreeUpdater {
       }
       const MetaInfo &info = fmat.Info();
       // setup position
-      common::ParallelFor(info.num_row_, ctx_->Threads(), [&](auto ridx) {
-        int32_t const tid = omp_get_thread_num();
-        if (position_[ridx] < 0) return;
-        stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
-      });
+      common::ParallelFor(info.num_row_, ctx_->Threads(),
+                          common::WithWorker([&](auto ridx, common::Worker worker) {
+                            int32_t const tid = worker.Id();
+                            if (position_[ridx] < 0) return;
+                            stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
+                          }));
       // sum the per thread statistics together
       for (int nid : nodes) {
         GradStats stats;
@@ -478,10 +478,11 @@ class ColMaker : public TreeUpdater {
           std::max(static_cast<int>(num_features / this->ctx_->Threads() / 32), 1);
       auto page = batch.GetView();
       common::ParallelFor(
-          num_features, ctx_->Threads(), common::Sched::Dyn(batch_size), [&](auto i) {
+          num_features, ctx_->Threads(), common::Sched::Dyn(batch_size),
+          common::WithWorker([&](auto i, common::Worker worker) {
             auto evaluator = tree_evaluator_.GetEvaluator();
             bst_feature_t const fid = feat_set[i];
-            int32_t const tid = omp_get_thread_num();
+            int32_t const tid = worker.Id();
             auto c = page[fid];
             const bool ind = c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
             if (colmaker_train_param_.NeedForwardSearch(column_densities_[fid], ind)) {
@@ -492,7 +493,7 @@ class ColMaker : public TreeUpdater {
               this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1, fid, gpair,
                                    stemp_[tid], evaluator);
             }
-          });
+          }));
     }
 
     // find splits at current level, do split per level
@@ -511,16 +512,17 @@ class ColMaker : public TreeUpdater {
         NodeEntry const &e = snode_[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
-          bst_float left_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.left_sum) * param_.learning_rate;
-          bst_float right_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.right_sum) * param_.learning_rate;
-          p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
-                             e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
-                             e.stats.sum_hess, e.best.left_sum.GetHess(),
-                             e.best.right_sum.GetHess(), 0);
+          float left_weight = evaluator.CalcWeight(nid, param_, e.best.left_sum);
+          float right_weight = evaluator.CalcWeight(nid, param_, e.best.right_sum);
+          p_tree->Expand(
+              {SplitInfo{nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft()},
+               {e.weight, e.stats.sum_hess},
+               {left_weight, e.best.left_sum.GetHess()},
+               {right_weight, e.best.right_sum.GetHess()},
+               e.best.loss_chg},
+              0);
         } else {
-          (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
+          (*p_tree)[nid].SetLeaf(0.0f);
         }
       }
     }

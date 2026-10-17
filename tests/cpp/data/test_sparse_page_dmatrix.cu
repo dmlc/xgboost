@@ -3,6 +3,8 @@
  */
 #include <xgboost/data.h>  // for DMatrix
 
+#include <memory>  // for weak_ptr, owner_less
+#include <set>     // for set
 #include <vector>  // for vector
 
 #include "../../../src/common/compressed_iterator.h"
@@ -128,49 +130,52 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
       data::MakeId("tmep", dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".ellpack.page";
 }
 
-TEST(SparsePageDMatrix, RetainEllpackPage) {
+TEST(SparsePageDMatrix, EllpackPagePool) {
   auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{32, tree::TrainParam::DftSparseThreshold()};
-  auto m = RandomDataGenerator{2048, 4, 0.0f}.Batches(8).GenerateSparsePageDMatrix("temp", true);
-
-  auto batches = m->GetBatches<EllpackPage>(&ctx, param);
-  auto begin = batches.begin();
-  auto end = batches.end();
-
-  std::vector<HostDeviceVector<common::CompressedByteT>> gidx_buffers;
-  std::vector<std::shared_ptr<EllpackPage const>> iterators;
-  for (auto it = begin; it != end; ++it) {
-    iterators.push_back(it.Page());
-    gidx_buffers.emplace_back();
-    gidx_buffers.back().SetDevice(ctx.Device());
-    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.size());
-    auto d_dst = gidx_buffers.back().DevicePointer();
-    auto const& d_src = (*it).Impl()->gidx_buffer;
-    dh::safe_cuda(cudaMemcpyAsync(d_dst, d_src.data(), d_src.size_bytes(), cudaMemcpyDefault));
-  }
-  ASSERT_EQ(iterators.size(), 8);
-
-  for (size_t i = 0; i < iterators.size(); ++i) {
-    std::vector<common::CompressedByteT> h_buf;
-    [[maybe_unused]] auto h_acc = (*iterators[i]).Impl()->GetHostEllpack(&ctx, &h_buf);
-    ASSERT_EQ(h_buf, gidx_buffers.at(i).HostVector());
-    // The last page is still kept in the DMatrix until Reset is called.
-    if (i == iterators.size() - 1) {
-      ASSERT_EQ(iterators[i].use_count(), 2);
-    } else {
-      ASSERT_EQ(iterators[i].use_count(), 1);
+  param.n_prefetch_batches = cuda_impl::DftPrefetchBatches();
+  for (bool on_host : {false, true}) {
+    // The remainder makes the last page larger than the first prefetched pages.
+    auto m =
+        RandomDataGenerator{2055, 4, 0.0f}.Batches(8).OnHost(on_host).GenerateSparsePageDMatrix(
+            "temp", true);
+    ASSERT_EQ(m->NumBatches(), 8);
+    std::vector<std::vector<common::CompressedByteT>> expected;
+    for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
+      expected.emplace_back();
+      [[maybe_unused]] auto acc = page.Impl()->GetHostEllpack(&ctx, &expected.back());
     }
-  }
+    ASSERT_GT(expected.back().size(), expected.front().size());
 
-  // make sure it's const and the caller can not modify the content of page.
-  for (auto& page : m->GetBatches<EllpackPage>(&ctx, param)) {
-    static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
-    break;
-  }
+    auto check_page = [&](EllpackPage const& page, std::size_t i) {
+      std::vector<common::CompressedByteT> actual;
+      [[maybe_unused]] auto acc = page.Impl()->GetHostEllpack(&ctx, &actual);
+      ASSERT_EQ(actual, expected.at(i));
+    };
 
-  // The above iteration clears out all references inside DMatrix.
-  for (auto const& ptr : iterators) {
-    ASSERT_TRUE(ptr.unique());
+    // Full scans reuse at most two buffers, each sized for the largest page.
+    std::set<std::weak_ptr<common::ResourceHandler>, std::owner_less<>> buffers;
+    for (std::int32_t scan = 0; scan < 3; ++scan) {
+      std::size_t i = 0;
+      for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
+        buffers.insert(page.Impl()->gidx_buffer.Resource());
+        ASSERT_EQ(page.Impl()->gidx_buffer.Resource()->Size(), expected.back().size());
+        check_page(page, i++);
+      }
+      ASSERT_EQ(i, expected.size());
+    }
+    ASSERT_LE(buffers.size(), cuda_impl::DftPrefetchBatches());
+
+    // Early restarts may allocate extra buffers, but must return all pages correctly.
+    for (std::int32_t restart = 0; restart < 3; ++restart) {
+      auto it = m->GetBatches<EllpackPage>(&ctx, param).begin();
+      ++it;
+      std::size_t i = 0;
+      for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
+        check_page(page, i++);
+      }
+      ASSERT_EQ(i, expected.size());
+    }
   }
 }
 
@@ -312,30 +317,6 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
       EXPECT_EQ(row, row_ext);
       current_row++;
     }
-  }
-}
-
-TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
-  constexpr size_t kRows = 1024;
-  constexpr size_t kCols = 16;
-  constexpr int kMaxBins = 256;
-
-  // Create an in-memory DMatrix.
-  auto dmat =
-      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(1).GenerateSparsePageDMatrix("temp", true);
-
-  // Create a DMatrix with multiple batches.
-  auto dmat_ext =
-      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(8).GenerateSparsePageDMatrix("temp", true);
-
-  auto ctx = MakeCUDACtx(0);
-  auto param = BatchParam{kMaxBins, tree::TrainParam::DftSparseThreshold()};
-
-  size_t current_row = 0;
-  for (auto& page : dmat_ext->GetBatches<EllpackPage>(&ctx, param)) {
-    auto impl_ext = page.Impl();
-    EXPECT_EQ(impl_ext->base_rowid, current_row);
-    current_row += impl_ext->n_rows;
   }
 }
 

@@ -10,6 +10,10 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/base.h>
+
+#include <algorithm>
+#include <iterator>
+#include <set>
 #include <string>
 #include <type_traits>
 
@@ -47,43 +51,40 @@
  *   DMLC_REGISTER_PARAMETER(MyParam);
  * \endcode
  */
-#define DECLARE_FIELD_ENUM_CLASS(EnumClass) \
-namespace dmlc {  \
-namespace parameter {  \
-template <>  \
-class FieldEntry<EnumClass> : public FieldEntry<int> {  \
- public:  \
-  FieldEntry() {  \
-    static_assert(  \
-      std::is_same_v<int, typename std::underlying_type_t<EnumClass>>,  \
-      "enum class must be backed by int");  \
-    is_enum_ = true;  \
-  }  \
-  using Super = FieldEntry<int>;  \
-  void Set(void *head, const std::string &value) const override {  \
-    Super::Set(head, value);  \
-  }  \
-  inline FieldEntry<EnumClass>& add_enum(const std::string &key, EnumClass value) {  \
-    Super::add_enum(key, static_cast<int>(value));  \
-    return *this;  \
-  }  \
-  inline FieldEntry<EnumClass>& set_default(const EnumClass& default_value) {  \
-    default_value_ = static_cast<int>(default_value);  \
-    has_default_ = true;  \
-    return *this;  \
-  }  \
-  inline void Init(const std::string &key, void *head, EnumClass& ref) {  /* NOLINT */  \
-    Super::Init(key, head, *reinterpret_cast<int*>(&ref));  \
-  }  \
-};  \
-}  /* namespace parameter */  \
-}  /* namespace dmlc */
+#define DECLARE_FIELD_ENUM_CLASS(EnumClass)                                                    \
+  namespace dmlc {                                                                             \
+  namespace parameter {                                                                        \
+  template <>                                                                                  \
+  class FieldEntry<EnumClass> : public FieldEntry<int> {                                       \
+   public:                                                                                     \
+    FieldEntry() {                                                                             \
+      static_assert(std::is_same_v<int, typename std::underlying_type_t<EnumClass>>,           \
+                    "enum class must be backed by int");                                       \
+      is_enum_ = true;                                                                         \
+    }                                                                                          \
+    using Super = FieldEntry<int>;                                                             \
+    void Set(void* head, const std::string& value) const override { Super::Set(head, value); } \
+    inline FieldEntry<EnumClass>& add_enum(const std::string& key, EnumClass value) {          \
+      Super::add_enum(key, static_cast<int>(value));                                           \
+      return *this;                                                                            \
+    }                                                                                          \
+    inline FieldEntry<EnumClass>& set_default(const EnumClass& default_value) {                \
+      default_value_ = static_cast<int>(default_value);                                        \
+      has_default_ = true;                                                                     \
+      return *this;                                                                            \
+    }                                                                                          \
+    inline void Init(const std::string& key, void* head, EnumClass& ref) { /* NOLINT */        \
+      Super::Init(key, head, *reinterpret_cast<int*>(&ref));                                   \
+    }                                                                                          \
+  };                                                                                           \
+  } /* namespace parameter */                                                                  \
+  } /* namespace dmlc */
 
 namespace xgboost {
 template <typename Type>
 struct XGBoostParameter : public dmlc::Parameter<Type> {
  protected:
-  bool initialised_ {false};
+  bool initialised_{false};
 
  public:
   template <typename Container>
@@ -98,6 +99,38 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
   }
   bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
 };
+
+/**
+ * @brief Return the supplied parameter names that don't appear in the unknown arguments.
+ */
+template <typename Container, typename Unknown>
+std::set<std::string> GetUsedParameters(Container const& args, Unknown const& unknown) {
+  std::set<std::string> supplied;
+  for (auto const& arg : args) {
+    supplied.insert(arg.first);
+  }
+
+  std::set<std::string> unknown_keys;
+  for (auto const& arg : unknown) {
+    unknown_keys.insert(arg.first);
+  }
+
+  std::set<std::string> used;
+  std::set_difference(supplied.cbegin(), supplied.cend(), unknown_keys.cbegin(),
+                      unknown_keys.cend(), std::inserter(used, used.end()));
+  return used;
+}
+
+/**
+ * @brief Update a parameter and return the names it consumed.
+ *
+ * The names retain the spelling supplied by the caller, including aliases.
+ */
+template <typename Parameter, typename Container>
+std::set<std::string> UpdateAndGetUsedParameters(Parameter* parameter, Container const& args) {
+  auto unknown = parameter->UpdateAllowUnknown(args);
+  return GetUsedParameters(args, unknown);
+}
 }  // namespace xgboost
 
 #endif  // XGBOOST_PARAMETER_H_

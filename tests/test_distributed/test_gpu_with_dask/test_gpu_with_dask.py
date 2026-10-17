@@ -9,9 +9,10 @@ from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
@@ -47,6 +48,7 @@ import dask.dataframe as dd
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
+
 from xgboost import dask as dxgb
 from xgboost.testing.dask import (
     check_init_estimation,
@@ -54,6 +56,7 @@ from xgboost.testing.dask import (
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
     check_uneven_nan,
+    deterministic_dmatrix,
 )
 
 
@@ -201,11 +204,11 @@ def run_gpu_hist(
 
 
 def test_tree_stats() -> None:
-    with LocalCUDACluster(n_workers=1) as cluster:
+    with LocalCUDACluster(n_workers=1, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             local = run_tree_stats(client, "hist", "cuda")
 
-    with LocalCUDACluster(n_workers=2) as cluster:
+    with LocalCUDACluster(n_workers=2, dashboard_address=None) as cluster:
         with Client(cluster) as client:
             distributed = run_tree_stats(client, "hist", "cuda")
 
@@ -217,22 +220,25 @@ class TestDistributedGPU:
     def test_boost_from_prediction(self, local_cuda_client: Client) -> None:
         from sklearn.datasets import load_breast_cancer, load_iris
 
-        X_, y_ = load_breast_cancer(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100).to_backend("cudf")
-        y = dd.from_array(y_, chunksize=100).to_backend("cudf")
-        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
+        with deterministic_dmatrix(local_cuda_client):
+            X_, y_ = load_breast_cancer(return_X_y=True)
+            X = dd.from_array(X_, chunksize=100).to_backend("cudf")
+            y = dd.from_array(y_, chunksize=100).to_backend("cudf")
+            run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
 
-        X_, y_ = load_iris(return_X_y=True)
-        X = dd.from_array(X_, chunksize=50).to_backend("cudf")
-        y = dd.from_array(y_, chunksize=50).to_backend("cudf")
-        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
+            X_, y_ = load_iris(return_X_y=True)
+            X = dd.from_array(X_, chunksize=50).to_backend("cudf")
+            y = dd.from_array(y_, chunksize=50).to_backend("cudf")
+            run_boost_from_prediction_multi_class(
+                X, y, "hist", "cuda", local_cuda_client
+            )
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("hist", "cuda", local_cuda_client)
 
     def test_uneven_nan(self) -> None:
         n_workers = 2
-        with LocalCUDACluster(n_workers=n_workers) as cluster:
+        with LocalCUDACluster(n_workers=n_workers, dashboard_address=None) as cluster:
             with Client(cluster) as client:
                 check_uneven_nan(client, "hist", "cuda", n_workers)
 
@@ -670,6 +676,8 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
 
     def make_model() -> None:
         xgb.XGBRegressor(
+            # One boosting round exercises loading; further trees add no coverage here.
+            n_estimators=1,
             device="cuda",
             tree_method=tree_method,
             objective="reg:quantileerror",

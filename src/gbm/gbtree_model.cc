@@ -11,7 +11,7 @@
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "xgboost/context.h"            // for Context
 #include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Json...
-#include "xgboost/learner.h"            // for LearnerModelParam
+#include "xgboost/learner.h"            // for LearnerModelState
 #include "xgboost/logging.h"            // for LogCheck_EQ, CHECK_EQ, CHECK
 #include "xgboost/tree_model.h"         // for RegTree
 
@@ -149,11 +149,11 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
   CHECK_EQ(iteration_indptr.back(), param.num_trees);
   bst_tree_t n_new_trees{0};
 
-  if (learner_model_param->IsVectorLeaf()) {
+  if (learner_model_state->IsVectorLeaf()) {
     n_new_trees += new_trees.front().size();
     this->CommitModelGroup(std::move(new_trees.front()), 0);
   } else {
-    for (bst_target_t gidx{0}; gidx < learner_model_param->OutputLength(); ++gidx) {
+    for (bst_target_t gidx{0}; gidx < learner_model_state->OutputLength(); ++gidx) {
       n_new_trees += new_trees[gidx].size();
       this->CommitModelGroup(std::move(new_trees[gidx]), gidx);
     }

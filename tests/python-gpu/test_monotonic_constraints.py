@@ -1,4 +1,5 @@
 import pytest
+
 from xgboost.testing.monotone_constraints import (
     run_monotone_constraints,
     run_multi_output_monotone,

@@ -146,12 +146,17 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         Xy = DMatrix(X, y)
         w = np.ones_like(y)
 
-    mean = np.average(y, weights=w)
-    residual = mean - y
-    delta = np.average(np.sqrt(np.abs(residual)), weights=w) ** 2
-    norm = np.hypot(delta, residual)
-    curvature = np.divide(delta, norm, out=np.ones_like(norm), where=norm > 0.0)
-    base_score = mean - np.sum(w * residual * curvature) / np.sum(w * curvature)
+    # DMatrix stores labels and weights as float32. Match the objective's
+    # step-function quantile: take the first label that reaches half the weight.
+    labels = y.astype(np.float32)
+    weights = w.astype(np.float32)
+    order = np.argsort(labels)
+    labels = labels[order]
+    cumulative_weight = np.cumsum(weights[order], dtype=np.float64)
+    median_idx = np.searchsorted(
+        cumulative_weight, cumulative_weight[-1] / 2.0, side="left"
+    )
+    base_score = labels[median_idx]
 
     # Check the base score is expected.
     booster_0 = train(
@@ -234,16 +239,18 @@ def run_exp_family(device: Device) -> None:
         {"objective": "binary:logitraw", "device": device}, Xy, num_boost_round=1
     )
     # The base score stored in the booster model is un-transformed
-    np.testing.assert_allclose([get_basescore(m) for m in (reg, clf, clf1)], y.mean())
+    np.testing.assert_allclose([get_basescore(m) for m in (reg, clf)], y.mean())
+    np.testing.assert_allclose(get_basescore(clf1), np.log(y.mean() / (1.0 - y.mean())))
 
     X, y = make_classification(weights=[0.8, 0.2], random_state=2025)
     clf = train(
-        {"objective": "binary:logistic", "scale_pos_weight": 4.0, "device": device},
+        {"objective": "binary:logistic", "scale_pos_weight": 2.0, "device": device},
         QuantileDMatrix(X, y),
         num_boost_round=1,
     )
     score = get_basescore(clf)
-    np.testing.assert_allclose(score, 0.5, rtol=1e-3)
+    expected = 2.0 * y.mean() / (1.0 - y.mean() + 2.0 * y.mean())
+    np.testing.assert_allclose(score, expected, rtol=1e-6)
 
 
 def run_logistic_degenerate(device: Device) -> None:

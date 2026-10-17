@@ -52,7 +52,6 @@ struct EvalParam {
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
   float max_delta_step;
-  float learning_rate;
   std::uint32_t max_cat_to_onehot;
   bst_bin_t max_cat_threshold;
 
@@ -63,7 +62,6 @@ struct EvalParam {
         reg_lambda(param.reg_lambda),
         reg_alpha(param.reg_alpha),
         max_delta_step(param.max_delta_step),
-        learning_rate{param.learning_rate},
         max_cat_to_onehot{param.max_cat_to_onehot},
         max_cat_threshold{param.max_cat_threshold} {}
 };
@@ -212,8 +210,7 @@ class TreeEvaluator {
 
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableVecGrad<LeftGradientSumT, RightGradientSumT> = 0>
-    XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, [[maybe_unused]] bst_node_t nidx,
-                                        [[maybe_unused]] bst_feature_t fidx,
+    XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, bst_node_t nidx, bst_feature_t fidx,
                                         LeftGradientSumT const& left,
                                         RightGradientSumT const& right) const {
       auto n_targets = left.Size();

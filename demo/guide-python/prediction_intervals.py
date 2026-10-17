@@ -24,8 +24,9 @@ import argparse
 from typing import Dict, Tuple
 
 import numpy as np
-import xgboost as xgb
 from sklearn.model_selection import train_test_split
+
+import xgboost as xgb
 
 Data = Tuple[xgb.QuantileDMatrix, xgb.QuantileDMatrix]
 Predictions = Dict[str, np.ndarray]

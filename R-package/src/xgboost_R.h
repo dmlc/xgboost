@@ -332,6 +332,14 @@ XGB_DLL SEXP XGBoosterGetNumFeature_R(SEXP handle);
 XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val);
 
 /*!
+ * \brief set a batch of parameters
+ * \param handle handle
+ * \param config JSON-encoded parameter batch
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterSetParams_R(SEXP handle, SEXP config);
+
+/*!
  * \brief update the model in one round using dtrain
  * \param handle handle
  * \param iter current iteration rounds

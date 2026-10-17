@@ -2,8 +2,9 @@ from typing import Any, Dict
 
 import numpy as np
 import pytest
-import xgboost as xgb
 from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,
@@ -17,6 +18,7 @@ from xgboost.testing.updater import (
     check_categorical_ohe,
     check_get_quantile_cut,
     check_quantile_loss,
+    check_scalar_base_weights,
     run_invalid_category,
     run_max_cat,
     train_result,
@@ -26,6 +28,19 @@ from xgboost.testing.updater import (
 class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
+
+    @pytest.mark.parametrize(
+        "tree_method,categorical",
+        [
+            ("exact", False),
+            ("approx", False),
+            ("hist", False),
+            ("approx", True),
+            ("hist", True),
+        ],
+    )
+    def test_base_weights(self, tree_method: str, categorical: bool) -> None:
+        check_scalar_base_weights(tree_method, "cpu", categorical)
 
     @given(
         exact_parameter_strategy, strategies.integers(1, 20), tm.make_dataset_strategy()

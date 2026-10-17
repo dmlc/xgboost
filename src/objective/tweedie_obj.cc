@@ -33,11 +33,12 @@ auto const kRegisterTweedieValidationCpu = elementwise::RegisterValidationCpu<Tw
 
 class TweedieRegression : public FitInterceptGlmLike {
  public:
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
+  std::set<std::string> Configure(Args const& args) override {
+    auto used = UpdateAndGetUsedParameters(&param_, args);
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     metric_ = os.str();
+    return used;
   }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {

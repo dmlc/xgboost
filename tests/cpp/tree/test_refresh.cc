@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>  // for GradientContainer
@@ -43,8 +43,7 @@ TEST(Updater, Refresh) {
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &ctx, &task));
 
-  tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.Expand({{0, 2, 0.2f, false}, {0.0, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}, 0.0f});
   int cleft = tree[0].LeftChild();
   int cright = tree[0].RightChild();
 

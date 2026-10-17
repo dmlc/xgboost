@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "../../../src/collective/communicator-inl.h"
 #include "../../../src/common/survival_util.h"
 #include "../helpers.h"
 #include "xgboost/metric.h"
@@ -47,6 +48,44 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   }
 }
 
+template <typename Distribution>
+void VerifyWeightedAFT(Metric* metric) {
+  auto dmat = EmptyDMatrix();
+  auto& info = dmat->Info();
+  info.num_row_ = 4;
+  info.labels_lower_bound_.HostVector() = {100.0f, 0.0f, 60.0f, 16.0f};
+  info.labels_upper_bound_.HostVector() = {100.0f, 20.0f, std::numeric_limits<float>::infinity(),
+                                           200.0f};
+  info.weights_.HostVector() = {1, 2, 0, 3};
+  HostDeviceVector<float> preds{1.0f, 2.0f, 3.0f, 4.0f};
+  metric->Configure({{"aft_loss_distribution_scale", "2.0"}});
+  double expected = 0;
+  for (std::size_t i = 0; i < preds.Size(); ++i) {
+    expected += AFTLoss<Distribution>::Loss(info.labels_lower_bound_.HostVector()[i],
+                                            info.labels_upper_bound_.HostVector()[i],
+                                            preds.HostVector()[i], 2.0) *
+                info.weights_.HostVector()[i];
+  }
+  expected /= 6.0;
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), expected, 1e-6);
+  if (collective::GetWorldSize() > 1) {
+    if (collective::GetRank() == 0) {
+      info.num_row_ = 0;
+      info.labels_lower_bound_.Resize(0);
+      info.labels_upper_bound_.Resize(0);
+      info.weights_.Resize(0);
+      preds.Resize(0);
+    }
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), expected, 1e-6);
+  }
+  info.num_row_ = 0;
+  info.labels_lower_bound_.Resize(0);
+  info.labels_upper_bound_.Resize(0);
+  info.weights_.Resize(0);
+  preds.Resize(0);
+  EXPECT_EQ(metric->Evaluate(preds, dmat), 0.0);
+}
+
 inline void VerifyAFTNegLogLik(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
@@ -73,6 +112,13 @@ inline void VerifyAFTNegLogLik(DeviceOrd device) {
     metric->Configure(
         {{"aft_loss_distribution", test_case.dist_type}, {"aft_loss_distribution_scale", "1.0"}});
     EXPECT_NEAR(metric->Evaluate(preds, p_fmat), test_case.reference_value, 1e-4);
+    if (test_case.dist_type == "normal") {
+      VerifyWeightedAFT<NormalDistribution>(metric.get());
+    } else if (test_case.dist_type == "logistic") {
+      VerifyWeightedAFT<LogisticDistribution>(metric.get());
+    } else {
+      VerifyWeightedAFT<ExtremeDistribution>(metric.get());
+    }
   }
 }
 
@@ -97,6 +143,17 @@ inline void VerifyIntervalRegressionAccuracy(DeviceOrd device) {
   EXPECT_FLOAT_EQ(metric->Evaluate(preds, p_fmat), 0.50f);
   info.labels_lower_bound_.HostVector()[0] = 70.0f;
   EXPECT_FLOAT_EQ(metric->Evaluate(preds, p_fmat), 0.25f);
+
+  info.weights_.HostVector() = {1, 2, 3, 4};
+  EXPECT_NEAR(metric->Evaluate(preds, p_fmat), 0.4, 1e-6);
+  info.weights_.HostVector() = {0, 0, 0, 0};
+  EXPECT_EQ(metric->Evaluate(preds, p_fmat), 0.0);
+  info.num_row_ = 0;
+  info.labels_lower_bound_.Resize(0);
+  info.labels_upper_bound_.Resize(0);
+  info.weights_.Resize(0);
+  preds.Resize(0);
+  EXPECT_EQ(metric->Evaluate(preds, p_fmat), 0.0);
 
   CheckDeterministicMetricElementWise(StringView{"interval-regression-accuracy"}, device.ordinal);
 }

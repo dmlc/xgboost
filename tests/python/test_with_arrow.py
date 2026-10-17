@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
@@ -33,6 +34,16 @@ class TestArrowTable:
         dm = xgb.DMatrix(table)
         assert dm.num_row() == 2
         assert dm.num_col() == 4
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_arrow_table_with_custom_feature_names(self, DMatrixT):
+        table = pa.table({"a": [1, 2], "b": [1.0, 2.0]})
+        dm = DMatrixT(table)
+        assert dm.feature_names == ["a", "b"]
+
+        dm = DMatrixT(table, feature_names=["x", "y"])
+        assert dm.feature_names == ["x", "y"]
+        assert dm.feature_types == ["int", "float"]
 
     def test_arrow_table_with_label(self):
         df = pd.DataFrame([[1, 2.0, 3.0], [2, 3.0, 4.0]], columns=["a", "b", "c"])
@@ -84,6 +95,22 @@ class TestArrowTable:
         np.testing.assert_allclose(preds1, preds3)
         assert bst2.feature_names == ["A", "B", "C"]
         assert bst2.feature_types == ["int", "float", "int"]
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_arrow_unsupported_dtype(self, DMatrixT):
+        table = pa.table({"a": [1.0, 2.0], "b": ["x", "y"], "c": [1, 2]})
+        with pytest.raises(ValueError, match="Invalid columns:b: string$"):
+            DMatrixT(table)
+
+        table = pa.table({"a": pa.array([1, 2], pa.date32())})
+        with pytest.raises(ValueError, match="Invalid columns:a: date32"):
+            DMatrixT(table)
+
+        table = pa.table({"a": pa.array([1, 2]).dictionary_encode()})
+        with pytest.raises(
+            ValueError, match="Invalid columns:a: dictionary<values=int64"
+        ):
+            DMatrixT(table, enable_categorical=True)
 
     def test_arrow_survival(self):
         data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")

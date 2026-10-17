@@ -79,8 +79,8 @@ class LsObjSvd(LsObjMean):
     ) -> Tuple[np.ndarray, np.ndarray]:
         svd = svd_class(self.device)
         if self.device == "cuda":
-            grad = grad.get()   # type: ignore
-            hess = hess.get()   # type: ignore
+            grad = grad.get()  # type: ignore
+            hess = hess.get()  # type: ignore
 
         svd.fit(grad)
         grad = svd.transform(grad)

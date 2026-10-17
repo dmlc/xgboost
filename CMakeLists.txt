@@ -50,6 +50,7 @@ include(CMakeDependentOption)
 ## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
+option(USE_THREADPOOL "Use the thread pool for parallel execution." OFF)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
@@ -65,7 +66,6 @@ option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ni
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
@@ -80,7 +80,6 @@ option(__XGBOOST_FOR_PYTHON_WHEEL
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
-option(USE_NVCOMP "Build with nvcomp to enable sparse data compression. (experimental)" OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
@@ -131,9 +130,6 @@ if(USE_NVTX)
 endif()
 if(USE_NCCL AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
-endif()
-if(USE_NVCOMP AND (NOT USE_CUDA))
-  message(SEND_ERROR "`USE_NVCOMP` must be enabled with `USE_CUDA` flag.")
 endif()
 if(USE_DEVICE_DEBUG AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
@@ -199,6 +195,9 @@ endif()
 if(USE_AZURE)
   message(SEND_ERROR "The option `USE_AZURE` has been removed from XGBoost")
 endif()
+if(USE_DMLC_GTEST)
+  message(SEND_ERROR "The option `USE_DMLC_GTEST` has been removed from XGBoost")
+endif()
 if(USE_HDFS)
   message(SEND_ERROR "The option `USE_HDFS` has been removed from XGBoost")
 endif()
@@ -218,8 +217,11 @@ if(USE_SANITIZER)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif()
 
+if(USE_THREADPOOL AND USE_OPENMP)
+  message(FATAL_ERROR "USE_OPENMP and USE_THREADPOOL cannot both be enabled.")
+endif()
+
 if(USE_CUDA)
-  set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   if(NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
     set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH
@@ -247,11 +249,6 @@ if(USE_CUDA)
 
   find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
-
-if(USE_NVCOMP)
-  find_package(nvcomp REQUIRED)
-endif()
-
 
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
@@ -299,7 +296,17 @@ if(BUILD_WITH_SYSTEM_DMLC)
   find_package(dmlc REQUIRED)
 else()
   set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  # dmlc-core also has a 'GOOGLE_TEST' option.
+  #
+  # Setting it to OFF prevents dmlc-core's tests from being built alongside
+  # XGBoost's (relies on CMake CMP0077). Doing that in a function avoids
+  # changing the value of 'GOOGLE_TEST' for the rest of XGBoost's CMake.
+  #
+  function(xgboost_add_dmlc_core_without_tests)
+    set(GOOGLE_TEST OFF)
+    add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+  endfunction()
+  xgboost_add_dmlc_core_without_tests()
 endif()
 
 if(MSVC)
@@ -314,7 +321,7 @@ endif()
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 # dmlc-core
-if(BUILD_WTIH_SYSTEM_DMLC)
+if(BUILD_WITH_SYSTEM_DMLC)
   target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
 else()
   target_link_libraries(objxgboost PUBLIC dmlc)
@@ -394,11 +401,13 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
-  # Provide versioned shared object
+  # R installs the library itself and expects an unversioned regular file.
   add_library(xgboost SHARED)
-  set_target_properties(xgboost PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+  if(NOT R_LIB)
+    set_target_properties(xgboost PROPERTIES
+      VERSION ${PROJECT_VERSION}
+      SOVERSION ${PROJECT_VERSION_MAJOR})
+  endif()
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -413,6 +422,7 @@ foreach(target xgboost objxgboost)
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
+
 if(NOT BUILD_WITH_SYSTEM_DMLC)
   xgboost_target_properties(dmlc)
   xgboost_target_link_libraries(dmlc)
@@ -426,7 +436,7 @@ if(JVM_BINDINGS)
 endif()
 
 if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
-  patch_openmp_path_macos(xgboost libxgboost)
+  patch_openmp_path_macos(xgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
@@ -435,15 +445,12 @@ else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 endif()
 
-#-- Installing XGBoost
+#-- R shared library naming
 if(R_LIB)
-  include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
   if(APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif()
-  setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif()
 if(MINGW)
   set_target_properties(xgboost PROPERTIES PREFIX "")

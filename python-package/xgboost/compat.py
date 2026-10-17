@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore[union-attr]
+    return x.decode("utf-8")
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
@@ -86,6 +86,17 @@ def is_cudf_available() -> bool:
     except ImportError:
         _logger.exception("Importing cuDF failed, use DMatrix instead of QDM")
         return False
+
+
+@functools.cache
+def import_cudf() -> types.ModuleType:
+    """Import cuDF with memory cache."""
+    if not is_cudf_available():
+        raise ImportError("`cudf` is required for handling CUDA dataframes.")
+
+    import cudf
+
+    return cudf
 
 
 @functools.cache
@@ -265,9 +276,9 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
-        from cudf import concat as CUDF_concat
+        cudf = import_cudf()
 
-        return CUDF_concat(value, axis=0)
+        return cudf.concat(value, axis=0)
     if _is_cupy_alike(value[0]):
         import cupy
 

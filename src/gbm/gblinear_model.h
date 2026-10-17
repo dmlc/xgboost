@@ -6,14 +6,14 @@
 #include <dmlc/parameter.h>
 #include <xgboost/learner.h>
 
-#include <vector>
-#include <string>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "xgboost/base.h"
 #include "xgboost/feature_map.h"
-#include "xgboost/model.h"
 #include "xgboost/json.h"
+#include "xgboost/model.h"
 
 namespace xgboost {
 class Json;
@@ -22,12 +22,12 @@ namespace gbm {
 class GBLinearModel : public Model {
  public:
   std::int32_t num_boosted_rounds{0};
-  LearnerModelParam const* learner_model_param;
+  LearnerModelState const *learner_model_state;
 
  public:
-  explicit GBLinearModel(LearnerModelParam const *learner_model_param)
-      : learner_model_param{learner_model_param} {}
-  void Configure(Args const &) { }
+  explicit GBLinearModel(LearnerModelState const *learner_model_state)
+      : learner_model_state{learner_model_state} {}
+  void Configure(Args const &) {}
 
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
@@ -37,8 +37,7 @@ class GBLinearModel : public Model {
       return;
     }
     // bias is the last weight
-    weight.resize((learner_model_param->num_feature + 1) *
-                  learner_model_param->num_output_group);
+    weight.resize((learner_model_state->num_feature + 1) * learner_model_state->num_output_group);
     std::fill(weight.begin(), weight.end(), 0.0f);
   }
 
@@ -47,25 +46,22 @@ class GBLinearModel : public Model {
 
   // model bias
   inline bst_float *Bias() {
-    return &weight[learner_model_param->num_feature *
-                   learner_model_param->num_output_group];
+    return &weight[learner_model_state->num_feature * learner_model_state->num_output_group];
   }
   inline const bst_float *Bias() const {
-    return &weight[learner_model_param->num_feature *
-                   learner_model_param->num_output_group];
+    return &weight[learner_model_state->num_feature * learner_model_state->num_output_group];
   }
   // get i-th weight
   inline bst_float *operator[](size_t i) {
-    return &weight[i * learner_model_param->num_output_group];
+    return &weight[i * learner_model_state->num_output_group];
   }
   inline const bst_float *operator[](size_t i) const {
-    return &weight[i * learner_model_param->num_output_group];
+    return &weight[i * learner_model_state->num_output_group];
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap &, bool,
-                                     std::string format) const {
-    const int ngroup = learner_model_param->num_output_group;
-    const unsigned nfeature = learner_model_param->num_feature;
+  std::vector<std::string> DumpModel(const FeatureMap &, bool, std::string format) const {
+    const int ngroup = learner_model_state->num_output_group;
+    const unsigned nfeature = learner_model_state->num_feature;
 
     std::stringstream fo("");
     if (format == "json") {
@@ -76,9 +72,7 @@ class GBLinearModel : public Model {
         }
         fo << "      " << this->Bias()[gid];
       }
-      fo << std::endl
-         << "    ]," << std::endl
-         << "    \"weight\": [" << std::endl;
+      fo << std::endl << "    ]," << std::endl << "    \"weight\": [" << std::endl;
       for (unsigned i = 0; i < nfeature; ++i) {
         for (int gid = 0; gid < ngroup; ++gid) {
           if (i != 0 || gid != 0) {

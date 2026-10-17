@@ -16,6 +16,7 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoSerializable;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -119,10 +122,23 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void setParams(Map<String, Object> params) throws XGBoostError {
-    if (params != null) {
-      for (Map.Entry<String, Object> entry : params.entrySet()) {
-        setParam(entry.getKey(), entry.getValue().toString());
-      }
+    if (params == null || params.isEmpty()) {
+      return;
+    }
+
+    List<List<String>> entries = new ArrayList<>(params.size());
+    for (Map.Entry<String, Object> entry : params.entrySet()) {
+      entries.add(Arrays.asList(entry.getKey(), entry.getValue().toString()));
+    }
+    Map<String, Object> config = new HashMap<>();
+    config.put("params", entries);
+
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String json = mapper.writeValueAsString(config);
+      XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetParams(handle, json));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to encode booster parameters.", ex);
     }
   }
 
@@ -238,7 +254,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   @Deprecated
   public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false, true);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     this.boost(dtrain, gradients.get(0), gradients.get(1));
   }
@@ -252,7 +268,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, int iter, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false, true);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     this.boost(dtrain, iter, gradients.get(0), gradients.get(1));
   }
@@ -368,6 +384,15 @@ public class Booster implements Serializable, KryoSerializable {
                             int iterationEnd,
                             boolean predLeaf,
                             boolean predContribs) throws XGBoostError {
+    return predict(data, outputMargin, iterationEnd, predLeaf, predContribs, false);
+  }
+
+  private float[][] predict(DMatrix data,
+                            boolean outputMargin,
+                            int iterationEnd,
+                            boolean predLeaf,
+                            boolean predContribs,
+                            boolean training) throws XGBoostError {
     int predictType = 0;
     if (outputMargin) {
       predictType = 1;
@@ -380,7 +405,7 @@ public class Booster implements Serializable, KryoSerializable {
     }
     float[][] rawPredicts = new float[1][];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDMatrix(handle, data.getHandle(),
-        predictType, iterationEnd, rawPredicts));
+        predictType, iterationEnd, training, rawPredicts));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];

@@ -1125,6 +1125,15 @@ XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   return R_NilValue;
 }
 
+XGB_DLL SEXP XGBoosterSetParams_R(SEXP handle, SEXP config) {
+  R_API_BEGIN();
+  SEXP config_ = Rf_protect(Rf_asChar(config));
+  CHECK_CALL(XGBoosterSetParams(R_ExternalPtrAddr(handle), CHAR(config_)));
+  Rf_unprotect(1);
+  R_API_END();
+  return R_NilValue;
+}
+
 XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterUpdateOneIter(R_ExternalPtrAddr(handle), Rf_asInteger(iter),

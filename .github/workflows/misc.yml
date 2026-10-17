@@ -91,12 +91,6 @@ jobs:
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v7.0.1
-        with:
-          submodules: "true"
-      - uses: dmlc/xgboost-devops/actions/sccache@main
-      - name: Build libxgboost4j.so with CUDA
-        run: bash ops/pipeline/build-jvm-gpu.sh
-      - run: sccache --show-stats
       - name: Build JVM docs
         run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
@@ -123,7 +117,7 @@ jobs:
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
-      - run: bash ops/script/setup_r_sccache.sh
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Build R docs
         run: bash ops/pipeline/build-r-docs.sh
       - name: Upload R doc
@@ -155,6 +149,7 @@ jobs:
           environment-name: xgboost_docs
           environment-file: doc/xgboost_doc.yml
       - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: Rscript --vanilla ops/script/setup_r_sccache.R
       - name: Test Sphinx documentation snippets
         run: bash ops/pipeline/test-docs.sh
       - run: sccache --show-stats

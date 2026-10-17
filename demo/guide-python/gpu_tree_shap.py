@@ -5,6 +5,7 @@ Use GPU to speedup SHAP value computation
 Demonstrates using GPU acceleration to compute SHAP values for feature importance.
 
 """
+
 from urllib.error import HTTPError
 
 import shap

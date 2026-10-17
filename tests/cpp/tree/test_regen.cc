@@ -65,9 +65,9 @@ class RegenTest : public ::testing::Test {
   size_t TestTreeMethod(Context const* ctx, std::string tree_method, std::string obj,
                         bool reset = true) const {
     auto learner = std::unique_ptr<Learner>{Learner::Create({p_fmat_})};
-    learner->SetParam("device", ctx->DeviceName());
-    learner->SetParam("tree_method", tree_method);
-    learner->SetParam("objective", obj);
+    learner->Configure({{"device", ctx->DeviceName()}});
+    learner->Configure({{"tree_method", tree_method}});
+    learner->Configure({{"objective", obj}});
     learner->Configure();
 
     for (auto i = 0; i < Iter(); ++i) {

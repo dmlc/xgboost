@@ -4,7 +4,8 @@
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
 
-#include "../common/algorithm.cuh"  // for RunLengthEncode
+#include "../common/algorithm.cuh"    // for RunLengthEncode
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
@@ -79,7 +80,7 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
                  std::vector<bst_group_t>* p_group_ptr) {
   auto& group_ptr_ = *p_group_ptr;
   auto it = dh::MakeTransformIterator<uint32_t>(
-      thrust::make_counting_iterator(0ul), [array_interface] __device__(size_t i) {
+      dh::make_counting_iterator(0ul), [array_interface] __device__(size_t i) {
         return TypedIndex<uint32_t, 1>{array_interface}(i);
       });
   dh::caching_device_vector<bool> flag(1);
@@ -187,7 +188,7 @@ void Gather(Context const* ctx, linalg::MatrixView<float const> in,
   auto d_out = out.View(ctx->Device());
 
   auto cuctx = ctx->CUDACtx();
-  auto map_it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ull),
+  auto map_it = thrust::make_transform_iterator(dh::make_counting_iterator(0ull),
                                                 [=] XGBOOST_DEVICE(bst_idx_t i) {
                                                   auto [r, c] = linalg::UnravelIndex(i, in.Shape());
                                                   return (ridx[r] * in.Shape(1)) + c;

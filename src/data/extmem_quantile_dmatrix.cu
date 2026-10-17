@@ -61,8 +61,11 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    */
   auto is_validation = (ref != nullptr);
   auto cinfo = EllpackCacheInfo{p, config};
-  CalcCacheMapping(ctx, this->info_.IsDense(), cuts, config.min_cache_page_bytes, ext_info,
-                   is_validation, &cinfo);
+  // Disk caches don't concatenate pages.
+  auto min_cache_page_bytes =
+      on_host_ ? config.min_cache_page_bytes : ::xgboost::cuda_impl::MatchingPageBytes();
+  CalcCacheMapping(ctx, this->info_.IsDense(), cuts, min_cache_page_bytes, ext_info, is_validation,
+                   &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
   CHECK_GE(cinfo.cache_host_ratio, 0.0);
   CHECK_LE(cinfo.cache_host_ratio, 1.0);

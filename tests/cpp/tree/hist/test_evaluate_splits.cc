@@ -27,7 +27,8 @@
 
 namespace xgboost::tree {
 void TestPartitionBasedSplit::SetUp() {
-  param_.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
+  param_.UpdateAllowUnknown(
+      Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"max_cat_to_onehot", "1"}});
   sorted_idx_.resize(n_bins_);
   std::iota(sorted_idx_.begin(), sorted_idx_.end(), 0);
 
@@ -123,7 +124,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
   hist.AllocateHistograms({0});
   auto const &elem = row_set_collection[0];
   common::BuildHist<false>(row_gpairs, common::Span{elem.begin(), elem.end()}, gmat, hist[0],
-                           force_read_by_column);
+                           force_read_by_column, ctx.Threads());
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
@@ -248,6 +249,7 @@ TEST(HistEvaluator, Apply) {
     entry.split.is_cat = true;
     entry.split.split_value = 1.0;
     evaluator_.ApplyTreeSplit(entry, &tree);
+    tree.FinalizeLeaves(param.learning_rate);
     auto l = entry.split.left_sum;
     ASSERT_NEAR(tree[1].LeafValue(), -l.sum_grad / l.sum_hess * param.learning_rate, kRtEps);
     ASSERT_NEAR(tree[2].LeafValue(), -param.learning_rate, kRtEps);

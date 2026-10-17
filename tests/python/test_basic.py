@@ -1,11 +1,14 @@
 import json
+import math
 from pathlib import Path
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost._c_api import _parse_version
+from xgboost.core import _parse_eval_str
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
@@ -325,3 +328,20 @@ def test_parse_ver() -> None:
     assert post == "rc1"
     (major, minor, patch), post = _parse_version("2.1.0.post1")
     assert post == "post1"
+
+
+def test_parse_eval_str_nonfinite() -> None:
+    # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
+    result = _parse_eval_str(
+        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:nan(ind)"
+    )
+    names = [name for name, _ in result]
+    values = [value for _, value in result]
+    assert names == ["train-cox-nloglik", "eval-cox-nloglik"]
+    assert all(math.isnan(v) for v in values)
+
+    # Regular, finite values and the usual `inf`/`-inf` spellings still work.
+    result = _parse_eval_str("[0]\ttrain-rmse:0.1234\teval-tweedie-nloglik:-inf")
+    assert result[0] == ("train-rmse", 0.1234)
+    assert result[1][0] == "eval-tweedie-nloglik"
+    assert math.isinf(result[1][1])

@@ -2,14 +2,17 @@
  * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/predictor.h>
+
+#include <limits>
 
 #include "../../../src/collective/communicator-inl.h"
+#include "../../../src/common/kernel.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/tree_view.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
@@ -17,12 +20,33 @@
 #include "test_shap.h"
 
 namespace xgboost {
+TEST(CpuPredictor, InitOutPredictions) {
+  Context ctx;
+  TestInitOutPredictions(&ctx);
+}
+
 TEST(CpuPredictor, Basic) {
   Context ctx;
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   TestBasic(dmat.get(), &ctx);
+}
+
+TEST(CpuPredictor, PredictLeafKernel) {
+  Context ctx;
+  LearnerModelState mparam{MakeMP(1, 0.0f, 2, ctx.Device())};
+  auto model = CreateTestModel(&mparam, &ctx, 2);
+  model->trees.front()->Expand(
+      {{0, 0, 0.5f, true}, {0.0f, 2.0f}, {1.0f, 1.0f}, {2.0f, 1.0f}, 0.0f});
+  auto dmat = GetDMatrixFromData({0.0f, 1.0f, std::numeric_limits<float>::quiet_NaN()}, 3, 1);
+  HostDeviceVector<float> leaves;
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
+  ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 0, 2, 0, 1, 0}));
+
+  // Reusing the output with a tree limit must resize it and preserve row-major order.
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 1);
+  ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 2, 1}));
 }
 
 TEST(CpuPredictor, BatchPredictionWithWeights) {
@@ -79,14 +103,14 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   Context ctx;
 
   RegTree tree;
-  size_t n_nodes = 15;  // 2^4 - 1
-  for (size_t nid = 0; nid < n_nodes; ++nid) {
+  bst_node_t n_nodes = 15;  // 2^4 - 1
+  for (bst_node_t nid = 0; nid < n_nodes; ++nid) {
     // Some place-holders
-    size_t split_index = nid + 1;
+    bst_feature_t split_index = nid + 1;
     bst_float split_cond = nid + 2;
     bool default_left = nid % 2 == 0;
 
-    tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
+    tree.Expand({{nid, split_index, split_cond, default_left}, {0, 0}, {0, 0}, {0, 0}, 0});
   }
 
   auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
@@ -169,7 +193,7 @@ TEST(CpuPredictor, InplacePredict) {
 namespace {
 void TestTrainingPredictionCache(bool use_subsampling) {
   std::size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
-  LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
+  LearnerModelState mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;

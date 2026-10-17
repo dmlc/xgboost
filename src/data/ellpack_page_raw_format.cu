@@ -6,12 +6,11 @@
 #include <cstddef>  // for size_t
 #include <vector>   // for vector
 
-#include "../common/cuda_context.cuh"       // for CUDAContext
-#include "../common/cuda_stream.h"          // for Event
-#include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
-#include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
-#include "../common/ref_resource_view.h"    // for ReadVec, WriteVec
-#include "ellpack_page.cuh"                 // for EllpackPage
+#include "../common/cuda_context.cuh"     // for CUDAContext
+#include "../common/cuda_stream.h"        // for Event
+#include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
+#include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
+#include "ellpack_page.cuh"               // for EllpackPage
 #include "ellpack_page_raw_format.h"
 #include "ellpack_page_source.h"
 
@@ -20,9 +19,9 @@ DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 
 namespace {
 // Function to support system without HMM or ATS
-template <typename T>
 [[nodiscard]] bool ReadDeviceVec(Context const* ctx, common::AlignedResourceReadStream* fi,
-                                 common::RefResourceView<T>* vec) {
+                                 EllpackPagePool* pool,
+                                 common::RefResourceView<common::CompressedByteT>* vec) {
   xgboost_NVTX_FN_RANGE();
 
   std::uint64_t n{0};
@@ -33,14 +32,14 @@ template <typename T>
     return true;
   }
 
-  auto expected_bytes = sizeof(T) * n;
+  auto expected_bytes = sizeof(common::CompressedByteT) * n;
 
   auto [ptr, n_bytes] = fi->Consume(expected_bytes);
   if (n_bytes != expected_bytes) {
     return false;
   }
 
-  *vec = common::MakeFixedVecWithCudaMalloc<T>(n);
+  *vec = pool->Allocate(expected_bytes);
   dh::safe_cuda(
       cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   return true;
@@ -62,7 +61,7 @@ template <typename T>
   RET_IF_NOT(fi->Read(&impl->info.row_stride));
 
   if (this->param_.prefetch_copy || !has_hmm_ats_) {
-    RET_IF_NOT(ReadDeviceVec(ctx_, fi, &impl->gidx_buffer));
+    RET_IF_NOT(ReadDeviceVec(ctx_, fi, pool_, &impl->gidx_buffer));
   } else {
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   }
@@ -106,7 +105,7 @@ template <typename T>
   auto stream = ctx_->CUDACtx()->Stream();
 
   auto dispatch = [&] {
-    fi->Read(ctx_, page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+    fi->Read(ctx_, page, this->param_.prefetch_copy || !this->has_hmm_ats_, pool_);
     impl->SetCuts(this->cuts_);
   };
 

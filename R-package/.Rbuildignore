@@ -9,3 +9,4 @@ README.md
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^tools/cmake-source-files$

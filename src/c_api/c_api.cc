@@ -21,7 +21,7 @@
 #include "../common/error_msg.h"         // for DeprecatedFunc
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
-#include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
+#include "../common/threading_utils.h"   // for GetNumThreads, ParallelFor
 #include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
 #include "../data/cat_container.h"       // for CatContainer
@@ -106,6 +106,12 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["USE_OPENMP"] = Boolean{true};
 #else
   info["USE_OPENMP"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_USE_THREADPOOL)
+  info["USE_THREADPOOL"] = Boolean{true};
+#else
+  info["USE_THREADPOOL"] = Boolean{false};
 #endif
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -547,7 +553,7 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::GetNumThreads(0));
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
   ValidateCAPIDataSplitMode(data_split_mode);
@@ -751,7 +757,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/
   auto const cats = p_fmat->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
   if (cats->Empty()) {
-    out = nullptr;
+    *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
     *out = new_cats;
@@ -1056,8 +1062,38 @@ XGB_DLL int XGBoosterReset(BoosterHandle handle) {
 
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle, const char *name, const char *value) {
   API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(name);
+  xgboost_CHECK_C_ARG_PTR(value);
+  Json config{Object{}};
+  std::vector<Json> pair;
+  pair.emplace_back(String{std::string{name}});
+  pair.emplace_back(String{std::string{value}});
+  std::vector<Json> params;
+  params.emplace_back(Array{std::move(pair)});
+  config["params"] = Array{std::move(params)};
+  std::string s_config;
+  Json::Dump(config, &s_config);
+  return XGBoosterSetParams(handle, s_config.c_str());
+  API_END();
+}
+
+XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config) {
+  API_BEGIN();
   CHECK_HANDLE();
-  static_cast<Learner *>(handle)->SetParam(name, value);
+  xgboost_CHECK_C_ARG_PTR(config);
+  Json j_config{Json::Load(StringView{config})};
+  CHECK(IsA<Object>(j_config)) << "Booster parameter configuration must be a JSON object.";
+  auto const &params = get<Array const>(j_config["params"]);
+
+  Args args;
+  args.reserve(params.size());
+  for (auto const &j_param : params) {
+    CHECK(IsA<Array>(j_param)) << "Each booster parameter must be a JSON array.";
+    auto const &pair = get<Array const>(j_param);
+    CHECK_EQ(pair.size(), 2) << "Each booster parameter must contain a name and value.";
+    args.emplace_back(get<String const>(pair[0]), get<String const>(pair[1]));
+  }
+  static_cast<Learner *>(handle)->Configure(args);
   API_END();
 }
 
@@ -1701,7 +1737,7 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/
   auto const cats = bst->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
   if (cats->Empty()) {
-    out = nullptr;
+    *out = nullptr;
   } else {
     auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
     *out = new_cats;

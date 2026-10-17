@@ -169,10 +169,29 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
 
 .. note:: Missing values
 
-  If the feature is vector type, the single feature instance could be a SparseVector, where "0" will be treated as the missing value.
-  In order to get the correct model, XGBoost4j-Spark will convert the SparseVector to array by restoring the "0". However, we can't
-  assume 0 for missing values as it may be meaningful. So in this case, users need to specify the missing value explicitly
-  even the missing value has been set to `Float.NaN` by default in the XGBoost4j-Spark.
+  A Spark ``SparseVector`` does not store zero-valued entries. By default, XGBoost4J-Spark
+  converts it to a dense representation so that these entries remain explicit zeros instead of
+  being interpreted as missing values. Since zero can be meaningful, users must explicitly set
+  the ``missing`` parameter when the input contains sparse vectors, even though its default value
+  is ``Float.NaN``.
+
+For high-dimensional sparse data where zero is the missing value, enable
+``enableSparseDataOptim`` to preserve ``SparseVector`` inputs during training and prediction.
+This avoids conversion work and memory proportional to the vector dimension; the conversion is
+instead proportional to the number of stored entries. The optimization is disabled by default and
+requires all of the following:
+
+* ``missing`` is set to ``0.0f``.
+* Features are supplied through one Spark ML Vector column with ``setFeaturesCol(String)``.
+  Array input and multiple feature columns are not supported in this mode.
+* ``DenseVector`` rows remain dense. A Vector column may contain both dense and sparse rows.
+
+.. code-block:: scala
+
+  val xgbClassifier = new XGBoostClassifier()
+    .setFeaturesCol("features")
+    .setMissing(0.0f)
+    .setEnableSparseDataOptim(true)
 
 Training
 ========
