@@ -214,7 +214,7 @@ void DetectDataCachesSysctl(int64_t* cache_sizes) {
   static_assert(kMaxCacheSize >= 2, "Need slots for L1 and L2.");
 
   const std::optional<int64_t> n_levels = ReadSysctlInt("hw.nperflevels");
-  if (!n_levels) {
+  if (!n_levels || *n_levels < 0) {
     return;
   }
 
