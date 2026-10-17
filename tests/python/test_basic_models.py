@@ -236,6 +236,28 @@ class TestModels:
         predt_2 = booster.predict(Xy)
         np.testing.assert_allclose(predt_0, predt_2)
 
+    @pytest.mark.parametrize("tree_method", ["hist", "exact", "approx"])
+    def test_base_score_prediction_cache(self, tree_method: str) -> None:
+        X = np.array([[0], [1]], dtype=np.float32)
+        dtrain = xgb.DMatrix(X, label=[-1, 1])
+        dtest = xgb.DMatrix(X)
+        booster = xgb.train(
+            {"tree_method": tree_method, "max_depth": 1, "eta": 1, "base_score": 0},
+            dtrain,
+            num_boost_round=1,
+        )
+        # With one sample per leaf and lambda=1, each leaf has weight y/2.
+        tree_predt = np.array([-0.5, 0.5])
+        for data in (dtrain, dtest):
+            np.testing.assert_allclose(booster.predict(data), tree_predt)
+
+        for base_score in (1.0, -0.25, 2.0):
+            booster.set_param({"base_score": base_score})
+            for data in (dtrain, dtest):
+                np.testing.assert_allclose(
+                    booster.predict(data), tree_predt + base_score
+                )
+
     def test_feature_names_validation(self):
         X = np.random.random((10, 3))
         y = np.random.randint(2, size=(10,))
