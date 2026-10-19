@@ -45,7 +45,8 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
   auto &shape = *out_shape;
   if (rows == 0 && (type == PredictionType::kValue || type == PredictionType::kMargin)) {
     // Without any row, the chunk size cannot be inferred from the output size. Use the
-    // number of output groups so that the shape is the same as the non-empty one.
+    // number of output groups, which is the width for all but the multi:softmax objective
+    // (its non-empty output has a single column, but the width is not known here).
     chunksize = groups;
   }
   if (type == PredictionType::kMargin && rows != 0) {

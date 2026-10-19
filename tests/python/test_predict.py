@@ -93,7 +93,12 @@ def test_base_margin_vs_base_score() -> None:
 
 @pytest.mark.parametrize("strict_shape", [False, True])
 def test_predict_empty_shape(strict_shape: bool) -> None:
-    """The output shape for empty input is the same as for non-empty input with n=0."""
+    """The output shape for empty input is the same as for non-empty input with n=0.
+
+    This covers value prediction for objectives whose output width equals the number of
+    groups. multi:softmax (which outputs a single column) and pred_leaf without
+    strict_shape are not covered.
+    """
     rng = np.random.default_rng(2026)
     X = rng.random((100, 5))
     empty = np.empty((0, 5))
