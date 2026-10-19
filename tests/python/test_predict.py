@@ -10,8 +10,13 @@ from scipy import sparse
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
-from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
+from xgboost.testing.data import np_dtypes, pd_dtypes
+from xgboost.testing.predict import (
+    PREDICT_SHAPE_CASES,
+    run_base_margin_vs_base_score,
+    run_predict_leaf,
+    run_predict_shape,
+)
 
 
 def test_inplace_predict_masked_array() -> None:
@@ -50,162 +55,13 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
     run_predict_leaf("cpu", DMatrixT)
 
 
-def test_predict_shape():
-    X, y = get_california_housing()
-    reg = xgb.XGBRegressor(n_estimators=1)
-    reg.fit(X, y)
-    predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
-    assert len(predt.shape) == 2
-    assert predt.shape[0] == X.shape[0]
-    assert predt.shape[1] == 1
-
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, strict_shape=True
-    )
-    assert len(contrib.shape) == 3
-    assert contrib.shape[1] == 1
-
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, approx_contribs=True
-    )
-    assert len(contrib.shape) == 2
-    assert contrib.shape[1] == X.shape[1] + 1
-
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True
-    )
-    assert len(interaction.shape) == 3
-    assert interaction.shape[1] == X.shape[1] + 1
-    assert interaction.shape[2] == X.shape[1] + 1
-
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True, strict_shape=True
-    )
-    assert len(interaction.shape) == 4
-    assert interaction.shape[1] == 1
-    assert interaction.shape[2] == X.shape[1] + 1
-    assert interaction.shape[3] == X.shape[1] + 1
+@pytest.mark.parametrize("case", PREDICT_SHAPE_CASES)
+def test_predict_shape(case: str) -> None:
+    run_predict_shape("cpu", case)
 
 
 def test_base_margin_vs_base_score() -> None:
     run_base_margin_vs_base_score("cpu")
-
-
-@pytest.mark.parametrize("strict_shape", [False, True])
-@pytest.mark.parametrize("booster", ["gbtree", "dart", "gblinear"])
-@pytest.mark.parametrize(
-    "objective",
-    [
-        "reg:squarederror",
-        "binary:logistic",
-        "multi:softprob",
-        "multi:softmax",
-        "reg:quantileerror",
-    ],
-)
-def test_predict_empty_shape(strict_shape: bool, booster: str, objective: str) -> None:
-    """Empty predictions preserve the trailing dimensions of non-empty predictions."""
-    rng = np.random.default_rng(2026)
-    X = rng.random((24, 4))
-    y = rng.integers(0, 3 if objective.startswith("multi:") else 2, X.shape[0])
-    params = {"objective": objective, "booster": booster, "nthread": 2}
-    if objective.startswith("multi:"):
-        params["num_class"] = 3
-    if objective == "reg:quantileerror":
-        params["quantile_alpha"] = [0.25, 0.75]
-    if booster == "gblinear" and objective == "reg:quantileerror":
-        pytest.skip("Quantile regression requires a tree booster")
-    model = xgb.train(params, xgb.DMatrix(X, label=y), num_boost_round=3)
-    empty = X[:0]
-    d_empty, d_full = xgb.DMatrix(empty), xgb.DMatrix(X[:4])
-    width = (
-        3
-        if objective == "multi:softprob"
-        else 2 if objective == "reg:quantileerror" else 1
-    )
-    for margin in [False, True]:
-        expected_width = 3 if margin and objective.startswith("multi:") else width
-        expected = (0, expected_width) if strict_shape or expected_width > 1 else (0,)
-        kwargs = {"output_margin": margin, "strict_shape": strict_shape}
-        result = model.predict(d_empty, **kwargs)
-        assert result.shape == expected
-        assert result.shape == (0,) + model.predict(d_full, **kwargs).shape[1:]
-        if booster != "gblinear":
-            inplace = {
-                "predict_type": "margin" if margin else "value",
-                "strict_shape": strict_shape,
-            }
-            assert model.inplace_predict(empty, **inplace).shape == expected
-            assert expected == (0,) + model.inplace_predict(X[:4], **inplace).shape[1:]
-
-    for interaction in [False, True]:
-        for approximate in [False, True]:
-            kwargs = {
-                "pred_interactions" if interaction else "pred_contribs": True,
-                "approx_contribs": approximate,
-                "strict_shape": strict_shape,
-            }
-            result = model.predict(d_empty, **kwargs)
-            assert result.shape == (0,) + model.predict(d_full, **kwargs).shape[1:]
-            assert result.shape[-1] == X.shape[1] + 1
-
-
-@pytest.mark.parametrize("strict_shape", [False, True])
-@pytest.mark.parametrize("groups", [1, 3])
-@pytest.mark.parametrize("parallel_trees", [1, 3])
-@pytest.mark.parametrize("rounds", [0, 1, 3])
-def test_predict_empty_leaf_shape(
-    strict_shape: bool, groups: int, parallel_trees: int, rounds: int
-) -> None:
-    """Leaf shape comes from the selected trees, including an empty forest."""
-    rng = np.random.default_rng(2026)
-    X = rng.random((24, 4))
-    y = rng.integers(0, groups, X.shape[0])
-    params = {"nthread": 2, "num_parallel_tree": parallel_trees}
-    if groups > 1:
-        params.update(objective="multi:softprob", num_class=groups)
-    model = xgb.train(params, xgb.DMatrix(X, label=y), num_boost_round=rounds)
-    for end in sorted({0, min(rounds, 1)}):
-        selected = end or rounds
-        kwargs = {
-            "pred_leaf": True,
-            "strict_shape": strict_shape,
-            "iteration_range": (0, end),
-        }
-        result = model.predict(xgb.DMatrix(X[:0]), **kwargs)
-        assert (
-            result.shape == (0,) + model.predict(xgb.DMatrix(X[:4]), **kwargs).shape[1:]
-        )
-        trees = selected * groups * parallel_trees
-        if strict_shape:
-            assert result.shape == (0, selected, groups, parallel_trees)
-        else:
-            assert result.shape == ((0,) if trees == 1 else (0, trees))
-
-
-@pytest.mark.parametrize("strict_shape", [False, True])
-@pytest.mark.parametrize("strategy", ["one_output_per_tree", "multi_output_tree"])
-def test_predict_empty_multi_target_shape(strict_shape: bool, strategy: str) -> None:
-    rng = np.random.default_rng(2026)
-    X, y = rng.random((24, 4)), rng.random((24, 2))
-    model = xgb.train(
-        {"nthread": 2, "tree_method": "hist", "multi_strategy": strategy},
-        xgb.DMatrix(X, label=y),
-        num_boost_round=2,
-    )
-    for margin in [False, True]:
-        assert model.predict(
-            xgb.DMatrix(X[:0]), output_margin=margin, strict_shape=strict_shape
-        ).shape == (0, 2)
-        assert model.inplace_predict(
-            X[:0],
-            predict_type="margin" if margin else "value",
-            strict_shape=strict_shape,
-        ).shape == (0, 2)
-    if strategy == "multi_output_tree":
-        assert model.predict(xgb.DMatrix(X[:0]), pred_leaf=True).shape == (0, 2)
-        with pytest.raises(xgb.core.XGBoostError, match="vector leaf"):
-            model.predict(xgb.DMatrix(X[:0]), pred_leaf=True, strict_shape=True)
 
 
 class TestInplacePredict:

@@ -10,7 +10,12 @@ from hypothesis.extra.pandas import column, data_frames, range_indexes
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import import_cupy
-from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
+from xgboost.testing.predict import (
+    PREDICT_SHAPE_CASES,
+    run_base_margin_vs_base_score,
+    run_predict_leaf,
+    run_predict_shape,
+)
 
 sys.path.append("tests/python")
 
@@ -634,6 +639,18 @@ class TestGPUPredict:
             X = cp.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 booster.inplace_predict(X)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        name
+        for name, (params, _, _) in PREDICT_SHAPE_CASES.items()
+        if params.get("booster") != "gblinear"
+    ],
+)
+def test_predict_shape(case: str) -> None:
+    run_predict_shape("cuda", case)
 
 
 def test_base_margin_vs_base_score() -> None:
