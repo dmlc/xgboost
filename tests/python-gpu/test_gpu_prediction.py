@@ -11,7 +11,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import import_cupy
 from xgboost.testing.predict import (
-    PREDICT_SHAPE_CASES,
+    predict_shape_cases,
     run_base_margin_vs_base_score,
     run_predict_leaf,
     run_predict_shape,
@@ -641,14 +641,7 @@ class TestGPUPredict:
                 booster.inplace_predict(X)
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        name
-        for name, (params, _, _) in PREDICT_SHAPE_CASES.items()
-        if params.get("booster") != "gblinear"
-    ],
-)
+@pytest.mark.parametrize("case", predict_shape_cases("cuda"))
 def test_predict_shape(case: str) -> None:
     run_predict_shape("cuda", case)
 

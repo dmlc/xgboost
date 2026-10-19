@@ -18,7 +18,7 @@ from .utils import Device
 
 # Model parameters, raw output groups, and transformed output width. Use representative
 # layouts instead of crossing every objective with every booster and strategy.
-PREDICT_SHAPE_CASES: dict[str, tuple[dict[str, Any], int, int]] = {
+_PREDICT_SHAPE_CASES: dict[str, tuple[dict[str, Any], int, int]] = {
     "regression": ({"objective": "reg:squarederror"}, 1, 1),
     "binary": ({"objective": "binary:logistic"}, 1, 1),
     "softprob": ({"objective": "multi:softprob", "num_class": 3}, 3, 3),
@@ -41,13 +41,22 @@ PREDICT_SHAPE_CASES: dict[str, tuple[dict[str, Any], int, int]] = {
 }
 
 
+def predict_shape_cases(device: Device) -> list[str]:
+    """Return shape test case names supported by the prediction device."""
+    return [
+        name
+        for name, (params, _, _) in _PREDICT_SHAPE_CASES.items()
+        if device == "cpu" or params.get("booster") != "gblinear"
+    ]
+
+
 def run_predict_shape(device: Device, case: str) -> None:
     """Check explicit output dimensions across prediction modes, row counts and strictness.
 
     Values and margins exercise objective transformation and inplace prediction; SHAP
     retains raw output groups. Leaf layouts are covered by run_predict_leaf.
     """
-    params, groups, outputs = PREDICT_SHAPE_CASES[case]
+    params, groups, outputs = _PREDICT_SHAPE_CASES[case]
     rng = np.random.default_rng(2026)
     X = rng.random((24, 4), dtype=np.float32)
     if "num_class" in params or params.get("objective") == "binary:logistic":

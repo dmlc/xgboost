@@ -12,7 +12,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import np_dtypes, pd_dtypes
 from xgboost.testing.predict import (
-    PREDICT_SHAPE_CASES,
+    predict_shape_cases,
     run_base_margin_vs_base_score,
     run_predict_leaf,
     run_predict_shape,
@@ -55,7 +55,7 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
     run_predict_leaf("cpu", DMatrixT)
 
 
-@pytest.mark.parametrize("case", PREDICT_SHAPE_CASES)
+@pytest.mark.parametrize("case", predict_shape_cases("cpu"))
 def test_predict_shape(case: str) -> None:
     run_predict_shape("cpu", case)
 
