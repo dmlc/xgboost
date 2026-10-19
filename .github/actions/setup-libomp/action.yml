@@ -8,13 +8,13 @@ description: Install libomp with an architecture- and version-specific Homebrew 
 runs:
   using: composite
   steps:
-    - name: Set up homebrew
-      uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478
     - name: Identify libomp cache
       id: libomp-cache-key
       shell: bash -l {0}
       run: |
-        # Keep the formula stable between querying its version and installing it.
+        # Use the runner image's Homebrew; setup-homebrew fetches and updates every run.
+        # Runner image refreshes supply newer Homebrew without a per-job update.
+        export HOMEBREW_NO_AUTO_UPDATE=1
         echo "HOMEBREW_NO_AUTO_UPDATE=1" >> "$GITHUB_ENV"
         echo "prefix=$(brew --prefix)" >> "$GITHUB_OUTPUT"
         echo "cellar=$(brew --cellar)" >> "$GITHUB_OUTPUT"

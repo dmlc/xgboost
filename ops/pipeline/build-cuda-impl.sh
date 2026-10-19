@@ -4,12 +4,8 @@
 
 set -euox pipefail
 
-if [[ "${BUILD_ONLY_SM75:-}" == 1 ]]
-then
-  cmake_args='-DGPU_COMPUTE_VER=75'
-else
-  cmake_args=''
-fi
+# Keep PR and main builds on the same CUDA targets so they share compiler-cache entries.
+cmake_args=''
 
 cmake_prefix_path=''
 if [[ "${USE_RMM:-0}" == 1 ]]

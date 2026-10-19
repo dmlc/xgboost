@@ -1,7 +1,10 @@
 /**
  * Copyright 2017-2026, XGBoost contributors
  */
-#include <numeric>  // for accumulate
+#include <memory>         // for unique_ptr
+#include <mutex>          // for mutex, lock_guard
+#include <numeric>        // for accumulate
+#include <unordered_map>  // for unordered_map
 
 #include "../collective/communicator-inl.h"  // for GetRank
 #include "common.h"                          // for HumanMemUnit
@@ -12,6 +15,34 @@
 
 namespace dh {
 namespace detail {
+#if CUB_VERSION >= 300200
+cuda::device_memory_pool &GlobalCachingPool() {
+  struct PoolDeleter {
+    void operator()(cuda::device_memory_pool *pool) const {
+      // Static cleanup can run after CUDA driver/runtime teardown. Use the
+      // runtime API to tolerate shutdown errors instead of CCCL's noexcept destructor.
+      auto status = cudaMemPoolDestroy(pool->release());
+      delete pool;
+      if (status != cudaErrorCudartUnloading && status != cudaErrorInitializationError) {
+        safe_cuda(status);
+      }
+    }
+  };
+  // A thread can switch devices; keep a separate pool for each device. The
+  // default release threshold retains cached memory until the pool is destroyed.
+  static std::mutex mutex;
+  static std::unordered_map<int, std::unique_ptr<cuda::device_memory_pool, PoolDeleter>> pools;
+  auto device = cub::CurrentDevice();
+  // Protect the registry; allocations can use the pool concurrently after lookup.
+  std::lock_guard<std::mutex> lock{mutex};
+  auto &pool = pools[device];
+  if (!pool) {
+    pool.reset(new cuda::device_memory_pool{cuda::device_ref{device}});
+  }
+  return *pool;
+}
+#endif  // CUB_VERSION >= 300200
+
 void ThrowOOMError(std::string const &err, std::size_t bytes) {
   using xgboost::common::HumanMemUnit;
 

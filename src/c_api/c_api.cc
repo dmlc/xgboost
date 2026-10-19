@@ -21,7 +21,7 @@
 #include "../common/error_msg.h"         // for DeprecatedFunc
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
-#include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
+#include "../common/threading_utils.h"   // for GetNumThreads, ParallelFor
 #include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
 #include "../data/cat_container.h"       // for CatContainer
@@ -106,6 +106,12 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["USE_OPENMP"] = Boolean{true};
 #else
   info["USE_OPENMP"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_USE_THREADPOOL)
+  info["USE_THREADPOOL"] = Boolean{true};
+#else
+  info["USE_THREADPOOL"] = Boolean{false};
 #endif
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -547,7 +553,7 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   xgboost_CHECK_C_ARG_PTR(c_json_config);
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::GetNumThreads(0));
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
   ValidateCAPIDataSplitMode(data_split_mode);
