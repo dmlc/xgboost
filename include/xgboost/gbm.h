@@ -90,6 +90,8 @@ class GradientBooster : public Model, public Configurable {
    *                 drop out is performed during training.
    * \param begin    Beginning of boosted tree layer used for prediction.
    * \param end      End of booster layer. 0 means do not limit trees.
+   * @return Shape `(rows, output_groups)` of the row-major raw predictions in out_preds,
+   *         before objective transformation. The output-group axis is retained for zero rows.
    */
   virtual std::vector<bst_ulong> PredictBatch(std::shared_ptr<DMatrix> dmat,
                                               HostDeviceVector<float>* out_preds, bool training,
@@ -103,6 +105,8 @@ class GradientBooster : public Model, public Configurable {
    * \param [in,out]  out_preds The output preds.
    * \param           begin     (Optional) Beginning of boosted tree layer used for prediction.
    * \param           end       (Optional) End of booster layer. 0 means do not limit trees.
+   * @return Shape `(rows, output_groups)` of the row-major raw predictions in out_preds,
+   *         before objective transformation, including for empty input.
    */
   virtual std::vector<bst_ulong> InplacePredict(std::shared_ptr<DMatrix>, float,
                                                 HostDeviceVector<float>*, bst_layer_t,
@@ -118,6 +122,10 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * @param strict_shape Validate whether it's actually possible to have uniform shape.
+   * @return Shape of the row-major leaf indices in out_preds. With strict_shape,
+   *         `(rows, selected_rounds, output_groups, trees_per_forest)`; otherwise
+   *         `(rows, selected_trees)`, or `(rows,)` for a single selected tree.
+   *         Trailing dimensions are preserved for zero rows.
    */
   virtual std::vector<bst_ulong> PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                                              bst_layer_t layer_begin, bst_layer_t layer_end,
@@ -131,12 +139,25 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
+   * @return Shape `(rows, output_groups, features + 1)` of the row-major contributions
+   *         in out_contribs, including for empty input. The last feature is the bias term;
+   *         features is the model feature count.
    */
   virtual std::vector<bst_ulong> PredictContribution(DMatrix* dmat,
                                                      HostDeviceVector<float>* out_contribs,
                                                      bst_layer_t layer_begin, bst_layer_t layer_end,
                                                      bool approximate = false) = 0;
 
+  /**
+   * @brief Predict SHAP interaction contributions, including the bias row and column.
+   * @param dmat Input data.
+   * @param out_contribs Flat row-major buffer receiving the interaction contributions.
+   * @param layer_begin Beginning of boosted tree layer used for prediction.
+   * @param layer_end End of boosted tree layer. Zero selects all remaining layers.
+   * @param approximate Whether to approximate interaction contributions.
+   * @return Shape `(rows, output_groups, features + 1, features + 1)` of out_contribs,
+   *         including for empty input. Features is the model feature count.
+   */
   virtual std::vector<bst_ulong> PredictInteractionContributions(
       DMatrix* dmat, HostDeviceVector<float>* out_contribs, bst_layer_t layer_begin,
       bst_layer_t layer_end, bool approximate) = 0;

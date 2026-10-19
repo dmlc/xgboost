@@ -110,9 +110,12 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
-   * @param strict_shape Used by predict leaf to validate whether it's actually possible
-   *        to have uniform shape.
-   * @return Output shape, including objective transformation and strict_shape.
+   * @param strict_shape Retain the output-group axis for value, margin, and SHAP outputs;
+   *        use the four-dimensional leaf layout and validate that it is representable.
+   * @return Shape of the row-major buffer in out_preds after any objective transformation.
+   *         Non-strict value, margin, and SHAP shapes omit a singleton output-group axis.
+   *         Leaf shapes follow GradientBooster::PredictLeaf. Trailing dimensions are
+   *         preserved for zero rows.
    */
   virtual std::vector<bst_ulong> Predict(std::shared_ptr<DMatrix> data, bool output_margin,
                                          HostDeviceVector<bst_float>* out_preds,
@@ -132,7 +135,9 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param          layer_begin Beginning of boosted tree layer used for prediction.
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
    * @param strict_shape Retain a singleton output-group axis.
-   * @return Output shape after objective transformation.
+   * @return Shape of the row-major buffer in *out_preds after any objective transformation:
+   *         `(rows, outputs)`, or `(rows,)` when outputs is one and strict_shape is false.
+   *         The output width is preserved for zero rows.
    */
   virtual std::vector<bst_ulong> InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type,
                                                 float missing, HostDeviceVector<float>** out_preds,

@@ -67,7 +67,9 @@ class ObjFunction : public Configurable {
    *
    * @param [in,out] io_preds prediction values, saves to this vector as well.
    * @param shape (rows, outputs) shape before transformation.
-   * @return Shape after transformation, including for empty input.
+   * @return Shape `(rows, transformed_outputs)` of the row-major buffer in io_preds.
+   *         The row count is unchanged; transforms that change the output width must
+   *         return the new width even for zero rows. Singleton axes are retained.
    */
   virtual std::vector<bst_ulong> PredTransform(HostDeviceVector<float>*,
                                                std::vector<bst_ulong> shape) const {
@@ -76,9 +78,14 @@ class ObjFunction : public Configurable {
   /**
    * @brief Apply inverse link (activation) function to prediction values
    *
-   *  This is only called when Eval is called, usually it redirect to PredTransform
+   *  This is only called when Eval is called, usually it redirects to PredTransform.
    *
-   * @param [in,out] io_preds prediction values, saves to this vector as well.
+   * @param [in,out] io_preds Prediction values, overwritten with the metric inputs.
+   * @param shape `(rows, outputs)` shape before transformation.
+   * @return Shape `(rows, metric_outputs)` of the row-major buffer in io_preds after
+   *         evaluation transformation, including for empty input. Singleton axes are
+   *         retained. This can differ from PredTransform, e.g. softmax metrics use class
+   *         probabilities instead of class indices.
    */
   virtual std::vector<bst_ulong> EvalTransform(HostDeviceVector<float>* io_preds,
                                                std::vector<bst_ulong> shape) {

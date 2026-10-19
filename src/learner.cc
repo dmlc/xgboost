@@ -1239,6 +1239,8 @@ class LearnerImpl : public LearnerIO {
    * \param layer_begin Beginning of the boosting iteration range.
    * \param layer_end End of the boosting iteration range. Zero uses all iterations.
    * \param training allow dropout when the DART booster is being used
+   * @return Shape `(rows, output_groups)` of the row-major buffer in out_preds before
+   *         objective transformation, retaining the group axis even for zero rows.
    */
   std::vector<bst_ulong> PredictRaw(std::shared_ptr<DMatrix> data,
                                     HostDeviceVector<float>* out_preds, bool training,
@@ -1249,8 +1251,13 @@ class LearnerImpl : public LearnerIO {
     return gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
-  // Shapes retain the output-group axis internally. Only the public, non-strict
-  // representation omits a singleton group axis. Leaf prediction handles its own layout.
+  /**
+   * @brief Validate the buffer size and apply the public shape convention.
+   *
+   * Shapes retain the output-group axis internally. Leaf prediction handles its own layout
+   * and calls this with strict_shape set to true to skip singleton-axis removal.
+   * @return Shape with a singleton output-group axis omitted unless strict_shape is true.
+   */
   static std::vector<bst_ulong> FinalizePredictionShape(HostDeviceVector<float> const& predictions,
                                                         bool strict_shape,
                                                         std::vector<bst_ulong> shape) {
