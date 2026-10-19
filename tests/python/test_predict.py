@@ -91,6 +91,42 @@ def test_base_margin_vs_base_score() -> None:
     run_base_margin_vs_base_score("cpu")
 
 
+@pytest.mark.parametrize("strict_shape", [False, True])
+def test_predict_empty_shape(strict_shape: bool) -> None:
+    """The output shape for empty input is the same as for non-empty input with n=0."""
+    rng = np.random.default_rng(2026)
+    X = rng.random((100, 5))
+    empty = np.empty((0, 5))
+    cases = [
+        ({"objective": "binary:logistic"}, X[:, 0] > 0.5, 1),
+        ({"objective": "reg:squarederror"}, X[:, 0], 1),
+        ({"objective": "multi:softprob", "num_class": 3}, rng.integers(0, 3, 100), 3),
+        (
+            {"objective": "reg:squarederror", "multi_strategy": "one_output_per_tree"},
+            rng.random((100, 2)),
+            2,
+        ),
+    ]
+    for params, y, width in cases:
+        booster = xgb.train(params, xgb.DMatrix(X, label=y), num_boost_round=2)
+        for pred_empty, pred_full in [
+            (
+                booster.predict(xgb.DMatrix(empty), strict_shape=strict_shape),
+                booster.predict(xgb.DMatrix(X[:4]), strict_shape=strict_shape),
+            ),
+            (
+                booster.inplace_predict(empty, strict_shape=strict_shape),
+                booster.inplace_predict(X[:4], strict_shape=strict_shape),
+            ),
+        ]:
+            assert pred_full.shape[0] == 4
+            assert pred_empty.shape == (0,) + pred_full.shape[1:]
+            if strict_shape or width > 1:
+                assert pred_empty.shape == (0, width)
+            else:
+                assert pred_empty.shape == (0,)
+
+
 class TestInplacePredict:
     """Tests for running inplace prediction"""
 

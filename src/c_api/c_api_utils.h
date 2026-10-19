@@ -32,7 +32,8 @@ namespace xgboost {
  * \param type         Prediction type
  * \param rows         Input samples
  * \param cols         Input features
- * \param chunksize    Total elements of output / rows
+ * \param chunksize    Total elements of output / rows. Ignored for value and margin
+ *                     prediction when there's no row.
  * \param groups       Number of output groups from Learner
  * \param rounds       end_iteration - beg_iteration
  * \param out_shape    Output shape
@@ -42,6 +43,11 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
                              size_t chunksize, size_t groups, size_t rounds,
                              std::vector<bst_ulong> *out_shape, xgboost::bst_ulong *out_dim) {
   auto &shape = *out_shape;
+  if (rows == 0 && (type == PredictionType::kValue || type == PredictionType::kMargin)) {
+    // Without any row, the chunk size cannot be inferred from the output size. Use the
+    // number of output groups so that the shape is the same as the non-empty one.
+    chunksize = groups;
+  }
   if (type == PredictionType::kMargin && rows != 0) {
     // When kValue is used, softmax can change the chunksize.
     CHECK_EQ(chunksize, groups);
