@@ -10,14 +10,6 @@
 
 namespace xgboost::predictor {
 /**
- * @brief Shape of raw predictions, before the objective transform.
- * @return `(rows, groups)`, including for zero rows or a single group.
- */
-inline std::vector<bst_ulong> RawPredictionShape(bst_ulong rows, bst_ulong groups) {
-  return {rows, groups};
-}
-
-/**
  * @brief SHAP outputs include a bias column and retain the output-group axis.
  * @return `(rows, groups, features + 1)`, with a further `features + 1` axis for
  *         interactions. Trailing dimensions are preserved for zero rows.

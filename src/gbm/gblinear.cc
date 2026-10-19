@@ -144,8 +144,7 @@ class GBLinear : public GradientBooster {
     LinearCheckLayer(layer_begin);
     this->PredictBatchInternal(p_fmat.get(), &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
-    return predictor::RawPredictionShape(p_fmat->Info().num_row_,
-                                         learner_model_state_->OutputLength());
+    return {p_fmat->Info().num_row_, learner_model_state_->OutputLength()};
   }
 
   std::vector<bst_ulong> PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t,

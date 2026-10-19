@@ -696,16 +696,13 @@ std::vector<bst_ulong> GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat,
   out_preds->SetDevice(ctx_->Device());
   out_preds->Resize(cache->predictions.Size());
   out_preds->Copy(cache->predictions);
-  return predictor::RawPredictionShape(p_fmat->Info().num_row_,
-                                       model_.learner_model_state->OutputLength());
+  return {p_fmat->Info().num_row_, model_.learner_model_state->OutputLength()};
 }
 
 std::vector<bst_ulong> GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                                               HostDeviceVector<float>* out_preds,
                                               bst_layer_t layer_begin,
                                               bst_layer_t layer_end) const {
-  auto shape = predictor::RawPredictionShape(p_m->Info().num_row_,
-                                             model_.learner_model_state->OutputLength());
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {
@@ -718,7 +715,7 @@ std::vector<bst_ulong> GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, floa
       common::DispatchKernel<predictor::PredictBatchKernel>(ctx_, p_fmat.get(), out_preds, model_,
                                                             tree_begin, tree_end, nullptr);
     }
-    return shape;
+    return {p_m->Info().num_row_, model_.learner_model_state->OutputLength()};
   }
 
   bool known_type = common::DispatchKernel<predictor::InplacePredictKernel>(
@@ -728,7 +725,7 @@ std::vector<bst_ulong> GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, floa
     CHECK(proxy) << error::InplacePredictProxy();
     LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
   }
-  return shape;
+  return {p_m->Info().num_row_, model_.learner_model_state->OutputLength()};
 }
 
 // register the objective functions
