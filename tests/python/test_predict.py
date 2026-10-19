@@ -95,9 +95,9 @@ def test_base_margin_vs_base_score() -> None:
 def test_predict_empty_shape(strict_shape: bool) -> None:
     """The output shape for empty input is the same as for non-empty input with n=0.
 
-    This covers value prediction for objectives whose output width equals the number of
-    groups. multi:softmax (which outputs a single column) and pred_leaf without
-    strict_shape are not covered.
+    This covers value and margin prediction for objectives whose output width equals
+    the number of groups. multi:softmax (which outputs a single column) and pred_leaf
+    without strict_shape are not covered.
     """
     rng = np.random.default_rng(2026)
     X = rng.random((100, 5))
@@ -114,22 +114,25 @@ def test_predict_empty_shape(strict_shape: bool) -> None:
     ]
     for params, y, width in cases:
         booster = xgb.train(params, xgb.DMatrix(X, label=y), num_boost_round=2)
-        for pred_empty, pred_full in [
-            (
-                booster.predict(xgb.DMatrix(empty), strict_shape=strict_shape),
-                booster.predict(xgb.DMatrix(X[:4]), strict_shape=strict_shape),
-            ),
-            (
-                booster.inplace_predict(empty, strict_shape=strict_shape),
-                booster.inplace_predict(X[:4], strict_shape=strict_shape),
-            ),
-        ]:
-            assert pred_full.shape[0] == 4
-            assert pred_empty.shape == (0,) + pred_full.shape[1:]
-            if strict_shape or width > 1:
-                assert pred_empty.shape == (0, width)
-            else:
-                assert pred_empty.shape == (0,)
+        for margin in (False, True):
+            kwargs = {"strict_shape": strict_shape}
+            ip_type = "margin" if margin else "value"
+            for pred_empty, pred_full in [
+                (
+                    booster.predict(xgb.DMatrix(empty), output_margin=margin, **kwargs),
+                    booster.predict(xgb.DMatrix(X[:4]), output_margin=margin, **kwargs),
+                ),
+                (
+                    booster.inplace_predict(empty, predict_type=ip_type, **kwargs),
+                    booster.inplace_predict(X[:4], predict_type=ip_type, **kwargs),
+                ),
+            ]:
+                assert pred_full.shape[0] == 4
+                assert pred_empty.shape == (0,) + pred_full.shape[1:]
+                if strict_shape or width > 1:
+                    assert pred_empty.shape == (0, width)
+                else:
+                    assert pred_empty.shape == (0,)
 
 
 class TestInplacePredict:
