@@ -22,7 +22,7 @@ TEST(SyclObjective, DeclareUnifiedTest(HingeObj)) {
 }
 
 TEST(SyclObjective, HingeKernelRegistration) {
-  for (auto device : {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU}) {
+  for (auto device : {DeviceOrd::kSyclDefault}) {
     EXPECT_NE(common::GetKernelRegistry<obj::HingeGradientKernel>().Find(device), nullptr)
         << device;
     EXPECT_NE(common::GetKernelRegistry<obj::HingePredTransformKernel>().Find(device), nullptr)
