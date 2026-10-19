@@ -18,8 +18,9 @@
 #include <cstdint>  // for int32_t
 #include <functional>
 #include <set>
-#include <string>  // for string
-#include <vector>  // for vector
+#include <string>   // for string
+#include <utility>  // for move
+#include <vector>   // for vector
 
 namespace xgboost {
 
@@ -65,11 +66,13 @@ class ObjFunction : public Configurable {
    *   This is only called when Prediction is called
    *
    * @param [in,out] io_preds prediction values, saves to this vector as well.
-   * @param [in,out] io_shape Optional (rows, outputs) shape. Transforms that change the
-   *                         output width must update it, including for empty input.
+   * @param shape (rows, outputs) shape before transformation.
+   * @return Shape after transformation, including for empty input.
    */
-  virtual void PredTransform(HostDeviceVector<float>*,
-                             std::vector<bst_ulong>* /*io_shape*/ = nullptr) const {}
+  virtual std::vector<bst_ulong> PredTransform(HostDeviceVector<float>*,
+                                               std::vector<bst_ulong> shape) const {
+    return shape;
+  }
   /**
    * @brief Apply inverse link (activation) function to prediction values
    *
@@ -77,7 +80,10 @@ class ObjFunction : public Configurable {
    *
    * @param [in,out] io_preds prediction values, saves to this vector as well.
    */
-  virtual void EvalTransform(HostDeviceVector<float>* io_preds) { this->PredTransform(io_preds); }
+  virtual std::vector<bst_ulong> EvalTransform(HostDeviceVector<float>* io_preds,
+                                               std::vector<bst_ulong> shape) {
+    return this->PredTransform(io_preds, std::move(shape));
+  }
   /**
    * @brief Apply the link function to the intercept.
    *

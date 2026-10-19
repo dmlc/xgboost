@@ -34,7 +34,7 @@ struct LearnerModelState;
 /*!
  * \brief interface of gradient boosting model.
  *
- * Prediction methods optionally return shape metadata alongside the flat buffer.
+ * Prediction methods return the shape of the flat output buffer.
  * Raw predictions retain their output-group axis; objective transforms may change it.
  */
 class GradientBooster : public Model, public Configurable {
@@ -91,9 +91,9 @@ class GradientBooster : public Model, public Configurable {
    * \param begin    Beginning of boosted tree layer used for prediction.
    * \param end      End of booster layer. 0 means do not limit trees.
    */
-  virtual void PredictBatch(std::shared_ptr<DMatrix> dmat, HostDeviceVector<float>* out_preds,
-                            bool training, bst_layer_t begin, bst_layer_t end,
-                            std::vector<bst_ulong>* out_shape = nullptr) = 0;
+  virtual std::vector<bst_ulong> PredictBatch(std::shared_ptr<DMatrix> dmat,
+                                              HostDeviceVector<float>* out_preds, bool training,
+                                              bst_layer_t begin, bst_layer_t end) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -104,9 +104,11 @@ class GradientBooster : public Model, public Configurable {
    * \param           begin     (Optional) Beginning of boosted tree layer used for prediction.
    * \param           end       (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, HostDeviceVector<float>*,
-                              bst_layer_t, bst_layer_t, std::vector<bst_ulong>* = nullptr) const {
+  virtual std::vector<bst_ulong> InplacePredict(std::shared_ptr<DMatrix>, float,
+                                                HostDeviceVector<float>*, bst_layer_t,
+                                                bst_layer_t) const {
     LOG(FATAL) << "Inplace predict is not supported by the current booster.";
+    return {};
   }
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
@@ -117,9 +119,9 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * @param strict_shape Validate whether it's actually possible to have uniform shape.
    */
-  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                           bst_layer_t layer_begin, bst_layer_t layer_end, bool strict_shape,
-                           std::vector<bst_ulong>* out_shape = nullptr) = 0;
+  virtual std::vector<bst_ulong> PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
+                                             bst_layer_t layer_begin, bst_layer_t layer_end,
+                                             bool strict_shape) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
@@ -130,15 +132,14 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
    */
-  virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
-                                   bst_layer_t layer_begin, bst_layer_t layer_end,
-                                   bool approximate = false,
-                                   std::vector<bst_ulong>* out_shape = nullptr) = 0;
+  virtual std::vector<bst_ulong> PredictContribution(DMatrix* dmat,
+                                                     HostDeviceVector<float>* out_contribs,
+                                                     bst_layer_t layer_begin, bst_layer_t layer_end,
+                                                     bool approximate = false) = 0;
 
-  virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
-                                               bst_layer_t layer_begin, bst_layer_t layer_end,
-                                               bool approximate,
-                                               std::vector<bst_ulong>* out_shape = nullptr) = 0;
+  virtual std::vector<bst_ulong> PredictInteractionContributions(
+      DMatrix* dmat, HostDeviceVector<float>* out_contribs, bst_layer_t layer_begin,
+      bst_layer_t layer_end, bool approximate) = 0;
 
   /**
    * @brief dump the model in the requested format

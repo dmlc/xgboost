@@ -137,28 +137,27 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("DoBoost");
   }
 
-  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
-                    bool /*training*/, bst_layer_t layer_begin, bst_layer_t,
-                    std::vector<bst_ulong>* out_shape = nullptr) override {
-    predictor::RawPredictionShape(p_fmat->Info().num_row_, learner_model_state_->OutputLength(),
-                                  out_shape);
+  std::vector<bst_ulong> PredictBatch(std::shared_ptr<DMatrix> p_fmat,
+                                      HostDeviceVector<float>* out_preds, bool /*training*/,
+                                      bst_layer_t layer_begin, bst_layer_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
     this->PredictBatchInternal(p_fmat.get(), &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
+    return predictor::RawPredictionShape(p_fmat->Info().num_row_,
+                                         learner_model_state_->OutputLength());
   }
 
-  void PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t, bst_layer_t, bool,
-                   std::vector<bst_ulong>* = nullptr) override {
+  std::vector<bst_ulong> PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t,
+                                     bst_layer_t, bool) override {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
+    return {};
   }
 
-  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                           bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool,
-                           std::vector<bst_ulong>* out_shape = nullptr) override {
-    predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
-                                           learner_model_state_->num_feature,
-                                           learner_model_state_->OutputLength(), false, out_shape);
+  std::vector<bst_ulong> PredictContribution(DMatrix* p_fmat,
+                                             HostDeviceVector<bst_float>* out_contribs,
+                                             bst_layer_t layer_begin, bst_layer_t /*layer_end*/,
+                                             bool) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
@@ -193,14 +192,15 @@ class GBLinear : public GradientBooster {
         }
       });
     }
+    return predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
+                                                  learner_model_state_->num_feature,
+                                                  learner_model_state_->OutputLength(), false);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                                       bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool,
-                                       std::vector<bst_ulong>* out_shape = nullptr) override {
-    predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
-                                           learner_model_state_->num_feature,
-                                           learner_model_state_->OutputLength(), true, out_shape);
+  std::vector<bst_ulong> PredictInteractionContributions(DMatrix* p_fmat,
+                                                         HostDeviceVector<float>* out_contribs,
+                                                         bst_layer_t layer_begin,
+                                                         bst_layer_t /*layer_end*/, bool) override {
     LinearCheckLayer(layer_begin);
     std::vector<bst_float>& contribs = out_contribs->HostVector();
 
@@ -210,6 +210,9 @@ class GBLinear : public GradientBooster {
     contribs.resize(p_fmat->Info().num_row_ * nelements *
                     model_.learner_model_state->num_output_group);
     std::fill(contribs.begin(), contribs.end(), 0);
+    return predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
+                                                  learner_model_state_->num_feature,
+                                                  learner_model_state_->OutputLength(), true);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,

@@ -45,7 +45,7 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
   HostDeviceVector<bst_float> io_preds = {2.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f};
   std::vector<bst_float> out_preds = {0.0f, 2.0f};
   std::vector<bst_ulong> shape{2, 3};
-  obj->PredTransform(&io_preds, &shape);
+  shape = obj->PredTransform(&io_preds, shape);
   ASSERT_EQ(shape, (std::vector<bst_ulong>{2, 1}));
 
   auto& preds = io_preds.HostVector();
@@ -55,7 +55,7 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
   }
   io_preds.Resize(0);
   shape = {0, 3};
-  obj->PredTransform(&io_preds, &shape);
+  shape = obj->PredTransform(&io_preds, shape);
   ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 1}));
   ASSERT_EQ(io_preds.Size(), 0);
 }
@@ -72,7 +72,7 @@ void TestSoftprobMultiClassBasic(const Context* ctx) {
   std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
 
   std::vector<bst_ulong> shape{1, 3};
-  obj->PredTransform(&io_preds, &shape);
+  shape = obj->PredTransform(&io_preds, shape);
   ASSERT_EQ(shape, (std::vector<bst_ulong>{1, 3}));
   auto& preds = io_preds.HostVector();
 
@@ -81,7 +81,7 @@ void TestSoftprobMultiClassBasic(const Context* ctx) {
   }
   io_preds.Resize(0);
   shape = {0, 3};
-  obj->PredTransform(&io_preds, &shape);
+  shape = obj->PredTransform(&io_preds, shape);
   ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 3}));
   ASSERT_EQ(io_preds.Size(), 0);
 }
