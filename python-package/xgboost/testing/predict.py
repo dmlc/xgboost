@@ -72,8 +72,8 @@ def run_predict_shape(device: Device, case: str) -> None:
     model = train(train_params, DMatrix(X, y), num_boost_round=3)
     xp = import_cupy() if device == "cuda" else np
 
-    # Exercise repeated non-empty -> empty -> single-row predictions on the same model.
-    for rows in [4, 0, 1]:
+    # Check empty predictions before allocation and after reusing a non-empty output.
+    for rows in [0, 4, 0, 1]:
         data = X[:rows]
         # SHAP dimensions come from the model, even if input columns are missing.
         matrices = [DMatrix(data), DMatrix(data[:, :-1])]
