@@ -33,6 +33,9 @@ struct LearnerModelState;
 
 /*!
  * \brief interface of gradient boosting model.
+ *
+ * Prediction methods optionally return shape metadata alongside the flat buffer.
+ * Raw predictions retain their output-group axis; objective transforms may change it.
  */
 class GradientBooster : public Model, public Configurable {
  protected:
@@ -89,7 +92,8 @@ class GradientBooster : public Model, public Configurable {
    * \param end      End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(std::shared_ptr<DMatrix> dmat, HostDeviceVector<float>* out_preds,
-                            bool training, bst_layer_t begin, bst_layer_t end) = 0;
+                            bool training, bst_layer_t begin, bst_layer_t end,
+                            std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   /**
    * \brief Inplace prediction.
@@ -101,7 +105,7 @@ class GradientBooster : public Model, public Configurable {
    * \param           end       (Optional) End of booster layer. 0 means do not limit trees.
    */
   virtual void InplacePredict(std::shared_ptr<DMatrix>, float, HostDeviceVector<float>*,
-                              bst_layer_t, bst_layer_t) const {
+                              bst_layer_t, bst_layer_t, std::vector<bst_ulong>* = nullptr) const {
     LOG(FATAL) << "Inplace predict is not supported by the current booster.";
   }
   /*!
@@ -114,7 +118,8 @@ class GradientBooster : public Model, public Configurable {
    * @param strict_shape Validate whether it's actually possible to have uniform shape.
    */
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                           bst_layer_t layer_begin, bst_layer_t layer_end, bool strict_shape) = 0;
+                           bst_layer_t layer_begin, bst_layer_t layer_end, bool strict_shape,
+                           std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
@@ -127,11 +132,13 @@ class GradientBooster : public Model, public Configurable {
    */
   virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                    bst_layer_t layer_begin, bst_layer_t layer_end,
-                                   bool approximate = false) = 0;
+                                   bool approximate = false,
+                                   std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                                bst_layer_t layer_begin, bst_layer_t layer_end,
-                                               bool approximate) = 0;
+                                               bool approximate,
+                                               std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   /**
    * @brief dump the model in the requested format

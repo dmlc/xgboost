@@ -16,6 +16,7 @@
 #include "../common/error_msg.h"  // NoCategorical, DeprecatedFunc
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
+#include "../predictor/prediction_shape.h"
 #include "gblinear_model.h"
 #include "xgboost/gbm.h"
 #include "xgboost/json.h"
@@ -137,20 +138,27 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
-                    bool /*training*/, bst_layer_t layer_begin, bst_layer_t) override {
+                    bool /*training*/, bst_layer_t layer_begin, bst_layer_t,
+                    std::vector<bst_ulong>* out_shape = nullptr) override {
+    predictor::RawPredictionShape(p_fmat->Info().num_row_, learner_model_state_->OutputLength(),
+                                  out_shape);
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
     this->PredictBatchInternal(p_fmat.get(), &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
   }
 
-  void PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t, bst_layer_t,
-                   bool) override {
+  void PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t, bst_layer_t, bool,
+                   std::vector<bst_ulong>* = nullptr) override {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                           bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool) override {
+                           bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool,
+                           std::vector<bst_ulong>* out_shape = nullptr) override {
+    predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
+                                           learner_model_state_->num_feature,
+                                           learner_model_state_->OutputLength(), false, out_shape);
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
@@ -188,14 +196,17 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                                       bst_layer_t layer_begin, bst_layer_t /*layer_end*/,
-                                       bool) override {
+                                       bst_layer_t layer_begin, bst_layer_t /*layer_end*/, bool,
+                                       std::vector<bst_ulong>* out_shape = nullptr) override {
+    predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
+                                           learner_model_state_->num_feature,
+                                           learner_model_state_->OutputLength(), true, out_shape);
     LinearCheckLayer(layer_begin);
     std::vector<bst_float>& contribs = out_contribs->HostVector();
 
     // linear models have no interaction effects
-    const size_t nelements =
-        model_.learner_model_state->num_feature * model_.learner_model_state->num_feature;
+    const size_t nelements = (model_.learner_model_state->num_feature + 1) *
+                             (model_.learner_model_state->num_feature + 1);
     contribs.resize(p_fmat->Info().num_row_ * nelements *
                     model_.learner_model_state->num_output_group);
     std::fill(contribs.begin(), contribs.end(), 0);

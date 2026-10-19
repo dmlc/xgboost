@@ -77,7 +77,8 @@ class HingeObj : public ObjFunction {
                                                 out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  void PredTransform(HostDeviceVector<float>* io_preds,
+                     std::vector<bst_ulong>* = nullptr) const override {
     common::DispatchKernel<HingePredTransformKernel>(ctx_, io_preds, HingeLoss{});
   }
 

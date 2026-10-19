@@ -83,7 +83,8 @@ class LogisticObjective : public FitInterceptGlmLike {
                                                    out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  void PredTransform(HostDeviceVector<float>* io_preds,
+                     std::vector<bst_ulong>* = nullptr) const override {
     if constexpr (kKind != LogisticKind::kRaw) {
       common::DispatchKernel<LogisticPredTransformKernel>(ctx_, io_preds, LogisticPredTransform{});
     }

@@ -112,12 +112,14 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param pred_interactions whether to compute the feature pair contributions
    * @param strict_shape Used by predict leaf to validate whether it's actually possible
    *        to have uniform shape.
+   * @param out_shape Optional output shape, including objective transformation and strict_shape.
    */
   virtual void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
                        HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
                        bst_layer_t layer_end, bool training = false, bool pred_leaf = false,
                        bool pred_contribs = false, bool approx_contribs = false,
-                       bool pred_interactions = false, bool strict_shape = false) = 0;
+                       bool pred_interactions = false, bool strict_shape = false,
+                       std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -128,10 +130,13 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param [in,out] out_preds   Pointer to output prediction vector.
    * \param          layer_begin Beginning of boosted tree layer used for prediction.
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
+   * @param strict_shape Retain a singleton output-group axis.
+   * @param out_shape Optional output shape after objective transformation.
    */
   virtual void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
                               HostDeviceVector<float>** out_preds, bst_layer_t layer_begin,
-                              bst_layer_t layer_end) = 0;
+                              bst_layer_t layer_end, bool strict_shape = false,
+                              std::vector<bst_ulong>* out_shape = nullptr) = 0;
 
   /*!
    * \brief Calculate feature score.  See doc in C API for outputs.

@@ -630,7 +630,10 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 }
 
 void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
-                          bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
+                          bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end,
+                          std::vector<bst_ulong>* out_shape) {
+  predictor::RawPredictionShape(p_fmat->Info().num_row_, model_.learner_model_state->OutputLength(),
+                                out_shape);
   auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
   auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
   auto dropped_weights = this->DropTrees(is_training);
@@ -699,7 +702,9 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                             HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
-                            bst_layer_t layer_end) const {
+                            bst_layer_t layer_end, std::vector<bst_ulong>* out_shape) const {
+  predictor::RawPredictionShape(p_m->Info().num_row_, model_.learner_model_state->OutputLength(),
+                                out_shape);
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {

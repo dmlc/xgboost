@@ -19,6 +19,7 @@
 #include <functional>
 #include <set>
 #include <string>  // for string
+#include <vector>  // for vector
 
 namespace xgboost {
 
@@ -64,8 +65,11 @@ class ObjFunction : public Configurable {
    *   This is only called when Prediction is called
    *
    * @param [in,out] io_preds prediction values, saves to this vector as well.
+   * @param [in,out] io_shape Optional (rows, outputs) shape. Transforms that change the
+   *                         output width must update it, including for empty input.
    */
-  virtual void PredTransform(HostDeviceVector<float>*) const {}
+  virtual void PredTransform(HostDeviceVector<float>*,
+                             std::vector<bst_ulong>* /*io_shape*/ = nullptr) const {}
   /**
    * @brief Apply inverse link (activation) function to prediction values
    *

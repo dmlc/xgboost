@@ -141,7 +141,8 @@ class CoxRegression : public ObjFunction {
       last_exp_p = exp_p;
     }
   }
-  void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
+  void PredTransform(HostDeviceVector<bst_float>* io_preds,
+                     std::vector<bst_ulong>* = nullptr) const override {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t i, common::Span<bst_float> preds) { preds[i] = expf(preds[i]); },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),

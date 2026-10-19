@@ -56,7 +56,8 @@ class PoissonRegression : public FitInterceptGlmLike {
                                                   PoissonGradient{}, out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  void PredTransform(HostDeviceVector<float>* io_preds,
+                     std::vector<bst_ulong>* = nullptr) const override {
     common::DispatchKernel<PoissonPredTransformKernel>(ctx_, io_preds, PoissonPredTransform{});
   }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {

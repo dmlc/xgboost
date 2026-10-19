@@ -102,7 +102,8 @@ class AFTObj : public ObjFunction {
                                               param_.aft_loss_distribution_scale, out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  void PredTransform(HostDeviceVector<float>* predictions,
+                     std::vector<bst_ulong>* = nullptr) const override {
     // Trees give us a prediction in log scale, so exponentiate.
     common::DispatchKernel<AFTPredTransformKernel>(ctx_, predictions);
   }

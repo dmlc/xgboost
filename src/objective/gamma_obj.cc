@@ -54,7 +54,8 @@ class GammaRegression : public FitInterceptGlmLike {
                                                 GammaGradient{}, out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  void PredTransform(HostDeviceVector<float>* io_preds,
+                     std::vector<bst_ulong>* = nullptr) const override {
     common::DispatchKernel<GammaPredTransformKernel>(ctx_, io_preds, GammaPredTransform{});
   }
 
