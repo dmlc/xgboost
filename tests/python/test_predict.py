@@ -10,8 +10,13 @@ from scipy import sparse
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
-from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
+from xgboost.testing.data import np_dtypes, pd_dtypes
+from xgboost.testing.predict import (
+    predict_shape_cases,
+    run_base_margin_vs_base_score,
+    run_predict_leaf,
+    run_predict_shape,
+)
 
 
 def test_inplace_predict_masked_array() -> None:
@@ -50,41 +55,9 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
     run_predict_leaf("cpu", DMatrixT)
 
 
-def test_predict_shape():
-    X, y = get_california_housing()
-    reg = xgb.XGBRegressor(n_estimators=1)
-    reg.fit(X, y)
-    predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
-    assert len(predt.shape) == 2
-    assert predt.shape[0] == X.shape[0]
-    assert predt.shape[1] == 1
-
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, strict_shape=True
-    )
-    assert len(contrib.shape) == 3
-    assert contrib.shape[1] == 1
-
-    contrib = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_contribs=True, approx_contribs=True
-    )
-    assert len(contrib.shape) == 2
-    assert contrib.shape[1] == X.shape[1] + 1
-
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True
-    )
-    assert len(interaction.shape) == 3
-    assert interaction.shape[1] == X.shape[1] + 1
-    assert interaction.shape[2] == X.shape[1] + 1
-
-    interaction = reg.get_booster().predict(
-        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True, strict_shape=True
-    )
-    assert len(interaction.shape) == 4
-    assert interaction.shape[1] == 1
-    assert interaction.shape[2] == X.shape[1] + 1
-    assert interaction.shape[3] == X.shape[1] + 1
+@pytest.mark.parametrize("case", predict_shape_cases("cpu"))
+def test_predict_shape(case: str) -> None:
+    run_predict_shape("cpu", case)
 
 
 def test_base_margin_vs_base_score() -> None:

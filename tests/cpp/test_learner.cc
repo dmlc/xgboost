@@ -612,6 +612,15 @@ TEST(Learner, MultiTarget) {
     learner->Configure();
     learner->UpdateOneIter(0, m);
 
+    HostDeviceVector<float> predictions;
+    ASSERT_EQ(learner->Predict(m, false, &predictions, 0, 0),
+              (std::vector<bst_ulong>{kRows, kTargets}));
+    ASSERT_EQ(predictions.Size(), kRows * kTargets);
+    auto empty = RandomDataGenerator{0, kCols, 0}.GenerateDMatrix();
+    ASSERT_EQ(learner->Predict(empty, false, &predictions, 0, 0),
+              (std::vector<bst_ulong>{0, kTargets}));
+    ASSERT_TRUE(predictions.Empty());
+
     Json model{Object()};
     learner->SaveModel(&model);
     ASSERT_EQ(get<String>(model["learner"]["learner_model_param"]["num_target"]),
