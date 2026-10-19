@@ -37,6 +37,7 @@ from xgboost.testing.dask import (
     check_multi_output_tree_classifier,
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
+    check_multi_projection_ratio,
     check_uneven_nan,
     deterministic_dmatrix,
     get_rabit_args,
@@ -1491,6 +1492,9 @@ class TestWithDask:
 
     def test_hist_multi_regressor(self, client: "Client") -> None:
         check_multi_output_tree_regressor(client, "cpu")
+
+    def test_multi_projection_ratio(self, client: "Client") -> None:
+        check_multi_projection_ratio(client, "cpu")
 
     def test_hist_multi_classifier(self, client: "Client") -> None:
         check_multi_output_tree_classifier(client, "cpu")

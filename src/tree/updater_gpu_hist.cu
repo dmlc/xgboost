@@ -804,7 +804,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     monitor_.Start(__func__);
 
     this->InitDataOnce(p_fmat);
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
     // build tree
     hess_.resize(gpair->Size());
     auto hess = dh::ToSpan(hess_);

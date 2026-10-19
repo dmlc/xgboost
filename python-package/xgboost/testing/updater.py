@@ -15,13 +15,13 @@ from ..callback import TrainingCallback
 from ..compat import import_cudf, import_cupy
 from ..core import (
     Booster,
+    CustomObj,
     DataIter,
     DMatrix,
     ExtMemQuantileDMatrix,
     QuantileDMatrix,
 )
 from ..data import is_pd_cat_dtype
-from ..objective import Objective
 from ..sklearn import XGBModel, XGBRegressor
 from ..training import train
 from .data import IteratorForTest, make_batches, make_categorical
@@ -61,7 +61,7 @@ def get_basescore(
 def check_base_weights(
     params: Dict[str, Any],
     data: DMatrix,
-    obj: Optional[Objective] = None,
+    obj: Optional[CustomObj] = None,
 ) -> None:
     """Check unscaled base weights and eta-scaled scalar or vector prediction leaves."""
     params = {**params, "base_score": 0.0, "max_depth": 2}

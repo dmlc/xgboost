@@ -1099,14 +1099,10 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
-    if (in_gpair->HasValueGrad()) {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumTargets())
-          << "Value gradient should have the same number of targets as the overall model.";
-    } else {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumSplitTargets())
-          << "The number of columns in gradient should be equal to the number of "
-             "targets/classes in the model.";
-    }
+    CHECK(!in_gpair->HasValueGrad()) << "Custom objectives must supply full-dimensional gradients.";
+    CHECK_EQ(this->model_state_.OutputLength(), in_gpair->Grad()->Shape(1))
+        << "The number of columns in gradient should be equal to the number of "
+           "targets/classes in the model.";
     this->gbm_->DoBoost(train, in_gpair, obj_.get());
     this->monitor_.Stop(__func__);
   }

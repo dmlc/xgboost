@@ -646,7 +646,8 @@ class MultiTargetHistMaker {
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
-    Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
+    Driver<MultiExpandEntry> driver{
+        ScaleMinSplitLoss(param_, split_gpair->Shape(1), p_tree->NumTargets()), kMaxNodeBatchSize};
 
     this->Reset(split_gpair, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});

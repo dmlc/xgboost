@@ -55,6 +55,7 @@ from xgboost.testing.dask import (
     check_multi_output_tree_classifier,
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
+    check_multi_projection_ratio,
     check_uneven_nan,
     deterministic_dmatrix,
 )
@@ -301,6 +302,10 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_multi_regressor(self, local_cuda_client: Client) -> None:
         check_multi_output_tree_regressor(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_multi_projection_ratio(self, local_cuda_client: Client) -> None:
+        check_multi_projection_ratio(local_cuda_client, "cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask_cudf())
