@@ -50,8 +50,9 @@ def predict_shape_cases(device: Device) -> list[str]:
     ]
 
 
+# pylint: disable=too-many-locals
 def run_predict_shape(device: Device, case: str) -> None:
-    """Check explicit output dimensions across prediction modes, row counts and strictness.
+    """Check dimensions across prediction modes, row counts and strictness.
 
     Values and margins exercise objective transformation and inplace prediction; SHAP
     retains raw output groups. Leaf layouts are covered by run_predict_leaf.
