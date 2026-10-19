@@ -92,6 +92,12 @@ std::set<std::string> GBTree::Configure(Args const& cfg) {
 
   used.merge(model_.Configure(cfg));
 
+  if (std::any_of(cfg.cbegin(), cfg.cend(),
+                  [](auto const& arg) { return arg.first == "base_score"; })) {
+    // Cached predictions include the intercept.
+    prediction_cache_ = PredictionContainer{};
+  }
+
   // for the 'update' process_type, move trees into trees_to_update
   if (tparam_.process_type == TreeProcessType::kUpdate) {
     model_.InitTreesToUpdate();
