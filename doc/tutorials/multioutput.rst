@@ -82,7 +82,7 @@ For vector-leaf models with many outputs, ``multi_projection_ratio`` reduces the
 targets needed for split search using random projection, following the split/value
 gradient separation in `Sketch Boost` `[1] <#references>`__.
 
-Split search uses projected gradients and Hessian. Leaf values are fitted using the
+Split search uses projected gradients and Hessians. Leaf values are fitted using the
 original gradients and Hessians for every output. The following snippet uses one quarter
 of the target dimensions for split search. See :doc:`/parameter` for valid ratios and
 restrictions.

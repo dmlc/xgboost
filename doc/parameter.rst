@@ -268,7 +268,7 @@ Parameters for Tree Booster
   .. versionadded:: 3.5.0
 
   Fraction of target-gradient dimensions retained by random projection for split search.
-  Projection requires ``multi_strategy=multi_output_tree`` and ``tree_method=hist`` on CPU or CUDA.
+  Projection requires ``multi_strategy=multi_output_tree`` and ``tree_method=hist``.
 
   - range: (0, 1]
 
