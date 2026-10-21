@@ -4,6 +4,7 @@
 #ifndef XGBOOST_COMMON_CACHE_MANAGER_H_
 #define XGBOOST_COMMON_CACHE_MANAGER_H_
 
+#include <cstdint>     // for int64_t
 #include <array>
 
 namespace xgboost::common {
