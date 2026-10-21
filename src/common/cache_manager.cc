@@ -253,7 +253,11 @@ void DetectDataCachesSysctl(std::int64_t* cache_sizes) {
     auto cores_per_l2 = ReadSysctlInt(prefix + "cpusperl2");
     std::optional<std::int64_t> l2_per_core{std::nullopt};
     if (l2 && cores_per_l2) {
-      l2_per_core = *l2 / *cores_per_l2;
+      auto const per_core = *l2 / *cores_per_l2;
+      // Ignore invalid readings that truncate to zero instead of replacing a valid minimum.
+      if (per_core > 0) {
+        l2_per_core = per_core;
+      }
     }
     keep_min(min_l1d, l1d);
     keep_min(min_l2_per_core, l2_per_core);
