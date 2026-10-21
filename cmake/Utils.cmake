@@ -268,7 +268,7 @@ macro(xgboost_target_properties target)
   endif()
 
   if(WIN32 AND MINGW)
-    target_compile_options(${target} PUBLIC -static-libstdc++)
+    target_link_options(${target} PUBLIC -static-libstdc++)
   endif()
 
   if(NOT WIN32 AND ENABLE_ALL_WARNINGS AND USE_CUDA AND
