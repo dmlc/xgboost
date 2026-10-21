@@ -155,11 +155,19 @@ class SoftmaxMultiClassObj : public ObjFunction {
                                                      out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) const override {
     this->Transform(predictions, output_prob_);
+    if (!output_prob_) {
+      CHECK_EQ(shape.size(), 2);
+      shape[1] = 1;
+    }
+    return shape;
   }
-  void EvalTransform(HostDeviceVector<float>* predictions) override {
+  std::vector<bst_ulong> EvalTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) override {
     this->Transform(predictions, true);
+    return shape;
   }
   char const* DefaultEvalMetric() const override { return "mlogloss"; }
 
