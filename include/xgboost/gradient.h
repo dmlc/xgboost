@@ -19,7 +19,7 @@ struct GradientContainer {
   [[nodiscard]] static bool HasValueGrad(linalg::Matrix<GradientPair> const& value_gpair) {
     // !(shape<1> == 0) to fend off dask empty workers.
     return !(value_gpair.Empty() && value_gpair.Shape(1) == 0);
-  };
+  }
   [[nodiscard]] bool HasValueGrad() const noexcept { return HasValueGrad(this->value_gpair); }
 
   [[nodiscard]] linalg::Matrix<GradientPair> const* Grad() const { return &gpair; }
