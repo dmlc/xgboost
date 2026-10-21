@@ -197,7 +197,8 @@ std::optional<std::int64_t> ReadSysctlInt(const std::string& name) {
   if (len != sizeof(std::int32_t) && len != sizeof(std::int64_t)) {
     return std::nullopt;
   }
-  if (len == sizeof(std::int32_t) && value > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
+  if (len == sizeof(std::int32_t) &&
+      value > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
     return std::nullopt;
   }
   if (value <= 0) {
