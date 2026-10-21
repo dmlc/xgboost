@@ -26,17 +26,13 @@
 #include <numeric>        // for accumulate
 #include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
 #include <string>         // for basic_string, char_traits, operator<, string
-#include <system_error>   // for errc
-#include <unordered_map>  // for operator!=, unordered_map
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
 #include "collective/aggregator.h"        // for GlobalMax
-#include "collective/allreduce.h"         // for Allreduce, SafeColl
 #include "collective/broadcast.h"         // for Broadcast
 #include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
-#include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
@@ -47,7 +43,6 @@
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
-#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
 #include "xgboost/linalg.h"               // for Vector, VectorView

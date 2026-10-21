@@ -360,7 +360,7 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
     up->Update(&tree_param_, gpair, p_fmat, common::Span{*out_position}, new_trees);
   }
   if (n_components < n_targets) {
-    gpair->gpair = std::move(gpair->value_gpair);
+    gpair->gpair = std::exchange(gpair->value_gpair, {});
   }
   tree_param_.learning_rate = lr;
 }
