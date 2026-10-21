@@ -5,40 +5,8 @@
 #define XGBOOST_COMMON_CACHE_MANAGER_H_
 
 #include <array>
-#include <cstdint>   // for int64_t
-#include <optional>  // for optional
-
-#include "xgboost/span.h"  // for Span
 
 namespace xgboost::common {
-
-namespace detail {
-/* Data cache sizes reported for one CPU performance level. An empty field means the
- * platform did not report that quantity.
- */
-struct PerfLevelCache {
-  std::optional<std::int64_t> l1d;
-  std::optional<std::int64_t> l2;
-  /* Number of cores sharing one L2, needed because L2 is per-cluster on heterogeneous
-   * CPUs rather than private per core as on x86.
-   */
-  std::optional<std::int64_t> cpus_per_l2;
-};
-
-/* The sizes a single thread can rely on, reduced over all performance levels. */
-struct DataCacheSizes {
-  std::optional<std::int64_t> l1d;
-  std::optional<std::int64_t> l2_per_cpu;
-};
-
-/* Reduce per-performance-level cache readings to per-thread sizes.
- *
- * Split out from the platform query so the policy can be tested with synthetic readings
- * on any host, including topologies not present on the build machine. See
- * cache_manager.cc for why the minimum is taken and why L2 is divided.
- */
-[[nodiscard]] DataCacheSizes ReduceHeterogeneousCaches(Span<PerfLevelCache const> levels);
-}  // namespace detail
 
 /* Detect cache sizes at runtime,
  * or fall back to defaults if detection is not possible.
