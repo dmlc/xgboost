@@ -74,6 +74,16 @@ General Parameters
 
     For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
+* ``fail_on_invalid_gpu_id`` [default= ``false``]
+
+  .. versionadded:: 1.3.0
+
+  - Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+    to ``false``, XGBoost wraps an out-of-range ordinal modulo the number of visible GPUs.
+    For example, ``device=cuda:1`` is changed to ``device=cuda:0`` when only one GPU is
+    visible. When no GPU is visible, XGBoost falls back to the CPU regardless of this
+    setting.
+
 * ``verbosity`` [default=1]
 
   - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3

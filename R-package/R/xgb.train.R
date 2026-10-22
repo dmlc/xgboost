@@ -674,6 +674,11 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Note: if XGBoost was installed from CRAN, it won't have GPU support enabled, thus only `"cpu"` will be available.
 #' To get GPU support, the R package for XGBoost must be installed from source or from the GitHub releases - see
 #' [instructions](https://xgboost.readthedocs.io/en/latest/install.html#r).
+#' @param fail_on_invalid_gpu_id (default= `FALSE`)
+#' Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+#' to `FALSE`, XGBoost wraps an out-of-range ordinal modulo the number of visible GPUs.
+#' For example, `device = "cuda:1"` is changed to `device = "cuda:0"` when only one GPU is
+#' visible. When no GPU is visible, XGBoost falls back to the CPU regardless of this setting.
 #' @param disable_default_eval_metric (default= `FALSE`)
 #' Flag to disable default metric. Set to 1 or `TRUE` to disable.
 #' @param max_cached_hist_node (for Non-Exact Tree Methods) (default = 65536)
@@ -817,6 +822,7 @@ xgb.params <- function(
   eval_metric = NULL,
   seed_per_iteration = NULL,
   device = NULL,
+  fail_on_invalid_gpu_id = NULL,
   disable_default_eval_metric = NULL,
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
