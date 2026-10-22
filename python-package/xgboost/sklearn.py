@@ -228,7 +228,9 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
     return inner
 
 
-def _metric_decorator(func: Callable) -> Metric:
+def _metric_decorator(
+    func: Callable,
+) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
     """Decorate a metric function from sklearn.
 
     Converts an metric function that uses the typical sklearn metric signature so that
@@ -246,7 +248,9 @@ def _metric_decorator(func: Callable) -> Metric:
     return inner
 
 
-def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
+def ltr_metric_decorator(
+    func: Callable, n_jobs: Optional[int]
+) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
     """Decorate a learning to rank metric."""
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
@@ -515,9 +519,17 @@ __model_doc = f"""
         .. versionadded:: 1.6.0
 
         Metric used for monitoring the training result and early stopping.  It can be a
-        string or list of strings as names of predefined metric in XGBoost (See
-        :doc:`/parameter`), one of the metrics in :py:mod:`sklearn.metrics`, or any
-        other user defined metric that looks like `sklearn.metrics`.
+        string naming a predefined metric in XGBoost (See :doc:`/parameter`), one of
+        the metrics in :py:mod:`sklearn.metrics`, any other user defined metric that
+        looks like `sklearn.metrics`, or a list containing strings and callables.
+        Predefined metrics are evaluated first, followed by callable metrics in their
+        supplied order. Each callable's ``__name__`` is used as its metric name;
+        callable names must be distinct from one another and from predefined metric
+        strings in the same list.
+
+        .. versionchanged:: 3.5.0
+
+            Lists can contain multiple callable metrics.
 
         If custom objective is also provided, then custom metric should implement the
         corresponding reverse link function.
@@ -563,8 +575,9 @@ __model_doc = f"""
           callback function :py:class:`xgboost.callback.EarlyStopping`.
 
         - If there's more than one item in **eval_set**, the last entry will be used for
-          early stopping.  If there's more than one metric in **eval_metric**, the last
-          metric will be used for early stopping.
+          early stopping. If there's more than one metric in **eval_metric**, the last
+          evaluated metric will be used for early stopping. When callables are present,
+          this is the last callable metric.
 
     callbacks : {Optional[List[TrainingCallback]]}
 
@@ -1253,7 +1266,9 @@ class XGBModel(XGBModelBase):
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
 
-        def custom_metric(m: Callable) -> Metric:
+        def custom_metric(
+            m: Callable,
+        ) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
             if self._get_type() == "ranker":
                 wrapped = ltr_metric_decorator(m, self.n_jobs)
             else:
@@ -1275,19 +1290,32 @@ class XGBModel(XGBModelBase):
                     invalid_type(self.eval_metric)
                 # Could be a list of strings or callables
                 builtin_metrics: List[str] = []
+                custom_metrics: List[
+                    Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+                ] = []
                 for m in self.eval_metric:
                     if callable(m):
-                        if metric is not None:
-                            raise NotImplementedError(
-                                "Using multiple custom metrics is not yet supported."
-                            )
-                        metric = custom_metric(m)
+                        custom_metrics.append(custom_metric(m))
                     elif isinstance(m, str):
                         builtin_metrics.append(m)
                     else:
                         invalid_type(m)
+                callable_names = [m.__name__ for m in self.eval_metric if callable(m)]
+                if len(callable_names) != len(set(callable_names)) or set(
+                    callable_names
+                ).intersection(builtin_metrics):
+                    raise ValueError("Metric names must be distinct.")
+                params.pop("eval_metric", None)
                 if builtin_metrics:
                     params.update({"eval_metric": builtin_metrics})
+                if custom_metrics:
+
+                    def composite_metric(
+                        y_score: np.ndarray, dmatrix: DMatrix
+                    ) -> List[Tuple[str, float]]:
+                        return [m(y_score, dmatrix) for m in custom_metrics]
+
+                    metric = composite_metric
 
         return model, metric, params
 
@@ -2386,7 +2414,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
         Returns
         -------
         score :
-          The result of the first evaluation metric for the ranker.
+          The result of the last evaluated metric for the ranker.
 
         """
         X, qid = _get_qid(X, None)
@@ -2405,11 +2433,8 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             nthread=self.n_jobs,
             feature_types=self.feature_types,
         )
-        if callable(self.eval_metric):
-            metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
-            result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
-        else:
-            result_str = self.get_booster().eval(Xyq)
+        _, metric, _ = self._configure_fit(None, {})
+        result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
 
         metric_score = _parse_eval_str(result_str)
         return metric_score[-1][1]

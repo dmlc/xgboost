@@ -1785,25 +1785,37 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_metrics(self, client: "Client") -> None:
         from sklearn.datasets import make_classification
-        from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+        from sklearn.metrics import hinge_loss, log_loss
 
         Xn, yn = make_classification(random_state=2025)
-        X, y = da.array(Xn), da.array(yn)
+        X = da.from_array(Xn, chunks=(25, -1))
+        y = da.from_array(yn, chunks=25)
 
         clf = dxgb.DaskXGBClassifier(
             eval_metric=["logloss", hinge_loss], n_estimators=2
         )
         clf.fit(X, y, eval_set=[(X, y)])
         results = clf.evals_result()["validation_0"]
-        assert "logloss" in results
-        assert "hinge_loss" in results
+        assert list(results) == ["logloss", "hinge_loss"]
+
+        for metrics, names in (
+            ([hinge_loss, log_loss], ["hinge_loss", "log_loss"]),
+            ([log_loss, "logloss", hinge_loss], ["logloss", "log_loss", "hinge_loss"]),
+        ):
+            clf = dxgb.DaskXGBClassifier(
+                eval_metric=metrics, n_estimators=2, disable_default_eval_metric=True
+            )
+            clf.fit(X, y, eval_set=[(X, y)])
+            results = clf.evals_result()["validation_0"]
+            assert list(results) == names
+            for name in names:
+                assert len(results[name]) == 2
+                assert np.all(np.isfinite(results[name]))
 
         clf = dxgb.DaskXGBClassifier(
-            eval_metric=[hamming_loss, log_loss], n_estimators=2
+            eval_metric=[hinge_loss, log_loss, hinge_loss], n_estimators=2
         )
-        with pytest.raises(
-            NotImplementedError, match="multiple custom metrics is not yet supported."
-        ):
+        with pytest.raises(ValueError, match="Metric names must be distinct"):
             clf.fit(X, y, eval_set=[(X, y)])
 
     def test_no_duplicated_partition(self) -> None:
