@@ -79,10 +79,10 @@ General Parameters
   .. versionadded:: 1.3.0
 
   - Whether to raise an error when the specified CUDA device ordinal is invalid. When set
-    to ``false``, XGBoost wraps an out-of-range ordinal modulo the number of visible GPUs.
-    For example, ``device=cuda:1`` is changed to ``device=cuda:0`` when only one GPU is
-    visible. When no GPU is visible, XGBoost falls back to the CPU regardless of this
-    setting.
+    to ``false``, XGBoost replaces a non-negative ordinal that is greater than or equal to
+    the number of visible GPUs with its value modulo that number. For example,
+    ``device=cuda:1`` is changed to ``device=cuda:0`` when only one GPU is visible. When no
+    GPU is visible, XGBoost falls back to the CPU regardless of this setting.
 
 * ``verbosity`` [default=1]
 
