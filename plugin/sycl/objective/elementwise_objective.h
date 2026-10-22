@@ -3,8 +3,8 @@
  * \file elementwise_objective.h
  * \brief SYCL implementations of the typed elementwise objective kernels.
  */
-#ifndef XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
-#define XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#ifndef PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#define PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
 
 #include <cstddef>  // for size_t
 
@@ -16,9 +16,9 @@
 namespace xgboost::sycl::obj::elementwise {
 namespace detail {
 template <typename GradientFn>
-void GradientSycl(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
-                  bst_target_t n_targets, GradientFn gradient,
-                  xgboost::linalg::Matrix<GradientPair>* out_gpair) {
+void Gradient(Context const* ctx, HostDeviceVector<float> const& preds, MetaInfo const& info,
+              bst_target_t n_targets, GradientFn gradient,
+              xgboost::linalg::Matrix<GradientPair>* out_gpair) {
   auto device = ctx->Device();
   CHECK(device.IsSycl());
 
@@ -37,7 +37,7 @@ void GradientSycl(Context const* ctx, HostDeviceVector<float> const& preds, Meta
 }
 
 template <typename TransformFn>
-void TransformSycl(Context const* ctx, HostDeviceVector<float>* preds, TransformFn transform) {
+void Transform(Context const* ctx, HostDeviceVector<float>* preds, TransformFn transform) {
   auto device = ctx->Device();
   CHECK(device.IsSycl());
 
@@ -49,8 +49,7 @@ void TransformSycl(Context const* ctx, HostDeviceVector<float>* preds, Transform
 }
 
 template <typename CheckFn>
-bool ValidationSycl(Context const* ctx, xgboost::linalg::Matrix<float> const& values,
-                    CheckFn check) {
+bool Validation(Context const* ctx, xgboost::linalg::Matrix<float> const& values, CheckFn check) {
   auto device = ctx->Device();
   CHECK(device.IsSycl());
   return sycl::linalg::Validate(device, values.View(device), check);
@@ -58,28 +57,28 @@ bool ValidationSycl(Context const* ctx, xgboost::linalg::Matrix<float> const& va
 }  // namespace detail
 
 template <typename GradientFn>
-auto RegisterGradientSycl() {
+auto RegisterGradient() {
   using Kernel = xgboost::obj::elementwise::GradientKernel<GradientFn>;
   return xgboost::common::KernelRegistration<Kernel>{
       {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU},
-      &detail::GradientSycl<GradientFn>};
+      &xgboost::sycl::obj::elementwise::detail::Gradient<GradientFn>};
 }
 
 template <typename TransformFn>
-auto RegisterTransformSycl() {
+auto RegisterTransform() {
   using Kernel = xgboost::obj::elementwise::TransformKernel<TransformFn>;
   return xgboost::common::KernelRegistration<Kernel>{
       {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU},
-      &detail::TransformSycl<TransformFn>};
+      &xgboost::sycl::obj::elementwise::detail::Transform<TransformFn>};
 }
 
 template <typename CheckFn>
-auto RegisterValidationSycl() {
+auto RegisterValidation() {
   using Kernel = xgboost::obj::elementwise::ValidationKernel<CheckFn>;
   return xgboost::common::KernelRegistration<Kernel>{
       {DeviceOrd::kSyclDefault, DeviceOrd::kSyclCPU, DeviceOrd::kSyclGPU},
-      &detail::ValidationSycl<CheckFn>};
+      &xgboost::sycl::obj::elementwise::detail::Validation<CheckFn>};
 }
 }  // namespace xgboost::sycl::obj::elementwise
 
-#endif  // XGBOOST_PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_
+#endif  // PLUGIN_SYCL_OBJECTIVE_ELEMENTWISE_OBJECTIVE_H_

@@ -13,11 +13,11 @@ namespace xgboost::sycl::obj {
 DMLC_REGISTRY_FILE_TAG(hinge_kernel_sycl);
 
 namespace {
-auto const kRegisterHingeGradientSycl =
-    elementwise::RegisterGradientSycl<xgboost::obj::HingeLoss>();
-auto const kRegisterHingePredTransformSycl =
-    elementwise::RegisterTransformSycl<xgboost::obj::HingeLoss>();
-auto const kRegisterHingeValidationSycl =
-    elementwise::RegisterValidationSycl<xgboost::obj::HingeLabelCheck>();
+auto const kRegisterHingeGradient =
+    xgboost::sycl::obj::elementwise::RegisterGradient<xgboost::obj::HingeLoss>();
+auto const kRegisterHingePredTransform =
+    xgboost::sycl::obj::elementwise::RegisterTransform<xgboost::obj::HingeLoss>();
+auto const kRegisterHingeValidation =
+    xgboost::sycl::obj::elementwise::RegisterValidation<xgboost::obj::HingeLabelCheck>();
 }  // namespace
 }  // namespace xgboost::sycl::obj
