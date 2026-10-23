@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2025 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -85,6 +85,17 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val modelLoaded = XGBoostClassificationModel.load(modelPath)
     assert(modelLoaded.numClasses === 2)
     check(modelLoaded)
+  }
+
+  test("read/write multi-class model") {
+    val model = new XGBoostClassifier().setNumRound(2).fit(smallMultiClassificationVector)
+    assert(model.numClasses === 3)
+
+    val modelPath = new File(tempDir.toFile, "multiClassModel").getPath
+    model.write.overwrite().save(modelPath)
+    val modelLoaded = XGBoostClassificationModel.load(modelPath)
+    assert(modelLoaded.numClasses === 3)
+    assert(modelLoaded.getNumClass === 3)
   }
 
   test("XGBoostClassificationModel transformed schema") {
