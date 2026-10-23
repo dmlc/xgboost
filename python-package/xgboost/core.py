@@ -3097,6 +3097,9 @@ class Booster:
         This feature is only defined when the decision tree model is chosen as base
         learner (`booster in {gbtree, dart}`).
 
+        Integer-feature split thresholds are rounded up; infinite thresholds are
+        preserved.
+
         Parameters
         ----------
         fmap :
@@ -3219,7 +3222,7 @@ class Booster:
                     categories.append(None)
                 else:  # numerical
                     yes, no = left[nid], right[nid]
-                    if ftypes.get(fidx, "q") == "int":
+                    if ftypes.get(fidx, "q") == "int" and not math.isinf(sconds[nid]):
                         splits.append(float(math.ceil(sconds[nid])))
                     else:
                         splits.append(sconds[nid])
