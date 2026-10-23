@@ -429,6 +429,32 @@ class MultiHistogramBuilder {
     }
   }
 
+  /**
+   * @brief Skip child histograms when neither child can be split.
+   */
+  template <typename Partitioner>
+  void BuildHistLeftRight(Context const *ctx, DMatrix *p_fmat, ScalarTreeView const &tree,
+                          std::vector<Partitioner> const &partitioners,
+                          std::vector<CPUExpandEntry> const &valid_candidates,
+                          linalg::MatrixView<GradientPair const> gpair, BatchParam const &param,
+                          TrainParam const &train_param, bool force_read_by_column = false) {
+    std::vector<CPUExpandEntry> candidates;
+    candidates.reserve(valid_candidates.size());
+    for (auto const &candidate : valid_candidates) {
+      // Keep both siblings if either can split, so the smaller histogram can still be
+      // used to derive its sibling by subtraction.
+      if (candidate.split.left_sum.GetHess() >= 2.0 * train_param.min_child_weight ||
+          candidate.split.right_sum.GetHess() >= 2.0 * train_param.min_child_weight) {
+        candidates.push_back(candidate);
+      }
+    }
+    if (candidates.empty()) {
+      return;
+    }
+    this->BuildHistLeftRight(ctx, p_fmat, tree, partitioners, candidates, gpair, param,
+                             force_read_by_column);
+  }
+
   [[nodiscard]] auto const &Histogram(bst_target_t t) const {
     return target_builders_[t].Histogram();
   }
