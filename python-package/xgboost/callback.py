@@ -8,6 +8,7 @@ import os
 import pickle
 from abc import ABC
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -43,9 +44,12 @@ __all__ = [
     "CallbackContainer",
 ]
 
+if TYPE_CHECKING:
+    from .training import CVPack
+
 _Score = Union[float, Tuple[float, float]]
 
-_Model = Any  # real type is Union[Booster, CVPack]; need more work
+_Model = Union[Booster, "CVPack"]
 
 
 # pylint: disable=unused-argument
