@@ -19,8 +19,7 @@ import xgboost.testing as tm
 from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
-from ..objective import Objective, TreeObjective
-from ..sklearn import XGBClassifier, XGBRegressor
+from ..sklearn import XGBClassifier
 from ..training import train
 from .data import IteratorForTest
 from .updater import ResetStrategy, check_base_weights, train_result
@@ -236,156 +235,100 @@ def _array_impl(device: Device) -> ModuleType:
     return nda
 
 
-class LsObj0(TreeObjective):
-    """Split grad is the same as value grad."""
+class LsObj:
+    """Ordinary least-squares custom objective for multi-target tests."""
 
     def __init__(self, device: Device) -> None:
         self.device = device
 
     def __call__(
-        self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
+        self, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
         nda = _array_impl(self.device)
-
-        y_true = dtrain.get_label()
-        grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return nda.array(grad), nda.array(hess)
-
-    def split_grad(
-        self, iteration: int, grad: ArrayLike, hess: ArrayLike
-    ) -> Tuple[ArrayLike, ArrayLike]:
-        nda = _array_impl(self.device)
+        grad, hess = tm.ls_obj(dtrain.get_label(), y_pred, None)
         return nda.array(grad), nda.array(hess)
 
 
-class LsObj1(Objective):
-    """No split grad."""
+def run_multi_projection_ratio_leaves(  # pylint: disable=too-many-locals
+    device: Device, ratio: float, custom: bool
+) -> None:
+    """Check full-dimensional leaf weights with projected split gradients."""
+    nda = _array_impl(device)
+    X = np.array([[0], [0], [1], [1]], dtype=np.float32)
+    scales = np.arange(1, 7, dtype=np.float32)
+    y = np.where(X == 0, -1, 1) * scales
+    n_targets = y.shape[1]
+    # The custom objective expands a scalar label into multiple outputs.
+    # Projection dimensions must follow the derivatives, not the label shape.
+    data = DMatrix(X, y[:, 0] if custom else y)
 
-    def __init__(self, device: Device) -> None:
-        self.device = device
+    def objective(pred: np.ndarray, dtrain: DMatrix) -> tuple:
+        grad = nda.asarray(pred - dtrain.get_label()[:, None] * scales)
+        return grad, nda.ones_like(grad)
 
-    def __call__(
-        self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
-    ) -> Tuple[ArrayLike, ArrayLike]:
-        nda = _array_impl(self.device)
+    params = {
+        "tree_method": "hist",
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "multi_projection_ratio": ratio,
+        "num_target": n_targets,
+        "base_score": 0.0,
+        "max_depth": 1,
+        "eta": 1.0,
+        "lambda": 0.0,
+        "nthread": 2,
+    }
+    booster = train(params, data, num_boost_round=1, obj=objective if custom else None)
+    pred = booster.predict(data)
+    # One split separates the two constant label groups. With eta=1 and no
+    # regularization, each leaf predicts its labels in all original dimensions.
+    np.testing.assert_allclose(pred, y)
 
-        y_true = dtrain.get_label()
-        grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return nda.array(grad), nda.array(hess)
-
-
-# Use mean gradient, should still converge.
-class LsObj2(LsObj0):
-    """Use mean as split grad."""
-
-    def __init__(self, device: Device, check_used: bool):
-        self._chk = check_used
-        super().__init__(device=device)
-
-    def split_grad(
-        self, iteration: int, grad: ArrayLike, hess: ArrayLike
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        nda = _array_impl(self.device)
-
-        if self._chk:
-            assert False
-        sgrad = nda.mean(grad, axis=1)
-        shess = nda.mean(hess, axis=1)
-        return sgrad, shess
-
-
-def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
-    """Basic test for using reduced gradient for tree splits."""
-    X, y = make_regression(
-        n_samples=1024, n_features=16, random_state=1994, n_targets=5
+    model = json.loads(booster.save_raw(raw_format="json"))
+    tree = model["learner"]["gradient_booster"]["model"]["trees"][0]
+    assert len(tree["base_weights"]) == len(tree["left_children"]) * int(
+        ratio * n_targets
     )
-    Xy = QuantileDMatrix(X, y)
+    restored = Booster(model_file=booster.save_raw())
+    np.testing.assert_array_equal(pred, restored.predict(data))
 
-    def run_test(
-        obj: Optional[Objective], base_score: Optional[list[float]] = None
-    ) -> Booster:
-        evals_result: Dict[str, Dict] = {}
-        booster = train(
-            {
-                "debug_synchronize": True,
-                "device": device,
-                "multi_strategy": "multi_output_tree",
-                "learning_rate": 1,
-                "base_score": base_score,
-            },
-            Xy,
-            evals=[(Xy, "Train")],
-            obj=obj,
-            num_boost_round=8,
-            evals_result=evals_result,
-        )
-        assert non_increasing(evals_result["Train"]["rmse"])
-        return booster
 
-    booster_0 = run_test(LsObj0(device))
-    booster_1 = run_test(LsObj1(device))
-    np.testing.assert_allclose(
-        booster_0.inplace_predict(X), booster_1.inplace_predict(X)
-    )
+def run_multi_projection_ratio_gamma(
+    device: Device, ratio: float, grow_policy: str
+) -> None:
+    """Check gamma calibration against the actual projected root gain."""
+    n_targets = 5  # A ratio of 0.5 rounds down to two components.
+    X = np.array([[0], [0], [1], [1]], dtype=np.float32)
+    data = DMatrix(X, np.where(X == 0, -1.0, 1.0) * np.arange(1, n_targets + 1))
+    params = {
+        "tree_method": "hist",
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "multi_projection_ratio": ratio,
+        "grow_policy": grow_policy,
+        "max_depth": 1,
+        "base_score": 0.0,
+        "nthread": 2,
+    }
 
-    booster_2 = run_test(LsObj0(device), [0.5] * y.shape[1])
-    booster_3 = run_test(None, [0.5] * y.shape[1])
-    np.testing.assert_allclose(
-        booster_2.inplace_predict(X), booster_3.inplace_predict(X)
-    )
+    def first_tree(booster: Booster) -> dict:
+        model = json.loads(booster.save_raw(raw_format="json"))
+        return model["learner"]["gradient_booster"]["model"]["trees"][0]
 
-    run_test(LsObj2(device, False))
-    with pytest.raises(AssertionError):
-        run_test(LsObj2(device, True))
-
-    def run_reg(obj: Objective) -> None:
-        reg = XGBRegressor(
-            n_estimators=2,
-            device=device,
-            tree_method="hist",
-            multi_strategy="multi_output_tree",
-            objective=obj,
-        )
-        reg.fit(X, y)
-        predt = reg.predict(X)
-        assert predt.shape == y.shape
-        assert np.isfinite(predt).all()
-
-    run_reg(LsObj1(device))
-    run_reg(LsObj2(device, False))
-    with pytest.raises(AssertionError):
-        run_reg(LsObj2(device, True))
-
-    y_ind = (y > np.median(y, axis=0)).astype(np.int32)
-    clf = XGBClassifier(
-        n_estimators=2,
-        device=device,
-        tree_method="hist",
-        multi_strategy="multi_output_tree",
-        objective=LsObj2(device, False),
-    )
-    clf.fit(X, y_ind)
-    predt = clf.predict(X)
-    proba = clf.predict_proba(X)
-    assert predt.shape == y_ind.shape
-    assert proba.shape == y_ind.shape
-    np.testing.assert_array_equal(predt, (proba > 0.5).astype(np.int32))
-
-    with pytest.raises(
-        ValueError,
-        match="Monotonic constraints are not supported with reduced gradients",
-    ):
-        train(
-            {
-                "device": device,
-                "tree_method": "hist",
-                "multi_strategy": "multi_output_tree",
-                "monotone_constraints": (1,),
-            },
-            Xy,
-            num_boost_round=1,
-            obj=LsObj2(device, False),
-        )
+    tree = first_tree(train(params, data, num_boost_round=1))
+    assert len(tree["left_children"]) == 3
+    assert tree["loss_changes"][0] > 0
+    n_components = int(ratio * n_targets)
+    # Gamma is scaled by n_components / n_targets before comparison with gain.
+    # Below the threshold, keep the root and two leaves; above it, keep only the root.
+    for factor, expected_nodes in [(0.9, 3), (1.1, 1)]:
+        gamma = tree["loss_changes"][0] * n_targets / n_components * factor
+        booster = train({**params, "gamma": gamma}, data, num_boost_round=1)
+        result = first_tree(booster)
+        assert len(result["left_children"]) == expected_nodes
+        if expected_nodes == 3:
+            # Calibration changes acceptance, not reported gains or leaf values.
+            assert result == tree
 
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
@@ -393,7 +336,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     nda = _array_impl(device)
 
     n_batches = 4
-    n_rounds = 8
+    n_rounds = 2
     n_targets = 3
     intercept = [0.5] * n_targets
 
@@ -413,65 +356,73 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         )
         Xs.append(nda.asarray(X_i))
         ys.append(nda.asarray(y_i))
-    it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
-    Xy: DMatrix = ExtMemQuantileDMatrix(
-        it, cache_host_ratio=1.0 if device == "cuda" else None
-    )
+    for ratio in (1.0, 0.5):
+        params["multi_projection_ratio"] = ratio
+        it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
+        Xy: DMatrix = ExtMemQuantileDMatrix(
+            it, cache_host_ratio=1.0 if device == "cuda" else None
+        )
 
-    evals_result_0: Dict[str, Dict] = {}
-    booster_0 = train(
-        params,
-        Xy,
-        num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
-        evals_result=evals_result_0,
-    )
+        evals_result_0: Dict[str, Dict] = {}
+        booster_0 = train(
+            params,
+            Xy,
+            num_boost_round=n_rounds,
+            evals=[(Xy, "Train")],
+            evals_result=evals_result_0,
+        )
 
-    it = IteratorForTest(Xs, ys, None, cache=None)
-    Xy = QuantileDMatrix(it)
-    evals_result_1: Dict[str, Dict] = {}
-    booster_1 = train(
-        params,
-        Xy,
-        num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
-        evals_result=evals_result_1,
-    )
-    np.testing.assert_allclose(
-        evals_result_0["Train"]["rmse"], evals_result_1["Train"]["rmse"]
-    )
-    assert non_increasing(evals_result_0["Train"]["rmse"])
-    X, _, _ = it.as_arrays()
-    assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
+        it = IteratorForTest(Xs, ys, None, cache=None)
+        Xy = QuantileDMatrix(it)
+        evals_result_1: Dict[str, Dict] = {}
+        booster_1 = train(
+            params,
+            Xy,
+            num_boost_round=n_rounds,
+            evals=[(Xy, "Train")],
+            evals_result=evals_result_1,
+        )
+        np.testing.assert_allclose(
+            evals_result_0["Train"]["rmse"], evals_result_1["Train"]["rmse"]
+        )
+        assert non_increasing(evals_result_0["Train"]["rmse"])
+        X, _, _ = it.as_arrays()
+        assert_allclose(
+            device, booster_0.inplace_predict(X), booster_1.inplace_predict(X)
+        )
 
-    binfo = build_info()
-    tv = "THRUST_VERSION"
-    if device == "cuda" and tv in binfo and binfo[tv][0] < 3:
-        pytest.xfail("CCCL version too old.")
+        binfo = build_info()
+        tv = "THRUST_VERSION"
+        if device == "cuda" and tv in binfo and binfo[tv][0] < 3:
+            pytest.xfail("CCCL version too old.")
 
-    it = IteratorForTest(
-        Xs,
-        ys,
-        None,
-        cache="cache",
-        on_host=True,
-        min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
-    )
-    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
+        it = IteratorForTest(
+            Xs,
+            ys,
+            None,
+            cache="cache",
+            on_host=True,
+            min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
+        )
+        Xy = ExtMemQuantileDMatrix(
+            it, cache_host_ratio=1.0 if device == "cuda" else None
+        )
 
-    evals_result_2: Dict[str, Dict] = {}
-    booster_2 = train(
-        params,
-        Xy,
-        evals=[(Xy, "Train")],
-        obj=LsObj0(device),
-        num_boost_round=n_rounds,
-        evals_result=evals_result_2,
-    )
-    np.testing.assert_allclose(
-        evals_result_0["Train"]["rmse"], evals_result_2["Train"]["rmse"]
-    )
-    assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
+        evals_result_2: Dict[str, Dict] = {}
+        booster_2 = train(
+            params,
+            Xy,
+            evals=[(Xy, "Train")],
+            obj=LsObj(device),
+            num_boost_round=n_rounds,
+            evals_result=evals_result_2,
+        )
+        np.testing.assert_allclose(
+            evals_result_0["Train"]["rmse"], evals_result_2["Train"]["rmse"]
+        )
+        assert_allclose(
+            device, booster_0.inplace_predict(X), booster_2.inplace_predict(X)
+        )
 
     # Distinct target scales make a wrong-row mask diverge loudly.
     ys_adaptive = [y_i * nda.asarray([1.0, 20.0, 100.0]) for y_i in ys]
@@ -513,37 +464,44 @@ def run_eta(device: Device) -> None:
         "multi_strategy": "multi_output_tree",
         "debug_synchronize": True,
     }
-    for obj in (None, LsObj0(device), LsObj2(device, False)):
+    for obj in (None, LsObj(device)):
         check_base_weights(params, data, obj)
-    with pytest.raises(ValueError, match="IsMultiTarget"):
-        train(
-            params,
-            QuantileDMatrix(features, labels[:, 0]),
-            num_boost_round=1,
-            obj=LsObj0(device),
-        )
 
 
-def run_deterministic(device: Device) -> None:
-    """Check the vector leaf implementation is deterministic."""
+def run_deterministic(device: Device, sampling_method: str) -> None:
+    """Check repeatability, continuation, and the full-size projection bypass."""
     X, y = make_regression(
         n_samples=int(2**16), n_features=64, random_state=1994, n_targets=5
     )
+    data = QuantileDMatrix(X, y)
+    params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "debug_synchronize": True,
+        "max_depth": 2,
+        "subsample": 0.8,
+        "sampling_method": sampling_method,
+        "seed_per_iteration": True,
+        "nthread": 2,
+    }
+    full = train(params, data, num_boost_round=2)
+    for ratio in (1.0, 0.5):
+        params["multi_projection_ratio"] = ratio
+        first = train(params, data, num_boost_round=2)
+        repeat = train(params, data, num_boost_round=2)
+        assert first.save_raw() == repeat.save_raw()
+        prefix = train(params, data, num_boost_round=1)
+        resumed = train(params, data, num_boost_round=1, xgb_model=prefix.save_raw())
+        np.testing.assert_allclose(
+            first.predict(data), resumed.predict(data), rtol=1e-6
+        )
+        if ratio == 1.0:
+            assert first.save_raw() == full.save_raw()
 
-    def run() -> Booster:
-        Xy = QuantileDMatrix(X, y)
-        params = {
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-            "debug_synchronize": True,
-        }
-        return train(params, Xy, num_boost_round=16)
-
-    booster_0 = run()
-    booster_1 = run()
-    raw_0 = booster_0.save_raw()
-    raw_1 = booster_1.save_raw()
-    assert raw_0 == raw_1
+    # Rounding to 1.0 must also bypass projection without consuming randomness.
+    params["multi_projection_ratio"] = np.nextafter(1.0, 0.0)
+    identity = train(params, data, num_boost_round=2)
+    assert identity.save_raw() == full.save_raw()
 
 
 def run_column_sampling(device: Device) -> None:
@@ -969,4 +927,4 @@ def run_gradient_based_sampling_accuracy(device: Device) -> None:
             assert grad_final < uniform_final
 
     run(None)
-    run(LsObj2(device, False))
+    run(LsObj(device))

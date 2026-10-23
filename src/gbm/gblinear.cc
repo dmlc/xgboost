@@ -119,11 +119,6 @@ class GBLinear : public GradientBooster {
 
   void DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpair,
                ObjFunction const*) override {
-    if (in_gpair->HasValueGrad()) {
-      LOG(FATAL)
-          << "Multi-target with reduced gradient is not implemented for the current booster.";
-    }
-
     monitor_.Start("DoBoost");
 
     CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");

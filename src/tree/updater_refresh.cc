@@ -41,7 +41,7 @@ class TreeRefresher : public TreeUpdater {
     CHECK(!param->HasMonotone())
         << "Monotonic constraint is not supported by the `refresh` updater.";
 
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
     // Thread local variables.

@@ -96,7 +96,7 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
   monitor->Start(__func__);
   updater->InitData(p_fmat, p_tree, gpair);
 
-  Driver<ExpandEntry> driver{*param};
+  Driver<ExpandEntry> driver{ScaleMinSplitLoss(*param, gpair.Shape(1), p_tree->NumTargets())};
   auto const &tree = *p_tree;
   driver.Push(updater->InitRoot(p_fmat, gpair, p_tree));
   auto expand_set = driver.Pop();

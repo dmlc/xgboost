@@ -10,33 +10,29 @@
 #include <dmlc/parameter.h>     // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
 #include <dmlc/thread_local.h>  // for ThreadLocalStore
 
-#include <algorithm>      // for equal, max, transform, sort, find_if, all_of
-#include <atomic>         // for atomic
-#include <cctype>         // for isalpha, isspace
-#include <cmath>          // for isnan, isinf
-#include <cstdint>        // for int32_t, uint32_t, int64_t, uint64_t
-#include <cstdlib>        // for atoi
-#include <cstring>        // for memcpy, size_t, memset
-#include <functional>     // for multiplies
-#include <iomanip>        // for operator<<, setiosflags
-#include <iterator>       // for back_insert_iterator, distance, back_inserter
-#include <limits>         // for numeric_limits
-#include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
-#include <mutex>          // for mutex, lock_guard
-#include <numeric>        // for accumulate
-#include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <string>         // for basic_string, char_traits, operator<, string
-#include <system_error>   // for errc
-#include <unordered_map>  // for operator!=, unordered_map
-#include <utility>        // for pair, as_const, move, swap
-#include <vector>         // for vector
+#include <algorithm>   // for equal, max, transform, sort, find_if, all_of
+#include <atomic>      // for atomic
+#include <cctype>      // for isalpha, isspace
+#include <cmath>       // for isnan, isinf
+#include <cstdint>     // for int32_t, uint32_t, int64_t, uint64_t
+#include <cstdlib>     // for atoi
+#include <cstring>     // for memcpy, size_t, memset
+#include <functional>  // for multiplies
+#include <iomanip>     // for operator<<, setiosflags
+#include <iterator>    // for back_insert_iterator, distance, back_inserter
+#include <limits>      // for numeric_limits
+#include <memory>      // for allocator, unique_ptr, shared_ptr, operator==
+#include <mutex>       // for mutex, lock_guard
+#include <numeric>     // for accumulate
+#include <sstream>     // for operator<<, basic_ostream, basic_ostream::opera...
+#include <string>      // for basic_string, char_traits, operator<, string
+#include <utility>     // for pair, as_const, move, swap
+#include <vector>      // for vector
 
 #include "collective/aggregator.h"        // for GlobalMax
-#include "collective/allreduce.h"         // for Allreduce, SafeColl
 #include "collective/broadcast.h"         // for Broadcast
 #include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
-#include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
@@ -47,7 +43,6 @@
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
-#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
 #include "xgboost/linalg.h"               // for Vector, VectorView
@@ -1099,14 +1094,10 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
-    if (in_gpair->HasValueGrad()) {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumTargets())
-          << "Value gradient should have the same number of targets as the overall model.";
-    } else {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumSplitTargets())
-          << "The number of columns in gradient should be equal to the number of "
-             "targets/classes in the model.";
-    }
+    CHECK(!in_gpair->HasValueGrad()) << "Custom objectives must supply full-dimensional gradients.";
+    CHECK_EQ(this->model_state_.OutputLength(), in_gpair->Grad()->Shape(1))
+        << "The number of columns in gradient should be equal to the number of "
+           "targets/classes in the model.";
     this->gbm_->DoBoost(train, in_gpair, obj_.get());
     this->monitor_.Stop(__func__);
   }
