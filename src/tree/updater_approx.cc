@@ -132,7 +132,7 @@ class GlobalApproxBuilder {
     monitor_->Start(__func__);
     this->histogram_builder_.BuildHistLeftRight(
         ctx_, p_fmat, p_tree->HostScView(), partitioner_, valid_candidates,
-        linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess));
+        linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess), *param_);
     monitor_->Stop(__func__);
   }
 

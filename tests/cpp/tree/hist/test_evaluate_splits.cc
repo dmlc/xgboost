@@ -10,6 +10,7 @@
 #include <xgboost/logging.h>     // for CHECK_EQ
 #include <xgboost/tree_model.h>  // for RegTree, RTreeNodeStat
 
+#include <cmath>    // for nextafter
 #include <memory>   // for make_shared, shared_ptr, addressof
 #include <numeric>  // for iota
 #include <tuple>    // for make_tuple
@@ -162,6 +163,67 @@ void TestEvaluateSplits(bool force_read_by_column) {
 TEST(HistEvaluator, Evaluate) {
   TestEvaluateSplits(false);
   TestEvaluateSplits(true);
+}
+
+TEST(HistEvaluator, MinChildWeight) {
+  Context ctx;
+  ctx.nthread = 2;
+  MetaInfo info;
+  info.num_col_ = 1;
+  TrainParam param;
+  param.Init(Args{{"min_child_weight", "1"}, {"reg_lambda", "0"}});
+  auto sampler = std::make_shared<common::ColumnSampler>();
+  HistEvaluator evaluator{&ctx, &param, info, sampler};
+
+  common::HistogramCuts cuts{1};
+  cuts.cut_ptrs_.HostVector() = {0, 2};
+  cuts.cut_values_.HostVector() = {0.0f, 1.0f};
+  BoundedHistCollection hist;
+  for (auto hess : {0.0, 1.0, 1.5, std::nextafter(2.0, 0.0), 2.0, std::nextafter(2.0, 3.0)}) {
+    SCOPED_TRACE(hess);
+    hist.Reset(2, 1);
+    if (hess >= 2.0) {
+      hist.AllocateHistograms({0});
+      hist[0][0] = GradientPairPrecise{-1.0, 1.0};
+      hist[0][1] = GradientPairPrecise{1.0, hess - 1.0};
+    }
+    // Below the threshold there is no need to access the histogram at all.
+    evaluator.InitRoot(GradStats{0.0, hess});
+    std::vector<CPUExpandEntry> entries{{0, 0}};
+    ASSERT_NO_THROW(evaluator.EvaluateSplits(hist, cuts, {}, &entries));
+    if (hess >= 2.0) {
+      EXPECT_GT(entries.front().split.loss_chg, 0.0f);
+      EXPECT_GE(entries.front().split.left_sum.GetHess(), param.min_child_weight);
+      EXPECT_GE(entries.front().split.right_sum.GetHess(), param.min_child_weight);
+    } else {
+      EXPECT_EQ(entries.front().split.loss_chg, 0.0f);
+    }
+  }
+}
+
+TEST(HistEvaluator, MinChildWeightPreservesSampling) {
+  Context ctx;
+  ctx.nthread = 2;
+  MetaInfo info;
+  bst_feature_t constexpr kFeatures = 16;
+  info.num_col_ = kFeatures;
+  TrainParam param;
+  param.Init(
+      Args{{"min_child_weight", "1"}, {"colsample_bynode", "0.5"}, {"colsample_bylevel", "0.5"}});
+  ctx.Rng().seed(3);
+  auto sampler = std::make_shared<common::ColumnSampler>();
+  HistEvaluator evaluator{&ctx, &param, info, sampler};
+  evaluator.InitRoot(GradStats{0.0, 1.5});
+  std::vector<CPUExpandEntry> entries{{0, 0}};
+  evaluator.EvaluateSplits(BoundedHistCollection{}, common::HistogramCuts{kFeatures}, {}, &entries);
+  auto next = ctx.Rng()();
+
+  ctx.Rng().seed(3);
+  common::ColumnSampler expected;
+  expected.Init(&ctx, info.num_col_, info.feature_weights, param.colsample_bynode,
+                param.colsample_bylevel, param.colsample_bytree);
+  expected.GetFeatureSet(&ctx, 0);
+  EXPECT_EQ(ctx.Rng()(), next);
 }
 
 TEST(HistMultiEvaluator, Evaluate) {
