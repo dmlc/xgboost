@@ -71,19 +71,19 @@ class PartitionBuilder {
     for (size_t i = 0; i < n_samples; ++i) {
       auto rid = p_row_indices[i];
       bst_bin_t const bin_id = column[rid - base_rowid];
+      bool go_left;
       if (any_missing && bin_id == ColumnType::kMissingId) {
-        if (default_left) {
-          p_left_part[nleft_elems++] = rid;
-        } else {
-          p_right_part[nright_elems++] = rid;
-        }
+        go_left = default_left;
       } else {
-        if (pred(rid, bin_id)) {
-          p_left_part[nleft_elems++] = rid;
-        } else {
-          p_right_part[nright_elems++] = rid;
-        }
+        go_left = pred(rid, bin_id);
       }
+      // The split decision is data dependent and poorly predicted. Write the row to both
+      // buffers and advance only the chosen one; both buffers hold n_samples entries, and
+      // the order of rows within each child is unchanged.
+      p_left_part[nleft_elems] = rid;
+      p_right_part[nright_elems] = rid;
+      nleft_elems += go_left;
+      nright_elems += !go_left;
     }
 
     return {nleft_elems, nright_elems};
