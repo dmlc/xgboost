@@ -28,19 +28,19 @@ namespace xgboost::common {
 // 1) Effective memory allocation for intermediate results for multi-thread work
 // 2) Merging partial results produced by threads into original row set (row_set_collection_)
 // BlockSize is template to enable memory alignment easily with C++11 'alignas()' feature
-template<size_t BlockSize>
+template <size_t BlockSize>
 class PartitionBuilder {
   using BitVector = RBitField8;
 
  public:
-  template<typename Func>
+  template <typename Func>
   void Init(const size_t n_tasks, size_t n_nodes, Func funcNTask) {
     left_right_nodes_sizes_.resize(n_nodes);
-    blocks_offsets_.resize(n_nodes+1);
+    blocks_offsets_.resize(n_nodes + 1);
 
     blocks_offsets_[0] = 0;
-    for (size_t i = 1; i < n_nodes+1; ++i) {
-      blocks_offsets_[i] = blocks_offsets_[i-1] + funcNTask(i-1);
+    for (size_t i = 1; i < n_nodes + 1; ++i) {
+      blocks_offsets_[i] = blocks_offsets_[i - 1] + funcNTask(i - 1);
     }
 
     if (n_tasks > max_n_tasks_) {
@@ -177,7 +177,7 @@ class PartitionBuilder {
       }
     }
 
-    const size_t n_left  = child_nodes_sizes.first;
+    const size_t n_left = child_nodes_sizes.first;
     const size_t n_right = child_nodes_sizes.second;
 
     SetNLeftElems(node_in_set, range.begin(), n_left);
@@ -286,7 +286,7 @@ class PartitionBuilder {
     std::pair<size_t, size_t> child_nodes_sizes;
     child_nodes_sizes = PartitionRangeKernel(rid_span, left, right, pred);
 
-    const size_t n_left  = child_nodes_sizes.first;
+    const size_t n_left = child_nodes_sizes.first;
     const size_t n_right = child_nodes_sizes.second;
 
     SetNLeftElems(node_in_set, range.begin(), n_left);
@@ -304,12 +304,12 @@ class PartitionBuilder {
 
   common::Span<bst_idx_t> GetLeftBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx)->Left(), end - begin };
+    return {mem_blocks_.at(task_idx)->Left(), end - begin};
   }
 
   common::Span<bst_idx_t> GetRightBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx)->Right(), end - begin };
+    return {mem_blocks_.at(task_idx)->Right(), end - begin};
   }
 
   void SetNLeftElems(int nid, size_t begin, size_t n_left) {
@@ -322,7 +322,6 @@ class PartitionBuilder {
     mem_blocks_.at(task_idx)->n_right = n_right;
   }
 
-
   [[nodiscard]] std::size_t GetNLeftElems(int nid) const {
     return left_right_nodes_sizes_[nid].first;
   }
@@ -334,9 +333,9 @@ class PartitionBuilder {
   // Each thread has partial results for some set of tree-nodes
   // The function decides order of merging partial results into final row set
   void CalculateRowOffsets() {
-    for (size_t i = 0; i < blocks_offsets_.size()-1; ++i) {
+    for (size_t i = 0; i < blocks_offsets_.size() - 1; ++i) {
       size_t n_left = 0;
-      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
+      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i + 1]; ++j) {
         mem_blocks_[j]->n_offset_left = n_left;
         n_left += mem_blocks_[j]->n_left;
       }
@@ -362,9 +361,7 @@ class PartitionBuilder {
     std::copy_n(right, mem_blocks_[task_idx]->n_right, right_result);
   }
 
-  size_t GetTaskIdx(int nid, size_t begin) {
-    return blocks_offsets_[nid] + begin / BlockSize;
-  }
+  size_t GetTaskIdx(int nid, size_t begin) { return blocks_offsets_[nid] + begin / BlockSize; }
 
   // Copy row partitions into global cache for reuse in objective
   template <typename Invalidp, typename TreeView>
@@ -390,20 +387,17 @@ class PartitionBuilder {
   }
 
  protected:
-  struct BlockInfo{
+  struct BlockInfo {
     size_t n_left;
     size_t n_right;
 
     size_t n_offset_left;
     size_t n_offset_right;
 
-    bst_idx_t* Left() {
-      return &left_data_[0];
-    }
+    bst_idx_t* Left() { return &left_data_[0]; }
 
-    bst_idx_t* Right() {
-      return &right_data_[0];
-    }
+    bst_idx_t* Right() { return &right_data_[0]; }
+
    private:
     bst_idx_t left_data_[BlockSize];
     bst_idx_t right_data_[BlockSize];
