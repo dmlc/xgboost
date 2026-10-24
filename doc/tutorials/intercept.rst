@@ -6,8 +6,8 @@ Intercept
 
 Since 2.0.0, XGBoost supports estimating the model intercept (named ``base_score``)
 automatically based on targets upon training. The behavior can be controlled by setting
-``base_score`` to a constant value. The following snippet disables the automatic
-estimation:
+``base_score`` explicitly, which disables automatic estimation. The following snippet
+uses a scalar intercept:
 
 .. tabs::
     .. code-tab:: py
@@ -31,6 +31,9 @@ estimation:
           base_score = 0.5,
           nrounds = 10
         )
+
+For a multi-output model, ``base_score`` can be a vector with one value per target or
+class. A scalar value is broadcast to all outputs.
 
 In addition, here 0.5 represents the value after applying the inverse link function. See
 the end of the document for a description.
