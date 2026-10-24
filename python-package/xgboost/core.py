@@ -3348,16 +3348,24 @@ class Booster:
         xgdump = self.get_dump(fmap=fmap)
         values = []
         # pylint: disable=consider-using-f-string
-        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
+        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(re.escape(feature)))
         for val in xgdump:
             m = re.findall(regexp, val)
             values.extend([float(x) for x in m])
 
-        n_unique = len(np.unique(values))
-        bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
+        uniq, counts = np.unique(values, return_counts=True)
+        n_unique = len(uniq)
 
-        nph = np.histogram(values, bins=bins)
-        nph_stacked = np.column_stack((nph[1][1:], nph[0]))
+        if bins is not None and bins < n_unique:
+            # Coarsen into the requested number of equal-width bins (at least
+            # one), labelling each bin by its right edge.
+            nph = np.histogram(values, bins=max(bins, 1))
+            nph_stacked = np.column_stack((nph[1][1:], nph[0]))
+        else:
+            # Default: one row per actual split value (matching the values
+            # reported by trees_to_dataframe / get_dump) rather than the edges
+            # of equal-width histogram bins.
+            nph_stacked = np.column_stack((uniq, counts))
         nph_stacked = nph_stacked[nph_stacked[:, 1] > 0]
 
         if nph_stacked.size == 0:

@@ -755,6 +755,26 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=5).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
 
+    # GH#11220: with the default binning the reported SplitValue must be the
+    # actual split thresholds used by the model, not shifted histogram edges.
+    trees = gbdt.trees_to_dataframe()
+    real = np.sort(trees.loc[trees["Feature"] == "f28", "Split"].dropna().unique())
+    reported = np.sort(
+        gbdt.get_split_value_histogram("f28", bins=None)["SplitValue"].to_numpy()
+    )
+    np.testing.assert_allclose(reported, real)
+
+    # A feature name with regex metacharacters still finds its splits
+    names = [f"f{i}" for i in range(X.shape[1])]
+    names[28] = "f(28)+."
+    named = xgb.train(
+        params, xgb.DMatrix(X, label=y, feature_names=names), num_boost_round=10
+    )
+    np.testing.assert_allclose(
+        named.get_split_value_histogram("f(28)+.", bins=None)["SplitValue"].to_numpy(),
+        gbdt.get_split_value_histogram("f28", bins=None)["SplitValue"].to_numpy(),
+    )
+
 
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
