@@ -236,7 +236,15 @@ class HistEvaluator {
     for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       // start working
       // try to find a split
-      left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
+      auto const bin_grad = hist[i].GetGrad();
+      auto const bin_hess = hist[i].GetHess();
+      left_sum.Add(bin_grad, bin_hess);
+      // Keep the first threshold and accumulation order. Later empty bins repeat
+      // the previous candidate's statistics, and equal gains retain the first
+      // threshold within this feature in either scan direction.
+      if (i != ibegin && bin_grad == 0.0 && bin_hess == 0.0) {
+        continue;
+      }
       right_sum.SetSubstract(parent.stats, left_sum);
       bst_float loss_chg;
       bst_float split_pt;
@@ -289,9 +297,14 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(
-        space, n_threads,
-        common::WithWorker([&](std::size_t nidx_in_set, common::Range1d r, common::Worker worker) {
+    // Empty-bin skipping makes the cost of different node/feature blocks uneven.
+    // Assign the next block to an available worker instead of grouping whole
+    // stretches of nodes on the same worker. Split statistics are unchanged.
+    common::ParallelFor(
+        space.Size(), n_threads, common::Sched::Dyn(1),
+        common::WithWorker([&](std::size_t block_idx, common::Worker worker) {
+          auto nidx_in_set = space.GetFirstDimension(block_idx);
+          auto r = space.GetRange(block_idx);
           auto tidx = worker.Id();
           auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
           auto best = &entry->split;
