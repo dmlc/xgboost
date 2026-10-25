@@ -276,6 +276,31 @@ def test_ranking_qid_df():
     run_ranking_qid_df(pd, "hist", "cpu")
 
 
+@pytest.mark.skipif(**tm.no_pandas())
+def test_ranking_score_best_iteration() -> None:
+    import pandas as pd
+
+    X, y, qid, _ = make_ltr(n_samples=512, n_features=4, n_query_groups=16, max_rel=3)
+    df = pd.DataFrame(X)
+    df["qid"] = qid
+    # Validation labels are unrelated to the features, so early stopping kicks in.
+    y_valid = np.random.default_rng(2025).permutation(y)
+
+    ltr = xgb.XGBRanker(
+        n_estimators=64,
+        early_stopping_rounds=4,
+        eval_metric="ndcg@8",
+        tree_method="hist",
+    )
+    ltr.fit(df, y, eval_set=[(df, y_valid)], verbose=False)
+    assert ltr.best_iteration + 1 < ltr.get_booster().num_boosted_rounds()
+
+    score = ltr.score(df, y_valid)
+    history = ltr.evals_result()["validation_0"]["ndcg@8"]
+    assert score == pytest.approx(history[ltr.best_iteration])
+    assert score == pytest.approx(ltr.best_score)
+
+
 def test_stacking_regression():
     from sklearn.datasets import load_diabetes
     from sklearn.ensemble import RandomForestRegressor, StackingRegressor

@@ -2395,11 +2395,16 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             nthread=self.n_jobs,
             feature_types=self.feature_types,
         )
+        booster = self.get_booster()
+        _, end = self._get_iteration_range(None)
+        if 0 < end < booster.num_boosted_rounds():
+            # Use the best iteration from early stopping, consistent with `predict`.
+            booster = booster[:end]
         if callable(self.eval_metric):
             metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
-            result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
+            result_str = booster.eval_set([(Xyq, "eval")], feval=metric)
         else:
-            result_str = self.get_booster().eval(Xyq)
+            result_str = booster.eval(Xyq)
 
         metric_score = _parse_eval_str(result_str)
         return metric_score[-1][1]
