@@ -3,6 +3,7 @@
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 # pylint: disable=missing-function-docstring
 import json
+import pickle
 from typing import Any, Callable, Dict
 
 import numpy as np
@@ -422,3 +423,24 @@ def test_dart_normalization_multi_output_eta() -> None:
 
     pred = booster.predict(Xy, output_margin=True)
     np.testing.assert_allclose(pred, y, atol=1e-6)
+
+
+@pytest.mark.parametrize("ratio", [1.0, 0.5])
+def test_continue_training_after_unserialize(ratio: float) -> None:
+    rng = np.random.default_rng(2026)
+    Xy = xgb.DMatrix(rng.normal(size=(64, 4)), rng.normal(size=(64, 3)))
+    params = {
+        "tree_method": "hist",
+        "multi_strategy": "multi_output_tree",
+        "multi_projection_ratio": ratio,
+    }
+    booster = xgb.train(params, Xy, num_boost_round=2)
+    # Both continuations restore the booster from its serialized memory snapshot.
+    booster = xgb.train(params, Xy, num_boost_round=2, xgb_model=booster)
+    booster = pickle.loads(pickle.dumps(booster))
+    booster.update(Xy, booster.num_boosted_rounds())
+
+    model = json.loads(booster.save_raw(raw_format="json"))
+    trees = model["learner"]["gradient_booster"]["model"]["trees"]
+    assert len(trees) == 5
+    assert all(int(tree["tree_param"]["size_leaf_vector"]) == 3 for tree in trees)
