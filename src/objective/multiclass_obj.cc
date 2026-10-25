@@ -46,7 +46,7 @@ void MulticlassGradientCpu(Context const* ctx, HostDeviceVector<float> const& pr
 
   common::ParallelFor(n_samples, ctx->Threads(), [&](std::size_t row) {
     auto point = predt.Slice(row, linalg::All());
-    float wmax = std::numeric_limits<float>::min();
+    float wmax = std::numeric_limits<float>::lowest();
     for (std::size_t k{0}; k < point.Size(); ++k) {
       wmax = fmaxf(point(k), wmax);
     }
