@@ -114,7 +114,7 @@ Here :math:`\operatorname{clip}` applies the inherited bounds.
 
 .. note::
 
-    Reduced gradient doesn't support monotone constraint.
+    Gradient projection with ``multi_projection_ratio`` does not support monotonic constraints.
 
 *******************
 Using feature names

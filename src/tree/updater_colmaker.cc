@@ -115,7 +115,7 @@ class ColMaker : public TreeUpdater {
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_col_);
     // build tree
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     for (std::size_t i = 0; i < trees.size(); ++i) {
       CHECK(ctx_);

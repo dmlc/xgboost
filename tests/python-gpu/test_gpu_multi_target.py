@@ -1,7 +1,6 @@
 """Tests for the CUDA implementation of multi-target."""
 
 # pylint: disable=too-many-positional-arguments,missing-function-docstring
-import sys
 from typing import Any, Callable, Dict, Optional
 
 import numpy as np
@@ -23,10 +22,11 @@ from xgboost.testing.multi_target import (
     run_gradient_based_sampling_accuracy,
     run_grow_policy,
     run_mixed_strategy,
+    run_multi_projection_ratio_gamma,
+    run_multi_projection_ratio_leaves,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
-    run_reduced_grad,
     run_subsample,
     run_with_iter,
 )
@@ -109,8 +109,31 @@ def test_absolute_error() -> None:
     run_absolute_error("cuda")
 
 
-def test_reduced_grad() -> None:
-    run_reduced_grad("cuda")
+@pytest.mark.parametrize(
+    "ratio,custom",
+    [
+        (1 / 6, False),
+        (0.5, False),
+        (0.5, True),
+        (np.nextafter(np.float32(1), np.float32(0)), False),
+    ],
+)
+def test_multi_projection_ratio_leaves(ratio: float, custom: bool) -> None:
+    run_multi_projection_ratio_leaves("cuda", ratio, custom)
+
+
+@pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])
+def test_deterministic(sampling_method: str) -> None:
+    run_deterministic("cuda", sampling_method)
+
+
+# Cover bypass, minimum dimension, and rounding across both driver policies.
+@pytest.mark.parametrize(
+    "ratio,grow_policy",
+    [(1.0, "depthwise"), (0.2, "depthwise"), (0.5, "lossguide"), (1.0, "lossguide")],
+)
+def test_multi_projection_ratio_gamma(ratio: float, grow_policy: str) -> None:
+    run_multi_projection_ratio_gamma("cuda", ratio, grow_policy)
 
 
 def test_with_iter() -> None:
@@ -124,10 +147,6 @@ def test_with_iter() -> None:
 
 def test_eta() -> None:
     run_eta("cuda")
-
-
-def test_deterministic() -> None:
-    run_deterministic("cuda")
 
 
 def test_column_sampling() -> None:

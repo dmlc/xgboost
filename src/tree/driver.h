@@ -13,6 +13,13 @@
 #include "./param.h"  // for TrainParam
 
 namespace xgboost::tree {
+/** @brief Calibrate the split threshold to the dimension of the projected gains. */
+inline TrainParam ScaleMinSplitLoss(TrainParam param, bst_target_t n_split_targets,
+                                    bst_target_t n_targets) {
+  param.min_split_loss *= static_cast<float>(n_split_targets) / n_targets;
+  return param;
+}
+
 template <typename ExpandEntryT>
 bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth

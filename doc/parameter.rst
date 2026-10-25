@@ -145,7 +145,7 @@ Parameters for Tree Booster
 
   .. note::
 
-     When working with reduced gradient for multi-target models, the accuracy of
+     When using ``multi_projection_ratio`` for multi-target models, the accuracy of
      gradient-based sampling might be sub-optimal. The sampling is performed using the
      split gradient, which may not be optimal with the full gradient. Use uniform sampling
      as an alternative.
@@ -263,6 +263,15 @@ Parameters for Tree Booster
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
 
+* ``multi_projection_ratio`` [default = 1.0]
+
+  .. versionadded:: 3.5.0
+
+  Fraction of target-gradient dimensions retained by random projection for split search.
+  Projection requires ``multi_strategy=multi_output_tree`` and ``tree_method=hist``.
+
+  - range: (0, 1]
+
 
 Parameters for Non-Exact Tree Methods
 =====================================
@@ -274,7 +283,7 @@ Parameters for Non-Exact Tree Methods
   .. versionadded:: 2.0.0
 
   - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
-  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in memory, consider using ``multi_projection_ratio`` (see :doc:`/tutorials/multioutput`) instead of setting this parameter.
   - After 3.0, this parameter affects GPU algorithms as well.
 
 

@@ -1229,50 +1229,6 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   API_END();
 }
 
-typedef char const *JArrayStr;  // NOLINT
-
-// Hidden, working-in-progress support for reduced gradient.
-/**
- * @brief Use a different type of gradient for tree split.
- *
- * @param split_grad Gradient for finding tree splits.
- * @param split_hess Hessian for finding tree splits.
- * @param value_grad Gradient for calculating tree leaf weights.
- * @param value_hess Hessian for calculating tree leaf weights.
- */
-XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
-                                               JArrayStr split_grad, JArrayStr split_hess,
-                                               JArrayStr value_grad, JArrayStr value_hess) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto *learner = static_cast<Learner *>(handle);
-  GradientContainer gpair;
-  auto ctx = learner->Ctx();
-  {
-    ArrayInterface<2, false> i_grad{StringView{split_grad}};
-    ArrayInterface<2, false> i_hess{StringView{split_hess}};
-    StringView msg{"Mismatched shape between the gradient and hessian."};
-    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
-    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.gpair);
-  }
-  {
-    ArrayInterface<2, false> i_grad{StringView{value_grad}};
-    ArrayInterface<2, false> i_hess{StringView{value_hess}};
-    StringView msg{"Mismatched shape between the gradient and hessian."};
-    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
-    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
-  }
-
-  auto p_fmat = CastDMatrixHandle(dtrain);
-  CHECK_EQ(gpair.gpair.Shape(0), p_fmat->Info().num_row_);
-  CHECK_EQ(gpair.value_gpair.Shape(0), p_fmat->Info().num_row_);
-  learner->BoostOneIter(iter, p_fmat, &gpair);
-
-  API_END();
-}
-
 XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle dmats[],
                                  const char *evnames[], xgboost::bst_ulong len,
                                  const char **out_str) {

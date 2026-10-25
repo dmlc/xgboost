@@ -16,16 +16,18 @@ from xgboost.testing.multi_target import (
     check_categorical_mixed,
     run_absolute_error,
     run_column_sampling,
+    run_deterministic,
     run_eta,
     run_expectile_loss,
     run_feature_importance_strategy_compare,
     run_gradient_based_sampling_accuracy,
     run_grow_policy,
     run_mixed_strategy,
+    run_multi_projection_ratio_gamma,
+    run_multi_projection_ratio_leaves,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
-    run_reduced_grad,
     run_subsample,
     run_with_iter,
 )
@@ -89,8 +91,17 @@ def test_shap_multi_output_tree() -> None:
     )
 
 
-@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
-def test_normal_distribution(multi_strategy: str) -> None:
+@pytest.mark.parametrize(
+    "multi_strategy,multi_projection_ratio",
+    [
+        ("multi_output_tree", 1.0),
+        ("multi_output_tree", 0.5),
+        ("one_output_per_tree", 1.0),
+    ],
+)
+def test_normal_distribution(
+    multi_strategy: str, multi_projection_ratio: float
+) -> None:
     rng = np.random.default_rng(20260909)
     X = rng.normal(size=(256, 4)).astype(np.float32)
     expected_mean = X[:, 0] - 0.5 * X[:, 1]
@@ -107,6 +118,7 @@ def test_normal_distribution(multi_strategy: str) -> None:
             "objective": "reg:normal",
             "tree_method": "hist",
             "multi_strategy": multi_strategy,
+            "multi_projection_ratio": multi_projection_ratio,
             "eta": 0.1,
             "max_depth": 2,
             "min_child_weight": 0,
@@ -287,8 +299,62 @@ def test_absolute_error() -> None:
     run_absolute_error("cpu")
 
 
-def test_reduced_grad() -> None:
-    run_reduced_grad("cpu")
+@pytest.mark.parametrize(
+    "ratio,custom",
+    [
+        (1 / 6, False),
+        (0.5, False),
+        (0.5, True),
+        (np.nextafter(np.float32(1), np.float32(0)), False),
+    ],
+)
+def test_multi_projection_ratio_leaves(ratio: float, custom: bool) -> None:
+    run_multi_projection_ratio_leaves("cpu", ratio, custom)
+
+
+@pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])
+def test_deterministic(sampling_method: str) -> None:
+    run_deterministic("cpu", sampling_method)
+
+
+# Cover bypass, minimum dimension, and rounding across both driver policies.
+@pytest.mark.parametrize(
+    "ratio,grow_policy",
+    [(1.0, "depthwise"), (0.2, "depthwise"), (0.5, "lossguide"), (1.0, "lossguide")],
+)
+def test_multi_projection_ratio_gamma(ratio: float, grow_policy: str) -> None:
+    run_multi_projection_ratio_gamma("cpu", ratio, grow_policy)
+
+
+def test_multi_projection_ratio_validation() -> None:
+    data = xgb.DMatrix(np.arange(32).reshape(8, 4), np.zeros((8, 2)))
+    params = {
+        "tree_method": "hist",
+        "multi_strategy": "multi_output_tree",
+        "multi_projection_ratio": 0.5,
+    }
+    with pytest.raises(ValueError, match="requires multi_strategy"):
+        xgb.train(
+            {**params, "multi_strategy": "one_output_per_tree"}, data, num_boost_round=1
+        )
+    with pytest.raises(ValueError, match="Monotonic constraints"):
+        xgb.train(
+            {**params, "monotone_constraints": "(1,0,0,0)"}, data, num_boost_round=1
+        )
+    for ratio in [-0.1, 0.0, np.nextafter(np.float32(0.5), np.float32(0)), 1.1]:
+        with pytest.raises(ValueError, match="multi_projection_ratio"):
+            xgb.train(
+                {**params, "multi_projection_ratio": ratio}, data, num_boost_round=1
+            )
+
+    # Custom objectives must return full derivatives; projection is handled natively.
+    with pytest.raises(ValueError, match="The number of columns in gradient"):
+        xgb.train(
+            params,
+            data,
+            num_boost_round=1,
+            obj=lambda pred, dtrain: (pred[:, :1], np.ones_like(pred[:, :1])),
+        )
 
 
 def test_with_iter() -> None:

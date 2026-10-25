@@ -72,7 +72,6 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
-from .objective import Objective
 from .training import train
 
 
@@ -168,18 +167,17 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjectiveCallable = Union[Objective, _SklObjWProto, _SklObjProto]
+SklObjectiveCallable = Union[_SklObjWProto, _SklObjProto]
 SklObjective = Optional[Union[str, SklObjectiveCallable]]
 
 
 def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
-    """Decorate or forward a custom objective.
+    """Decorate a custom objective.
 
     Parameters
     ----------
     func:
-        An :py:class:`Objective` instance or a callable with signature
-        ``func(y_true, y_pred)``:
+        A callable with signature ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
             The target values
@@ -191,8 +189,7 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
     Returns
     -------
     new_func:
-        The original :py:class:`Objective` or a function with the signature
-        ``new_func(preds, dmatrix)``:
+        A function with the signature ``new_func(preds, dmatrix)``:
 
         preds: array_like, shape [n_samples]
             The predicted values
@@ -201,9 +198,6 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
             ``dmatrix.get_label()``
 
     """
-
-    if isinstance(func, Objective):
-        return func
 
     parameters = signature(func).parameters
     supports_sw = "sample_weight" in parameters
@@ -1705,11 +1699,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         # multi-class
         return prediction
-    if (
-        len(prediction.shape) == 2
-        and n_classes == 2
-        and prediction.shape[1] >= n_classes
-    ):
+    if len(prediction.shape) == 2 and 2 == n_classes <= prediction.shape[1]:
         # multi-label
         return prediction
     # binary logistic function

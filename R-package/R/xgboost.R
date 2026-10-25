@@ -1149,6 +1149,7 @@ xgboost <- function(
   grow_policy = NULL,
   num_parallel_tree = NULL,
   multi_strategy = NULL,
+  multi_projection_ratio = NULL,
   base_score = NULL,
   seed_per_iteration = NULL,
   device = NULL,
