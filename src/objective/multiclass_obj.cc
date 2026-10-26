@@ -172,7 +172,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
   char const* DefaultEvalMetric() const override { return "mlogloss"; }
 
   void Transform(HostDeviceVector<float>* predictions, bool probability) const {
-    common::DispatchKernel<MulticlassTransformKernel>(ctx_, predictions, param_.num_class,
+    auto kernel_ctx = probability && ctx_->DeviceFP64().IsCPU() ? ctx_->MakeCPU() : *ctx_;
+    common::DispatchKernel<MulticlassTransformKernel>(&kernel_ctx, predictions, param_.num_class,
                                                       probability);
   }
 
@@ -185,12 +186,14 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     auto n_classes = static_cast<std::int64_t>(param_.num_class);
     CHECK_LE(info.labels.Shape(1), 1) << "multi-class-multi-label is not yet supported.";
+    auto kernel_ctx = ctx_->DeviceFP64().IsCPU() ? ctx_->MakeCPU() : *ctx_;
     auto valid = common::DispatchKernel<MulticlassValidationKernel>(
-        ctx_, info.labels, MulticlassLabelCheck{n_classes});
+        &kernel_ctx, info.labels, MulticlassLabelCheck{n_classes});
     CHECK(valid)
         << "SoftmaxMultiClassObj: label must be discrete values in the range of [0, num_class).";
 
-    common::DispatchKernel<MulticlassInitEstimationKernel>(ctx_, info, n_classes, base_score);
+    common::DispatchKernel<MulticlassInitEstimationKernel>(&kernel_ctx, info, n_classes,
+                                                           base_score);
   }
 
  private:
