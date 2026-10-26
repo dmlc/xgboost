@@ -1221,7 +1221,9 @@ def test_pandas_input():
 
 @pytest.mark.parametrize("tree_method", ["approx", "hist"])
 def test_feature_weights(tree_method):
-    kRows = 512
+    rng = np.random.RandomState(1994)
+    # Use enough rows to measure the sampling bias over many node splits.
+    kRows = 4096
     kCols = 64
     X = rng.randn(kRows, kCols)
     y = rng.randn(kRows)
@@ -1252,8 +1254,7 @@ def test_feature_weights(tree_method):
         model=xgb.XGBRegressor,
     )
 
-    # Approxmated test, this is dependent on the implementation of random
-    # number generator in std library.
+    # Feature usage should follow the weight trend in both directions.
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
 

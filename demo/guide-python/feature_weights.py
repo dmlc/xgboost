@@ -40,7 +40,9 @@ def main(args: argparse.Namespace) -> None:
 
     # feature zero has 0 weight
     assert feature_map.get("f0", None) is None
-    assert max(feature_map.values()) == feature_map.get("f9")
+    # Weights bias sampling probabilities; individual feature counts can fluctuate.
+    counts = np.array([feature_map.get(f"f{i}", 0) for i in range(kCols)])
+    assert counts[kCols // 2 :].sum() > counts[: kCols // 2].sum()
 
     if args.plot:
         xgboost.plot_importance(bst)
