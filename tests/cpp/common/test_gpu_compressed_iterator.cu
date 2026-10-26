@@ -41,8 +41,9 @@ struct ReadSymbolFunction {
 
 TEST(CompressedIterator, TestGPU) {
   dh::safe_cuda(cudaSetDevice(0));
-  std::vector<int> test_cases = {1, 3, 426, 21, 64, 256, 100000, INT32_MAX};
-  int num_elements = 1000;
+  std::vector<int> test_cases = {1,   3,   426, 21,  64,     128,      129,
+                                 150, 255, 256, 257, 100000, INT32_MAX};
+  int num_elements = 1003;
   int repetitions = 1000;
   srand(9);
 
@@ -51,6 +52,8 @@ TEST(CompressedIterator, TestGPU) {
       std::vector<int> input(num_elements);
       std::generate(input.begin(), input.end(),
         [=]() { return rand() % alphabet_size; });
+      input.front() = 0;
+      input.back() = alphabet_size - 1;
       CompressedBufferWriter cbw(alphabet_size);
       thrust::device_vector<int> input_d(input);
 

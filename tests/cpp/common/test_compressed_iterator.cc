@@ -23,8 +23,9 @@ TEST(CompressedIterator, Size) {
 TEST(CompressedIterator, Test) {
   ASSERT_TRUE(detail::SymbolBits(256) == 8);
   ASSERT_TRUE(detail::SymbolBits(150) == 8);
-  std::vector<int> test_cases = {1, 3, 426, 21, 64, 256, 100000, INT32_MAX};
-  int num_elements = 1000;
+  std::vector<int> test_cases = {1,   3,   426, 21,  64,     128,      129,
+                                 150, 255, 256, 257, 100000, INT32_MAX};
+  int num_elements = 1003;
   int repetitions = 1000;
   srand(9);
 
@@ -33,6 +34,8 @@ TEST(CompressedIterator, Test) {
       std::vector<int> input(num_elements);
       std::generate(input.begin(), input.end(),
         [=]() { return rand() % alphabet_size; });
+      input.front() = 0;
+      input.back() = alphabet_size - 1;
       CompressedBufferWriter cbw(alphabet_size);
 
       // Test write entire array
