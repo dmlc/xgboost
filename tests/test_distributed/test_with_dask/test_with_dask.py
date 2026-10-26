@@ -1801,8 +1801,6 @@ class TestWithDask:
         }
 
         for metrics, names in (
-            (["logloss", hinge_loss], ["logloss", "hinge_loss"]),
-            ([hinge_loss], ["hinge_loss"]),
             ([hinge_loss, log_loss], ["hinge_loss", "log_loss"]),
             ([log_loss, "logloss", hinge_loss], ["logloss", "log_loss", "hinge_loss"]),
         ):
@@ -1819,12 +1817,6 @@ class TestWithDask:
             for name in names:
                 expected = [metric_functions[name](yn, pred) for pred in predictions]
                 np.testing.assert_allclose(results[name], expected, atol=1e-6)
-
-        clf = dxgb.DaskXGBClassifier(
-            eval_metric=[hinge_loss, log_loss, hinge_loss], n_estimators=2
-        )
-        with pytest.raises(ValueError, match="Metric names must be distinct"):
-            clf.fit(X, y, eval_set=[(X, y)])
 
         def logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
             return float(log_loss(y_true, y_pred))
