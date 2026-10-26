@@ -1,14 +1,22 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include "cache_manager.h"
 
-#include <cstdint>  // for uint64_t
+#include <algorithm>  // for min
+#include <cstdint>    // for uint64_t
+#include <optional>   // for optional
 
 #if !defined(__x86_64__) && defined(__linux__)
 #include <fstream>  // for ifstream
 #include <string>   // for string, getline, stoll
-#endif              // !defined(__x86_64__) && defined(__linux__)
+#elif !defined(__x86_64__) && defined(__APPLE__)
+#include <sys/sysctl.h>  // for sysctlbyname
+
+#include <limits>  // for numeric_limits
+#include <string>  // for string, to_string
+#include <vector>  // for vector
+#endif             // !defined(__x86_64__) && defined(__linux__)
 
 #if defined(__x86_64__)
 
@@ -169,18 +177,119 @@ void DetectDataCachesSysfs(int64_t* cache_sizes) {
 
 }  // namespace
 
+#elif defined(__APPLE__)  // non-x86_64 Apple (Apple Silicon): read cache sizes from sysctl
+
+namespace {
+
+/**
+ * Read an integer sysctl by name. Empty when the key is absent, unreadable, or reports a
+ * non-positive size.
+ */
+std::optional<std::int64_t> ReadSysctlInt(const std::string& name) {
+  std::int64_t value = 0;
+  std::size_t len = sizeof(value);
+  if (::sysctlbyname(name.c_str(), &value, &len, nullptr, 0) != 0) {
+    return std::nullopt;
+  }
+  // Cache sizes are reported as 64-bit quantities, topology counts such as
+  // `hw.nperflevels` as 32-bit ones. Both land in the low bytes of the zero-initialized
+  // buffer above, so a single reader handles either width.
+  if (len != sizeof(std::int32_t) && len != sizeof(std::int64_t)) {
+    return std::nullopt;
+  }
+  if (len == sizeof(std::int32_t) &&
+      value > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max())) {
+    return std::nullopt;
+  }
+  if (value <= 0) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+/* Query the sysctl `perflevel` hierarchy and store L1 -> [0] and L2 -> [1]. Anything that
+ * cannot be determined is left at its kUninitCache default so the compiled fallbacks in
+ * the header apply.
+ *
+ * This function is only the platform query; the policy that turns the readings into
+ * per-thread sizes lives in ReduceHeterogeneousCaches so it can be tested directly.
+ */
+template <std::int32_t kMaxCacheSize>
+void DetectDataCachesSysctl(std::int64_t* cache_sizes) {
+  static_assert(kMaxCacheSize >= 2, "Need slots for L1 and L2.");
+
+  const std::optional<std::int64_t> n_levels = ReadSysctlInt("hw.nperflevels");
+  if (!n_levels) {
+    return;
+  }
+
+  /*
+   * Take the minimum value for L1d and L2 sizes over all cores.
+   *
+   * - Performance and efficiency cores report different L1d and L2 sizes, and XGBoost
+   *   spreads its threads over both. The minimum is taken because overestimating a cache
+   *   costs more than underestimating it: a block sized for a performance core's L1 would
+   *   spill on an efficiency core.
+   * - L2 is shared by every core in a cluster (rather than being private per core). We
+   *   compute `l2_per_core` by dividing the raw L2 memory size by the number of
+   *   cores that share it.
+   */
+  std::optional<std::int64_t> min_l1d;
+  std::optional<std::int64_t> min_l2_per_core;
+
+  auto keep_min = [](std::optional<std::int64_t>& acc, std::optional<std::int64_t> value) {
+    if (value) {
+      if (acc) {
+        acc = std::min(*acc, *value);
+      } else {
+        acc = *value;
+      }
+    }
+  };
+
+  for (std::int64_t level = 0; level < *n_levels; ++level) {
+    const std::string prefix = "hw.perflevel" + std::to_string(level) + ".";
+    auto l1d = ReadSysctlInt(prefix + "l1dcachesize");
+    auto l2 = ReadSysctlInt(prefix + "l2cachesize");
+    auto cores_per_l2 = ReadSysctlInt(prefix + "cpusperl2");
+    std::optional<std::int64_t> l2_per_core{std::nullopt};
+    if (l2 && cores_per_l2) {
+      auto const per_core = *l2 / *cores_per_l2;
+      // Ignore invalid readings that truncate to zero instead of replacing a valid minimum.
+      if (per_core > 0) {
+        l2_per_core = per_core;
+      }
+    }
+    keep_min(min_l1d, l1d);
+    keep_min(min_l2_per_core, l2_per_core);
+  }
+
+  if (min_l1d) {
+    cache_sizes[0] = *min_l1d;
+  }
+  if (min_l2_per_core) {
+    cache_sizes[1] = *min_l2_per_core;
+  }
+  // The Apple system level cache is not exposed through sysctl; leave L3 unset.
+}
+
+}  // namespace
+
 #endif  // defined(__x86_64__)
 
 namespace xgboost::common {
 
-/* Detect CPU cache sizes at runtime: CPUID on x86_64, sysfs on non-x86_64 Linux,
- * and compiled L1/L2/L3 defaults otherwise (or for any size detection leaves unset).
+/* Detect CPU cache sizes at runtime: CPUID on x86_64, sysfs on non-x86_64 Linux, sysctl on
+ * non-x86_64 Apple, and compiled L1/L2/L3 defaults otherwise (or for any size detection
+ * leaves unset).
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   DetectDataCaches<kMaxCacheSize>(cache_size_.data());
 #elif defined(__linux__)
   DetectDataCachesSysfs<kMaxCacheSize>(cache_size_.data());
+#elif defined(__APPLE__)
+  DetectDataCachesSysctl<kMaxCacheSize>(cache_size_.data());
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)

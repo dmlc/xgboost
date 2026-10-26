@@ -234,6 +234,46 @@ class TestBasic:
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.parametrize("shuffle", [False, True])
+    @pytest.mark.parametrize("seed", [0, 7])
+    def test_cv_stratified_shuffle(self, shuffle: bool, seed: int) -> None:
+        from sklearn.model_selection import StratifiedKFold
+
+        X = np.arange(30, dtype=np.float32).reshape(-1, 1)
+        y = np.arange(30) % 3
+        dm = xgb.DMatrix(X, label=y)
+        splitter = StratifiedKFold(
+            n_splits=3, shuffle=shuffle, random_state=seed if shuffle else None
+        )
+        expected = list(splitter.split(X, y))
+        actual = []
+
+        def fpreproc(dtrain, dtest, params):
+            actual.append(
+                (
+                    dtrain.get_data().toarray().ravel(),
+                    dtest.get_data().toarray().ravel(),
+                )
+            )
+            return dtrain, dtest, params
+
+        xgb.cv(
+            {"objective": "multi:softprob", "num_class": 3, "nthread": 1},
+            dm,
+            num_boost_round=1,
+            nfold=3,
+            stratified=True,
+            shuffle=shuffle,
+            seed=seed,
+            fpreproc=fpreproc,
+        )
+        for (train, test), (expected_train, expected_test) in zip(
+            actual, expected, strict=True
+        ):
+            np.testing.assert_array_equal(train, expected_train)
+            np.testing.assert_array_equal(test, expected_test)
+
     def test_cv_explicit_fold_indices(self):
         dm, _ = tm.load_agaricus(__file__)
         params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}

@@ -1229,50 +1229,6 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   API_END();
 }
 
-typedef char const *JArrayStr;  // NOLINT
-
-// Hidden, working-in-progress support for reduced gradient.
-/**
- * @brief Use a different type of gradient for tree split.
- *
- * @param split_grad Gradient for finding tree splits.
- * @param split_hess Hessian for finding tree splits.
- * @param value_grad Gradient for calculating tree leaf weights.
- * @param value_hess Hessian for calculating tree leaf weights.
- */
-XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
-                                               JArrayStr split_grad, JArrayStr split_hess,
-                                               JArrayStr value_grad, JArrayStr value_hess) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto *learner = static_cast<Learner *>(handle);
-  GradientContainer gpair;
-  auto ctx = learner->Ctx();
-  {
-    ArrayInterface<2, false> i_grad{StringView{split_grad}};
-    ArrayInterface<2, false> i_hess{StringView{split_hess}};
-    StringView msg{"Mismatched shape between the gradient and hessian."};
-    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
-    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.gpair);
-  }
-  {
-    ArrayInterface<2, false> i_grad{StringView{value_grad}};
-    ArrayInterface<2, false> i_hess{StringView{value_hess}};
-    StringView msg{"Mismatched shape between the gradient and hessian."};
-    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
-    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
-  }
-
-  auto p_fmat = CastDMatrixHandle(dtrain);
-  CHECK_EQ(gpair.gpair.Shape(0), p_fmat->Info().num_row_);
-  CHECK_EQ(gpair.value_gpair.Shape(0), p_fmat->Info().num_row_);
-  learner->BoostOneIter(iter, p_fmat, &gpair);
-
-  API_END();
-}
-
 XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle dmats[],
                                  const char *evnames[], xgboost::bst_ulong len,
                                  const char **out_str) {
@@ -1316,6 +1272,8 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
 
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
+  CHECK_LE(static_cast<unsigned>(type), static_cast<unsigned>(PredictionType::kLeaf))
+      << "Unknown prediction type.";
   auto iteration_begin = RequiredArg<Integer>(config, "iteration_begin", __func__);
   auto iteration_end = RequiredArg<Integer>(config, "iteration_end", __func__);
 
@@ -1332,23 +1290,17 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
       type == PredictionType::kInteraction || type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  learner->Predict(p_m, type == PredictionType::kMargin, &predictions, iteration_begin,
-                   iteration_end, training, type == PredictionType::kLeaf, contribs, approximate,
-                   interactions, strict_shape);
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  shape = learner->Predict(p_m, type == PredictionType::kMargin, &predictions, iteration_begin,
+                           iteration_end, training, type == PredictionType::kLeaf, contribs,
+                           approximate, interactions, strict_shape);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   *out_result = dmlc::BeginPtr(predictions.ConstHostVector());
 
-  auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : predictions.Size() / p_m->Info().num_row_;
-  auto n_rounds = iteration_end - iteration_begin;
-  n_rounds = n_rounds == 0 ? learner->BoostedRounds() : n_rounds;
-
   xgboost_CHECK_C_ARG_PTR(out_dim);
   xgboost_CHECK_C_ARG_PTR(out_shape);
-
-  CalcPredictShape(strict_shape, type, p_m->Info().num_row_, p_m->Info().num_col_, chunksize,
-                   learner->Groups(), n_rounds, &shape, out_dim);
+  *out_dim = shape.size();
   *out_shape = dmlc::BeginPtr(shape);
   API_END();
 }
@@ -1362,21 +1314,14 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
-  learner->InplacePredict(p_m, type, missing, &p_predt,
-                          RequiredArg<Integer>(config, "iteration_begin", __func__),
-                          RequiredArg<Integer>(config, "iteration_end", __func__));
-  CHECK(p_predt);
   auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto const &info = p_m->Info();
-  auto n_samples = info.num_row_;
-  auto n_features = info.num_col_;
-  auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-
+  shape = learner->InplacePredict(
+      p_m, type, missing, &p_predt, RequiredArg<Integer>(config, "iteration_begin", __func__),
+      RequiredArg<Integer>(config, "iteration_end", __func__), strict_shape);
+  CHECK(p_predt);
   xgboost_CHECK_C_ARG_PTR(out_dim);
-  CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
-                   learner->BoostedRounds(), &shape, out_dim);
-  CHECK_GE(p_predt->Size(), n_samples);
+  *out_dim = shape.size();
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);

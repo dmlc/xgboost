@@ -72,65 +72,36 @@ See :ref:`sphx_glr_python_examples_multioutput_regression.py` for a worked examp
 regression.
 
 
-*************************************
-Using Reduced Gradient (Sketch Boost)
-*************************************
+*******************************
+Random Projection for Splitting
+*******************************
 
-.. versionadded:: 3.2.0
+.. versionadded:: 3.5.0
 
-.. note::
+For vector-leaf models with many outputs, ``multi_projection_ratio`` reduces the number of
+targets needed for split search using random projection, following the split/value
+gradient separation in `Sketch Boost` `[1] <#references>`__.
 
-   This is experimental. It is documented here for early testers to provide feedback. Related
-   interface might change without notice.
-
-When the number of targets is large, training a gradient boosting tree model using the
-full gradient matrix becomes challenging. The training procedure may run out of memory for
-storing the histogram, or run extremely slowly due to the amount of computation needed. As
-an optimization, XGBoost implements an interface for using two types of gradients based on
-the concepts from `Sketch Boost` `[1] <#references>`__.
-
-The key insight is that we can use different gradients for two distinct purposes:
-
-- **Split gradient**: A reduced-dimension gradient used to determine the tree structure.
-- **Value gradient**: The full gradient used to calculate the final leaf values for
-  accurate predictions.
-
-This separation allows the expensive histogram building and split finding to operate on a
-smaller gradient matrix, while still producing valid predictions using the full loss
-function for leaf values. The `Sketch Boost` paper proposes using dimensionality reduction
-on the gradient matrix. In practice, one can also define a different but related loss with
-a small gradient matrix for finding the tree structure.
-
-To access this feature, create a custom objective that inherits from ``TreeObjective`` and
-implement the ``split_grad`` method.
+Split search uses projected gradients and Hessians. Leaf values are fitted using the
+original gradients and Hessians for every output. The following snippet uses one quarter
+of the target dimensions for split search. See :doc:`/parameter` for valid ratios and
+restrictions.
 
 .. code-block:: python
 
-    from xgboost.objective import TreeObjective
-    from cuml.decomposition import TruncatedSVD
+    reg = xgb.XGBRegressor(
+        tree_method="hist",
+        multi_strategy="multi_output_tree",
+        multi_projection_ratio=0.25,
+    )
+    reg.fit(X, y)
 
-    import cupy as cp
 
-    class LsObj(TreeObjective):
-        def __call__(self, iteration: int, y_pred, dtrain):
-            """Least squared error."""
-            y_true = dtrain.get_label()
-            grad = y_pred - y_true
-            hess = cp.ones(grad.shape)
-            return cp.array(grad), cp.array(hess)
-
-        def split_grad(self, iteration: int, grad, hess):
-            svd_params = {"algorithm": "jacobi", "n_components": 2, "n_iter": 8}
-            svd = TruncatedSVD(output_type="cupy", **svd_params)
-            svd.fit(grad)
-            grad = svd.transform(grad)
-            hess = svd.transform(hess)
-            hess = cp.clip(hess, 0.01, None)
-
-            return grad, hess
-
-See :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py` for a complete worked
-example. The feature supports only the ``multi_strategy=multi_output_tree``.
+Reducing the number of targets can change the effect of regularization parameters. The
+effective ``gamma`` is scaled by the retained dimension fraction to approximate the change
+in split-gain scale. The ``reg_lambda`` retains its L2 regularization meaning and requires
+no rescaling under random projection. Other regularization parameters like L1
+(``reg_alpha``) are not invariant to the random projection.
 
 *************
 Brief History
@@ -141,6 +112,7 @@ Some milestones of multi-output support are recorded below:
 - v2.0.0 introduced a prototype for training CPU-based vector-leaf models, which established the vector-leaf model format.
 - v3.2.0 saw a major upgrade to the prototype for CUDA implementation, added reduced gradient, vector intercept, along with external memory.
 - v3.4.0 completes the ``hist`` tree method implementation, for both CPU, GPU, distributed training (Dask), and categorical features, along with various metrics, objectives, and model visualization.
+- v3.5.0 replaces custom gradient-reduction callbacks with native random projection.
 
 **********
 References

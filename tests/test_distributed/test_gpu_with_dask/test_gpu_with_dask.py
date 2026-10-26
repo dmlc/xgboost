@@ -55,7 +55,9 @@ from xgboost.testing.dask import (
     check_multi_output_tree_classifier,
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
+    check_multi_projection_ratio,
     check_uneven_nan,
+    deterministic_dmatrix,
 )
 
 
@@ -219,15 +221,18 @@ class TestDistributedGPU:
     def test_boost_from_prediction(self, local_cuda_client: Client) -> None:
         from sklearn.datasets import load_breast_cancer, load_iris
 
-        X_, y_ = load_breast_cancer(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100).to_backend("cudf")
-        y = dd.from_array(y_, chunksize=100).to_backend("cudf")
-        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
+        with deterministic_dmatrix(local_cuda_client):
+            X_, y_ = load_breast_cancer(return_X_y=True)
+            X = dd.from_array(X_, chunksize=100).to_backend("cudf")
+            y = dd.from_array(y_, chunksize=100).to_backend("cudf")
+            run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
 
-        X_, y_ = load_iris(return_X_y=True)
-        X = dd.from_array(X_, chunksize=50).to_backend("cudf")
-        y = dd.from_array(y_, chunksize=50).to_backend("cudf")
-        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
+            X_, y_ = load_iris(return_X_y=True)
+            X = dd.from_array(X_, chunksize=50).to_backend("cudf")
+            y = dd.from_array(y_, chunksize=50).to_backend("cudf")
+            run_boost_from_prediction_multi_class(
+                X, y, "hist", "cuda", local_cuda_client
+            )
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("hist", "cuda", local_cuda_client)
@@ -297,6 +302,10 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_multi_regressor(self, local_cuda_client: Client) -> None:
         check_multi_output_tree_regressor(local_cuda_client, "cuda")
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_multi_projection_ratio(self, local_cuda_client: Client) -> None:
+        check_multi_projection_ratio(local_cuda_client, "cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask_cudf())
