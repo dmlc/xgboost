@@ -285,30 +285,41 @@ def test_ranking_metric(multiple: bool, weighted: bool) -> None:
 
 
 @pytest.mark.skipif(**tm.no_pandas())
-def test_ranking_multiple_metrics_score() -> None:
+@pytest.mark.parametrize("n_estimators, early_stopping_rounds", [(3, None), (64, 4)])
+def test_ranking_multiple_metrics_score(
+    n_estimators: int, early_stopping_rounds: Optional[int]
+) -> None:
     import pandas as pd
     from sklearn.metrics import mean_squared_error, roc_auc_score
 
     X, y, qid, _ = make_ltr(128, 4, 4, 1)
     df = pd.DataFrame(X)
     df["qid"] = qid
+    y_valid = np.random.default_rng(2025).permutation(y)
     ranker = xgb.XGBRanker(
         eval_metric=[roc_auc_score, mean_squared_error],
-        n_estimators=3,
+        n_estimators=n_estimators,
+        early_stopping_rounds=early_stopping_rounds,
         disable_default_eval_metric=True,
     )
-    ranker.fit(df, y, eval_set=[(df, y)], verbose=False)
-    assert (
-        ranker.score(df, y)
-        == ranker.evals_result()["validation_0"]["mean_squared_error"][-1]
-    )
+    ranker.fit(df, y, eval_set=[(df, y_valid)], verbose=False)
+    history = ranker.evals_result()["validation_0"]["mean_squared_error"]
+    iteration = -1
+    if early_stopping_rounds is not None:
+        iteration = ranker.best_iteration
+        assert iteration + 1 < ranker.get_booster().num_boosted_rounds()
+    assert ranker.score(df, y_valid) == history[iteration]
 
 
 @pytest.mark.skipif(**tm.no_pandas())
-def test_ranking_qid_df():
+@pytest.mark.parametrize("early_stopping_rounds", [None, 4])
+@pytest.mark.parametrize("custom_metric", [False, True])
+def test_ranking_qid_df(
+    early_stopping_rounds: Optional[int], custom_metric: bool
+) -> None:
     import pandas as pd
 
-    run_ranking_qid_df(pd, "hist", "cpu")
+    run_ranking_qid_df(pd, "hist", "cpu", early_stopping_rounds, custom_metric)
 
 
 def test_stacking_regression():
