@@ -1,3 +1,5 @@
+from typing import List, Tuple, Union
+
 import numpy as np
 import pytest
 
@@ -17,6 +19,35 @@ from xgboost.testing.metrics import (
 rng = np.random.RandomState(1337)
 
 
+@pytest.mark.parametrize("multiple", [False, True])
+@pytest.mark.parametrize("case", ["default", "normalized"])
+def test_duplicate_metric_names(multiple: bool, case: str) -> None:
+    data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=np.arange(8) % 2)
+    params = {"objective": "binary:logistic"}
+    if case == "normalized":
+        params["eval_metric"] = "error@0.5"
+    name = "logloss" if case == "default" else "error"
+
+    def metric(
+        predt: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Union[Tuple[str, float], List[Tuple[str, float]]]:
+        result = (name, 1.0)
+        return [("unique_metric", 2.0), result] if multiple else result
+
+    with pytest.raises(ValueError, match=f"Metric names must be distinct.*{name}"):
+        xgb.train(params, data, 2, evals=[(data, "eval")], custom_metric=metric)
+
+
+def test_duplicate_custom_metric_results() -> None:
+    data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=np.arange(8) % 2)
+
+    def metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> List[Tuple[str, float]]:
+        return [("custom", 1.0), ("other", 2.0), ("custom", 3.0)]
+
+    with pytest.raises(ValueError, match="Metric names must be distinct.*custom"):
+        xgb.train({}, data, 2, evals=[(data, "eval")], custom_metric=metric)
+
+
 class TestEvalMetrics:
     xgb_params_01 = {"nthread": 1, "eval_metric": "error"}
 
@@ -28,11 +59,11 @@ class TestEvalMetrics:
 
     def evalerror_01(self, preds, dtrain):
         labels = dtrain.get_label()
-        return "error", float(sum(labels != (preds > 0.0))) / len(labels)
+        return "custom_error", float(sum(labels != (preds > 0.0))) / len(labels)
 
     def evalerror_02(self, preds, dtrain):
         labels = dtrain.get_label()
-        return [("error", float(sum(labels != (preds > 0.0))) / len(labels))]
+        return [("custom_error", float(sum(labels != (preds > 0.0))) / len(labels))]
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def evalerror_03(self, preds, dtrain):
@@ -40,8 +71,8 @@ class TestEvalMetrics:
 
         labels = dtrain.get_label()
         return [
-            ("rmse", mean_squared_error(labels, preds)),
-            ("error", float(sum(labels != (preds > 0.0))) / len(labels)),
+            ("custom_rmse", mean_squared_error(labels, preds)),
+            ("custom_error", float(sum(labels != (preds > 0.0))) / len(labels)),
         ]
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -50,8 +81,8 @@ class TestEvalMetrics:
 
         labels = dtrain.get_label()
         return [
-            ("error", float(sum(labels != (preds > 0.0))) / len(labels)),
-            ("rmse", mean_squared_error(labels, preds)),
+            ("custom_error", float(sum(labels != (preds > 0.0))) / len(labels)),
+            ("custom_rmse", mean_squared_error(labels, preds)),
         ]
 
     @pytest.mark.skipif(**tm.no_sklearn())

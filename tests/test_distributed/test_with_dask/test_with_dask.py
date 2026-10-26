@@ -1789,35 +1789,49 @@ class TestWithDask:
         from sklearn.metrics import hinge_loss, log_loss
 
         Xn, yn = make_classification(random_state=2025)
-        X = da.from_array(Xn, chunks=(25, -1))
-        y = da.from_array(yn, chunks=25)
-
-        clf = dxgb.DaskXGBClassifier(
-            eval_metric=["logloss", hinge_loss], n_estimators=2
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        results = clf.evals_result()["validation_0"]
-        assert list(results) == ["logloss", "hinge_loss"]
+        # Each partition has identical rows, so worker-local means have the same
+        # reference value regardless of how Dask assigns partitions to workers.
+        X = da.from_array(np.tile(Xn, (4, 1)), chunks=Xn.shape)
+        y = da.from_array(np.tile(yn, 4), chunks=yn.shape)
+        dmatrix = xgb.DMatrix(Xn)
+        metric_functions = {
+            "logloss": log_loss,
+            "hinge_loss": hinge_loss,
+            "log_loss": log_loss,
+        }
 
         for metrics, names in (
+            (["logloss", hinge_loss], ["logloss", "hinge_loss"]),
+            ([hinge_loss], ["hinge_loss"]),
             ([hinge_loss, log_loss], ["hinge_loss", "log_loss"]),
             ([log_loss, "logloss", hinge_loss], ["logloss", "log_loss", "hinge_loss"]),
         ):
             clf = dxgb.DaskXGBClassifier(
                 eval_metric=metrics, n_estimators=2, disable_default_eval_metric=True
             )
-            clf.fit(X, y, eval_set=[(X, y)])
+            clf.fit(X, y, eval_set=[(X, y)], verbose=False)
             results = clf.evals_result()["validation_0"]
             assert list(results) == names
+            predictions = [
+                clf.get_booster().predict(dmatrix, iteration_range=(0, i + 1))
+                for i in range(2)
+            ]
             for name in names:
-                assert len(results[name]) == 2
-                assert np.all(np.isfinite(results[name]))
+                expected = [metric_functions[name](yn, pred) for pred in predictions]
+                np.testing.assert_allclose(results[name], expected, atol=1e-6)
 
         clf = dxgb.DaskXGBClassifier(
             eval_metric=[hinge_loss, log_loss, hinge_loss], n_estimators=2
         )
         with pytest.raises(ValueError, match="Metric names must be distinct"):
             clf.fit(X, y, eval_set=[(X, y)])
+
+        def logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+            return float(log_loss(y_true, y_pred))
+
+        clf = dxgb.DaskXGBClassifier(eval_metric=[hinge_loss, logloss], n_estimators=2)
+        with pytest.raises(ValueError, match="Metric names must be distinct.*logloss"):
+            clf.fit(X, y, eval_set=[(X, y)], verbose=False)
 
     def test_no_duplicated_partition(self) -> None:
         """Assert each worker has the correct amount of data, and DMatrix initialization

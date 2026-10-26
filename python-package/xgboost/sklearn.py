@@ -262,7 +262,7 @@ def ltr_metric_decorator(
             )
         scores = np.empty(group_ptr.size - 1)
         futures = []
-        weight = dmatrix.get_group()
+        weight = dmatrix.get_weight()
         no_weight = weight.size == 0
 
         def task(i: int) -> float:
@@ -524,8 +524,12 @@ __model_doc = f"""
         looks like `sklearn.metrics`, or a list containing strings and callables.
         Predefined metrics are evaluated first, followed by callable metrics in their
         supplied order. Each callable's ``__name__`` is used as its metric name;
-        callable names must be distinct from one another and from predefined metric
-        strings in the same list.
+        callable names must be distinct from one another and from the names emitted
+        by predefined metrics, including the default metric. Duplicate callable names
+        and exact matches with predefined metric strings are rejected before training.
+        Other name collisions are rejected on the first evaluation. Set
+        ``disable_default_eval_metric=True`` when a custom metric uses the default
+        metric's name.
 
         .. versionchanged:: 3.5.0
 

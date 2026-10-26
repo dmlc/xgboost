@@ -158,7 +158,10 @@ def train(
         Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
         for details. The metric receives transformed prediction (after applying the
         reverse link function) when using a builtin objective, and raw output when using
-        a custom objective.
+        a custom objective. Custom metric names must be distinct from each other and
+        from native metric names, including the default metric. Name collisions raise
+        :py:class:`ValueError` during evaluation. Use ``disable_default_eval_metric``
+        to disable the default metric when replacing it with a custom metric.
 
     Returns
     -------

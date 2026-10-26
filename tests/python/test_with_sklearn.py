@@ -270,31 +270,39 @@ def test_ranking_metric() -> None:
 
 
 @pytest.mark.skipif(**tm.no_pandas())
-def test_ranking_multiple_metrics() -> None:
+@pytest.mark.parametrize("weighted", [False, True])
+def test_ranking_multiple_metrics(weighted: bool) -> None:
     import pandas as pd
     from sklearn.metrics import mean_squared_error, roc_auc_score
 
-    X, y, qid, _ = make_ltr(128, 4, 4, 1)
+    X, y, qid, w = make_ltr(128, 4, 4, 1)
+    weight = w if weighted else None
     df = pd.DataFrame(X)
     df["qid"] = qid
     metrics = [roc_auc_score, mean_squared_error]
     ranker = xgb.XGBRanker(
         eval_metric=metrics, n_estimators=3, disable_default_eval_metric=True
     )
-    ranker.fit(df, y, eval_set=[(df, y)], verbose=False)
+    ranker.fit(
+        df, y, eval_set=[(df, y)], sample_weight_eval_set=[weight], verbose=False
+    )
     results = ranker.evals_result()["validation_0"]
     assert list(results) == [m.__name__ for m in metrics]
-    assert ranker.score(df, y) == results["mean_squared_error"][-1]
+    predictions = [ranker.predict(df, iteration_range=(0, i + 1)) for i in range(3)]
     for metric in metrics:
-        single = xgb.XGBRanker(
-            eval_metric=metric, n_estimators=3, disable_default_eval_metric=True
-        )
-        single.fit(df, y, eval_set=[(df, y)], verbose=False)
-        assert len(results[metric.__name__]) == 3
-        np.testing.assert_allclose(
-            results[metric.__name__],
-            single.evals_result()["validation_0"][metric.__name__],
-        )
+        expected = []
+        for pred in predictions:
+            group_scores = [metric(y[qid == q], pred[qid == q]) for q in np.unique(qid)]
+            expected.append(np.average(group_scores, weights=weight))
+        np.testing.assert_allclose(results[metric.__name__], expected, atol=1e-6)
+    # score() does not accept group weights, so check its unweighted result separately.
+    expected_score = np.mean(
+        [
+            mean_squared_error(y[qid == q], predictions[-1][qid == q])
+            for q in np.unique(qid)
+        ]
+    )
+    np.testing.assert_allclose(ranker.score(df, y), expected_score, atol=1e-6)
 
 
 @pytest.mark.skipif(**tm.no_pandas())
@@ -1536,6 +1544,81 @@ def test_mixed_metrics(weighted: bool, kind: str) -> None:
         np.testing.assert_allclose(results[metric.__name__], expected, atol=1e-6)
     assert clf.best_score == min(results[names[-1]])
     assert clf.best_iteration == np.argmin(results[names[-1]])
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_multiple_custom_metrics_early_stopping(reverse: bool) -> None:
+    from sklearn.datasets import make_regression
+    from sklearn.metrics import mean_squared_error
+
+    X, y = make_regression(n_samples=32, n_features=4, random_state=2025)
+
+    def mse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return float(mean_squared_error(y_true, y_pred))
+
+    def negative_mse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return -mse(y_true, y_pred)
+
+    # Both metrics are minimized: one improves while the other gets worse.
+    metrics = [negative_mse, mse] if reverse else [mse, negative_mse]
+    reg = xgb.XGBRegressor(
+        eval_metric=metrics,
+        n_estimators=8,
+        max_depth=2,
+        early_stopping_rounds=2,
+        disable_default_eval_metric=True,
+    )
+    reg.fit(X, y, eval_set=[(X, y)], verbose=False)
+    assert reg.get_booster().num_boosted_rounds() == (8 if reverse else 3)
+    assert reg.best_iteration == (7 if reverse else 0)
+    results = reg.evals_result()["validation_0"]
+    assert list(results) == [m.__name__ for m in metrics]
+    assert reg.best_score == min(results[metrics[-1].__name__])
+
+
+@pytest.mark.parametrize("multiple", [False, True])
+@pytest.mark.parametrize("disable_default", [False, True])
+def test_default_custom_metric_name(multiple: bool, disable_default: bool) -> None:
+    from sklearn.datasets import make_regression
+    from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+    X, y = make_regression(n_samples=32, n_features=4, random_state=2025)
+
+    def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+    reg = xgb.XGBRegressor(
+        eval_metric=[mean_absolute_error, rmse] if multiple else rmse,
+        n_estimators=3,
+        disable_default_eval_metric=disable_default,
+    )
+    if not disable_default:
+        with pytest.raises(ValueError, match="Metric names must be distinct.*rmse"):
+            reg.fit(X, y, eval_set=[(X, y)], verbose=False)
+    else:
+        reg.fit(X, y, eval_set=[(X, y)], verbose=False)
+        expected = [
+            rmse(y, reg.predict(X, iteration_range=(0, i + 1))) for i in range(3)
+        ]
+        np.testing.assert_allclose(
+            reg.evals_result()["validation_0"]["rmse"], expected, atol=1e-6
+        )
+
+
+def test_normalized_custom_metric_name() -> None:
+    from sklearn.datasets import make_classification
+    from sklearn.metrics import hinge_loss
+
+    X, y = make_classification(random_state=2025)
+
+    def error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        return float(np.mean((y_pred > 0.5) != y_true))
+
+    clf = xgb.XGBClassifier(
+        eval_metric=[hinge_loss, "error@0.5", error], n_estimators=3
+    )
+    with pytest.raises(ValueError, match="Metric names must be distinct.*error"):
+        clf.fit(X, y, eval_set=[(X, y)], verbose=False)
 
 
 def test_invalid_metric() -> None:
