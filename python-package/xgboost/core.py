@@ -1743,7 +1743,9 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
 
 
 CustomObj = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+Metric = Callable[
+    [np.ndarray, DMatrix], Union[Tuple[str, float], List[Tuple[str, float]]]
+]
 
 
 def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
@@ -2344,7 +2346,9 @@ class Booster:
         iteration :
             Current iteration.
         feval :
-            Custom evaluation function.
+            Custom evaluation function. Returned metric names must be distinct from
+            each other and from native metric names, including the default metric.
+            Name collisions raise :py:class:`ValueError` during evaluation.
 
         Returns
         -------
@@ -2374,17 +2378,21 @@ class Booster:
         assert msg.value is not None
         res = msg.value.decode()  # pylint: disable=no-member
         if feval is not None:
+            metric_names = {name for name, _ in _parse_eval_str(res)}
             for dmat, evname in evals:
                 feval_ret = feval(
                     self.predict(dmat, training=False, output_margin=output_margin),
                     dmat,
                 )
-                if isinstance(feval_ret, list):
-                    for name, val in feval_ret:
-                        # pylint: disable=consider-using-f-string
-                        res += "\t%s-%s:%f" % (evname, name, val)
-                else:
-                    name, val = feval_ret
+                if not isinstance(feval_ret, list):
+                    feval_ret = [feval_ret]
+                for name, val in feval_ret:
+                    metric_name = f"{evname}-{name}"
+                    if metric_name in metric_names:
+                        raise ValueError(
+                            f"Metric names must be distinct. Duplicate metric: {name}"
+                        )
+                    metric_names.add(metric_name)
                     # pylint: disable=consider-using-f-string
                     res += "\t%s-%s:%f" % (evname, name, val)
         return res

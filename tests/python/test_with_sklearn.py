@@ -4,10 +4,16 @@ import pickle
 import re
 import warnings
 from pathlib import Path
-from typing import Optional, Type
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 import pytest
+from sklearn.metrics import (
+    hinge_loss,
+    log_loss,
+    mean_absolute_error,
+    mean_squared_error,
+)
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
@@ -239,34 +245,70 @@ def test_ranking_categorical() -> None:
     run_ranking_categorical(device="cpu")
 
 
-def test_ranking_metric() -> None:
-    from sklearn.metrics import roc_auc_score
+@pytest.mark.parametrize("multiple", [False, True])
+@pytest.mark.parametrize("weighted", [False, True])
+def test_ranking_metric(multiple: bool, weighted: bool) -> None:
+    from sklearn.metrics import mean_squared_error, roc_auc_score
 
-    X, y, qid, w = make_ltr(512, 4, 3, 1)
-    # use auc for test as ndcg_score in sklearn works only on label gain instead of exp
-    # gain.
-    # note that the auc in sklearn is different from the one in XGBoost. The one in
-    # sklearn compares the number of mis-classified docs, while the one in xgboost
-    # compares the number of mis-classified pairs.
+    X, y, qid, w = make_ltr(128, 4, 4, 1)
+    weight = w if weighted else None
+    metrics = [roc_auc_score, mean_squared_error] if multiple else [roc_auc_score]
     ltr = xgb.XGBRanker(
-        eval_metric=roc_auc_score,
-        n_estimators=10,
-        tree_method="hist",
+        eval_metric=metrics if multiple else metrics[0],
+        n_estimators=3,
         max_depth=2,
         objective="rank:pairwise",
+        disable_default_eval_metric=True,
     )
     ltr.fit(
         X,
         y,
         qid=qid,
-        sample_weight=w,
+        sample_weight=weight,
         eval_set=[(X, y)],
         eval_qid=[qid],
-        sample_weight_eval_set=[w],
-        verbose=True,
+        sample_weight_eval_set=[weight],
+        verbose=False,
     )
-    results = ltr.evals_result()
-    assert results["validation_0"]["roc_auc_score"][-1] > 0.6
+    results = ltr.evals_result()["validation_0"]
+    assert list(results) == [m.__name__ for m in metrics]
+    predictions = [ltr.predict(X, iteration_range=(0, i + 1)) for i in range(3)]
+    for metric in metrics:
+        expected = [
+            np.average(
+                [metric(y[qid == q], pred[qid == q]) for q in np.unique(qid)],
+                weights=weight,
+            )
+            for pred in predictions
+        ]
+        np.testing.assert_allclose(results[metric.__name__], expected, atol=1e-6)
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.parametrize("n_estimators, early_stopping_rounds", [(3, None), (64, 4)])
+def test_ranking_multiple_metrics_score(
+    n_estimators: int, early_stopping_rounds: Optional[int]
+) -> None:
+    import pandas as pd
+    from sklearn.metrics import mean_squared_error, roc_auc_score
+
+    X, y, qid, _ = make_ltr(128, 4, 4, 1)
+    df = pd.DataFrame(X)
+    df["qid"] = qid
+    y_valid = np.random.default_rng(2025).permutation(y)
+    ranker = xgb.XGBRanker(
+        eval_metric=[roc_auc_score, mean_squared_error],
+        n_estimators=n_estimators,
+        early_stopping_rounds=early_stopping_rounds,
+        disable_default_eval_metric=True,
+    )
+    ranker.fit(df, y, eval_set=[(df, y_valid)], verbose=False)
+    history = ranker.evals_result()["validation_0"]["mean_squared_error"]
+    iteration = -1
+    if early_stopping_rounds is not None:
+        iteration = ranker.best_iteration
+        assert iteration + 1 < ranker.get_booster().num_boosted_rounds()
+    assert ranker.score(df, y_valid) == history[iteration]
 
 
 @pytest.mark.skipif(**tm.no_pandas())
@@ -1475,45 +1517,121 @@ def test_verbose_default_consistency() -> None:
     assert clf_default == reg_default == rank_default == rfc_default == rfr_default
 
 
-def test_mixed_metrics() -> None:
+def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+
+def logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(log_loss(y_true, y_pred))
+
+
+def error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(np.mean((y_pred > 0.5) != y_true))
+
+
+@pytest.mark.parametrize(
+    "eval_metric, expected_metrics",
+    [
+        pytest.param([hinge_loss], {"hinge_loss": hinge_loss}, id="single"),
+        pytest.param(
+            [hinge_loss, log_loss],
+            {"hinge_loss": hinge_loss, "log_loss": log_loss},
+            id="custom",
+        ),
+        pytest.param(
+            [hinge_loss, "logloss", log_loss, "error"],
+            {
+                "logloss": log_loss,
+                "error": error,
+                "hinge_loss": hinge_loss,
+                "log_loss": log_loss,
+            },
+            id="mixed",
+        ),
+        pytest.param(
+            ["rmse", "rmse", mean_absolute_error],
+            {"rmse": rmse, "mean_absolute_error": mean_absolute_error},
+            id="duplicate-builtin",
+        ),
+        pytest.param(
+            [hinge_loss, logloss],
+            {"hinge_loss": hinge_loss, "logloss": log_loss},
+            id="default-disabled",
+        ),
+    ],
+)
+def test_metric_lists(
+    eval_metric: list[Union[str, Callable]], expected_metrics: dict[str, Callable]
+) -> None:
     from sklearn.datasets import make_classification
-    from sklearn.metrics import hamming_loss, hinge_loss, log_loss
 
     X, y = make_classification(random_state=2025)
-
-    clf = xgb.XGBClassifier(eval_metric=["logloss", hinge_loss], n_estimators=2)
-    clf.fit(X, y, eval_set=[(X, y)])
+    clf = xgb.XGBClassifier(
+        eval_metric=eval_metric, n_estimators=3, disable_default_eval_metric=True
+    )
+    clf.fit(X, y, eval_set=[(X, y)], verbose=False)
     results = clf.evals_result()["validation_0"]
-    assert "logloss" in results
-    assert "hinge_loss" in results
+    assert list(results) == list(expected_metrics)
+    predictions = [
+        clf.predict_proba(X, iteration_range=(0, i + 1))[:, 1] for i in range(3)
+    ]
+    for name, metric in expected_metrics.items():
+        expected = [metric(y, pred) for pred in predictions]
+        np.testing.assert_allclose(results[name], expected, atol=1e-6)
 
-    clf = xgb.XGBClassifier(eval_metric=[hamming_loss, log_loss], n_estimators=2)
-    with pytest.raises(
-        NotImplementedError, match="multiple custom metrics is not yet supported."
-    ):
-        clf.fit(X, y, eval_set=[(X, y)])
 
+def test_invalid_metric() -> None:
+    from sklearn.datasets import make_classification
+    from sklearn.metrics import log_loss
+
+    X, y = make_classification(random_state=2025)
     clf = xgb.XGBClassifier(eval_metric=[123, log_loss], n_estimators=2)
     with pytest.raises(TypeError, match="Invalid type for the `eval_metric`"):
         clf.fit(X, y, eval_set=[(X, y)])
 
 
-def test_weighted_evaluation_metric():
+@pytest.mark.parametrize(
+    "eval_metric",
+    [
+        pytest.param(
+            [mean_absolute_error, mean_squared_error, mean_absolute_error],
+            id="repeated",
+        ),
+        pytest.param([lambda a, b: 1.0, lambda a, b: 2.0], id="same-name"),
+        pytest.param(["rmse", rmse], id="builtin-first"),
+        pytest.param([rmse, "rmse"], id="builtin-last"),
+        pytest.param([mean_absolute_error, rmse], id="default"),
+        pytest.param([mean_absolute_error, "error@0.5", error], id="normalized"),
+    ],
+)
+def test_duplicate_custom_metric_names(eval_metric: list[Union[str, Callable]]) -> None:
+    from sklearn.datasets import make_classification
+
+    X, y = make_classification(n_samples=32, n_features=4, random_state=2025)
+    reg = xgb.XGBRegressor(eval_metric=eval_metric, n_estimators=2)
+    with pytest.raises(ValueError, match="Metric names must be distinct"):
+        reg.fit(X, y, eval_set=[(X, y)], verbose=False)
+
+
+@pytest.mark.parametrize("multiple", [False, True])
+def test_weighted_evaluation_metric(multiple: bool) -> None:
     from sklearn.datasets import make_hastie_10_2
-    from sklearn.metrics import log_loss
+    from sklearn.metrics import log_loss, mean_absolute_error
 
     X, y = make_hastie_10_2(n_samples=2000, random_state=42)
-    labels, y = np.unique(y, return_inverse=True)
+    _, y = np.unique(y, return_inverse=True)
     X_train, X_test = X[:1600], X[1600:]
     y_train, y_test = y[:1600], y[1600:]
-    weights_eval_set = np.random.choice([1, 2], len(X_test))
-
-    np.random.seed(0)
-    weights_train = np.random.choice([1, 2], len(X_train))
+    rng = np.random.default_rng(0)
+    weights_eval_set = rng.choice([1, 2], len(X_test))
+    weights_train = rng.choice([1, 2], len(X_train))
+    metrics = {"logloss": log_loss}
+    if multiple:
+        metrics["mae"] = mean_absolute_error
 
     clf = xgb.XGBClassifier(
         tree_method="hist",
-        eval_metric=log_loss,
+        eval_metric=list(metrics.values()) if multiple else log_loss,
         n_estimators=16,
         objective="binary:logistic",
     )
@@ -1528,7 +1646,7 @@ def test_weighted_evaluation_metric():
 
     clf = xgb.XGBClassifier(
         tree_method="hist",
-        eval_metric="logloss",
+        eval_metric=list(metrics),
         n_estimators=16,
         objective="binary:logistic",
     )
@@ -1541,11 +1659,12 @@ def test_weighted_evaluation_metric():
     )
     internal = clf.evals_result()
 
-    np.testing.assert_allclose(
-        custom["validation_0"]["log_loss"],
-        internal["validation_0"]["logloss"],
-        atol=1e-6,
-    )
+    for name, metric in metrics.items():
+        np.testing.assert_allclose(
+            custom["validation_0"][metric.__name__],
+            internal["validation_0"][name],
+            atol=1e-6,
+        )
 
 
 def test_intercept() -> None:
