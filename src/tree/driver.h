@@ -91,6 +91,12 @@ class Driver {
     return true;
   }
 
+  // Keep both siblings for histogram subtraction if either can be split again.
+  bool IsChildValid(ExpandEntryT const& parent_entry, double left_hess, double right_hess) {
+    return this->IsChildValid(parent_entry) &&
+           (CanSplit(param_, left_hess) || CanSplit(param_, right_hess));
+  }
+
   // Return the set of nodes to be expanded
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously

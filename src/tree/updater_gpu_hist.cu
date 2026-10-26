@@ -213,6 +213,9 @@ struct GPUHistMakerDevice {
   GPUExpandEntry EvaluateRootSplit(DMatrix const* p_fmat, GradientPairInt64 root_sum) {
     bst_node_t nidx = RegTree::kRoot;
     EvalParam gpu_param(param);
+    if (!CanSplit(param, (*quantiser)[0].ToFloatingPoint(root_sum).GetHess())) {
+      return GPUExpandEntry{nidx, 0, {}, 0.0f, 0.0f, 0.0f};
+    }
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     sampled_features->SetDevice(ctx_->Device());
     common::Span<bst_feature_t const> feature_set =
@@ -228,44 +231,45 @@ struct GPUHistMakerDevice {
     return split;
   }
 
-  void EvaluateSplits(DMatrix const* p_fmat, const std::vector<GPUExpandEntry>& candidates,
-                      const RegTree& tree, common::Span<GPUExpandEntry> pinned_candidates_out) {
+  std::size_t EvaluateSplits(DMatrix const* p_fmat, const std::vector<GPUExpandEntry>& candidates,
+                             const RegTree& tree,
+                             common::Span<GPUExpandEntry> pinned_candidates_out) {
     if (candidates.empty()) {
-      return;
+      return 0;
     }
     this->monitor.Start(__func__);
-    dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2 * candidates.size());
-    dh::TemporaryArray<DeviceSplitCandidate> splits_out(2 * candidates.size());
-    std::vector<bst_node_t> nidx(2 * candidates.size());
+    std::vector<bst_node_t> nidx;
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     EvaluateSplitSharedInputs shared_inputs{
         EvalParam{param}, (*quantiser)[0], p_fmat->Info().feature_types.ConstDeviceSpan(),
         cuts_->cut_ptrs_.ConstDeviceSpan(), cuts_->cut_values_.ConstDeviceSpan(),
         // is_dense represents the local data
         p_fmat->IsDense() && !collective::IsDistributed()};
-    dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
-    // Store the feature set ptrs so they don't go out of scope before the kernel is called
+    // Keep sampled features alive until split evaluation finishes.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+    auto add_input = [&](bst_node_t node, bst_node_t depth, GradientPairInt64 sum) {
+      if (!CanSplit(param, (*quantiser)[0].ToFloatingPoint(sum).GetHess())) {
+        return;
+      }
+      auto sampled = column_sampler_->GetFeatureSet(ctx_, depth);
+      feature_sets.emplace_back(sampled);
+      auto feature_set = interaction_constraints.Query(sampled->ConstDeviceSpan(), node);
+      h_node_inputs[nidx.size()] = {node, depth, sum, feature_set,
+                                    histogram_.GetNodeHistogram(node)};
+      nidx.push_back(node);
+    };
     auto sc_tree = tree.HostScView();
-    for (std::size_t i = 0; i < candidates.size(); i++) {
-      auto candidate = candidates.at(i);
-      bst_node_t left_nidx = sc_tree.LeftChild(candidate.nidx);
-      bst_node_t right_nidx = sc_tree.RightChild(candidate.nidx);
-      nidx[i * 2] = left_nidx;
-      nidx[i * 2 + 1] = right_nidx;
-      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
-      feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
-      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
-      feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
-      h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
-                              left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
-      h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
-                                  right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
+    for (auto const& candidate : candidates) {
+      add_input(sc_tree.LeftChild(candidate.nidx), candidate.depth + 1, candidate.split.left_sum);
+      add_input(sc_tree.RightChild(candidate.nidx), candidate.depth + 1, candidate.split.right_sum);
     }
+    if (nidx.empty()) {
+      this->monitor.Stop(__func__);
+      return 0;
+    }
+    h_node_inputs = h_node_inputs.subspan(0, nidx.size());
+    dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(nidx.size());
+    dh::TemporaryArray<GPUExpandEntry> entries(nidx.size());
     bst_feature_t max_active_features = 0;
     for (auto input : h_node_inputs) {
       max_active_features =
@@ -280,6 +284,7 @@ struct GPUHistMakerDevice {
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), entries.data().get(),
                                   sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
     this->monitor.Stop(__func__);
+    return nidx.size();
   }
 
   // Build histograms for all the nodes in one kernel launch.
@@ -610,17 +615,21 @@ struct GPUHistMakerDevice {
       // e.g. We do not bother further processing nodes whose children are beyond max depth
       std::vector<GPUExpandEntry> valid_candidates;
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
-                   [&](auto const& e) { return driver.IsChildValid(e); });
+                   [&](auto const& e) {
+                     auto const& q = (*quantiser)[0];
+                     return driver.IsChildValid(e, q.ToFloatingPoint(e.split.left_sum).GetHess(),
+                                                q.ToFloatingPoint(e.split.right_sum).GetHess());
+                   });
 
       // Allocaate children nodes.
       auto new_candidates = pinned.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});
 
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
-      this->EvaluateSplits(p_fmat, valid_candidates, *p_tree, new_candidates);
+      auto n_candidates = this->EvaluateSplits(p_fmat, valid_candidates, *p_tree, new_candidates);
       curt::DefaultStream().Sync();
 
-      driver.Push(new_candidates.begin(), new_candidates.end());
+      driver.Push(new_candidates.begin(), new_candidates.begin() + n_candidates);
       expand_set = driver.Pop();
     }
     // Row partitioner can have lesser nodes than the tree since we skip some leaf

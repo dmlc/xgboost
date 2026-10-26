@@ -270,7 +270,6 @@ class HistEvaluator {
     auto n_threads = ctx_->Threads();
     auto &entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
-    // Sample every node before pruning the search to preserve the random sequence.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, entries[nidx_in_set].depth);
@@ -278,14 +277,7 @@ class HistEvaluator {
     CHECK(!features.empty());
     const size_t grain_size = std::max<size_t>(1, features.front()->Size() / n_threads);
     common::BlockedSpace2d space(
-        entries.size(),
-        [&](size_t nidx_in_set) {
-          auto nidx = entries[nidx_in_set].nid;
-          // Both children need at least min_child_weight Hessian.
-          return snode_[nidx].stats.GetHess() < 2.0 * param_->min_child_weight
-                     ? std::size_t{0}
-                     : features[nidx_in_set]->Size();
-        },
+        entries.size(), [&](size_t nidx_in_set) { return features[nidx_in_set]->Size(); },
         grain_size);
 
     std::vector<CPUExpandEntry> tloc_candidates(n_threads * entries.size());

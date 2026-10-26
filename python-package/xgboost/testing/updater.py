@@ -57,6 +57,49 @@ def get_basescore(
     return json.loads(jintercept)
 
 
+def check_min_child_weight(tree_method: str, device: Device) -> None:
+    """Check terminal nodes, equality, and a continuing sibling with a small cache."""
+    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+    y = np.array([-3, -1, 1, 3], dtype=np.float32)
+    below = np.nextafter(np.float32(0.5), np.float32(0.0))
+    cases = [
+        ([below] * 4, 1, [0, 0, 0, 0]),
+        ([0.5] * 4, 3, [-2, -2, 2, 2]),
+        ([0.75] * 4, 3, [-2, -2, 2, 2]),
+        ([1.0] * 4, 7, [-3, -1, 1, 3]),
+        ([0.5, 0.5, 1.0, 1.0], 5, [-2, -2, 1, 3]),
+    ]
+    for weights, expected_nodes, expected_predictions in cases:
+        data = DMatrix(X, label=y, weight=np.array(weights, dtype=np.float32))
+        for grow_policy in ("depthwise", "lossguide"):
+            for cache in (1, 256):
+                model = train(
+                    {
+                        "tree_method": tree_method,
+                        "device": device,
+                        "max_depth": 3,
+                        "max_bin": 16,
+                        "min_child_weight": 1,
+                        "reg_lambda": 0,
+                        "base_score": 0,
+                        "learning_rate": 1,
+                        "grow_policy": grow_policy,
+                        "max_cached_hist_node": cache,
+                        "nthread": 2,
+                    },
+                    data,
+                    num_boost_round=1,
+                )
+                nodes = [json.loads(model.get_dump(dump_format="json")[0])]
+                count = 0
+                while nodes:
+                    node = nodes.pop()
+                    count += 1
+                    nodes.extend(node.get("children", []))
+                assert count == expected_nodes, (weights, grow_policy, cache, count)
+                np.testing.assert_allclose(model.predict(data), expected_predictions)
+
+
 # pylint: disable=too-many-locals
 def check_base_weights(
     params: Dict[str, Any],

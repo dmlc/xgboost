@@ -4,12 +4,13 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <algorithm>  // for max, copy, transform
-#include <cstddef>    // for size_t
-#include <cstdint>    // for uint32_t, int32_t
-#include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>    // for max, copy, transform
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint32_t, int32_t
+#include <memory>       // for allocator, unique_ptr, make_unique, shared_ptr
+#include <type_traits>  // for is_same_v
+#include <utility>      // for move
+#include <vector>       // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for IsDistributed
@@ -119,7 +120,12 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
       updater->ApplyTreeSplit(candidate, p_tree);
       CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
       applied.push_back(candidate);
-      if (driver.IsChildValid(candidate)) {
+      bool child_valid = driver.IsChildValid(candidate);
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+        child_valid = driver.IsChildValid(candidate, candidate.split.left_sum.GetHess(),
+                                          candidate.split.right_sum.GetHess());
+      }
+      if (child_valid) {
         valid_candidates.emplace_back(candidate);
       }
     }
@@ -135,8 +141,17 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
         auto child_depth = candidate.depth + 1;
         ExpandEntry l_best{left_child_nidx, child_depth};
         ExpandEntry r_best{right_child_nidx, child_depth};
-        best_splits.push_back(l_best);
-        best_splits.push_back(r_best);
+        if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+          if (CanSplit(*param, candidate.split.left_sum.GetHess())) {
+            best_splits.push_back(l_best);
+          }
+          if (CanSplit(*param, candidate.split.right_sum.GetHess())) {
+            best_splits.push_back(r_best);
+          }
+        } else {
+          best_splits.push_back(l_best);
+          best_splits.push_back(r_best);
+        }
       }
       updater->EvaluateSplits(p_fmat, &best_splits);
     }
@@ -510,6 +525,10 @@ class HistUpdater {
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});
       p_tree->SetRoot(weight, grad_stat.GetHess());
+      if (!CanSplit(*param_, grad_stat.GetHess())) {
+        monitor_->Stop(__func__);
+        return node;
+      }
 
       std::vector<CPUExpandEntry> entries{node};
       monitor_->Start("EvaluateSplits");
@@ -531,8 +550,7 @@ class HistUpdater {
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
     this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree->HostScView(), partitioner_,
-                                                 valid_candidates, gpair, HistBatch(param_),
-                                                 *param_);
+                                                 valid_candidates, gpair, HistBatch(param_));
     monitor_->Stop(__func__);
   }
 

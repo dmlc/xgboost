@@ -117,6 +117,10 @@ class GlobalApproxBuilder {
 
     auto weight = evaluator_.InitRoot(root_sum);
     p_tree->SetRoot(weight, root_sum.GetHess());
+    if (!CanSplit(*param_, root_sum.GetHess())) {
+      monitor_->Stop(__func__);
+      return best;
+    }
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
@@ -132,7 +136,7 @@ class GlobalApproxBuilder {
     monitor_->Start(__func__);
     this->histogram_builder_.BuildHistLeftRight(
         ctx_, p_fmat, p_tree->HostScView(), partitioner_, valid_candidates,
-        linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess), *param_);
+        linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess));
     monitor_->Stop(__func__);
   }
 
@@ -189,7 +193,8 @@ class GlobalApproxBuilder {
       for (auto const &candidate : expand_set) {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);
-        if (driver.IsChildValid(candidate)) {
+        if (driver.IsChildValid(candidate, candidate.split.left_sum.GetHess(),
+                                candidate.split.right_sum.GetHess())) {
           valid_candidates.emplace_back(candidate);
         }
       }
@@ -211,8 +216,12 @@ class GlobalApproxBuilder {
           int right_child_nidx = tree[candidate.nid].RightChild();
           CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
           CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
-          best_splits.push_back(l_best);
-          best_splits.push_back(r_best);
+          if (CanSplit(*param_, candidate.split.left_sum.GetHess())) {
+            best_splits.push_back(l_best);
+          }
+          if (CanSplit(*param_, candidate.split.right_sum.GetHess())) {
+            best_splits.push_back(r_best);
+          }
         }
         auto const &histograms = histogram_builder_.Histogram(0);
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();

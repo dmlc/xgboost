@@ -28,6 +28,7 @@
 #include "../../../../src/common/threading_utils.h"       // for BlockedSpace2d
 #include "../../../../src/data/gradient_index.h"          // for GHistIndexMatrix
 #include "../../../../src/tree/common_row_partitioner.h"  // for CommonRowPartitioner
+#include "../../../../src/tree/driver.h"                  // for Driver
 #include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
 #include "../../../../src/tree/hist/hist_param.h"         // for HistMakerTrainParam
@@ -121,8 +122,11 @@ void TestHistogramMinChildWeight(bool limit, bool is_distributed) {
                    1.0});
       std::vector<CPUExpandEntry> candidates{best};
       partitioners.front().UpdatePosition(&ctx, gmat, candidates, tree.HostScView());
-      builder.BuildHistLeftRight(&ctx, dmat.get(), tree.HostScView(), partitioners, candidates,
-                                 view, batch, param);
+      Driver<CPUExpandEntry> driver{param};
+      if (driver.IsChildValid(best, left_hess, right_hess)) {
+        builder.BuildHistLeftRight(&ctx, dmat.get(), tree.HostScView(), partitioners, candidates,
+                                   view, batch);
+      }
       auto const &hist = builder.Histogram(0);
       bool can_split = left_hess >= 2.0f || right_hess >= 2.0f;
       EXPECT_EQ(hist.HistogramExists(1), can_split);

@@ -219,6 +219,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 };
 
+/** @brief Whether the total Hessian can support two children of minimum weight. */
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE bool CanSplit(TrainingParams const &p, T sum_hess) {
+  return sum_hess >= 2.0 * p.min_child_weight;
+}
+
 /**
  * @brief Whether both children satisfy the Hessian requirement for a split.
  *
