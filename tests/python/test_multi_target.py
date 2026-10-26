@@ -313,8 +313,9 @@ def test_multi_projection_ratio_leaves(ratio: float, custom: bool) -> None:
 
 
 @pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])
-def test_deterministic(sampling_method: str) -> None:
-    run_deterministic("cpu", sampling_method)
+@pytest.mark.parametrize("model_format", ["raw", "booster", "pickle"])
+def test_deterministic(sampling_method: str, model_format: str) -> None:
+    run_deterministic("cpu", sampling_method, model_format)
 
 
 # Cover bypass, minimum dimension, and rounding across both driver policies.
