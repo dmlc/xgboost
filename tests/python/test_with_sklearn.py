@@ -4,10 +4,16 @@ import pickle
 import re
 import warnings
 from pathlib import Path
-from typing import Optional, Type
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 import pytest
+from sklearn.metrics import (
+    hinge_loss,
+    log_loss,
+    mean_absolute_error,
+    mean_squared_error,
+)
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
@@ -1500,31 +1506,67 @@ def test_verbose_default_consistency() -> None:
     assert clf_default == reg_default == rank_default == rfc_default == rfr_default
 
 
-@pytest.mark.parametrize("kind", ["single", "custom", "mixed"])
-def test_mixed_metrics(kind: str) -> None:
+def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+
+def logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(log_loss(y_true, y_pred))
+
+
+def error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    return float(np.mean((y_pred > 0.5) != y_true))
+
+
+@pytest.mark.parametrize(
+    "eval_metric, expected_metrics",
+    [
+        pytest.param([hinge_loss], {"hinge_loss": hinge_loss}, id="single"),
+        pytest.param(
+            [hinge_loss, log_loss],
+            {"hinge_loss": hinge_loss, "log_loss": log_loss},
+            id="custom",
+        ),
+        pytest.param(
+            [hinge_loss, "logloss", log_loss, "error"],
+            {
+                "logloss": log_loss,
+                "error": error,
+                "hinge_loss": hinge_loss,
+                "log_loss": log_loss,
+            },
+            id="mixed",
+        ),
+        pytest.param(
+            ["rmse", "rmse", mean_absolute_error],
+            {"rmse": rmse, "mean_absolute_error": mean_absolute_error},
+            id="duplicate-builtin",
+        ),
+        pytest.param(
+            [hinge_loss, logloss],
+            {"hinge_loss": hinge_loss, "logloss": log_loss},
+            id="default-disabled",
+        ),
+    ],
+)
+def test_metric_lists(
+    eval_metric: list[Union[str, Callable]], expected_metrics: dict[str, Callable]
+) -> None:
     from sklearn.datasets import make_classification
-    from sklearn.metrics import hinge_loss, log_loss
 
     X, y = make_classification(random_state=2025)
-    metrics = [hinge_loss] if kind == "single" else [hinge_loss, log_loss]
-    names = [m.__name__ for m in metrics]
-    eval_metric = (
-        [hinge_loss, "logloss", log_loss, "error"] if kind == "mixed" else metrics
-    )
-    if kind == "mixed":
-        names = ["logloss", "error"] + names
     clf = xgb.XGBClassifier(
         eval_metric=eval_metric, n_estimators=3, disable_default_eval_metric=True
     )
     clf.fit(X, y, eval_set=[(X, y)], verbose=False)
     results = clf.evals_result()["validation_0"]
-    assert list(results) == names
+    assert list(results) == list(expected_metrics)
     predictions = [
         clf.predict_proba(X, iteration_range=(0, i + 1))[:, 1] for i in range(3)
     ]
-    for metric in metrics:
+    for name, metric in expected_metrics.items():
         expected = [metric(y, pred) for pred in predictions]
-        np.testing.assert_allclose(results[metric.__name__], expected, atol=1e-6)
+        np.testing.assert_allclose(results[name], expected, atol=1e-6)
 
 
 def test_invalid_metric() -> None:
@@ -1538,57 +1580,26 @@ def test_invalid_metric() -> None:
 
 
 @pytest.mark.parametrize(
-    "case",
+    "eval_metric",
     [
-        "repeated",
-        "same_name",
-        "builtin_first",
-        "builtin_last",
-        "default",
-        "normalized",
-        "duplicate_builtin",
-        "default_disabled",
+        pytest.param(
+            [mean_absolute_error, mean_squared_error, mean_absolute_error],
+            id="repeated",
+        ),
+        pytest.param([lambda a, b: 1.0, lambda a, b: 2.0], id="same-name"),
+        pytest.param(["rmse", rmse], id="builtin-first"),
+        pytest.param([rmse, "rmse"], id="builtin-last"),
+        pytest.param([mean_absolute_error, rmse], id="default"),
+        pytest.param([mean_absolute_error, "error@0.5", error], id="normalized"),
     ],
 )
-def test_metric_names(case: str) -> None:
+def test_duplicate_custom_metric_names(eval_metric: list[Union[str, Callable]]) -> None:
     from sklearn.datasets import make_classification
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
 
     X, y = make_classification(n_samples=32, n_features=4, random_state=2025)
-
-    def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        return float(np.sqrt(mean_squared_error(y_true, y_pred)))
-
-    def error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        return float(np.mean((y_pred > 0.5) != y_true))
-
-    metrics = {
-        "repeated": [mean_absolute_error, mean_squared_error, mean_absolute_error],
-        "same_name": [lambda a, b: 1.0, lambda a, b: 2.0],
-        "builtin_first": ["rmse", rmse],
-        "builtin_last": [rmse, "rmse"],
-        "default": [mean_absolute_error, rmse],
-        "normalized": [mean_absolute_error, "error@0.5", error],
-        "duplicate_builtin": ["rmse", "rmse", mean_absolute_error],
-        "default_disabled": [mean_absolute_error, rmse],
-    }
-    allowed = {
-        "duplicate_builtin": ["rmse", "mean_absolute_error"],
-        "default_disabled": ["mean_absolute_error", "rmse"],
-    }
-    reg = xgb.XGBRegressor(
-        eval_metric=metrics[case],
-        n_estimators=2,
-        disable_default_eval_metric=case == "default_disabled",
-    )
-    if case in allowed:
+    reg = xgb.XGBRegressor(eval_metric=eval_metric, n_estimators=2)
+    with pytest.raises(ValueError, match="Metric names must be distinct"):
         reg.fit(X, y, eval_set=[(X, y)], verbose=False)
-        results = reg.evals_result()["validation_0"]
-        assert list(results) == allowed[case]
-        assert all(len(values) == 2 for values in results.values())
-    else:
-        with pytest.raises(ValueError, match="Metric names must be distinct"):
-            reg.fit(X, y, eval_set=[(X, y)], verbose=False)
 
 
 @pytest.mark.parametrize("multiple", [False, True])
