@@ -5,6 +5,7 @@
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 
 #include <algorithm>  // for copy
+#include <array>      // for array
 #include <cstddef>    // for size_t
 #include <limits>     // for numeric_limits
 #include <memory>     // for shared_ptr
@@ -419,55 +420,84 @@ class HistMultiEvaluator {
   Context const *ctx_;
 
  private:
+  template <bst_bin_t d_step, bool kSingleTarget>
+  bool EnumerateSplitImpl(common::HistogramCuts const &cut, bst_feature_t fidx,
+                          common::Span<common::ConstGHistRow> hist,
+                          linalg::VectorView<GradientPairPrecise const> parent_sum,
+                          double parent_gain, bst_node_t nidx,
+                          TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                          SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
+    auto const &cut_ptr = cut.Ptrs();
+    auto const &cut_val = cut.Values();
+
+    auto scan = [&](auto &sums) {
+      // Construct views here to keep the one-target extent visible to the compiler.
+      auto [left_sum, right_sum] = [&] {
+        if constexpr (kSingleTarget) {
+          return std::make_pair(linalg::MakeVec(sums.data(), 1),
+                                linalg::MakeVec(sums.data() + 1, 1));
+        } else {
+          return std::make_pair(sums.Slice(0, linalg::All()), sums.Slice(1, linalg::All()));
+        }
+      }();
+      auto n_targets = kSingleTarget ? 1 : hist.size();
+      bst_bin_t ibegin, iend;
+      if (d_step > 0) {
+        ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
+        iend = static_cast<bst_bin_t>(cut_ptr[fidx + 1]);
+      } else {
+        ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
+        iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
+      }
+      for (bst_bin_t i = ibegin; i != iend; i += d_step) {
+        for (bst_target_t t = 0; t < n_targets; ++t) {
+          auto t_hist = hist[t];
+          auto t_p = parent_sum(t);
+          left_sum(t) += t_hist[i];
+          right_sum(t) = t_p - left_sum(t);
+        }
+
+        if (d_step > 0) {
+          auto split_pt = cut_val[i];
+          auto loss_chg =
+              evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
+          p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+        } else {
+          auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
+          auto loss_chg =
+              evaluator.CalcSplitGain(*param_, nidx, fidx, right_sum, left_sum) - parent_gain;
+          p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
+        }
+      }
+      // return true if there's missing. Doesn't handle floating-point error well.
+      if (d_step == +1) {
+        return !std::equal(linalg::cbegin(left_sum), linalg::cend(left_sum),
+                           linalg::cbegin(parent_sum));
+      }
+      return false;
+    };
+
+    if constexpr (kSingleTarget) {
+      std::array<GradientPairPrecise, 2> sums{};
+      return scan(sums);
+    } else {
+      auto sums = linalg::Empty<GradientPairPrecise>(ctx_, 2, hist.size());
+      return scan(sums);
+    }
+  }
+
   template <bst_bin_t d_step>
   bool EnumerateSplit(common::HistogramCuts const &cut, bst_feature_t fidx,
                       common::Span<common::ConstGHistRow> hist,
                       linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
                       bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                       SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
-    auto const &cut_ptr = cut.Ptrs();
-    auto const &cut_val = cut.Values();
-
-    auto sum = linalg::Empty<GradientPairPrecise>(ctx_, 2, hist.size());
-    auto left_sum = sum.Slice(0, linalg::All());
-    auto right_sum = sum.Slice(1, linalg::All());
-
-    bst_bin_t ibegin, iend;
-    if (d_step > 0) {
-      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
-      iend = static_cast<bst_bin_t>(cut_ptr[fidx + 1]);
-    } else {
-      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
-      iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
+    if (hist.size() == 1) {
+      return this->EnumerateSplitImpl<d_step, true>(cut, fidx, hist, parent_sum, parent_gain, nidx,
+                                                    evaluator, p_best);
     }
-    auto n_targets = hist.size();
-
-    for (bst_bin_t i = ibegin; i != iend; i += d_step) {
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        auto t_hist = hist[t];
-        auto t_p = parent_sum(t);
-        left_sum(t) += t_hist[i];
-        right_sum(t) = t_p - left_sum(t);
-      }
-
-      if (d_step > 0) {
-        auto split_pt = cut_val[i];
-        auto loss_chg =
-            evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
-        p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
-      } else {
-        auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
-        auto loss_chg =
-            evaluator.CalcSplitGain(*param_, nidx, fidx, right_sum, left_sum) - parent_gain;
-        p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
-      }
-    }
-    // return true if there's missing. Doesn't handle floating-point error well.
-    if (d_step == +1) {
-      return !std::equal(linalg::cbegin(left_sum), linalg::cend(left_sum),
-                         linalg::cbegin(parent_sum));
-    }
-    return false;
+    return this->EnumerateSplitImpl<d_step, false>(cut, fidx, hist, parent_sum, parent_gain, nidx,
+                                                   evaluator, p_best);
   }
 
   void EnumerateOneHot(common::HistogramCuts const &cut, bst_feature_t fidx,
