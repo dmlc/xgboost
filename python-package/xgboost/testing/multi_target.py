@@ -2,8 +2,9 @@
 
 # pylint: disable=unbalanced-tuple-unpacking
 import json
+import pickle
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -468,7 +469,7 @@ def run_eta(device: Device) -> None:
         check_base_weights(params, data, obj)
 
 
-def run_deterministic(device: Device, sampling_method: str) -> None:
+def run_deterministic(device: Device, sampling_method: str, model_format: str) -> None:
     """Check repeatability, continuation, and the full-size projection bypass."""
     X, y = make_regression(
         n_samples=int(2**16), n_features=64, random_state=1994, n_targets=5
@@ -488,10 +489,24 @@ def run_deterministic(device: Device, sampling_method: str) -> None:
     for ratio in (1.0, 0.5):
         params["multi_projection_ratio"] = ratio
         first = train(params, data, num_boost_round=2)
-        repeat = train(params, data, num_boost_round=2)
-        assert first.save_raw() == repeat.save_raw()
+        assert first.save_raw() == train(params, data, num_boost_round=2).save_raw()
         prefix = train(params, data, num_boost_round=1)
-        resumed = train(params, data, num_boost_round=1, xgb_model=prefix.save_raw())
+        model: Union[Booster, bytearray]
+        if model_format == "raw":
+            model = prefix.save_raw()
+        elif model_format == "booster":
+            model = prefix
+        else:
+            assert model_format == "pickle"
+            model = pickle.loads(pickle.dumps(prefix))
+        resumed = train(params, data, num_boost_round=1, xgb_model=model)
+        trees = json.loads(resumed.save_raw(raw_format="json"))["learner"][
+            "gradient_booster"
+        ]["model"]["trees"]
+        assert len(trees) == 2
+        assert all(
+            int(tree["tree_param"]["size_leaf_vector"]) == y.shape[1] for tree in trees
+        )
         np.testing.assert_allclose(
             first.predict(data), resumed.predict(data), rtol=1e-6
         )
