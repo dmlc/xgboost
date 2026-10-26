@@ -270,10 +270,14 @@ def test_ranking_metric() -> None:
 
 
 @pytest.mark.skipif(**tm.no_pandas())
-def test_ranking_qid_df():
+@pytest.mark.parametrize("early_stopping_rounds", [None, 4])
+@pytest.mark.parametrize("custom_metric", [False, True])
+def test_ranking_qid_df(
+    early_stopping_rounds: Optional[int], custom_metric: bool
+) -> None:
     import pandas as pd
 
-    run_ranking_qid_df(pd, "hist", "cpu")
+    run_ranking_qid_df(pd, "hist", "cpu", early_stopping_rounds, custom_metric)
 
 
 def test_stacking_regression():
