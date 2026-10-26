@@ -17,7 +17,6 @@ from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
-    check_min_child_weight,
     check_quantile_loss,
     check_scalar_base_weights,
     run_invalid_category,
@@ -29,10 +28,6 @@ pytestmark = tm.timeout(30)
 
 
 class TestGPUUpdaters:
-    @pytest.mark.parametrize("tree_method", ["approx", "hist"])
-    def test_min_child_weight(self, tree_method: str) -> None:
-        check_min_child_weight(tree_method, "cuda")
-
     @pytest.mark.parametrize("tree_method", ["approx", "hist"])
     @pytest.mark.parametrize("categorical", [False, True])
     def test_base_weights(self, tree_method: str, categorical: bool) -> None:

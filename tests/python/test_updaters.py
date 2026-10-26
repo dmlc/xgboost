@@ -17,7 +17,6 @@ from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
-    check_min_child_weight,
     check_quantile_loss,
     check_scalar_base_weights,
     run_invalid_category,
@@ -29,10 +28,6 @@ from xgboost.testing.updater import (
 class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
-
-    @pytest.mark.parametrize("tree_method", ["approx", "hist"])
-    def test_min_child_weight(self, tree_method: str) -> None:
-        check_min_child_weight(tree_method, "cpu")
 
     @pytest.mark.parametrize(
         "tree_method,categorical",

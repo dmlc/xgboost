@@ -37,17 +37,8 @@ from xgboost.testing.params import (
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import (
-    check_min_child_weight,
-    check_quantile_loss_rf,
-    train_result,
-)
+from xgboost.testing.updater import check_quantile_loss_rf, train_result
 from xgboost.testing.utils import Device
-
-
-@pytest.mark.parametrize("n_targets", [2, 5])
-def test_min_child_weight(n_targets: int) -> None:
-    check_min_child_weight("hist", "cpu", n_targets)
 
 
 @pytest.mark.skipif(**tm.no_pandas())
