@@ -57,10 +57,12 @@ def get_basescore(
     return json.loads(jintercept)
 
 
-def check_min_child_weight(tree_method: str, device: Device) -> None:
+def check_min_child_weight(tree_method: str, device: Device, n_targets: int = 1) -> None:
     """Check terminal nodes, equality, and a continuing sibling with a small cache."""
     X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
     y = np.array([-3, -1, 1, 3], dtype=np.float32)
+    if n_targets > 1:
+        y = np.tile(y[:, None], (1, n_targets))
     below = np.nextafter(np.float32(0.5), np.float32(0.0))
     cases = [
         ([below] * 4, 1, [0, 0, 0, 0]),
@@ -69,6 +71,13 @@ def check_min_child_weight(tree_method: str, device: Device) -> None:
         ([1.0] * 4, 7, [-3, -1, 1, 3]),
         ([0.5, 0.5, 1.0, 1.0], 5, [-2, -2, 1, 3]),
     ]
+
+    def objective(pred: np.ndarray, data: DMatrix) -> tuple:
+        # Unequal target Hessians have mean one, so the scalar expectations still apply.
+        scales = np.linspace(0.25, 1.75, n_targets, dtype=np.float32)
+        hess = data.get_weight()[:, None] * scales
+        return (pred - y) * hess, hess
+
     for weights, expected_nodes, expected_predictions in cases:
         data = DMatrix(X, label=y, weight=np.array(weights, dtype=np.float32))
         for grow_policy in ("depthwise", "lossguide"):
@@ -76,6 +85,11 @@ def check_min_child_weight(tree_method: str, device: Device) -> None:
                 model = train(
                     {
                         "tree_method": tree_method,
+                        "multi_strategy": (
+                            "multi_output_tree"
+                            if n_targets > 1
+                            else "one_output_per_tree"
+                        ),
                         "device": device,
                         "max_depth": 3,
                         "max_bin": 16,
@@ -89,15 +103,16 @@ def check_min_child_weight(tree_method: str, device: Device) -> None:
                     },
                     data,
                     num_boost_round=1,
+                    obj=objective if n_targets > 1 else None,
                 )
-                nodes = [json.loads(model.get_dump(dump_format="json")[0])]
-                count = 0
-                while nodes:
-                    node = nodes.pop()
-                    count += 1
-                    nodes.extend(node.get("children", []))
+                saved = json.loads(model.save_raw(raw_format="json"))
+                tree = saved["learner"]["gradient_booster"]["model"]["trees"][0]
+                count = int(tree["tree_param"]["num_nodes"])
                 assert count == expected_nodes, (weights, grow_policy, cache, count)
-                np.testing.assert_allclose(model.predict(data), expected_predictions)
+                expected = np.asarray(expected_predictions)
+                if n_targets > 1:
+                    expected = np.tile(expected[:, None], (1, n_targets))
+                np.testing.assert_allclose(model.predict(data), expected)
 
 
 # pylint: disable=too-many-locals

@@ -4,13 +4,12 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <algorithm>    // for max, copy, transform
-#include <cstddef>      // for size_t
-#include <cstdint>      // for uint32_t, int32_t
-#include <memory>       // for allocator, unique_ptr, make_unique, shared_ptr
-#include <type_traits>  // for is_same_v
-#include <utility>      // for move
-#include <vector>       // for vector
+#include <algorithm>  // for max, copy, transform
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, int32_t
+#include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
+#include <utility>    // for move, pair
+#include <vector>     // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for IsDistributed
@@ -90,6 +89,22 @@ void CheckPartitionerLeaves(std::vector<CommonRowPartitioner> const &partitioner
   }
 }
 
+std::pair<double, double> ChildHessians(CPUExpandEntry const &entry) {
+  return {entry.split.left_sum.GetHess(), entry.split.right_sum.GetHess()};
+}
+
+std::pair<double, double> ChildHessians(MultiExpandEntry const &entry) {
+  double left{0.0}, right{0.0};
+  auto n_targets = entry.split.left_sum.size();
+  for (std::size_t t = 0; t < n_targets; ++t) {
+    left += entry.split.left_sum[t].GetHess();
+    right += entry.split.right_sum[t].GetHess();
+  }
+  // Match the normalized Hessian trace used by the multi-target split evaluator.
+  auto k = static_cast<double>(n_targets);
+  return {left / k, right / k};
+}
+
 template <typename ExpandEntry, typename Updater>
 void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
@@ -120,12 +135,8 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
       updater->ApplyTreeSplit(candidate, p_tree);
       CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
       applied.push_back(candidate);
-      bool child_valid = driver.IsChildValid(candidate);
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
-        child_valid = driver.IsChildValid(candidate, candidate.split.left_sum.GetHess(),
-                                          candidate.split.right_sum.GetHess());
-      }
-      if (child_valid) {
+      auto [left_hess, right_hess] = ChildHessians(candidate);
+      if (driver.IsChildValid(candidate, left_hess, right_hess)) {
         valid_candidates.emplace_back(candidate);
       }
     }
