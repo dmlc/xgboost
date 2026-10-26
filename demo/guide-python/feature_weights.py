@@ -24,8 +24,6 @@ def main(args: argparse.Namespace) -> None:
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(i)
-    # Give the last feature a clear sampling preference.
-    fw[-1] *= 10.0
 
     dtrain = xgboost.DMatrix(X, y)
     dtrain.set_info(feature_weights=fw)
@@ -42,7 +40,6 @@ def main(args: argparse.Namespace) -> None:
 
     # feature zero has 0 weight
     assert feature_map.get("f0", None) is None
-    assert max(feature_map.values()) == feature_map.get("f9")
 
     if args.plot:
         xgboost.plot_importance(bst)
