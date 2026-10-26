@@ -141,17 +141,8 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
         auto child_depth = candidate.depth + 1;
         ExpandEntry l_best{left_child_nidx, child_depth};
         ExpandEntry r_best{right_child_nidx, child_depth};
-        if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
-          if (CanSplit(*param, candidate.split.left_sum.GetHess())) {
-            best_splits.push_back(l_best);
-          }
-          if (CanSplit(*param, candidate.split.right_sum.GetHess())) {
-            best_splits.push_back(r_best);
-          }
-        } else {
-          best_splits.push_back(l_best);
-          best_splits.push_back(r_best);
-        }
+        best_splits.push_back(l_best);
+        best_splits.push_back(r_best);
       }
       updater->EvaluateSplits(p_fmat, &best_splits);
     }
@@ -525,10 +516,6 @@ class HistUpdater {
 
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});
       p_tree->SetRoot(weight, grad_stat.GetHess());
-      if (!CanSplit(*param_, grad_stat.GetHess())) {
-        monitor_->Stop(__func__);
-        return node;
-      }
 
       std::vector<CPUExpandEntry> entries{node};
       monitor_->Start("EvaluateSplits");

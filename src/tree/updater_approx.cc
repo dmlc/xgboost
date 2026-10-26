@@ -117,10 +117,6 @@ class GlobalApproxBuilder {
 
     auto weight = evaluator_.InitRoot(root_sum);
     p_tree->SetRoot(weight, root_sum.GetHess());
-    if (!CanSplit(*param_, root_sum.GetHess())) {
-      monitor_->Stop(__func__);
-      return best;
-    }
 
     auto const &histograms = histogram_builder_.Histogram(0);
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
@@ -216,12 +212,8 @@ class GlobalApproxBuilder {
           int right_child_nidx = tree[candidate.nid].RightChild();
           CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
           CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
-          if (CanSplit(*param_, candidate.split.left_sum.GetHess())) {
-            best_splits.push_back(l_best);
-          }
-          if (CanSplit(*param_, candidate.split.right_sum.GetHess())) {
-            best_splits.push_back(r_best);
-          }
+          best_splits.push_back(l_best);
+          best_splits.push_back(r_best);
         }
         auto const &histograms = histogram_builder_.Histogram(0);
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();
