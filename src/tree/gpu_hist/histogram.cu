@@ -52,10 +52,13 @@ class SharedHistogram {
   }
 
   XGBOOST_DEV_INLINE GradientPairInt64 Load(bst_bin_t bin) const {
-    std::uint64_t grad = std::uint64_t{grad_lo_[bin]} | (std::uint64_t{grad_hi_[bin]} << 32);
-    std::uint64_t hess = std::uint64_t{hess_lo_[bin]} | (std::uint64_t{hess_hi_[bin]} << 32);
-    return GradientPairInt64{cuda::std::bit_cast<std::int64_t>(grad),
-                             cuda::std::bit_cast<std::int64_t>(hess)};
+    uint4 words{
+        grad_lo_[bin],
+        grad_hi_[bin],
+        hess_lo_[bin],
+        hess_hi_[bin],
+    };
+    return cuda::std::bit_cast<GradientPairInt64>(words);
   }
 };
 }  // namespace
