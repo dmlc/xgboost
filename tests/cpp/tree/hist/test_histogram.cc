@@ -12,6 +12,7 @@
 #include <xgboost/tree_model.h>          // for RegTree
 
 #include <algorithm>  // for max
+#include <cmath>      // for nextafter
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t, uint32_t
 #include <iterator>   // for back_inserter
@@ -27,6 +28,7 @@
 #include "../../../../src/common/threading_utils.h"       // for BlockedSpace2d
 #include "../../../../src/data/gradient_index.h"          // for GHistIndexMatrix
 #include "../../../../src/tree/common_row_partitioner.h"  // for CommonRowPartitioner
+#include "../../../../src/tree/driver.h"                  // for Driver
 #include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
 #include "../../../../src/tree/hist/hist_param.h"         // for HistMakerTrainParam
@@ -79,6 +81,83 @@ void TestAddHistRows(bool is_distributed) {
   for (bst_node_t const &nidx : nodes_to_sub) {
     ASSERT_TRUE(histogram_builder.Histogram().HistogramExists(nidx));
   }
+}
+
+namespace {
+void TestHistogramMinChildWeight(bool limit, bool is_distributed) {
+  Context ctx;
+  ctx.nthread = 2;
+  auto dmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+  BatchParam batch{2, 0.5};
+  auto const &gmat = *dmat->GetBatches<GHistIndexMatrix>(&ctx, batch).begin();
+  TrainParam param;
+  param.Init(Args{{"min_child_weight", "1"}});
+  HistMakerTrainParam hist_param;
+  if (limit) {
+    hist_param.Init(Args{{"max_cached_hist_node", "1"}});
+  }
+  auto world = static_cast<float>(collective::GetWorldSize());
+  for (float left_hess : {1.5f, std::nextafter(2.0f, 0.0f), 2.0f}) {
+    for (float right_hess : {1.5f, std::nextafter(2.0f, 0.0f), 2.0f}) {
+      SCOPED_TRACE(left_hess);
+      SCOPED_TRACE(right_hess);
+      RegTree tree;
+      std::vector<CommonRowPartitioner> partitioners;
+      partitioners.emplace_back(&ctx, 2, 0);
+      std::vector<GradientPair> gpair{{-1.0f / world, left_hess / world},
+                                      {1.0f / world, right_hess / world}};
+      auto view = linalg::MakeTensorView(&ctx, common::Span<GradientPair const>{gpair}, 2, 1);
+      MultiHistogramBuilder builder;
+      builder.Reset(&ctx, gmat.cut.TotalBins(), 1, batch, is_distributed, &hist_param);
+      CPUExpandEntry best{0, 0};
+      builder.BuildRootHist(dmat.get(), tree.HostScView(), partitioners, view, best, batch);
+
+      auto split_cond = gmat.cut.Values().front();
+      GradStats left{-1.0, left_hess}, right{1.0, right_hess};
+      best.split.Update(1.0f, 0, split_cond, false, false, left, right);
+      tree.Expand({{0, 0, split_cond, false},
+                   {0.0, left_hess + right_hess},
+                   {0.0, left_hess},
+                   {0.0, right_hess},
+                   1.0});
+      std::vector<CPUExpandEntry> candidates{best};
+      partitioners.front().UpdatePosition(&ctx, gmat, candidates, tree.HostScView());
+      Driver<CPUExpandEntry> driver{param};
+      if (driver.IsChildValid(best, left_hess, right_hess)) {
+        builder.BuildHistLeftRight(&ctx, dmat.get(), tree.HostScView(), partitioners, candidates,
+                                   view, batch);
+      }
+      auto const &hist = builder.Histogram(0);
+      bool can_split = left_hess >= 2.0f || right_hess >= 2.0f;
+      EXPECT_EQ(hist.HistogramExists(1), can_split);
+      EXPECT_EQ(hist.HistogramExists(2), can_split);
+      if (!can_split) {
+        // Skipping the entire batch must not allocate histograms or evict the parent.
+        EXPECT_TRUE(hist.HistogramExists(0));
+        continue;
+      }
+      EXPECT_EQ(hist.HistogramExists(0), !limit);
+      // Even an unsplittable sibling is retained for subtraction if the other child
+      // can split. With a full cache, both histograms are instead built directly.
+      EXPECT_EQ(hist[1][0], GradientPairPrecise(-1.0, left_hess));
+      EXPECT_EQ(hist[1][1], GradientPairPrecise());
+      EXPECT_EQ(hist[2][0], GradientPairPrecise());
+      EXPECT_EQ(hist[2][1], GradientPairPrecise(1.0, right_hess));
+    }
+  }
+}
+}  // namespace
+
+TEST(CPUHistogram, MinChildWeight) {
+  TestHistogramMinChildWeight(false, false);
+  TestHistogramMinChildWeight(true, false);
+}
+
+TEST(CPUHistogram, DistributedMinChildWeight) {
+  collective::TestDistributedGlobal(2, [] {
+    TestHistogramMinChildWeight(false, true);
+    TestHistogramMinChildWeight(true, true);
+  });
 }
 
 TEST(CPUHistogram, CacheGrowth) {

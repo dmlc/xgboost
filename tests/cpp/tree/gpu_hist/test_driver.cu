@@ -1,10 +1,12 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"
+#include "../../../../src/tree/gpu_hist/quantiser.cuh"
+#include "../test_child_hessian.h"
 #include "../test_empty_pop.h"
 
 namespace xgboost {
@@ -89,6 +91,24 @@ GPUExpandEntry MakeGPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_
   return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
 }
 }  // namespace
+
+TEST(GpuHist, DriverChildHessian) { TestDriverChildHessian<GPUExpandEntry>(MakeGPUExpandEntry); }
+
+TEST(GpuHist, DriverQuantizedChildHessian) {
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{{"min_child_weight", "1"}});
+  Driver<GPUExpandEntry> driver{param};
+  auto entry = MakeGPUExpandEntry(0, 0, 1.0f);
+  GradientQuantiser quantiser{{8.0, 8.0}, {0.125, 0.125}};
+  for (auto left : {15, 16, 17}) {
+    for (auto right : {15, 16, 17}) {
+      auto left_sum = quantiser.ToFloatingPoint(GradientPairInt64{0, left});
+      auto right_sum = quantiser.ToFloatingPoint(GradientPairInt64{0, right});
+      EXPECT_EQ(driver.IsChildValid(entry, left_sum.GetHess(), right_sum.GetHess()),
+                left >= 16 || right >= 16);
+    }
+  }
+}
 
 TEST(GpuHist, DriverEmptyPopSkipsInvalidGroup) {
   TestDriverEmptyPop<GPUExpandEntry>(MakeGPUExpandEntry);
