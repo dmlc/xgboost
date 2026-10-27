@@ -109,7 +109,7 @@ def _aggcv(rlist: List[str]) -> List[Tuple[str, float, float]]:
         for metric_idx, it in enumerate(arr[1:]):
             if not isinstance(it, str):
                 it = it.decode()
-            k, v = it.split(":")
+            k, v = it.rsplit(":", 1)
             if (metric_idx, k) not in cvmap:
                 cvmap[(metric_idx, k)] = []
             cvmap[(metric_idx, k)].append(_metric_str_to_float(v))

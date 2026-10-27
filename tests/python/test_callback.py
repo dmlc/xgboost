@@ -426,3 +426,36 @@ def test_aggcv_nonfinite() -> None:
     by_name = {name: (mean, std) for name, mean, std in results}
     assert math.isnan(by_name["train-cox-nloglik"][0])
     assert by_name["eval-cox-nloglik"][0] == pytest.approx(0.6)
+
+
+def test_eval_name_with_colon() -> None:
+    # The native library joins the names and score as `name-metric:score`.
+    X, y, _ = tm.make_regression(64, 4, False)
+    Xy = xgb.DMatrix(X, y)
+
+    def rmse(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
+        return "my:rmse", float(np.sqrt(np.mean((predt - dtrain.get_label()) ** 2)))
+
+    evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+    xgb.train(
+        {"eval_metric": "rmse"},
+        Xy,
+        num_boost_round=2,
+        evals=[(Xy, "fold:1")],
+        custom_metric=rmse,
+        evals_result=evals_result,
+    )
+    assert len(evals_result["fold:1"]["rmse"]) == 2
+    assert evals_result["fold:1"]["my:rmse"] == pytest.approx(
+        evals_result["fold:1"]["rmse"]
+    )
+
+    results = xgb.cv(
+        {"eval_metric": "rmse"},
+        Xy,
+        num_boost_round=2,
+        nfold=2,
+        custom_metric=rmse,
+        as_pandas=False,
+    )
+    assert len(results["test-my:rmse-mean"]) == 2
