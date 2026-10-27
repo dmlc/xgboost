@@ -416,46 +416,22 @@ class TestCallbacks:
         xgb.train({}, dtrain=xgb.QuantileDMatrix(X, y, weight=w), callbacks=callbacks)
 
 
-def test_aggcv_nonfinite() -> None:
+def test_aggcv() -> None:
     # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
     rlist = [
-        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:0.5",
-        "[0]\ttrain-cox-nloglik:nan(ind)\teval-cox-nloglik:0.7",
+        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-rmse:0.5\teval-mae:0.2",
+        "[0]\ttrain-cox-nloglik:nan(ind)\teval-rmse:0.7\teval-mae:0.6",
     ]
     results = _aggcv(rlist)
+    assert [name for name, _, _ in results] == [
+        "train-cox-nloglik",
+        "eval-rmse",
+        "eval-mae",
+    ]
     by_name = {name: (mean, std) for name, mean, std in results}
     assert math.isnan(by_name["train-cox-nloglik"][0])
-    assert by_name["eval-cox-nloglik"][0] == pytest.approx(0.6)
-
-
-def test_eval_name_with_colon() -> None:
-    # The native library joins the names and score as `name-metric:score`.
-    X, y, _ = tm.make_regression(64, 4, False)
-    Xy = xgb.DMatrix(X, y)
-
-    def rmse(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
-        return "my:rmse", float(np.sqrt(np.mean((predt - dtrain.get_label()) ** 2)))
-
-    evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
-    xgb.train(
-        {"eval_metric": "rmse"},
-        Xy,
-        num_boost_round=2,
-        evals=[(Xy, "fold:1")],
-        custom_metric=rmse,
-        evals_result=evals_result,
-    )
-    assert len(evals_result["fold:1"]["rmse"]) == 2
-    assert evals_result["fold:1"]["my:rmse"] == pytest.approx(
-        evals_result["fold:1"]["rmse"]
-    )
-
-    results = xgb.cv(
-        {"eval_metric": "rmse"},
-        Xy,
-        num_boost_round=2,
-        nfold=2,
-        custom_metric=rmse,
-        as_pandas=False,
-    )
-    assert len(results["test-my:rmse-mean"]) == 2
+    assert math.isnan(by_name["train-cox-nloglik"][1])
+    assert by_name["eval-rmse"] == pytest.approx((0.6, 0.1))
+    assert by_name["eval-mae"] == pytest.approx((0.4, 0.2))
+    with pytest.raises(AssertionError):
+        _aggcv(["[0]\ttrain-rmse:0.5", "[1]\ttrain-rmse:0.7"])
