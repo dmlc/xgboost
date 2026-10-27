@@ -4,6 +4,7 @@
 #include <algorithm>             // for min, max
 #include <cstddef>               // for size_t
 #include <cstdint>               // uint32_t, int32_t
+#include <cuda/std/bit>          // for bit_cast
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
 #include <vector>                // for vector
@@ -51,13 +52,10 @@ class SharedHistogram {
   }
 
   XGBOOST_DEV_INLINE GradientPairInt64 Load(bst_bin_t bin) const {
-    GradientPairInt64 gpair;
-    auto out = reinterpret_cast<std::uint32_t*>(&gpair);
-    out[0] = grad_lo_[bin];
-    out[1] = grad_hi_[bin];
-    out[2] = hess_lo_[bin];
-    out[3] = hess_hi_[bin];
-    return gpair;
+    std::uint64_t grad = std::uint64_t{grad_lo_[bin]} | (std::uint64_t{grad_hi_[bin]} << 32);
+    std::uint64_t hess = std::uint64_t{hess_lo_[bin]} | (std::uint64_t{hess_hi_[bin]} << 32);
+    return GradientPairInt64{cuda::std::bit_cast<std::int64_t>(grad),
+                             cuda::std::bit_cast<std::int64_t>(hess)};
   }
 };
 }  // namespace
