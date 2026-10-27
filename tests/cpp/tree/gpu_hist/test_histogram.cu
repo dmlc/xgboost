@@ -5,6 +5,7 @@
 #include <xgboost/context.h>  // for Context
 
 #include <algorithm>  // for shuffle, none_of, transform
+#include <cstring>    // for memcpy
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr
 #include <numeric>    // for iota, accumulate
@@ -223,8 +224,16 @@ XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
 
 void TestAtomicAdd() {
   size_t n_elements = 1024;
-  dh::device_vector<int64_t> result_a(1, 0);
+  // Keep low/high words separate, as in the production SoA layout.
+  dh::device_vector<uint32_t> result_a(3, 0);
   auto d_result_a = result_a.data().get();
+  auto get_result_a = [&] {
+    uint64_t bits = (static_cast<uint64_t>(result_a[2]) << 32) | result_a[0];
+    int64_t result;
+    std::memcpy(&result, &bits, sizeof(result));
+    EXPECT_EQ(result_a[1], 0);
+    return result;
+  };
 
   dh::device_vector<int64_t> result_b(1, 0);
   auto d_result_b = result_b.data().get();
@@ -240,10 +249,10 @@ void TestAtomicAdd() {
   auto d_inputs = inputs.data().get();
 
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
+    AtomicAdd64As32(d_result_a, d_result_a + 2, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
-  ASSERT_EQ(result_a[0], result_b[0]);
+  ASSERT_EQ(get_result_a(), result_b[0]);
 
   /**
    * Test for positive values that don't fit into 32 bit integer.
@@ -252,12 +261,12 @@ void TestAtomicAdd() {
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
+    AtomicAdd64As32(d_result_a, d_result_a + 2, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
-  ASSERT_EQ(result_a[0], result_b[0]);
-  ASSERT_GT(result_a[0], std::numeric_limits<uint32_t>::max());
-  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
+  ASSERT_EQ(get_result_a(), result_b[0]);
+  ASSERT_GT(get_result_a(), std::numeric_limits<uint32_t>::max());
+  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), get_result_a());
 
   /**
    * Test for negative values that don't fit into 32 bit integer.
@@ -266,12 +275,12 @@ void TestAtomicAdd() {
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
+    AtomicAdd64As32(d_result_a, d_result_a + 2, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
-  ASSERT_EQ(result_a[0], result_b[0]);
-  ASSERT_LT(result_a[0], std::numeric_limits<int32_t>::min());
-  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
+  ASSERT_EQ(get_result_a(), result_b[0]);
+  ASSERT_LT(get_result_a(), std::numeric_limits<int32_t>::min());
+  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), get_result_a());
 }
 
 TEST(Histogram, AtomicAddInt64) { TestAtomicAdd(); }
@@ -518,8 +527,10 @@ struct HistInput {
       }
     }
 
-    std::uniform_int_distribution<std::int64_t> grad_dist{-(1 << 20), 1 << 20};
-    std::uniform_int_distribution<std::int64_t> hess_dist{0, 1 << 20};
+    // Exercise both words of each accumulator, including carries and negative gradients.
+    std::uniform_int_distribution<std::int64_t> grad_dist{-(std::int64_t{1} << 40),
+                                                          std::int64_t{1} << 40};
+    std::uniform_int_distribution<std::int64_t> hess_dist{0, std::int64_t{1} << 40};
     for (auto& v : this->gpair.Data()->HostVector()) {
       v = GradientPairInt64{grad_dist(rng), hess_dist(rng)};
     }
