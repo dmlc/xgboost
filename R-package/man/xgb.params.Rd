@@ -65,7 +65,8 @@ xgb.params(
   lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
   lambdarank_bias_norm = NULL,
-  ndcg_exp_gain = NULL
+  ndcg_exp_gain = NULL,
+  fail_on_invalid_gpu_id = NULL
 )
 }
 \arguments{
@@ -522,6 +523,13 @@ Specify whether do we need to debias input click data.}
 
 \item{ndcg_exp_gain}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{TRUE})
 Whether we should use exponential gain function for \code{NDCG}. There are two forms of gain function for \code{NDCG}, one is using relevance value directly while the other is using\eqn{2^{rel} - 1} to emphasize on retrieving relevant documents. When \code{ndcg_exp_gain} is \code{TRUE} (the default), relevance degree cannot be greater than 31.}
+
+\item{fail_on_invalid_gpu_id}{(default= \code{FALSE})
+Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+to \code{FALSE}, XGBoost replaces a non-negative ordinal that is greater than or equal to the
+number of visible GPUs with its value modulo that number. For example,
+\code{device = "cuda:1"} is changed to \code{device = "cuda:0"} when only one GPU is visible. When
+no GPU is visible, XGBoost falls back to the CPU regardless of this setting.}
 }
 \value{
 A list with the entries that were passed non-NULL values. It is intended to
