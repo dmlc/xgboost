@@ -258,6 +258,10 @@ class CallbackContainer:
             evals = [] if evals is None else evals
             for _, name in evals:
                 assert name.find("-") == -1, "Dataset name should not contain `-`"
+                if any(c.isspace() for c in name):
+                    raise ValueError(
+                        f"Dataset name should not contain whitespace: {name!r}"
+                    )
             score: str = model.eval_set(evals, epoch, self.metric, self._output_margin)
             metric_score = _parse_eval_str(score)
             self._update_history(metric_score, epoch)
