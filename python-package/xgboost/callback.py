@@ -30,7 +30,6 @@ from .core import (
     DMatrix,
     XGBoostError,
     _deprecate_positional_args,
-    _metric_str_to_float,
     _parse_eval_str,
 )
 
@@ -104,15 +103,11 @@ def _aggcv(rlist: List[str]) -> List[Tuple[str, float, float]]:
     cvmap: Dict[Tuple[int, str], List[float]] = {}
     idx = rlist[0].split()[0]
     for line in rlist:
-        arr: List[str] = line.split()
-        assert idx == arr[0]
-        for metric_idx, it in enumerate(arr[1:]):
-            if not isinstance(it, str):
-                it = it.decode()
-            k, v = it.split(":")
+        assert idx == line.split()[0]
+        for metric_idx, (k, v) in enumerate(_parse_eval_str(line)):
             if (metric_idx, k) not in cvmap:
                 cvmap[(metric_idx, k)] = []
-            cvmap[(metric_idx, k)].append(_metric_str_to_float(v))
+            cvmap[(metric_idx, k)].append(v)
     msg = idx
     results = []
     for (_, name), s in sorted(cvmap.items(), key=lambda x: x[0][0]):
