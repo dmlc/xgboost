@@ -228,18 +228,33 @@ class MultiTargetHistBuilder {
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
-    auto n_targets = gpair.Shape(1);
-    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
-    cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
-    auto h_root_sum = root_sum.HostView();
-    CHECK(h_root_sum.CContiguous());
-    auto rc = collective::GlobalSum(
-        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                              h_root_sum.Size() * 2));
-    collective::SafeColl(rc);
-
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
                                       HistBatch(param_));
+
+    auto n_targets = gpair.Shape(1);
+    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
+    auto h_root_sum = root_sum.HostView();
+    if (p_fmat->IsDense() && !collective::IsDistributed()) {
+      // Without missing values, each feature histogram contains the full root sum.
+      auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
+      auto const &ptr = gmat.cut.Ptrs();
+      CHECK_GE(ptr.size(), 2);
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        auto hist = histogram_builder_->Histogram(t)[RegTree::kRoot];
+        h_root_sum(t) = GradientPairPrecise{};
+        for (auto i = ptr[0]; i < ptr[1]; ++i) {
+          h_root_sum(t) += hist[i];
+        }
+      }
+    } else {
+      // Local density can differ between workers, so all distributed workers reduce gradients.
+      cpu_impl::SumGradients(ctx_, gpair, h_root_sum);
+      CHECK(h_root_sum.CContiguous());
+      auto rc = collective::GlobalSum(
+          ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                                h_root_sum.Size() * 2));
+      collective::SafeColl(rc);
+    }
 
     auto weight = evaluator_->InitRoot(h_root_sum);
 
