@@ -3,15 +3,23 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>  // for generate
+#include <cmath>      // for isnan
 #include <limits>
+#include <memory>  // for make_unique
+#include <random>  // for mt19937
+#include <set>     // for set
+#include <vector>  // for vector
 
 #include "../../../src/collective/communicator-inl.h"
+#include "../../../src/common/categorical.h"  // for CatBitField
 #include "../../../src/common/kernel.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/predictor/predict_fn.h"
 #include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/tree_view.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
@@ -138,6 +146,143 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     constexpr bst_node_t kDepth = 5;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
+}
+
+namespace {
+bst_feature_t constexpr kMixedCols = 4;
+
+// Alternate categorical and numerical splits, with some shallow leaves for the layout to pad.
+void GrowMixedTree(RegTree* tree, bst_node_t nidx, bst_node_t depth, bst_node_t max_depth) {
+  if (depth == max_depth || (depth > 1 && nidx % 5 == 0)) {
+    return;
+  }
+  bst_feature_t fidx = depth % kMixedCols;
+  std::vector<std::uint32_t> cats;
+  if (fidx % 2 == 0) {
+    // Two words, so that larger categories are outside of the bit field.
+    cats.resize(2);
+    common::CatBitField bits{common::Span<std::uint32_t>{cats}};
+    bits.Set(nidx % 8);
+    bits.Set(33);
+  }
+  auto left_weight = static_cast<float>(2 * nidx + 1);
+  auto right_weight = static_cast<float>(2 * nidx + 2);
+  tree->Expand({{nidx, fidx, 3.5f, nidx % 2 == 0, cats},
+                {0.0f, 1.0f},
+                {left_weight, 1.0f},
+                {right_weight, 1.0f},
+                0.0f});
+  bst_node_t left = (*tree)[nidx].LeftChild();
+  bst_node_t right = (*tree)[nidx].RightChild();
+  GrowMixedTree(tree, left, depth + 1, max_depth);
+  GrowMixedTree(tree, right, depth + 1, max_depth);
+}
+
+// Valid categories in and out of the bit field, invalid categories, and optionally missing values.
+std::vector<float> MixedRows(std::size_t n_rows, bool any_missing) {
+  std::vector<float> values{0.0f,  1.0f,  2.0f,  3.5f,    4.0f,  5.0f,
+                            7.0f,  33.0f, 34.0f, 63.0f,   64.0f, 1000.0f,
+                            -1.0f, 1e8f};
+  if (any_missing) {
+    values.push_back(std::numeric_limits<float>::quiet_NaN());
+  }
+  std::mt19937 rng{0};
+  std::vector<float> rows(n_rows * kMixedCols);
+  std::generate(rows.begin(), rows.end(), [&] { return values[rng() % values.size()]; });
+  return rows;
+}
+
+template <int kDepth, bool any_missing>
+void CheckLayoutMatchesWalk(tree::ScalarTreeView const& tree, std::vector<float> const& rows) {
+  auto const& cats = tree.GetCategoriesMatrix();
+  std::size_t constexpr kBlockSize = 64;
+  std::vector<RegTree::FVec> feats(kBlockSize);
+  for (std::size_t i = 0; i < kBlockSize; ++i) {
+    std::vector<Entry> entries;
+    for (bst_feature_t f = 0; f < kMixedCols; ++f) {
+      auto fvalue = rows[i * kMixedCols + f];
+      if (!std::isnan(fvalue)) {
+        entries.emplace_back(f, fvalue);
+      }
+    }
+    feats[i].Init(kMixedCols);
+    feats[i].Fill(common::Span<Entry const>{entries});
+  }
+
+  predictor::ArrayTreeLayout<true, any_missing, kDepth, tree::ScalarTreeView> layout{tree, cats};
+  std::vector<bst_node_t> nidx(kBlockSize, 0);
+  layout.Process(common::Span{feats}, kBlockSize, nidx.data());
+
+  for (std::size_t i = 0; i < kBlockSize; ++i) {
+    bst_node_t expected = RegTree::kRoot;
+    for (int depth = 0; depth < kDepth && !tree.IsLeaf(expected); ++depth) {
+      auto fvalue = feats[i].GetFvalue(tree.SplitIndex(expected));
+      expected = predictor::GetNextNode<any_missing, true>(tree, expected, fvalue, cats);
+    }
+    ASSERT_EQ(nidx[i], expected) << "depth: " << kDepth << ", row: " << i;
+  }
+}
+
+template <bool any_missing>
+void CheckMixedLayout(tree::ScalarTreeView const& tree) {
+  auto rows = MixedRows(64, any_missing);
+  CheckLayoutMatchesWalk<1, any_missing>(tree, rows);
+  CheckLayoutMatchesWalk<2, any_missing>(tree, rows);
+  CheckLayoutMatchesWalk<3, any_missing>(tree, rows);
+  CheckLayoutMatchesWalk<4, any_missing>(tree, rows);
+  CheckLayoutMatchesWalk<5, any_missing>(tree, rows);
+  CheckLayoutMatchesWalk<6, any_missing>(tree, rows);
+}
+}  // namespace
+
+TEST(CpuPredictor, ArrayTreeLayoutCategorical) {
+  Context ctx;
+  RegTree tree;
+  GrowMixedTree(&tree, RegTree::kRoot, 0, 8);
+  tree.FinalizeLeaves(1.0f);
+  auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
+  CheckMixedLayout<false>(sc_tree);
+  CheckMixedLayout<true>(sc_tree);
+}
+
+TEST(CpuPredictor, CategoricalBlockPrediction) {
+  // More than one block of rows, for any number of threads.
+  std::size_t constexpr kRows = 1024;
+  for (bool any_missing : {false, true}) {
+    Context ctx;
+    LearnerModelState mparam{MakeMP(kMixedCols, .5, 1, ctx.Device())};
+    gbm::GBTreeModel model(&mparam, &ctx);
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    // Deeper than the array layout, so that traversal also continues in the original tree.
+    GrowMixedTree(trees.front().get(), RegTree::kRoot, 0, 8);
+    trees.front()->FinalizeLeaves(1.0f);
+    model.CommitModelGroup(std::move(trees), 0);
+    auto const tree = model.trees.front()->HostScView();
+    ASSERT_GT(tree.MaxDepth(), 6);
+
+    auto m = GetDMatrixFromData(MixedRows(kRows, any_missing), kRows, kMixedCols);
+    ASSERT_EQ(m->IsDense(), !any_missing);
+
+    HostDeviceVector<float> predt;
+    predictor::InitOutPredictions(&ctx, m->Info(), &predt, model);
+    common::DispatchKernel<predictor::PredictBatchKernel>(&ctx, m.get(), &predt, model, 0, 0,
+                                                          nullptr);
+    // Leaf prediction always walks the tree one row at a time.
+    HostDeviceVector<float> leaves;
+    common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, m.get(), &leaves, model, 0);
+
+    auto score = mparam.BaseScore(DeviceOrd::CPU())(0);
+    auto const& h_predt = predt.ConstHostVector();
+    auto const& h_leaves = leaves.ConstHostVector();
+    ASSERT_EQ(h_predt.size(), kRows);
+    ASSERT_EQ(h_leaves.size(), kRows);
+    for (std::size_t i = 0; i < kRows; ++i) {
+      auto leaf = static_cast<bst_node_t>(h_leaves[i]);
+      ASSERT_FLOAT_EQ(h_predt[i], tree.LeafValue(leaf) + score) << "row: " << i;
+    }
+    ASSERT_GT(std::set<float>(h_leaves.cbegin(), h_leaves.cend()).size(), 16);
   }
 }
 

@@ -12,6 +12,7 @@
 
 #include "../common/categorical.h"  // for IsCat
 #include "../common/math.h"         // for CheckNAN
+#include "predict_fn.h"             // for SplitDecision
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -123,13 +124,9 @@ class ArrayTreeLayout {
 
   bool GetDecision(float fvalue, bst_node_t nidx) const {
     if constexpr (has_categorical) {
-      if (is_cat_[nidx]) {
-        return common::Decision(cat_segment_[nidx], fvalue);
-      } else {
-        return fvalue < split_cond_[nidx];
-      }
+      return SplitDecision(fvalue, split_cond_[nidx], is_cat_[nidx], cat_segment_[nidx]);
     } else {
-      return fvalue < split_cond_[nidx];
+      return SplitDecision(fvalue, split_cond_[nidx], false, {});
     }
   }
 
