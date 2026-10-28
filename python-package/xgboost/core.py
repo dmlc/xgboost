@@ -195,7 +195,7 @@ def _validate_feature_info(
     if len(feature_info) != n_features and n_features != 0:
         msg = (
             f"{name} must have the same length as the number of data columns, "
-            f"expected {n_features}, got {len(feature_info)}",
+            f"expected {n_features}, got {len(feature_info)}"
         )
         raise ValueError(msg)
     return feature_info
