@@ -38,13 +38,7 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array
 
 def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     """Revert C pointer to Python str."""
-    res = []
-    for i in range(length.value):
-        try:
-            res.append(str(cast(bytes, data[i]).decode("ascii")))
-        except UnicodeDecodeError:
-            res.append(str(cast(bytes, data[i]).decode("utf-8")))
-    return res
+    return [cast(bytes, s).decode("utf-8") for s in data[: length.value]]
 
 
 def make_jcargs(**kwargs: Any) -> bytes:
