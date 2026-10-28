@@ -2387,6 +2387,10 @@ class Booster:
                 if not isinstance(feval_ret, list):
                     feval_ret = [feval_ret]
                 for name, val in feval_ret:
+                    if any(c.isspace() for c in name):
+                        raise ValueError(
+                            f"Metric name should not contain whitespace: {name!r}"
+                        )
                     metric_name = f"{evname}-{name}"
                     if metric_name in metric_names:
                         raise ValueError(

@@ -20,13 +20,31 @@ rng = np.random.RandomState(1337)
 
 
 @pytest.mark.parametrize(
-    "params, metric_result, duplicate_name",
+    "params, metric_result, error_match",
     [
-        ({}, ("logloss", 1.0), "logloss"),
-        ({}, [("unique", 2.0), ("logloss", 1.0)], "logloss"),
-        ({"eval_metric": "error@0.5"}, ("error", 1.0), "error"),
-        ({"eval_metric": "error@0.5"}, [("unique", 2.0), ("error", 1.0)], "error"),
-        ({}, [("custom", 1.0), ("other", 2.0), ("custom", 3.0)], "custom"),
+        ({}, ("logloss", 1.0), "Metric names must be distinct.*logloss"),
+        (
+            {},
+            [("unique", 2.0), ("logloss", 1.0)],
+            "Metric names must be distinct.*logloss",
+        ),
+        (
+            {"eval_metric": "error@0.5"},
+            ("error", 1.0),
+            "Metric names must be distinct.*error",
+        ),
+        (
+            {"eval_metric": "error@0.5"},
+            [("unique", 2.0), ("error", 1.0)],
+            "Metric names must be distinct.*error",
+        ),
+        (
+            {},
+            [("custom", 1.0), ("other", 2.0), ("custom", 3.0)],
+            "Metric names must be distinct.*custom",
+        ),
+        ({}, ("my rmse", 0.0), "Metric name should not contain whitespace"),
+        ({}, ("my\trmse", 0.0), "Metric name should not contain whitespace"),
     ],
     ids=[
         "default-tuple",
@@ -34,12 +52,16 @@ rng = np.random.RandomState(1337)
         "normalized-tuple",
         "normalized-list",
         "repeated-custom",
+        "space",
+        "tab",
     ],
 )
-def test_duplicate_metric_names(
+@pytest.mark.parametrize("api", ["train", "cv"])
+def test_invalid_metric_names(
     params: dict[str, str],
     metric_result: Union[Tuple[str, float], List[Tuple[str, float]]],
-    duplicate_name: str,
+    error_match: str,
+    api: str,
 ) -> None:
     data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=np.arange(8) % 2)
 
@@ -48,16 +70,23 @@ def test_duplicate_metric_names(
     ) -> Union[Tuple[str, float], List[Tuple[str, float]]]:
         return metric_result
 
-    with pytest.raises(
-        ValueError, match=f"Metric names must be distinct.*{duplicate_name}"
-    ):
-        xgb.train(
-            {"objective": "binary:logistic", **params},
-            data,
-            2,
-            evals=[(data, "eval")],
-            custom_metric=metric,
-        )
+    with pytest.raises(ValueError, match=error_match):
+        if api == "train":
+            xgb.train(
+                {"objective": "binary:logistic", **params},
+                data,
+                2,
+                evals=[(data, "eval")],
+                custom_metric=metric,
+            )
+        else:
+            xgb.cv(
+                {"objective": "binary:logistic", **params},
+                data,
+                2,
+                nfold=2,
+                custom_metric=metric,
+            )
 
 
 class TestEvalMetrics:

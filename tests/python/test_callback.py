@@ -101,6 +101,12 @@ class TestCallbacks:
         assert len(evals_result["Train"]["error"]) == rounds
         assert len(evals_result["Valid"]["error"]) == rounds
 
+        for name in ["my train", "my\ttrain"]:
+            with pytest.raises(
+                ValueError, match="Dataset name should not contain whitespace"
+            ):
+                xgb.train({}, D_train, 2, evals=[(D_train, name)])
+
         self.run_evaluation_monitor(D_train, D_valid, rounds, True)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 2)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 4)
