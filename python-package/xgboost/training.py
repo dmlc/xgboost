@@ -158,7 +158,10 @@ def train(
         Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
         for details. The metric receives transformed prediction (after applying the
         reverse link function) when using a builtin objective, and raw output when using
-        a custom objective.
+        a custom objective. Custom metric names must be distinct from each other and
+        from native metric names, including the default metric. Name collisions raise
+        :py:class:`ValueError` during evaluation. Use ``disable_default_eval_metric``
+        to disable the default metric when replacing it with a custom metric.
 
     Returns
     -------
@@ -320,6 +323,11 @@ def mkgroupfold(
     # we have groups for pairwise ranking... get a list of the group indexes
     group_boundaries = dall.get_uint_info("group_ptr")
     group_sizes = np.diff(group_boundaries)
+    # Ranking weights are defined per query group. Slicing selects rows, so the
+    # weights are assigned to each fold below, along with its groups.
+    group_weights = dall.get_weight()
+    if group_weights.size != group_sizes.size:
+        group_weights = None
 
     if shuffle is True:
         idx = np.random.permutation(len(group_sizes))
@@ -348,6 +356,9 @@ def mkgroupfold(
         dtrain.set_group(group_sizes[in_group_idset[k]])
         dtest = dall.slice(out_idset[k], allow_groups=True)
         dtest.set_group(group_sizes[out_group_idset[k]])
+        if group_weights is not None:
+            dtrain.set_weight(group_weights[in_group_idset[k]])
+            dtest.set_weight(group_weights[out_group_idset[k]])
         # run preprocessing on the data set if needed
         if fpreproc is not None:
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
@@ -409,8 +420,10 @@ def mknfold(
             out_idset = [x[1] for x in splits]
         nfold = len(out_idset)
     else:
-        # Do standard stratefied shuffle k-fold split
-        sfk = XGBStratifiedKFold(n_splits=nfold, shuffle=True, random_state=seed)
+        # Do standard stratified k-fold split
+        sfk = XGBStratifiedKFold(
+            n_splits=nfold, shuffle=shuffle, random_state=seed if shuffle else None
+        )
         splits = list(sfk.split(X=dall.get_label(), y=dall.get_label()))
         in_idset = [x[0] for x in splits]
         out_idset = [x[1] for x in splits]

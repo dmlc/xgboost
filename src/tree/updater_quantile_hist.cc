@@ -8,7 +8,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <utility>    // for move
+#include <utility>    // for move, pair
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
@@ -89,6 +89,22 @@ void CheckPartitionerLeaves(std::vector<CommonRowPartitioner> const &partitioner
   }
 }
 
+std::pair<double, double> ChildHessians(CPUExpandEntry const &entry) {
+  return {entry.split.left_sum.GetHess(), entry.split.right_sum.GetHess()};
+}
+
+std::pair<double, double> ChildHessians(MultiExpandEntry const &entry) {
+  double left{0.0}, right{0.0};
+  auto n_targets = entry.split.left_sum.size();
+  for (std::size_t t = 0; t < n_targets; ++t) {
+    left += entry.split.left_sum[t].GetHess();
+    right += entry.split.right_sum[t].GetHess();
+  }
+  // Match the normalized Hessian trace used by the multi-target split evaluator.
+  auto k = static_cast<double>(n_targets);
+  return {left / k, right / k};
+}
+
 template <typename ExpandEntry, typename Updater>
 void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
@@ -96,7 +112,7 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
   monitor->Start(__func__);
   updater->InitData(p_fmat, p_tree, gpair);
 
-  Driver<ExpandEntry> driver{*param};
+  Driver<ExpandEntry> driver{ScaleMinSplitLoss(*param, gpair.Shape(1), p_tree->NumTargets())};
   auto const &tree = *p_tree;
   driver.Push(updater->InitRoot(p_fmat, gpair, p_tree));
   auto expand_set = driver.Pop();
@@ -119,7 +135,8 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
       updater->ApplyTreeSplit(candidate, p_tree);
       CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
       applied.push_back(candidate);
-      if (driver.IsChildValid(candidate)) {
+      auto [left_hess, right_hess] = ChildHessians(candidate);
+      if (driver.IsChildValid(candidate, left_hess, right_hess)) {
         valid_candidates.emplace_back(candidate);
       }
     }
@@ -228,18 +245,33 @@ class MultiTargetHistBuilder {
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
-    auto n_targets = gpair.Shape(1);
-    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
-    cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
-    auto h_root_sum = root_sum.HostView();
-    CHECK(h_root_sum.CContiguous());
-    auto rc = collective::GlobalSum(
-        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                              h_root_sum.Size() * 2));
-    collective::SafeColl(rc);
-
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
                                       HistBatch(param_));
+
+    auto n_targets = gpair.Shape(1);
+    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
+    auto h_root_sum = root_sum.HostView();
+    if (p_fmat->IsDense() && !collective::IsDistributed()) {
+      // Without missing values, each feature histogram contains the full root sum.
+      auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
+      auto const &ptr = gmat.cut.Ptrs();
+      CHECK_GE(ptr.size(), 2);
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        auto hist = histogram_builder_->Histogram(t)[RegTree::kRoot];
+        h_root_sum(t) = GradientPairPrecise{};
+        for (auto i = ptr[0]; i < ptr[1]; ++i) {
+          h_root_sum(t) += hist[i];
+        }
+      }
+    } else {
+      // Local density can differ between workers, so all distributed workers reduce gradients.
+      cpu_impl::SumGradients(ctx_, gpair, h_root_sum);
+      CHECK(h_root_sum.CContiguous());
+      auto rc = collective::GlobalSum(
+          ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                                h_root_sum.Size() * 2));
+      collective::SafeColl(rc);
+    }
 
     auto weight = evaluator_->InitRoot(h_root_sum);
 
@@ -344,16 +376,18 @@ class MultiTargetHistBuilder {
           n_leaves, [&](std::size_t leaf_idx) { return part[leaves_idx[leaf_idx]].Size(); }, 1024);
       // when Size() is 0 (node has no rows in a partition), no blocks are created for
       // that leaf and the lambda is never called.
-      common::ParallelFor2d(space, n_threads, [&](std::size_t leaf_idx, common::Range1d r) {
-        auto const &node = part[leaves_idx[leaf_idx]];
-        auto tidx = omp_get_thread_num();
-        // Sum gradients for rows in this leaf (row indices are global)
-        for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
-          for (bst_target_t t = 0; t < n_targets; ++t) {
-            h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
-          }
-        }
-      });
+      common::ParallelFor2d(
+          space, n_threads,
+          common::WithWorker([&](std::size_t leaf_idx, common::Range1d r, common::Worker worker) {
+            auto const &node = part[leaves_idx[leaf_idx]];
+            auto tidx = worker.Id();
+            // Sum gradients for rows in this leaf (row indices are global)
+            for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
+              for (bst_target_t t = 0; t < n_targets; ++t) {
+                h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
+              }
+            }
+          }));
     }
 
     // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]

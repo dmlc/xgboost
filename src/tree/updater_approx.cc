@@ -189,7 +189,8 @@ class GlobalApproxBuilder {
       for (auto const &candidate : expand_set) {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);
-        if (driver.IsChildValid(candidate)) {
+        if (driver.IsChildValid(candidate, candidate.split.left_sum.GetHess(),
+                                candidate.split.right_sum.GetHess())) {
           valid_candidates.emplace_back(candidate);
         }
       }
@@ -279,7 +280,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     CHECK(hist_param_.GetInitialised());
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
 
     linalg::Matrix<GradientPair> h_gpair;
     // Obtain the hessian values for weighted sketching

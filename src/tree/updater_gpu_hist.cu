@@ -610,7 +610,11 @@ struct GPUHistMakerDevice {
       // e.g. We do not bother further processing nodes whose children are beyond max depth
       std::vector<GPUExpandEntry> valid_candidates;
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
-                   [&](auto const& e) { return driver.IsChildValid(e); });
+                   [&](auto const& e) {
+                     auto const& q = (*quantiser)[0];
+                     return driver.IsChildValid(e, q.ToFloatingPoint(e.split.left_sum).GetHess(),
+                                                q.ToFloatingPoint(e.split.right_sum).GetHess());
+                   });
 
       // Allocaate children nodes.
       auto new_candidates = pinned.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});
@@ -804,7 +808,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     monitor_.Start(__func__);
 
     this->InitDataOnce(p_fmat);
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
     // build tree
     hess_.resize(gpair->Size());
     auto hess = dh::ToSpan(hess_);

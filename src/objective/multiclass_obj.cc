@@ -46,7 +46,7 @@ void MulticlassGradientCpu(Context const* ctx, HostDeviceVector<float> const& pr
 
   common::ParallelFor(n_samples, ctx->Threads(), [&](std::size_t row) {
     auto point = predt.Slice(row, linalg::All());
-    float wmax = std::numeric_limits<float>::min();
+    float wmax = std::numeric_limits<float>::lowest();
     for (std::size_t k{0}; k < point.Size(); ++k) {
       wmax = fmaxf(point(k), wmax);
     }
@@ -155,11 +155,19 @@ class SoftmaxMultiClassObj : public ObjFunction {
                                                      out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) const override {
     this->Transform(predictions, output_prob_);
+    if (!output_prob_) {
+      CHECK_EQ(shape.size(), 2);
+      shape[1] = 1;
+    }
+    return shape;
   }
-  void EvalTransform(HostDeviceVector<float>* predictions) override {
+  std::vector<bst_ulong> EvalTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) override {
     this->Transform(predictions, true);
+    return shape;
   }
   char const* DefaultEvalMetric() const override { return "mlogloss"; }
 

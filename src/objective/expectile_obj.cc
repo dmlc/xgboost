@@ -153,10 +153,12 @@ class ExpectileRegression : public FitIntercept {
     common::DispatchKernel<ExpectileInitEstimationKernel>(ctx_, info, alpha_, n_targets,
                                                           base_score);
   }
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) const override {
     CHECK_NE(alpha_.Size(), 0);
     CHECK_EQ(predictions->Size() % alpha_.Size(), 0);
     common::DispatchKernel<ExpectilePredTransformKernel>(ctx_, predictions, alpha_.Size());
+    return shape;
   }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
     CHECK_EQ(base_score->Size(), alpha_.Size());

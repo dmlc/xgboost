@@ -26,7 +26,6 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
-#include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
@@ -605,13 +604,22 @@ TEST(Learner, MultiTarget) {
   size_t constexpr kRows{128}, kCols{10}, kTargets{3};
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   m->Info().labels.Reshape(kRows, kTargets);
-  linalg::cpu_impl::TransformIdxKernel(m->Info().labels.HostView(), omp_get_max_threads(),
+  linalg::cpu_impl::TransformIdxKernel(m->Info().labels.HostView(), AllThreadsForTest(),
                                        [](auto i, auto) { return i; });
 
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};
     learner->Configure();
     learner->UpdateOneIter(0, m);
+
+    HostDeviceVector<float> predictions;
+    ASSERT_EQ(learner->Predict(m, false, &predictions, 0, 0),
+              (std::vector<bst_ulong>{kRows, kTargets}));
+    ASSERT_EQ(predictions.Size(), kRows * kTargets);
+    auto empty = RandomDataGenerator{0, kCols, 0}.GenerateDMatrix();
+    ASSERT_EQ(learner->Predict(empty, false, &predictions, 0, 0),
+              (std::vector<bst_ulong>{0, kTargets}));
+    ASSERT_TRUE(predictions.Empty());
 
     Json model{Object()};
     learner->SaveModel(&model);

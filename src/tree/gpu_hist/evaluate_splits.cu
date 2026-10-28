@@ -1,9 +1,10 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <algorithm>            // for :max
-#include <cuda/std/functional>  // for plus
-#include <limits>               // for numeric_limits
+#include <algorithm>                               // for :max
+#include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <cuda/std/functional>                     // for plus
+#include <limits>                                  // for numeric_limits
 
 #include "../../collective/allgather.h"
 #include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank

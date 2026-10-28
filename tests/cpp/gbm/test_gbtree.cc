@@ -69,31 +69,40 @@ TEST(GBTree, PredictionCache) {
   HostDeviceVector<float> out_predictions;
   gbtree.DoBoost(p_m, &gpair, nullptr);
 
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
+  ASSERT_EQ(out_predictions.Size(), kRows);
   std::vector<float> first_iter = out_predictions.HostVector();
   // Add 1 more boosted round
   gbtree.DoBoost(p_m, &gpair, nullptr);
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // Update the cache for all rounds
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
 
   gbtree.DoBoost(p_m, &gpair, nullptr);
   // drop the cache.
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // half open set [1, 3)
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 3);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 3),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // iteration end
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // restart the cache when end iteration is smaller than cache version
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 1);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 1),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
   ASSERT_EQ(out_predictions.HostVector(), first_iter);
 }

@@ -173,6 +173,42 @@ def test_ranking_with_weighted_data():
         assert all(p <= q for p, q in zip(is_sorted, is_sorted[1:]))
 
 
+def test_cv_with_query_weights() -> None:
+    X, y, qid, w = make_ltr(n_samples=512, n_features=4, n_query_groups=8, max_rel=3)
+    Xy = xgboost.DMatrix(X, y, qid=qid, weight=w)
+    params = {"objective": "rank:ndcg", "tree_method": "hist", "eval_metric": "ndcg"}
+    n_rounds, nfold = 4, 4
+    cv = xgboost.cv(
+        params,
+        Xy,
+        num_boost_round=n_rounds,
+        nfold=nfold,
+        shuffle=False,
+        as_pandas=False,
+    )
+
+    # Without shuffling, the folds are contiguous blocks of query groups. Each fold
+    # must use the weights of its own groups.
+    def make_fold(groups: np.ndarray) -> xgboost.DMatrix:
+        rows = np.isin(qid, groups)
+        return xgboost.DMatrix(X[rows], y[rows], qid=qid[rows], weight=w[groups])
+
+    test_scores = []
+    for test_groups in np.array_split(np.arange(w.size), nfold):
+        train_groups = np.setdiff1d(np.arange(w.size), test_groups)
+        evals_result: dict = {}
+        xgboost.train(
+            params,
+            make_fold(train_groups),
+            num_boost_round=n_rounds,
+            evals=[(make_fold(test_groups), "test")],
+            evals_result=evals_result,
+        )
+        test_scores.append(evals_result["test"]["ndcg"])
+
+    np.testing.assert_allclose(cv["test-ndcg-mean"], np.mean(test_scores, axis=0))
+
+
 def test_error_msg() -> None:
     X, y, qid, w = make_ltr(10, 2, 2, 2)
     ranker = xgboost.XGBRanker()

@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <cub/cub.cuh>
+#include <cub/device/device_reduce.cuh>  // for DeviceReduce
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair

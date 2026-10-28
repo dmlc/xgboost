@@ -79,7 +79,7 @@ function(compute_cmake_cuda_archs archs)
     if(CUDA_VERSION VERSION_GREATER_EQUAL "13.0")
       set(CMAKE_CUDA_ARCHITECTURES 75 80 86 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "12.9")
-      set(CMAKE_CUDA_ARCHITECTURES 75 80 86 90 100 120)
+      set(CMAKE_CUDA_ARCHITECTURES 70 75 80 86 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "12.8")
       set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
@@ -146,7 +146,7 @@ function(xgboost_set_cuda_flags target)
     message(FATAL_ERROR "Unsupported CUDA compiler: ${CMAKE_CUDA_COMPILER_ID}")
   endif()
 
-  if(OpenMP_CXX_FLAGS)
+  if(USE_OPENMP AND OpenMP_CXX_FLAGS)
     separate_arguments(cuda_openmp_flags NATIVE_COMMAND "${OpenMP_CXX_FLAGS}")
     xgboost_cuda_wrap_host_compiler_options(cuda_host_flags ${cuda_openmp_flags})
     list(APPEND cuda_compile_options ${cuda_host_flags})
@@ -268,7 +268,7 @@ macro(xgboost_target_properties target)
   endif()
 
   if(WIN32 AND MINGW)
-    target_compile_options(${target} PUBLIC -static-libstdc++)
+    target_link_options(${target} PUBLIC -static-libstdc++)
   endif()
 
   if(NOT WIN32 AND ENABLE_ALL_WARNINGS AND USE_CUDA AND
@@ -281,6 +281,9 @@ endmacro()
 
 # Custom definitions used in xgboost.
 macro(xgboost_target_defs target)
+  if(USE_THREADPOOL)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_THREADPOOL=1)
+  endif()
   if(NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
     target_compile_definitions(${target}
       PRIVATE

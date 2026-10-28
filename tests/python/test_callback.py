@@ -101,6 +101,12 @@ class TestCallbacks:
         assert len(evals_result["Train"]["error"]) == rounds
         assert len(evals_result["Valid"]["error"]) == rounds
 
+        for name in ["my train", "my\ttrain"]:
+            with pytest.raises(
+                ValueError, match="Dataset name should not contain whitespace"
+            ):
+                xgb.train({}, D_train, 2, evals=[(D_train, name)])
+
         self.run_evaluation_monitor(D_train, D_valid, rounds, True)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 2)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 4)
@@ -292,21 +298,31 @@ class TestCallbacks:
             == booster.best_iteration + early_stopping_rounds + 1
         )
 
-    def test_early_stopping_multiple_metrics(self):
+    @pytest.mark.parametrize("custom", [False, True])
+    def test_early_stopping_multiple_metrics(self, custom: bool) -> None:
         from sklearn.datasets import make_classification
+        from sklearn.metrics import log_loss, roc_auc_score
+
+        def auc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+            return float(roc_auc_score(y_true, y_pred))
 
         X, y = make_classification(random_state=1994)
-        # AUC approaches 1.0 real quick.
-        clf = xgb.XGBClassifier(eval_metric=["logloss", "auc"], early_stopping_rounds=2)
-        clf.fit(X, y, eval_set=[(X, y)])
+        metrics = [log_loss, auc] if custom else ["logloss", "auc"]
+        # AUC plateaus early, while log loss continues to improve.
+        clf = xgb.XGBClassifier(eval_metric=metrics, early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)], verbose=False)
         assert clf.best_iteration < 8
-        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+        assert clf.get_booster().num_boosted_rounds() == clf.best_iteration + 3
+        results = clf.evals_result()["validation_0"]
+        assert results["auc"][-1] > 0.99
+        assert clf.best_score == max(results["auc"])
 
-        clf = xgb.XGBClassifier(eval_metric=["auc", "logloss"], early_stopping_rounds=2)
-        clf.fit(X, y, eval_set=[(X, y)])
-
+        clf = xgb.XGBClassifier(eval_metric=metrics[::-1], early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)], verbose=False)
         assert clf.best_iteration > 50
-        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+        results = clf.evals_result()["validation_0"]
+        assert results["auc"][-1] > 0.99
+        assert clf.best_score == min(results["log_loss" if custom else "logloss"])
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_eta_decay(self, tree_method: str) -> None:
@@ -406,13 +422,22 @@ class TestCallbacks:
         xgb.train({}, dtrain=xgb.QuantileDMatrix(X, y, weight=w), callbacks=callbacks)
 
 
-def test_aggcv_nonfinite() -> None:
+def test_aggcv() -> None:
     # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
     rlist = [
-        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:0.5",
-        "[0]\ttrain-cox-nloglik:nan(ind)\teval-cox-nloglik:0.7",
+        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-rmse:0.5\teval-mae:0.2",
+        "[0]\ttrain-cox-nloglik:nan(ind)\teval-rmse:0.7\teval-mae:0.6",
     ]
     results = _aggcv(rlist)
+    assert [name for name, _, _ in results] == [
+        "train-cox-nloglik",
+        "eval-rmse",
+        "eval-mae",
+    ]
     by_name = {name: (mean, std) for name, mean, std in results}
     assert math.isnan(by_name["train-cox-nloglik"][0])
-    assert by_name["eval-cox-nloglik"][0] == pytest.approx(0.6)
+    assert math.isnan(by_name["train-cox-nloglik"][1])
+    assert by_name["eval-rmse"] == pytest.approx((0.6, 0.1))
+    assert by_name["eval-mae"] == pytest.approx((0.4, 0.2))
+    with pytest.raises(AssertionError):
+        _aggcv(["[0]\ttrain-rmse:0.5", "[1]\ttrain-rmse:0.7"])
