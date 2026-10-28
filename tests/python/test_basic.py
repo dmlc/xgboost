@@ -156,6 +156,7 @@ class TestBasic:
         with pytest.raises(ValueError):
             booster.get_dump(fmap="foo")
 
+    @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("high", [3e10, 9.3e18], ids=["int64", "past-int64"])
     def test_dump_large_integer_split(self, high: float) -> None:
         # An integer split must not overflow in the dumps (#10035). Past int64 it has
