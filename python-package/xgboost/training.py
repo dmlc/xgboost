@@ -323,6 +323,11 @@ def mkgroupfold(
     # we have groups for pairwise ranking... get a list of the group indexes
     group_boundaries = dall.get_uint_info("group_ptr")
     group_sizes = np.diff(group_boundaries)
+    # Ranking weights are defined per query group. Slicing selects rows, so the
+    # weights are assigned to each fold below, along with its groups.
+    group_weights = dall.get_weight()
+    if group_weights.size != group_sizes.size:
+        group_weights = None
 
     if shuffle is True:
         idx = np.random.permutation(len(group_sizes))
@@ -351,6 +356,9 @@ def mkgroupfold(
         dtrain.set_group(group_sizes[in_group_idset[k]])
         dtest = dall.slice(out_idset[k], allow_groups=True)
         dtest.set_group(group_sizes[out_group_idset[k]])
+        if group_weights is not None:
+            dtrain.set_weight(group_weights[in_group_idset[k]])
+            dtest.set_weight(group_weights[out_group_idset[k]])
         # run preprocessing on the data set if needed
         if fpreproc is not None:
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())

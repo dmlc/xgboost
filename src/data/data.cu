@@ -229,7 +229,10 @@ void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_id
   Gather(ctx, info.labels_lower_bound_, ridx, &out.labels_lower_bound_);
   Gather(ctx, info.labels_upper_bound_, ridx, &out.labels_upper_bound_);
 
-  Gather(ctx, info.weights_, ridx, &out.weights_);
+  // Per-group weights are not sliced, see `MetaInfo::Slice`.
+  if (info.weights_.Size() + 1 != info.group_ptr_.size()) {
+    Gather(ctx, info.weights_, ridx, &out.weights_);
+  }
 }
 }  // namespace cuda_impl
 
