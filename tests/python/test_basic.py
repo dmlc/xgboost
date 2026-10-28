@@ -156,6 +156,24 @@ class TestBasic:
         with pytest.raises(ValueError):
             booster.get_dump(fmap="foo")
 
+    @pytest.mark.parametrize("high", [3e10, 9.3e18], ids=["int64", "past-int64"])
+    def test_dump_large_integer_split(self, high: float) -> None:
+        # An integer split must not overflow in the dumps (#10035). Past int64 it has
+        # no integer form and is written as a float.
+        data = np.array([[0.0], [high]])
+        dm = xgb.DMatrix(data, label=[0.0, 1.0], feature_types=["int"])
+        params = {"max_depth": 1, "min_child_weight": 0, "eta": 1.0}
+        booster = xgb.train(params, dm, num_boost_round=1)
+        split = np.float32(booster.trees_to_dataframe()["Split"].dropna().item())
+        cond = json.loads(booster.get_dump(dump_format="json")[0])["split_condition"]
+        text = booster.get_dump(dump_format="text")[0]
+        if split < 2.0**63:
+            assert cond == math.ceil(split) > np.iinfo(np.int32).max
+            assert f"<{cond}]" in text
+        else:
+            assert cond == pytest.approx(split)
+            assert str(np.iinfo(np.int64).max) not in text
+
     def test_feature_score(self):
         rng = np.random.RandomState(0)
         data = rng.randn(100, 2)
