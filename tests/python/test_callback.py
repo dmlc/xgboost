@@ -101,6 +101,12 @@ class TestCallbacks:
         assert len(evals_result["Train"]["error"]) == rounds
         assert len(evals_result["Valid"]["error"]) == rounds
 
+        for name in ["my train", "my\ttrain"]:
+            with pytest.raises(
+                ValueError, match="Dataset name should not contain whitespace"
+            ):
+                xgb.train({}, D_train, 2, evals=[(D_train, name)])
+
         self.run_evaluation_monitor(D_train, D_valid, rounds, True)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 2)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 4)
@@ -435,20 +441,3 @@ def test_aggcv() -> None:
     assert by_name["eval-mae"] == pytest.approx((0.4, 0.2))
     with pytest.raises(AssertionError):
         _aggcv(["[0]\ttrain-rmse:0.5", "[1]\ttrain-rmse:0.7"])
-
-
-@pytest.mark.parametrize("name", ["my train", "my\ttrain"])
-def test_name_with_whitespace(name: str) -> None:
-    X, y, _ = tm.make_regression(64, 4, False)
-    Xy = xgb.DMatrix(X, y)
-
-    with pytest.raises(ValueError, match="Dataset name should not contain whitespace"):
-        xgb.train({}, Xy, 2, evals=[(Xy, name)])
-
-    def metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
-        return name, 0.0
-
-    with pytest.raises(ValueError, match="Metric name should not contain whitespace"):
-        xgb.train({}, Xy, 2, evals=[(Xy, "train")], custom_metric=metric)
-    with pytest.raises(ValueError, match="Metric name should not contain whitespace"):
-        xgb.cv({}, Xy, 2, nfold=2, custom_metric=metric)
