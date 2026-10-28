@@ -54,7 +54,6 @@ time ninja -v
 
 if [[ "${BRANCH_NAME:-}" == "master" ]]; then
   # Populate the SM75 cache for PRs, then rebuild the full production architecture set.
-  # This can be removed once cross-architecture cache reuse is reliable without a warm pass.
   cmake .. "${cmake_args[@]}" -DGPU_COMPUTE_VER=
   time ninja -v
 fi
