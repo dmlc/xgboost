@@ -89,6 +89,36 @@ def test_invalid_metric_names(
             )
 
 
+@pytest.mark.parametrize("api", ["train", "cv"])
+def test_custom_metric_precision(api: str) -> None:
+    data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=np.arange(8) % 2)
+    value = 1.2345678912345e-09
+
+    def metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
+        return "tiny", value
+
+    if api == "train":
+        evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+        xgb.train(
+            {"objective": "binary:logistic"},
+            data,
+            2,
+            evals=[(data, "eval")],
+            custom_metric=metric,
+            evals_result=evals_result,
+        )
+        history = evals_result["eval"]["tiny"]
+    else:
+        history = xgb.cv(
+            {"objective": "binary:logistic"},
+            data,
+            2,
+            nfold=2,
+            custom_metric=metric,
+        )["test-tiny-mean"]
+    assert list(history) == pytest.approx([value, value], rel=1e-12)
+
+
 class TestEvalMetrics:
     xgb_params_01 = {"nthread": 1, "eval_metric": "error"}
 

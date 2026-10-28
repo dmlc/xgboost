@@ -2399,8 +2399,8 @@ class Booster:
                             f"Metric names must be distinct. Duplicate metric: {name}"
                         )
                     metric_names.add(metric_name)
-                    # pylint: disable=consider-using-f-string
-                    res += "\t%s-%s:%f" % (evname, name, val)
+                    # repr keeps every digit, as the native metrics do.
+                    res += f"\t{metric_name}:{float(val)!r}"
         return res
 
     def eval(self, data: DMatrix, name: str = "eval", iteration: int = 0) -> str:
