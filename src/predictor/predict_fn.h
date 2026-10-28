@@ -12,16 +12,30 @@
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
+/**
+ * @brief The split rule shared by the node-by-node walk and the array tree layout.
+ *
+ * @param node_categories Categories of the node, only read when is_cat is true.
+ *
+ * @return Whether it should traverse to the left branch of a tree.
+ */
+inline XGBOOST_DEVICE bool SplitDecision(float fvalue, float split_cond, bool is_cat,
+                                         common::Span<uint32_t const> node_categories) {
+  if (is_cat) {
+    return common::Decision(node_categories, fvalue);
+  }
+  return fvalue < split_cond;
+}
+
 /** @brief Whether it should traverse to the left branch of a tree. */
 template <bool has_categorical, typename TreeView>
 XGBOOST_DEVICE bool GetDecision(TreeView const &tree, bst_node_t nid, float fvalue,
                                 RegTree::CategoricalSplitMatrix const &cats) {
-  if (has_categorical && common::IsCat(cats.split_type, nid)) {
-    auto node_categories = cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
-    return common::Decision(node_categories, fvalue);
-  } else {
-    return fvalue < tree.SplitCond(nid);
-  }
+  bool const is_cat = has_categorical && common::IsCat(cats.split_type, nid);
+  auto const node_categories =
+      is_cat ? cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size)
+             : common::Span<uint32_t const>{};
+  return SplitDecision(fvalue, tree.SplitCond(nid), is_cat, node_categories);
 }
 
 /**
