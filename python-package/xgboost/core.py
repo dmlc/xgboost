@@ -1240,7 +1240,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         rindex
             List of indices to be selected.
         allow_groups
-            Allow slicing of a matrix with a groups attribute
+            Allow slicing of a matrix with a groups attribute. The query groups and
+            the per-group weights are not carried over to the result, set them on the
+            returned matrix if needed.
 
         Returns
         -------
