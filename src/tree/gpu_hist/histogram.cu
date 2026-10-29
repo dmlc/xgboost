@@ -565,4 +565,41 @@ void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, bst_node_t nidx,
   SafeColl(rc);
   this->monitor_.Stop(__func__);
 }
+
+namespace {
+struct SubtractionHists {
+  GradientPairInt64 const* parent;
+  GradientPairInt64 const* built;
+  GradientPairInt64* subtraction;
+};
+}  // anonymous namespace
+
+void DeviceHistogramBuilder::SubtractionTrick(Context const* ctx,
+                                              std::vector<bst_node_t> const& parent_nidx,
+                                              std::vector<bst_node_t> const& build_nidx,
+                                              std::vector<bst_node_t> const& subtraction_nidx) {
+  CHECK_EQ(parent_nidx.size(), build_nidx.size());
+  CHECK_EQ(parent_nidx.size(), subtraction_nidx.size());
+  if (parent_nidx.empty()) {
+    return;
+  }
+  std::vector<SubtractionHists> h_nodes(parent_nidx.size());
+  for (std::size_t i = 0; i < parent_nidx.size(); ++i) {
+    h_nodes[i] = {hist_.GetNodeHistogram(parent_nidx[i]).data(),
+                  hist_.GetNodeHistogram(build_nidx[i]).data(),
+                  hist_.GetNodeHistogram(subtraction_nidx[i]).data()};
+  }
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::TemporaryArray<SubtractionHists> nodes(h_nodes.size());
+  dh::CopyTo(h_nodes, &nodes, stream);
+  auto d_nodes = nodes.data().get();
+
+  // All node histograms have the same size.
+  auto n_bins = static_cast<std::size_t>(hist_.Bins());
+  dh::LaunchN(n_bins * h_nodes.size(), stream, [=] __device__(std::size_t idx) {
+    auto const& node = d_nodes[idx / n_bins];
+    auto i = idx % n_bins;
+    node.subtraction[i] = node.parent[i] - node.built[i];
+  });
+}
 }  // namespace xgboost::tree

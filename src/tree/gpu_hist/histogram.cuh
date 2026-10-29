@@ -217,22 +217,16 @@ class DeviceHistogramBuilder {
   [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
     return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);
   }
-  // Attempt to do subtraction trick
-  // return true if succeeded
-  [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
-                                      bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
-    if (!this->CanSubtract(nidx_parent, nidx_histogram)) {
-      return false;
-    }
-    auto d_node_hist_parent = hist_.GetNodeHistogram(nidx_parent);
-    auto d_node_hist_histogram = hist_.GetNodeHistogram(nidx_histogram);
-    auto d_node_hist_subtraction = hist_.GetNodeHistogram(nidx_subtraction);
-
-    dh::LaunchN(d_node_hist_parent.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-      d_node_hist_subtraction[idx] = d_node_hist_parent[idx] - d_node_hist_histogram[idx];
-    });
-    return true;
-  }
+  /**
+   * @brief Obtain sibling histograms with the subtraction trick, using a single kernel.
+   *
+   * @param parent_nidx      The parent of each pair of siblings.
+   * @param build_nidx       The sibling with a built histogram.
+   * @param subtraction_nidx The sibling to fill with `parent - built`.
+   */
+  void SubtractionTrick(Context const* ctx, std::vector<bst_node_t> const& parent_nidx,
+                        std::vector<bst_node_t> const& build_nidx,
+                        std::vector<bst_node_t> const& subtraction_nidx);
 
   template <typename ExpandEntry>
   [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<ExpandEntry> const& candidates,
@@ -240,15 +234,21 @@ class DeviceHistogramBuilder {
                                   std::vector<bst_node_t> const& subtraction_nidx) {
     this->monitor_.Start(__func__);
     std::vector<bst_node_t> need_build;
+    std::vector<bst_node_t> parents, built, subtracted;
     for (std::size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = build_nidx.at(i);
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
       auto parent_nidx = candidates.at(i).nidx;
 
-      if (!this->SubtractionTrick(ctx, parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
+      if (this->CanSubtract(parent_nidx, build_hist_nidx)) {
+        parents.push_back(parent_nidx);
+        built.push_back(build_hist_nidx);
+        subtracted.push_back(subtraction_trick_nidx);
+      } else {
         need_build.push_back(subtraction_trick_nidx);
       }
     }
+    this->SubtractionTrick(ctx, parents, built, subtracted);
     this->monitor_.Stop(__func__);
     return need_build;
   }
