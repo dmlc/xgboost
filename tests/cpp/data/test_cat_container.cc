@@ -6,12 +6,14 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>    // for
 #include <cstdint>  // for uint16_t
 #include <ios>      // for openmode
 #include <limits>   // for numeric_limits
 #include <utility>  // for move
 #include <vector>   // for vector
 
+#include "../../../src/data/adapter.h"  // for ColumnarAdapter
 #include "../encoder/df_mock.h"
 #include "../helpers.h"  // for GMockThrow
 
@@ -98,6 +100,50 @@ TEST(CatContainer, RejectInvalidValues) {
 
     CatContainer cats;
     EXPECT_THAT([&] { cats.Load(in); }, GMockThrow("floating point dtype"));
+  }
+}
+
+TEST(CatContainer, AccessorKeepsMissing) {
+  // Re-coding map for one feature: code 0 -> 2, 1 -> 0, 2 -> 1.
+  std::vector<std::int32_t> offsets{0, 3}, mapping{2, 0, 1};
+  CatAccessor acc{
+      enc::MappingView{common::Span<std::int32_t const>{offsets.data(), offsets.size()},
+                       common::Span<std::int32_t const>{mapping.data(), mapping.size()}}};
+  ASSERT_EQ(acc(0.0f, 0), 2.0f);
+  ASSERT_EQ(acc(2.0f, 0), 1.0f);
+  // A missing value must not be re-coded into a category.
+  ASSERT_TRUE(std::isnan(acc(std::numeric_limits<float>::quiet_NaN(), 0)));
+}
+
+TEST(CatContainer, RecodeDMatrixKeepsMissing) {
+  // Reference (training) categories {10, 20, 30}.
+  std::vector<std::int32_t> ref_values{10, 20, 30};
+  std::vector<enc::HostCatIndexView> ref_columns{
+      common::Span<std::int32_t const>{ref_values.data(), ref_values.size()}};
+  std::vector<std::int32_t> ref_segments{0, 3};
+  CatContainer ref_cats{
+      enc::HostColumnsView{common::Span{ref_columns}, common::Span{ref_segments}, 3}, false};
+
+  // New data with the categories in another order and a missing value (NaN code, as pandas sends it).
+  HostDeviceVector<std::int32_t> names{30, 10, 20};
+  HostDeviceVector<float> codes{1.0f, std::numeric_limits<float>::quiet_NaN(),
+                                0.0f};  // 10, NaN, 30
+  Json column{Array{std::vector<Json>{GetArrayInterface(&names, names.Size(), 1),
+                                      GetArrayInterface(&codes, codes.Size(), 1)}}};
+  Json df{Object{}};
+  df["ref_categories"] = Integer{reinterpret_cast<std::int64_t>(&ref_cats)};
+  df["columns"] = Array{std::vector<Json>{column}};
+
+  data::ColumnarAdapter adapter{Json::Dump(df)};
+  std::unique_ptr<DMatrix> p_fmat{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+  for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+    auto h_page = page.GetView();
+    ASSERT_EQ(h_page[0].size(), 1);
+    ASSERT_EQ(h_page[0][0].fvalue, 0.0f);  // 10 -> training code 0
+    ASSERT_EQ(h_page[1].size(), 0);        // missing stays missing
+    ASSERT_EQ(h_page[2].size(), 1);
+    ASSERT_EQ(h_page[2][0].fvalue, 2.0f);  // 30 -> training code 2
   }
 }
 }  // namespace xgboost
