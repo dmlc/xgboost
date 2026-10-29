@@ -2,7 +2,12 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
+#include <cub/version.cuh>  // for CUB_VERSION
+#if CUB_VERSION >= 300000
+#include <cuda/iterator>  // for tabulate_output_iterator
+#else
+#include <thrust/iterator/tabulate_output_iterator.h>  // for tabulate_output_iterator
+#endif
 
 #include <algorithm>        // for max
 #include <cstddef>          // for size_t
@@ -21,6 +26,27 @@
 namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
+
+#if CUB_VERSION >= 300000
+template <typename Fn>
+using TabulateOutputIterator = cuda::tabulate_output_iterator<Fn>;
+#else
+template <typename Fn>
+using TabulateOutputIterator = thrust::tabulate_output_iterator<Fn>;
+#endif  // CUB_VERSION >= 300000
+
+/**
+ * @brief Output iterator calling `fn(index, value)` for each output.
+ *
+ * The tabulate output iterator declares a `void` value type, while the scan tuning in cub
+ * requires a complete output value type.
+ */
+template <typename Fn, typename T>
+class TypedTabulateOutput : public TabulateOutputIterator<Fn> {
+ public:
+  using value_type = T;  // NOLINT
+  XGBOOST_DEVICE explicit TypedTabulateOutput(Fn fn) : TabulateOutputIterator<Fn>{fn} {}
+};
 }  // namespace cuda_impl
 
 /**
@@ -175,7 +201,8 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
 
-  auto write_iterator = thrust::make_tabulate_output_iterator(write_results);
+  cuda_impl::TypedTabulateOutput<WriteResultsFunctor<OpDataT>, std::uint64_t> write_iterator{
+      write_results};
   // A partitioner holds fewer than 2^32 rows, use 32-bit indices for the scan.
   CHECK_LE(total_rows, std::numeric_limits<cuda_impl::RowIndexT>::max());
   auto counting = dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(0));
