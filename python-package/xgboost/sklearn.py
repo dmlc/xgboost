@@ -8,6 +8,7 @@ import json
 import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager, nullcontext
 from inspect import signature
 from typing import (
     Any,
@@ -1161,6 +1162,13 @@ class XGBModel(XGBModelBase):
 
         return params
 
+    def _verbosity_context(self) -> AbstractContextManager[None]:
+        # set_config skips a None verbosity, so the context would only save and
+        # restore the global config.
+        if self.verbosity is None:
+            return nullcontext()
+        return config_context(verbosity=self.verbosity)
+
     def get_xgb_params(self) -> Dict[str, Any]:
         """Get xgboost specific parameters."""
         params: Dict[str, Any] = self.get_params()
@@ -1392,7 +1400,7 @@ class XGBModel(XGBModelBase):
             object storing base margin for the i-th validation set.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             params = self.get_xgb_params()
             model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
@@ -1497,7 +1505,7 @@ class XGBModel(XGBModelBase):
         prediction
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             iteration_range = self._get_iteration_range(iteration_range)
             if self._can_use_inplace_predict():
                 try:
@@ -1557,7 +1565,7 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             iteration_range = self._get_iteration_range(iteration_range)
             test_dmatrix = DMatrix(
                 X,
@@ -1774,7 +1782,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             # We keep the n_classes_ as a simple member instead of loading it from
             # booster in a Python property. This way we can have efficient and
             # thread-safe prediction.
@@ -1884,7 +1892,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             class_probs = super().predict(
                 X=X,
                 output_margin=output_margin,
@@ -2321,7 +2329,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             object storing base margin for the i-th validation set.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             params = self.get_xgb_params()
 
             model, metric, params = self._configure_fit(xgb_model, params)
