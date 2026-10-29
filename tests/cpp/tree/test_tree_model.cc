@@ -294,9 +294,9 @@ TEST(Tree, DumpIntegerSplit) {
     RegTree tree;
     tree.Expand({{0, 0, test.cond, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
     auto text = tree.DumpModel(fmap, false, "text");
-    ASSERT_NE(text.find(std::string{"[feat_0<"} + test.expected + "]"), std::string::npos) << text;
+    ASSERT_NE(text.find(std::string("[feat_0<") + test.expected + "]"), std::string::npos) << text;
     auto json = tree.DumpModel(fmap, false, "json");
-    ASSERT_NE(json.find(std::string{R"("split_condition": )"} + test.expected + ","),
+    ASSERT_NE(json.find(std::string(R"("split_condition": )") + test.expected + ","),
               std::string::npos)
         << json;
     Json::Load(StringView{json});
