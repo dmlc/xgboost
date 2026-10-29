@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include "xgboost/json.h"
 
@@ -657,7 +657,11 @@ Json JsonReader::ParseNumber() {
 
   bool is_float = false;
 
+  // Accumulate negatively so INT64_MIN never needs a positive signed magnitude.
   int64_t i = 0;
+  auto limit =
+      negative ? std::numeric_limits<int64_t>::min() : -std::numeric_limits<int64_t>::max();
+  bool overflow = false;
 
   if (*p == '0') {
     i = 0;
@@ -665,7 +669,13 @@ Json JsonReader::ParseNumber() {
   }
 
   while (XGBOOST_EXPECT(*p >= '0' && *p <= '9', true)) {
-    i = i * 10 + (*p - '0');
+    auto digit = *p - '0';
+    if (!overflow) {
+      overflow = i < (limit + digit) / 10;
+      if (!overflow) {
+        i = i * 10 - digit;
+      }
+    }
     p++;
   }
 
@@ -674,7 +684,6 @@ Json JsonReader::ParseNumber() {
     is_float = true;
 
     while (*p >= '0' && *p <= '9') {
-      i = i * 10 + (*p - '0');
       p++;
     }
   }
@@ -715,10 +724,10 @@ Json JsonReader::ParseNumber() {
     }
     return Json(static_cast<Number::Float>(f));
   } else {
-    if (negative) {
-      i = -i;
+    if (overflow) {
+      Error("Integer out of range");
     }
-    return Json(JsonInteger(i));
+    return Json(JsonInteger(negative ? i : -i));
   }
 }
 

@@ -131,6 +131,51 @@ TEST(Histogram, SubtractionTrick) {
   ASSERT_EQ(need_build, (std::vector<bst_node_t>{4, 6}));
 }
 
+TEST(Histogram, SubtractionTrickBatch) {
+  auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins = 37;
+
+  DeviceHistogramBuilder histogram;
+  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/16, n_bins, false);
+  histogram.AllocateHistograms(&ctx, {0});
+  histogram.AllocateHistograms(&ctx, {1}, {2});
+  histogram.AllocateHistograms(&ctx, {3, 5, 8}, {4, 6, 7});
+
+  // Distinct values for every node and bin.
+  auto value = [](bst_node_t nidx, bst_bin_t i) {
+    return GradientPairInt64{nidx * 1000 + i, -(nidx * 100 + i)};
+  };
+  auto fill = [&](bst_node_t nidx) {
+    std::vector<GradientPairInt64> h_hist(n_bins);
+    for (bst_bin_t i = 0; i < n_bins; ++i) {
+      h_hist[i] = value(nidx, i);
+    }
+    auto hist = histogram.GetNodeHistogram(nidx);
+    thrust::copy(h_hist.cbegin(), h_hist.cend(), dh::tbegin(hist));
+  };
+  for (bst_node_t nidx : {1, 2, 3, 5, 8}) {
+    fill(nidx);
+  }
+
+  // The parent of nodes 8 and 7 has no histogram, node 7 must be built.
+  std::vector<GPUExpandEntry> candidates(3);
+  candidates[0].nidx = 1;
+  candidates[1].nidx = 2;
+  candidates[2].nidx = 9;
+  auto need_build = histogram.SubtractHist(&ctx, candidates, {3, 5, 8}, {4, 6, 7});
+  ASSERT_EQ(need_build, (std::vector<bst_node_t>{7}));
+
+  auto check = [&](bst_node_t parent, bst_node_t built, bst_node_t subtracted) {
+    std::vector<GradientPairInt64> h_hist(n_bins);
+    dh::CopyDeviceSpanToVector(&h_hist, histogram.GetNodeHistogram(subtracted));
+    for (bst_bin_t i = 0; i < n_bins; ++i) {
+      ASSERT_EQ(h_hist[i], value(parent, i) - value(built, i));
+    }
+  };
+  check(1, 3, 4);
+  check(2, 5, 6);
+}
+
 void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPairInt64> onehot,
                                   common::Span<GradientPairInt64> cat) {
   auto cat_sum = std::accumulate(cat.cbegin(), cat.cend(), GradientPairInt64{});

@@ -271,10 +271,13 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   const auto input_idx = blockIdx.x / max_active_features;
   const EvaluateSplitInputs &inputs = d_inputs[input_idx];
   // One block for each feature. Features are sampled, so fidx != blockIdx.x
-  // Some blocks may not have any feature to work on, simply return
+  // Some blocks may not have any feature to work on, they record an empty candidate.
   auto feature_offset =
       static_cast<decltype(inputs.feature_set.size())>(blockIdx.x % max_active_features);
   if (feature_offset >= inputs.feature_set.size()) {
+    if (threadIdx.x == 0) {
+      out_candidates[blockIdx.x] = best_split;
+    }
     return;
   }
   int fidx = inputs.feature_set[feature_offset];
@@ -357,8 +360,8 @@ void GPUHistEvaluator::LaunchEvaluateSplits(Context const *ctx, bst_feature_t ma
   }
 
   size_t combined_num_features = max_active_features * d_inputs.size();
-  dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(combined_num_features,
-                                                               DeviceSplitCandidate());
+  // Every block writes its candidate, no initialization is needed.
+  dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(combined_num_features);
 
   // One block for each feature
   std::uint32_t constexpr kBlockThreads = dh::WarpThreads();
