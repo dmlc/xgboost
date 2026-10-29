@@ -360,6 +360,13 @@ inline GradStats &CopyStats(GradStats const &src, GradStats *dst) {  // NOLINT
   return *dst;
 }
 
+template <typename T>
+GradStats &CopyStats(linalg::VectorView<T> const &src, GradStats *dst) {  // NOLINT
+  CHECK_EQ(src.Size(), 1);
+  *dst = GradStats{src(0)};
+  return *dst;
+}
+
 /*!
  * \brief statistics that is helpful to store
  *   and represent a split solution for the tree
