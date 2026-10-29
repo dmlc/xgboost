@@ -3284,33 +3284,30 @@ class Booster:
         if data.num_row() == 0:
             return
 
+        # Each feature info read is a native call, and this runs every iteration.
         fn = data.feature_names
-        ft = data.feature_types
 
         if self.feature_names is None:
             self.feature_names = fn
         if self.feature_types is None:
-            self.feature_types = ft
+            self.feature_types = data.feature_types
 
         self._validate_features(fn)
 
     def _validate_features(self, feature_names: Optional[FeatureNames]) -> None:
-        if self.feature_names is None:
+        booster_names = self.feature_names
+        if booster_names is None:
             return
 
-        if feature_names is None and self.feature_names is not None:
+        if feature_names is None:
             raise ValueError(
                 "data did not contain feature names, but the following fields "
-                "are expected: " + ", ".join(self.feature_names)
+                "are expected: " + ", ".join(booster_names)
             )
 
-        if self.feature_names != feature_names:
-            dat_missing = set(cast(FeatureNames, self.feature_names)) - set(
-                cast(FeatureNames, feature_names)
-            )
-            my_missing = set(cast(FeatureNames, feature_names)) - set(
-                cast(FeatureNames, self.feature_names)
-            )
+        if booster_names != feature_names:
+            dat_missing = set(booster_names) - set(feature_names)
+            my_missing = set(feature_names) - set(booster_names)
 
             msg = "feature_names mismatch: {0} {1}"
 
@@ -3327,7 +3324,7 @@ class Booster:
                     + ", ".join(str(s) for s in my_missing)
                 )
 
-            raise ValueError(msg.format(self.feature_names, feature_names))
+            raise ValueError(msg.format(booster_names, feature_names))
 
     def get_split_value_histogram(
         self,
