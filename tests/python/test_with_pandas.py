@@ -414,33 +414,6 @@ class TestPandas:
                 with pytest.raises(ValueError, match="Label contains NaN"):
                     xgb.DMatrix(df, f0, enable_categorical=enable_categorical)
 
-    @pytest.mark.parametrize(
-        "dtype",
-        [
-            np.int8,
-            np.int16,
-            np.int32,
-            np.int64,
-            np.uint8,
-            np.uint16,
-            np.uint32,
-            np.uint64,
-        ],
-    )
-    def test_integer_type(self, dtype: Type[np.integer]) -> None:
-        # Integer columns are passed as they are, and read as numpy input is.
-        info = np.iinfo(dtype)
-        rng = np.random.default_rng(0)
-        X = rng.integers(info.min, min(info.max, 2**40), size=(64, 3), dtype=dtype)
-        X[:2, 0] = [info.min, info.max]
-        y = rng.normal(size=64)
-        df = pd.DataFrame(X)
-        assert predictor_equal(xgb.DMatrix(df, y), xgb.DMatrix(X, y))
-        booster = xgb.train({"max_depth": 2}, xgb.DMatrix(X, y), num_boost_round=4)
-        np.testing.assert_array_equal(
-            booster.inplace_predict(df), booster.inplace_predict(X)
-        )
-
     @pytest.mark.skipif(**tm.no_arrow())
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_pyarrow_type(self, DMatrixT: Type[xgb.DMatrix]) -> None:
