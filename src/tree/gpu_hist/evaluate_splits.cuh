@@ -50,6 +50,11 @@ struct EvaluateSplitSharedInputs {
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
   bool is_dense;
+  /**
+   * @brief The smallest quantised hessian sum of a child that satisfies `min_child_weight`. Set
+   *        before launching the split evaluation, the default of 1 only excludes empty children.
+   */
+  std::int64_t min_child_hess{1};
   [[nodiscard]] XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   [[nodiscard]] __device__ std::uint32_t FeatureBins(bst_feature_t fidx) const {
     return feature_segments[fidx + 1] - feature_segments[fidx];

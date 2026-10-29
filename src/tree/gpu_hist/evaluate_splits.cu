@@ -18,31 +18,54 @@
 #include "expand_entry.cuh"
 
 namespace xgboost::tree {
-// With constraints
-XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
-                                       const GradientPairInt64 &missing,
-                                       const GradientPairInt64 &parent_sum, const EvalParam &param,
-                                       bst_node_t nidx, bst_feature_t fidx,
-                                       TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
-                                       bool &missing_left_out,  // NOLINT
-                                       GradientQuantiser const &quantiser) {
-  float missing_right_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan),
-                              quantiser.ToFloatingPoint(parent_sum - scan));
-  if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
-    // Without missing values both directions have the same gain, and a tie goes right. Skip the
-    // second gain, the floating point evaluation is expensive.
-    missing_left_out = false;
-    return missing_right_gain;
-  }
-  const auto left_sum = scan + missing;
-  float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
-                              quantiser.ToFloatingPoint(parent_sum - left_sum));
+namespace {
+/**
+ * @brief Split gain in closed form, `T(G)^2 / (H + lambda)` for each child, where `T` is the L1
+ *        thresholding.
+ *
+ * It's equivalent to evaluating the gain from the leaf weights when the weights are not limited by
+ * `max_delta_step` or monotone constraints. The children share a single division, and the gain is
+ * computed in the quantised units, then scaled.
+ */
+struct ClosedFormGain {
+  double alpha;   // reg_alpha in quantised gradient units
+  double lambda;  // reg_lambda in quantised hessian units
+  double scale;   // Converts a gain from the quantised units
+  std::int64_t min_child_hess;
 
-  missing_left_out = missing_left_gain > missing_right_gain;
-  return missing_left_out ? missing_left_gain : missing_right_gain;
-}
+  XGBOOST_DEVICE ClosedFormGain(EvalParam const &param, GradientQuantiser const &rounding,
+                                std::int64_t min_child_hess)
+      : min_child_hess{min_child_hess} {
+    auto unit = rounding.ToFloatingPoint(GradientPairInt64{1, 1});
+    alpha = param.reg_alpha / unit.GetGrad();
+    lambda = param.reg_lambda / unit.GetHess();
+    scale = unit.GetGrad() * unit.GetGrad() / unit.GetHess();
+  }
+  [[nodiscard]] XGBOOST_DEVICE static bool Applicable(EvalParam const &param, bool has_constraint) {
+    return param.max_delta_step == 0.0f && !has_constraint;
+  }
+  // Gain of a single leaf.
+  [[nodiscard]] XGBOOST_DEVICE double Leaf(GradientPairInt64 const &sum) const {
+    if (sum.GetQuantisedHess() <= 0) {
+      return 0.0;
+    }
+    auto t = ThresholdL1(static_cast<double>(sum.GetQuantisedGrad()), alpha);
+    return t * t / (static_cast<double>(sum.GetQuantisedHess()) + lambda) * scale;
+  }
+  // Gain of a split, -inf if a child doesn't satisfy `min_child_weight`.
+  [[nodiscard]] XGBOOST_DEVICE float Split(GradientPairInt64 const &left,
+                                           GradientPairInt64 const &right) const {
+    if (left.GetQuantisedHess() < min_child_hess || right.GetQuantisedHess() < min_child_hess) {
+      return -std::numeric_limits<float>::infinity();
+    }
+    auto tl = ThresholdL1(static_cast<double>(left.GetQuantisedGrad()), alpha);
+    auto tr = ThresholdL1(static_cast<double>(right.GetQuantisedGrad()), alpha);
+    auto dl = static_cast<double>(left.GetQuantisedHess()) + lambda;
+    auto dr = static_cast<double>(right.GetQuantisedHess()) + lambda;
+    return static_cast<float>((tl * tl * dr + tr * tr * dl) / (dl * dr) * scale);
+  }
+};
+}  // anonymous namespace
 
 /**
  * @brief A queue of numerical split candidates shared by a warp, kept in bin order.
@@ -137,6 +160,8 @@ class EvaluateSplitAgent {
   const GradientPairInt64 missing;
   const EvalParam &param;
   const TreeEvaluator::SplitEvaluator<EvalParam> &evaluator;
+  const ClosedFormGain closed_form;
+  const bool use_closed_form;
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
@@ -156,7 +181,9 @@ class EvaluateSplitAgent {
         // A dense matrix has no missing value, skip the reduction over the feature.
         missing(shared_inputs.is_dense ? GradientPairInt64{} : parent_sum - ReduceFeature()),
         param(shared_inputs.param),
-        evaluator(evaluator) {
+        evaluator(evaluator),
+        closed_form{shared_inputs.param, shared_inputs.rounding, shared_inputs.min_child_hess},
+        use_closed_form{ClosedFormGain::Applicable(shared_inputs.param, evaluator.has_constraint)} {
     static_assert(kBlockSize == 32, "This kernel relies on the assumption block_size == warp_size");
   }
   __device__ GradientPairInt64 ReduceFeature() {
@@ -165,6 +192,31 @@ class EvaluateSplitAgent {
       local_sum += LoadGpair(node_histogram + idx);
     }
     return WarpSum(local_sum);
+  }
+
+  __device__ __forceinline__ float SplitGain(GradientPairInt64 const &left,
+                                             GradientPairInt64 const &right) const {
+    if (use_closed_form) {
+      return closed_form.Split(left, right);
+    }
+    return evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left),
+                                   rounding.ToFloatingPoint(right));
+  }
+
+  // Gain of the best missing direction for the split with `scan` on the left.
+  __device__ __forceinline__ float LossChangeMissing(GradientPairInt64 const &scan,
+                                                     bool *missing_left_out) const {
+    float missing_right_gain = this->SplitGain(scan, parent_sum - scan);
+    if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
+      // Without missing values both directions have the same gain, and a tie goes right. Skip the
+      // second gain, the floating point evaluation is expensive.
+      *missing_left_out = false;
+      return missing_right_gain;
+    }
+    auto const left_sum = scan + missing;
+    float missing_left_gain = this->SplitGain(left_sum, parent_sum - left_sum);
+    *missing_left_out = missing_left_gain > missing_right_gain;
+    return *missing_left_out ? missing_left_gain : missing_right_gain;
   }
 
   // Load using efficient 128 vector load instruction
@@ -187,9 +239,7 @@ class EvaluateSplitAgent {
     bool thread_active = queue->Pop(&scan, &bin_idx);
     // Whether the gradient of missing values is put to the left side.
     bool missing_left = true;
-    float gain = thread_active ? LossChangeMissing(scan, missing, parent_sum, param, nidx, fidx,
-                                                   evaluator, missing_left, rounding)
-                               : kNullGain;
+    float gain = thread_active ? this->LossChangeMissing(scan, &missing_left) : kNullGain;
     // Find thread with best gain. Lanes hold the candidates in bin order, ties go to the
     // earlier bin.
     auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -260,9 +310,7 @@ class EvaluateSplitAgent {
       GradientPairInt64 bin = parent_sum - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left, rounding)
-                                 : kNullGain;
+      float gain = thread_active ? this->LossChangeMissing(bin, &missing_left) : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -456,11 +504,41 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   });
 }
 
+namespace {
+/**
+ * @brief The smallest quantised hessian sum of a child that passes `IsValidSplit`.
+ *
+ * The conversion to floating point is monotonic, a search over the integers gives the same
+ * result as comparing the converted value.
+ */
+std::int64_t MinChildHess(EvaluateSplitSharedInputs const &shared_inputs) {
+  auto valid = [&](std::int64_t hess) {
+    auto h = shared_inputs.rounding.ToFloatingPoint(GradientPairInt64{0, hess}).GetHess();
+    return h > 0.0 && h >= shared_inputs.param.min_child_weight;
+  };
+  std::int64_t lo = 0, hi = std::numeric_limits<std::int64_t>::max();
+  if (!valid(hi)) {
+    return hi;
+  }
+  // Invariant: !valid(lo) && valid(hi)
+  while (hi - lo > 1) {
+    auto mid = lo + (hi - lo) / 2;
+    if (valid(mid)) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return hi;
+}
+}  // anonymous namespace
+
 void GPUHistEvaluator::LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
                                             common::Span<const EvaluateSplitInputs> d_inputs,
                                             EvaluateSplitSharedInputs shared_inputs,
                                             TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                                             common::Span<DeviceSplitCandidate> out_splits) {
+  shared_inputs.min_child_hess = MinChildHess(shared_inputs);
   if (need_sort_histogram_) {
     this->SortHistogram(ctx, d_inputs, shared_inputs, evaluator);
   }
@@ -528,8 +606,11 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
     // Subtract parent gain here
     // As it is constant, this is more efficient than doing it during every
     // split evaluation
-    float parent_gain = evaluator.CalcGain(
-        input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
+    float parent_gain =
+        ClosedFormGain::Applicable(shared_inputs.param, evaluator.has_constraint)
+            ? ClosedFormGain{shared_inputs.param, shared_inputs.rounding, 1}.Leaf(input.parent_sum)
+            : evaluator.CalcGain(input.nidx, shared_inputs.param,
+                                 shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 
