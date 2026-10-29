@@ -4,6 +4,9 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
+#include <numeric>  // for iota
+#include <vector>   // for vector
+
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
 #include "../../helpers.h"
 #include "../test_evaluate_splits.h"  // TestPartitionBasedSplit
@@ -466,6 +469,47 @@ TEST(GpuHist, EvaluateSingleSplitDense) {
   EXPECT_EQ(dense.loss_chg, sparse.loss_chg);
   EXPECT_EQ(dense.left_sum, sparse.left_sum);
   EXPECT_EQ(dense.right_sum, sparse.right_sum);
+}
+
+// Candidates following an empty bin tie with the candidate before them and are skipped. The
+// feature spans several warp-sized chunks, and the best split is the first candidate after a run
+// of empty bins.
+TEST(GpuHist, EvaluateSingleSplitEmptyBins) {
+  auto ctx = MakeCUDACtx(0);
+  auto quantiser = DummyRoundingFactor(&ctx);
+  auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{0.0, 3.0});
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  EvalParam param{tparam};
+
+  bst_bin_t constexpr kBins = 70;
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, kBins};
+  std::vector<float> h_feature_values(kBins);
+  std::iota(h_feature_values.begin(), h_feature_values.end(), 0.0f);
+  thrust::device_vector<float> feature_values = h_feature_values;
+  // Only bins 5, 40 and 60 are not empty.
+  std::vector<GradientPairPrecise> h_histogram(kBins);
+  h_histogram[5] = {1.0, 1.0};
+  h_histogram[40] = {-3.0, 1.0};
+  h_histogram[60] = {2.0, 1.0};
+  auto feature_histogram = ConvertToInteger(&ctx, h_histogram);
+  EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
+                            dh::ToSpan(feature_histogram)};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
+
+  GPUHistEvaluator evaluator(tparam, 1, FstCU());
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+
+  // Splitting before bins 41 to 60 gives left = {-2, 2}, right = {2, 1}, and a gain of 2 + 4.
+  // The first of them is selected.
+  EXPECT_EQ(result.findex, 0);
+  EXPECT_EQ(result.fvalue, 40.0f);
+  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_FLOAT_EQ(result.loss_chg, 6.0f);
+  EXPECT_EQ(result.left_sum, quantiser.ToFixedPoint(GradientPairPrecise(-2.0, 2.0)));
+  EXPECT_EQ(result.right_sum, quantiser.ToFixedPoint(GradientPairPrecise(2.0, 1.0)));
 }
 
 TEST(GpuHist, EvaluateSplits) {
