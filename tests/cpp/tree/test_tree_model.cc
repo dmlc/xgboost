@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 
-#include <stack>  // for stack
+#include <cmath>   // for nextafter
+#include <limits>  // for numeric_limits
+#include <stack>   // for stack
+#include <string>  // for string
 
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
@@ -265,6 +268,39 @@ TEST(Tree, DumpJson) {
 
   auto j_tree = Json::Load({str.c_str(), str.size()});
   ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2ul);
+}
+
+TEST(Tree, DumpIntegerSplit) {
+  FeatureMap fmap;
+  fmap.PushBack(0, "feat_0", "int");
+  constexpr bst_float kTwoTo63 = 0x1p63f;
+  struct TestCase {
+    bst_float cond;
+    char const* expected;
+  };
+  for (auto const& test : {
+           TestCase{3.0e10f, "30000001024"},
+           TestCase{-3.0e10f, "-30000001024"},
+           TestCase{1.5f, "2"},
+           TestCase{-1.5f, "-1"},
+           TestCase{std::nextafter(kTwoTo63, 0.0f), "9223371487098961920"},
+           TestCase{-kTwoTo63, "-9223372036854775808"},
+           TestCase{kTwoTo63, "9.22337204e+18"},
+           TestCase{std::nextafter(-kTwoTo63, -std::numeric_limits<bst_float>::infinity()),
+                    "-9.22337314e+18"},
+           TestCase{9.3e18f, "9.3000003e+18"},
+       }) {
+    SCOPED_TRACE(test.cond);
+    RegTree tree;
+    tree.Expand({{0, 0, test.cond, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+    auto text = tree.DumpModel(fmap, false, "text");
+    ASSERT_NE(text.find(std::string{"[feat_0<"} + test.expected + "]"), std::string::npos) << text;
+    auto json = tree.DumpModel(fmap, false, "json");
+    ASSERT_NE(json.find(std::string{R"("split_condition": )"} + test.expected + ","),
+              std::string::npos)
+        << json;
+    Json::Load(StringView{json});
+  }
 }
 
 TEST(Tree, DumpJsonCategorical) { TestCategoricalTreeDump("json", ", "); }
