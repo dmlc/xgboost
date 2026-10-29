@@ -133,4 +133,5 @@ TEST(CatContainer, RecodeKeepsMissing) {
     ASSERT_EQ(h_page[0][0].fvalue, 1.0f);
     ASSERT_TRUE(h_page[1].empty());  // missing stays missing
   }
+}
 }  // namespace xgboost
