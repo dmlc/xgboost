@@ -350,10 +350,11 @@ class HistEvaluatorImpl {
             node_hist[t] = (*hist[t])[entry->nid];
           }
           auto features_set = features[nidx_in_set]->ConstHostSpan();
-          // Parent category weights are only needed for partition-based splits.
           std::array<float, 1> single_weight{};
-          std::vector<float> base_weight;
-          bool have_base_weight = false;
+          std::vector<float> base_weight(n_split_targets == 1 ? 0 : n_split_targets);
+          auto h_bw = linalg::MakeVec(
+              n_split_targets == 1 ? single_weight.data() : base_weight.data(), n_split_targets);
+          evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
 
           for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
             auto fidx = features_set[fidx_in_set];
@@ -383,18 +384,6 @@ class HistEvaluatorImpl {
             }
 
             // Partition split
-            if (!have_base_weight) {
-              if (n_split_targets != 1) {
-                base_weight.resize(n_split_targets);
-              }
-              evaluator.CalcWeightCat(
-                  *param_, parent_sum,
-                  linalg::MakeVec(n_split_targets == 1 ? single_weight.data() : base_weight.data(),
-                                  n_split_targets));
-              have_base_weight = true;
-            }
-            auto h_bw = linalg::MakeVec(
-                n_split_targets == 1 ? single_weight.data() : base_weight.data(), n_split_targets);
             std::vector<size_t> sorted_idx(n_bins);
             std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
             linalg::Vector<GradientPairPrecise> grads({n_split_targets}, this->ctx_->Device());
