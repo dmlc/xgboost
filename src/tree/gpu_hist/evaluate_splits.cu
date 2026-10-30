@@ -2,7 +2,9 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #include <algorithm>                               // for :max
+#include <cstdint>                                 // for int64_t, uint32_t
 #include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <cuda/ptx>                                // for get_sreg_laneid
 #include <cuda/std/functional>                     // for plus
 #include <limits>                                  // for numeric_limits
 
@@ -16,31 +18,115 @@
 #include "expand_entry.cuh"
 
 namespace xgboost::tree {
-// With constraints
-XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
-                                       const GradientPairInt64 &missing,
-                                       const GradientPairInt64 &parent_sum, const EvalParam &param,
-                                       bst_node_t nidx, bst_feature_t fidx,
-                                       TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
-                                       bool &missing_left_out,  // NOLINT
-                                       GradientQuantiser const &quantiser) {
-  float missing_right_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan),
-                              quantiser.ToFloatingPoint(parent_sum - scan));
-  if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
-    // Without missing values both directions have the same gain, and a tie goes right. Skip the
-    // second gain, the floating point evaluation is expensive.
-    missing_left_out = false;
-    return missing_right_gain;
-  }
-  const auto left_sum = scan + missing;
-  float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
-                              quantiser.ToFloatingPoint(parent_sum - left_sum));
+namespace {
+/**
+ * @brief Split gain in closed form, `T(G)^2 / (H + lambda)` for each child, where `T` is the L1
+ *        thresholding.
+ *
+ * It's equivalent to evaluating the gain from the leaf weights when the weights are not limited by
+ * `max_delta_step` or monotone constraints. The children share a single division, and the gain is
+ * computed in the quantised units, then scaled.
+ */
+struct ClosedFormGain {
+  double alpha;   // reg_alpha in quantised gradient units
+  double lambda;  // reg_lambda in quantised hessian units
+  double scale;   // Converts a gain from the quantised units
+  std::int64_t min_child_hess;
 
-  missing_left_out = missing_left_gain > missing_right_gain;
-  return missing_left_out ? missing_left_gain : missing_right_gain;
-}
+  XGBOOST_DEVICE ClosedFormGain(EvalParam const &param, GradientQuantiser const &rounding,
+                                std::int64_t min_child_hess)
+      : min_child_hess{min_child_hess} {
+    auto unit = rounding.ToFloatingPoint(GradientPairInt64{1, 1});
+    alpha = param.reg_alpha / unit.GetGrad();
+    lambda = param.reg_lambda / unit.GetHess();
+    scale = unit.GetGrad() * unit.GetGrad() / unit.GetHess();
+  }
+  [[nodiscard]] XGBOOST_DEVICE static bool Applicable(EvalParam const &param, bool has_constraint) {
+    return param.max_delta_step == 0.0f && !has_constraint;
+  }
+  // Gain of a single leaf.
+  [[nodiscard]] XGBOOST_DEVICE double Leaf(GradientPairInt64 const &sum) const {
+    if (sum.GetQuantisedHess() <= 0) {
+      return 0.0;
+    }
+    auto t = ThresholdL1(static_cast<double>(sum.GetQuantisedGrad()), alpha);
+    return t * t / (static_cast<double>(sum.GetQuantisedHess()) + lambda) * scale;
+  }
+  // Gain of a split, -inf if a child doesn't satisfy `min_child_weight`.
+  [[nodiscard]] XGBOOST_DEVICE float Split(GradientPairInt64 const &left,
+                                           GradientPairInt64 const &right) const {
+    if (left.GetQuantisedHess() < min_child_hess || right.GetQuantisedHess() < min_child_hess) {
+      return -std::numeric_limits<float>::infinity();
+    }
+    auto tl = ThresholdL1(static_cast<double>(left.GetQuantisedGrad()), alpha);
+    auto tr = ThresholdL1(static_cast<double>(right.GetQuantisedGrad()), alpha);
+    auto dl = static_cast<double>(left.GetQuantisedHess()) + lambda;
+    auto dr = static_cast<double>(right.GetQuantisedHess()) + lambda;
+    return static_cast<float>((tl * tl * dr + tr * tr * dl) / (dl * dr) * scale);
+  }
+};
+}  // anonymous namespace
+
+/**
+ * @brief A queue of numerical split candidates shared by a warp, kept in bin order.
+ *
+ * The queue is a ring buffer in shared memory. Both `Push` and `Pop` must be called by the
+ * full warp. The head and the tail are warp-uniform, and stay in registers.
+ */
+class CandidateQueue {
+ public:
+  // Two warps of candidates: the warp pops a full warp before the next push can overflow.
+  static constexpr std::uint32_t kCapacity = 2 * dh::WarpThreads();
+
+  struct TempStorage {
+    std::int64_t grad[kCapacity];
+    std::int64_t hess[kCapacity];
+    std::uint32_t bin[kCapacity];
+  };
+
+  __device__ explicit CandidateQueue(TempStorage *storage) : storage_{storage} {}
+
+  [[nodiscard]] __device__ std::uint32_t Size() const { return tail_ - head_; }
+
+  /**
+   * @brief Append the candidate of each lane with `keep` set, in lane order.
+   */
+  __device__ void Push(bool keep, GradientPairInt64 const &sum, std::uint32_t bin_idx) {
+    auto lane = cuda::ptx::get_sreg_laneid();
+    auto mask = __ballot_sync(dh::WarpFullMask(), keep);
+    if (keep) {
+      auto pos = (tail_ + __popc(mask & ((1u << lane) - 1))) % kCapacity;
+      storage_->grad[pos] = sum.GetQuantisedGrad();
+      storage_->hess[pos] = sum.GetQuantisedHess();
+      storage_->bin[pos] = bin_idx;
+    }
+    tail_ += __popc(mask);
+    __syncwarp();
+  }
+
+  /**
+   * @brief Remove up to one warp of candidates, one per lane, in order.
+   *
+   * @return Whether this lane received a candidate.
+   */
+  __device__ bool Pop(GradientPairInt64 *sum, std::uint32_t *bin_idx) {
+    auto lane = cuda::ptx::get_sreg_laneid();
+    bool valid = lane < this->Size();
+    if (valid) {
+      auto pos = (head_ + lane) % kCapacity;
+      *sum = GradientPairInt64{storage_->grad[pos], storage_->hess[pos]};
+      *bin_idx = storage_->bin[pos];
+    }
+    head_ += std::min(this->Size(), static_cast<std::uint32_t>(dh::WarpThreads()));
+    __syncwarp();
+    return valid;
+  }
+
+ private:
+  TempStorage *storage_;
+  std::uint32_t head_{0};
+  std::uint32_t tail_{0};
+};
 
 // This kernel uses block_size == warp_size. This is an unusually small block size for a cuda kernel
 // - normally a larger block size is preferred to increase the number of resident warps on each SM
@@ -55,10 +141,11 @@ class EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
-
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
+    // Numerical split candidates waiting for evaluation.
+    CandidateQueue::TempStorage queue;
   };
 
   const int fidx;
@@ -73,6 +160,8 @@ class EvaluateSplitAgent {
   const GradientPairInt64 missing;
   const EvalParam &param;
   const TreeEvaluator::SplitEvaluator<EvalParam> &evaluator;
+  const ClosedFormGain closed_form;
+  const bool use_closed_form;
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
@@ -92,7 +181,9 @@ class EvaluateSplitAgent {
         // A dense matrix has no missing value, skip the reduction over the feature.
         missing(shared_inputs.is_dense ? GradientPairInt64{} : parent_sum - ReduceFeature()),
         param(shared_inputs.param),
-        evaluator(evaluator) {
+        evaluator(evaluator),
+        closed_form{shared_inputs.param, shared_inputs.rounding, shared_inputs.min_child_hess},
+        use_closed_form{ClosedFormGain::Applicable(shared_inputs.param, evaluator.has_constraint)} {
     static_assert(kBlockSize == 32, "This kernel relies on the assumption block_size == warp_size");
   }
   __device__ GradientPairInt64 ReduceFeature() {
@@ -101,6 +192,31 @@ class EvaluateSplitAgent {
       local_sum += LoadGpair(node_histogram + idx);
     }
     return WarpSum(local_sum);
+  }
+
+  __device__ __forceinline__ float SplitGain(GradientPairInt64 const &left,
+                                             GradientPairInt64 const &right) const {
+    if (use_closed_form) {
+      return closed_form.Split(left, right);
+    }
+    return evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left),
+                                   rounding.ToFloatingPoint(right));
+  }
+
+  // Gain of the best missing direction for the split with `scan` on the left.
+  __device__ __forceinline__ float LossChangeMissing(GradientPairInt64 const &scan,
+                                                     bool *missing_left_out) const {
+    float missing_right_gain = this->SplitGain(scan, parent_sum - scan);
+    if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
+      // Without missing values both directions have the same gain, and a tie goes right. Skip the
+      // second gain, the floating point evaluation is expensive.
+      *missing_left_out = false;
+      return missing_right_gain;
+    }
+    auto const left_sum = scan + missing;
+    float missing_left_gain = this->SplitGain(left_sum, parent_sum - left_sum);
+    *missing_left_out = missing_left_gain > missing_right_gain;
+    return *missing_left_out ? missing_left_gain : missing_right_gain;
   }
 
   // Load using efficient 128 vector load instruction
@@ -112,41 +228,76 @@ class EvaluateSplitAgent {
     return gpair;
   }
 
+  /**
+   * @brief Evaluate up to one warp of queued numerical candidates, one per lane, and update the
+   *        best split.
+   */
+  __device__ __forceinline__ void EvaluateQueued(CandidateQueue *queue,
+                                                 DeviceSplitCandidate *best_split) {
+    GradientPairInt64 scan;
+    std::uint32_t bin_idx = 0;
+    bool thread_active = queue->Pop(&scan, &bin_idx);
+    // Whether the gradient of missing values is put to the left side.
+    bool missing_left = true;
+    float gain = thread_active ? this->LossChangeMissing(scan, &missing_left) : kNullGain;
+    // Find thread with best gain. Lanes hold the candidates in bin order, ties go to the
+    // earlier bin.
+    auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
+    // This reduce result is only valid in thread 0
+    // broadcast to the rest of the warp
+    auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
+
+    // Best thread updates the split
+    if (threadIdx.x == best_thread) {
+      // Use pointer from cut to indicate begin and end of bins for each feature.
+      int split_gidx = static_cast<int>(bin_idx) - 1;
+      float fvalue = split_gidx < static_cast<int>(gidx_begin)
+                         ? -std::numeric_limits<float>::infinity()
+                         : feature_values[split_gidx];
+      GradientPairInt64 left = missing_left ? scan + missing : scan;
+      GradientPairInt64 right = parent_sum - left;
+      best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
+                         false);
+    }
+    __syncwarp();
+  }
+
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *best_split) {
+    // The gain is evaluated in double precision, which dominates this kernel on GPUs with low
+    // FP64 throughput. Candidates that can't be selected are skipped, and the rest are queued
+    // so they can be evaluated in full warps.
+    CandidateQueue queue{&temp_storage->queue};
+    // The last bin of the previous chunk.
+    GradientPairInt64 last_bin;
     for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
-      bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
-      GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
-                                            : GradientPairInt64();
+      std::uint32_t bin_idx = scan_begin + threadIdx.x;
+      bool thread_active = bin_idx < gidx_end;
+      GradientPairInt64 bin =
+          thread_active ? LoadGpair(node_histogram + bin_idx) : GradientPairInt64();
+      // A candidate following an empty bin has the same sums, and therefore the same gain, as
+      // the candidate before it. Ties go to the earlier candidate, skip the evaluation.
+      auto prev_grad = __shfl_up_sync(dh::WarpFullMask(), bin.GetQuantisedGrad(), 1);
+      auto prev_hess = __shfl_up_sync(dh::WarpFullMask(), bin.GetQuantisedHess(), 1);
+      GradientPairInt64 prev_bin =
+          threadIdx.x == 0 ? last_bin : GradientPairInt64{prev_grad, prev_hess};
+      last_bin = GradientPairInt64{
+          __shfl_sync(dh::WarpFullMask(), bin.GetQuantisedGrad(), kBlockSize - 1),
+          __shfl_sync(dh::WarpFullMask(), bin.GetQuantisedHess(), kBlockSize - 1)};
+      bool repeated = bin_idx != gidx_begin && prev_bin.GetQuantisedGrad() == 0 &&
+                      prev_bin.GetQuantisedHess() == 0;
 #if CUB_VERSION >= 200800
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cuda::std::plus{}, prefix_op);
 #else
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum{}, prefix_op);
 #endif
-      // Whether the gradient of missing values is put to the left side.
-      bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left, rounding)
-                                 : kNullGain;
-      // Find thread with best gain
-      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
-      // This reduce result is only valid in thread 0
-      // broadcast to the rest of the warp
-      auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
-
-      // Best thread updates the split
-      if (threadIdx.x == best_thread) {
-        // Use pointer from cut to indicate begin and end of bins for each feature.
-        int split_gidx = (scan_begin + threadIdx.x) - 1;
-        float fvalue = split_gidx < static_cast<int>(gidx_begin)
-                           ? -std::numeric_limits<float>::infinity()
-                           : feature_values[split_gidx];
-        GradientPairInt64 left = missing_left ? bin + missing : bin;
-        GradientPairInt64 right = parent_sum - left;
-        best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
-                           false);
+      // Queue the remaining candidates, and evaluate them once there's a full warp.
+      queue.Push(thread_active && !repeated, bin, bin_idx);
+      if (queue.Size() >= kBlockSize) {
+        this->EvaluateQueued(&queue, best_split);
       }
-
-      __syncwarp();
+    }
+    if (queue.Size() > 0) {
+      this->EvaluateQueued(&queue, best_split);
     }
   }
 
@@ -159,9 +310,7 @@ class EvaluateSplitAgent {
       GradientPairInt64 bin = parent_sum - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left, rounding)
-                                 : kNullGain;
+      float gain = thread_active ? this->LossChangeMissing(bin, &missing_left) : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -355,11 +504,41 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   });
 }
 
+namespace {
+/**
+ * @brief The smallest quantised hessian sum of a child that passes `IsValidSplit`.
+ *
+ * The conversion to floating point is monotonic, a search over the integers gives the same
+ * result as comparing the converted value.
+ */
+std::int64_t MinChildHess(EvaluateSplitSharedInputs const &shared_inputs) {
+  auto valid = [&](std::int64_t hess) {
+    auto h = shared_inputs.rounding.ToFloatingPoint(GradientPairInt64{0, hess}).GetHess();
+    return h > 0.0 && h >= shared_inputs.param.min_child_weight;
+  };
+  std::int64_t lo = 0, hi = std::numeric_limits<std::int64_t>::max();
+  if (!valid(hi)) {
+    return hi;
+  }
+  // Invariant: !valid(lo) && valid(hi)
+  while (hi - lo > 1) {
+    auto mid = lo + (hi - lo) / 2;
+    if (valid(mid)) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return hi;
+}
+}  // anonymous namespace
+
 void GPUHistEvaluator::LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
                                             common::Span<const EvaluateSplitInputs> d_inputs,
                                             EvaluateSplitSharedInputs shared_inputs,
                                             TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                                             common::Span<DeviceSplitCandidate> out_splits) {
+  shared_inputs.min_child_hess = MinChildHess(shared_inputs);
   if (need_sort_histogram_) {
     this->SortHistogram(ctx, d_inputs, shared_inputs, evaluator);
   }
@@ -427,8 +606,11 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
     // Subtract parent gain here
     // As it is constant, this is more efficient than doing it during every
     // split evaluation
-    float parent_gain = evaluator.CalcGain(
-        input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
+    float parent_gain =
+        ClosedFormGain::Applicable(shared_inputs.param, evaluator.has_constraint)
+            ? ClosedFormGain{shared_inputs.param, shared_inputs.rounding, 1}.Leaf(input.parent_sum)
+            : evaluator.CalcGain(input.nidx, shared_inputs.param,
+                                 shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 
