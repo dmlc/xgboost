@@ -2,18 +2,12 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <cub/version.cuh>  // for CUB_VERSION
-#if CUB_VERSION >= 300000
-#include <cuda/iterator>  // for tabulate_output_iterator
-#else
-#include <thrust/iterator/tabulate_output_iterator.h>  // for tabulate_output_iterator
-#endif
-
 #include <algorithm>        // for max
 #include <cstddef>          // for size_t
 #include <cstdint>          // for int32_t, uint32_t
 #include <cub/device/device_scan.cuh>  // for DeviceScan
 #include <cuda/functional>  // for proclaim_return_type
+#include <iterator>         // for random_access_iterator_tag
 #include <vector>           // for vector
 
 #include "../../common/cuda_compat.cuh"     // for CUDA compatibility
@@ -27,25 +21,46 @@ namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
 
-#if CUB_VERSION >= 300000
-template <typename Fn>
-using TabulateOutputIterator = cuda::tabulate_output_iterator<Fn>;
-#else
-template <typename Fn>
-using TabulateOutputIterator = thrust::tabulate_output_iterator<Fn>;
-#endif  // CUB_VERSION >= 300000
-
 /**
- * @brief Output iterator calling `fn(index, value)` for each output.
+ * @brief Output iterator calling `fn(index, value)` for each written value.
  *
- * The tabulate output iterator declares a `void` value type, while the scan tuning in cub
- * requires a complete output value type.
+ * Similar to the tabulate output iterator in CCCL, which is in different namespaces across CCCL
+ * versions and declares a `void` value type that the scan tuning in cub can't use.
  */
 template <typename Fn, typename T>
-class TypedTabulateOutput : public TabulateOutputIterator<Fn> {
+class IndexedOutputIterator {
+  Fn fn_;
+  std::ptrdiff_t idx_;
+
+  struct Proxy {
+    Fn fn;
+    std::ptrdiff_t idx;
+    __device__ Proxy const& operator=(T const& value) const {  // NOLINT
+      fn(idx, value);
+      return *this;
+    }
+  };
+
  public:
-  using value_type = T;  // NOLINT
-  XGBOOST_DEVICE explicit TypedTabulateOutput(Fn fn) : TabulateOutputIterator<Fn>{fn} {}
+  using value_type = T;                                       // NOLINT
+  using difference_type = std::ptrdiff_t;                     // NOLINT
+  using pointer = void;                                       // NOLINT
+  using reference = Proxy;                                    // NOLINT
+  using iterator_category = std::random_access_iterator_tag;  // NOLINT
+
+  XGBOOST_DEVICE explicit IndexedOutputIterator(Fn fn, std::ptrdiff_t idx = 0)
+      : fn_{fn}, idx_{idx} {}
+
+  XGBOOST_DEVICE Proxy operator*() const { return {fn_, idx_}; }
+  XGBOOST_DEVICE Proxy operator[](difference_type n) const { return {fn_, idx_ + n}; }
+  XGBOOST_DEVICE IndexedOutputIterator operator+(difference_type n) const {
+    return IndexedOutputIterator{fn_, idx_ + n};
+  }
+  XGBOOST_DEVICE IndexedOutputIterator& operator+=(difference_type n) {
+    idx_ += n;
+    return *this;
+  }
+  XGBOOST_DEVICE IndexedOutputIterator& operator++() { return *this += 1; }
 };
 }  // namespace cuda_impl
 
@@ -201,7 +216,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
 
-  cuda_impl::TypedTabulateOutput<WriteResultsFunctor<OpDataT>, std::uint64_t> write_iterator{
+  cuda_impl::IndexedOutputIterator<WriteResultsFunctor<OpDataT>, std::uint64_t> write_iterator{
       write_results};
   // A partitioner holds fewer than 2^32 rows, use 32-bit indices for the scan.
   CHECK_LE(total_rows, std::numeric_limits<cuda_impl::RowIndexT>::max());
