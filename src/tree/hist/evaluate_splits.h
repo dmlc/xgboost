@@ -71,7 +71,7 @@ class HistEvaluatorImpl {
       SplitEntryT local_best;
       // Scalar candidates are cheap to merge. Reuse vector candidate storage across features.
       auto *best = kScalar ? &local_best : p_best;
-      auto n_targets = kSingleTarget ? 1 : hist.size();
+      auto n_split_targets = kSingleTarget ? 1 : hist.size();
       // ibegin, iend: smallest/largest cut points for feature fid use int to allow for
       // value -1
       bst_bin_t ibegin, iend;
@@ -83,7 +83,7 @@ class HistEvaluatorImpl {
         iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
       }
       for (bst_bin_t i = ibegin; i != iend; i += d_step) {
-        for (bst_target_t t = 0; t < n_targets; ++t) {
+        for (bst_target_t t = 0; t < n_split_targets; ++t) {
           auto t_hist = hist[t];
           auto t_p = parent_sum(t);
           left_sum(t) += t_hist[i];
@@ -158,17 +158,17 @@ class HistEvaluatorImpl {
     bst_bin_t ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
     bst_bin_t iend = static_cast<bst_bin_t>(cut_ptr[fidx + 1]);
     bst_bin_t n_bins = iend - ibegin;
-    auto n_targets = kScalar ? 1 : hist.size();
+    auto n_split_targets = kScalar ? 1 : hist.size();
 
     std::array<GradientPairPrecise, 3> single_sum{};
-    std::vector<GradientPairPrecise> sum(n_targets == 1 ? 0 : 3 * n_targets);
-    auto *data = n_targets == 1 ? single_sum.data() : sum.data();
-    auto left_sum = linalg::MakeVec(data, n_targets);
-    auto right_sum = linalg::MakeVec(data + n_targets, n_targets);
+    std::vector<GradientPairPrecise> sum(n_split_targets == 1 ? 0 : 3 * n_split_targets);
+    auto *data = n_split_targets == 1 ? single_sum.data() : sum.data();
+    auto left_sum = linalg::MakeVec(data, n_split_targets);
+    auto right_sum = linalg::MakeVec(data + n_split_targets, n_split_targets);
 
     // Per-target missing gradient: parent_sum - sum_of_all_bins.
-    auto missing = linalg::MakeVec(data + 2 * n_targets, n_targets);
-    for (bst_target_t t = 0; t < n_targets; ++t) {
+    auto missing = linalg::MakeVec(data + 2 * n_split_targets, n_split_targets);
+    for (bst_target_t t = 0; t < n_split_targets; ++t) {
       auto f_hist = hist[t].subspan(cut_ptr[fidx], n_bins);
       GradientPairPrecise feature_sum{};
       for (bst_bin_t b = 0; b < n_bins; ++b) {
@@ -185,7 +185,7 @@ class HistEvaluatorImpl {
 
       // Evaluate missing values with the other categories, then with this category.
       for (bool default_left : {true, false}) {
-        for (bst_target_t t = 0; t < n_targets; ++t) {
+        for (bst_target_t t = 0; t < n_split_targets; ++t) {
           right_sum(t) = hist[t][i];
           if (!default_left) {
             right_sum(t) += missing(t);
@@ -229,7 +229,7 @@ class HistEvaluatorImpl {
                      TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                      SplitEntryT *p_best) {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
-    auto n_targets = kScalar ? 1 : hist.size();
+    auto n_split_targets = kScalar ? 1 : hist.size();
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
@@ -251,16 +251,16 @@ class HistEvaluatorImpl {
     }
 
     std::array<GradientPairPrecise, 2> single_sum{};
-    std::vector<GradientPairPrecise> sum(n_targets == 1 ? 0 : 2 * n_targets);
-    auto *data = n_targets == 1 ? single_sum.data() : sum.data();
-    auto left_sum = linalg::MakeVec(data, n_targets);
-    auto right_sum = linalg::MakeVec(data + n_targets, n_targets);
+    std::vector<GradientPairPrecise> sum(n_split_targets == 1 ? 0 : 2 * n_split_targets);
+    auto *data = n_split_targets == 1 ? single_sum.data() : sum.data();
+    auto left_sum = linalg::MakeVec(data, n_split_targets);
+    auto right_sum = linalg::MakeVec(data + n_split_targets, n_split_targets);
 
     SplitEntryT best;
     bst_bin_t best_thresh{-1};
     for (bst_bin_t i = it_begin; i != it_end; i += d_step) {
       auto j = i - f_begin;  // index local to current feature
-      for (bst_target_t t = 0; t < n_targets; ++t) {
+      for (bst_target_t t = 0; t < n_split_targets; ++t) {
         auto f_hist = hist[t].subspan(f_begin, n_bins_feature);
         if (d_step == 1) {
           right_sum(t) += f_hist[sorted_idx[j]];
@@ -339,14 +339,14 @@ class HistEvaluatorImpl {
           auto best = &entry->split;
 
           auto parent_sum = stats_.Slice(entry->nid, linalg::All());
-          auto n_targets = kScalar ? 1 : hist.size();
+          auto n_split_targets = kScalar ? 1 : hist.size();
           std::conditional_t<kScalar, std::array<common::ConstGHistRow, 1>,
                              std::vector<common::ConstGHistRow>>
               node_hist;
           if constexpr (!kScalar) {
-            node_hist.resize(n_targets);
+            node_hist.resize(n_split_targets);
           }
-          for (std::size_t t = 0; t < n_targets; ++t) {
+          for (std::size_t t = 0; t < n_split_targets; ++t) {
             node_hist[t] = (*hist[t])[entry->nid];
           }
           auto features_set = features[nidx_in_set]->ConstHostSpan();
@@ -384,40 +384,40 @@ class HistEvaluatorImpl {
 
             // Partition split
             if (!have_base_weight) {
-              if (n_targets != 1) {
-                base_weight.resize(n_targets);
+              if (n_split_targets != 1) {
+                base_weight.resize(n_split_targets);
               }
               evaluator.CalcWeightCat(
                   *param_, parent_sum,
-                  linalg::MakeVec(n_targets == 1 ? single_weight.data() : base_weight.data(),
-                                  n_targets));
+                  linalg::MakeVec(n_split_targets == 1 ? single_weight.data() : base_weight.data(),
+                                  n_split_targets));
               have_base_weight = true;
             }
-            auto h_bw = linalg::MakeVec(n_targets == 1 ? single_weight.data() : base_weight.data(),
-                                        n_targets);
+            auto h_bw = linalg::MakeVec(
+                n_split_targets == 1 ? single_weight.data() : base_weight.data(), n_split_targets);
             std::vector<size_t> sorted_idx(n_bins);
             std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-            linalg::Vector<GradientPairPrecise> grads({n_targets}, this->ctx_->Device());
+            linalg::Vector<GradientPairPrecise> grads({n_split_targets}, this->ctx_->Device());
             auto h_grads = grads.HostView();
-            std::vector<float> child_w(n_targets, .0f);
+            std::vector<float> child_w(n_split_targets, .0f);
 
             // Sort by s_c = w_p^T w_c
             // Project onto the parent's update direction to compare scores l_s < r_s
             // Since we care only about the ordering, no need to divide the norm.
             std::vector<double> scores(n_bins);
             for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
-              for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
+              for (decltype(n_split_targets) t_idx = 0; t_idx < n_split_targets; ++t_idx) {
                 auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
                 h_grads(t_idx) = f_hist[bin_idx];
               }
               evaluator.CalcWeightCat(*param_, h_grads,
                                       linalg::MakeVec(child_w.data(), child_w.size()));
               double sc = .0;
-              for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
+              for (decltype(n_split_targets) t_idx = 0; t_idx < n_split_targets; ++t_idx) {
                 sc += h_bw(t_idx) * child_w[t_idx];
               }
               // With one target a zero parent weight loses all category ordering.
-              scores[bin_idx] = n_targets == 1 && h_bw(0) == 0.0f ? child_w[0] : sc;
+              scores[bin_idx] = n_split_targets == 1 && h_bw(0) == 0.0f ? child_w[0] : sc;
             }
 
             std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
@@ -442,14 +442,14 @@ class HistEvaluatorImpl {
   }
 
   linalg::Vector<float> InitRoot(linalg::VectorView<GradientPairPrecise const> root_sum) {
-    auto n_targets = root_sum.Size();
+    auto n_split_targets = root_sum.Size();
     if constexpr (kScalar) {
-      CHECK_EQ(n_targets, 1);
+      CHECK_EQ(n_split_targets, 1);
     }
-    stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_targets);
+    stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_split_targets);
     gain_.resize(1);
 
-    linalg::Vector<float> weight({n_targets}, ctx_->Device());
+    linalg::Vector<float> weight({n_split_targets}, ctx_->Device());
     auto evaluator = tree_evaluator_.GetEvaluator();
     evaluator.CalcWeight(RegTree::kRoot, *param_, root_sum, weight.HostView());
     auto root_gain = evaluator.CalcGainGivenWeight(*param_, root_sum, weight.HostView());
@@ -556,10 +556,11 @@ class HistEvaluatorImpl {
       : HistEvaluatorImpl{ctx, info, param, 1, std::move(sampler)} {}
 
   explicit HistEvaluatorImpl(Context const *ctx, MetaInfo const &info, TrainParam const *param,
-                             bst_target_t n_targets, std::shared_ptr<common::ColumnSampler> sampler)
+                             bst_target_t n_split_targets,
+                             std::shared_ptr<common::ColumnSampler> sampler)
       : param_{param},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU(),
-                        n_targets},
+                        n_split_targets},
         column_sampler_{std::move(sampler)},
         ctx_{ctx} {
     interaction_constraints_.Configure(*param, info.num_col_);
