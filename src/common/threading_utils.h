@@ -7,6 +7,9 @@
 #include <algorithm>    // for fill_n, min
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
+#include <filesystem>   // for path
+#include <string>       // for string
+#include <string_view>  // for string_view
 #include <thread>       // for thread
 #include <type_traits>  // for is_integral_v, is_void_v, invoke_result_t
 #include <utility>      // for forward, move
@@ -201,11 +204,36 @@ void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
 }
 
 /**
+ * @brief Directories of this process's cgroup, nearest first, mount point last.
+ *
+ * The cgroup comes from `proc_self/cgroup` and its mount from `proc_self/mountinfo`, so a
+ * limit on the process's own cgroup or on a parent is found, also when the mount exposes a
+ * subtree of the hierarchy (a container in the host cgroup namespace). A path that cannot be
+ * resolved yields the mount point alone. Empty when the process is in no cgroup of this
+ * hierarchy; an unreadable `proc_self/cgroup` yields `fallback_mount` alone.
+ *
+ * @param proc_self      The procfs directory of the process, normally `/proc/self`.
+ * @param controller     The cgroup v1 controller, or empty for the cgroup v2 hierarchy.
+ * @param fallback_mount The mount point to use when `mountinfo` lists no matching mount.
+ */
+std::vector<std::filesystem::path> CGroupDirs(std::filesystem::path const& proc_self,
+                                              std::string_view controller,
+                                              std::string const& fallback_mount);
+
+/**
  * @brief Get thread limit from CFS.
+ *
+ * The limit is the smallest CPU quota from the process's cgroup up to the root, which is the
+ * one the kernel enforces. Returns -1 when no quota applies.
  *
  * This function has non-trivial overhead and should not be called repeatedly.
  */
 std::int32_t GetCfsCPUCount() noexcept;
+/**
+ * @brief Same as above, reading `proc_self/cgroup` and `proc_self/mountinfo` instead of
+ *        `/proc/self`.
+ */
+std::int32_t GetCfsCPUCount(std::filesystem::path const& proc_self) noexcept;
 
 /**
  * @brief Get the number of available threads based on n_threads specified by users.
