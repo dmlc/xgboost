@@ -557,7 +557,6 @@ class HistEvaluatorImpl {
                           param_->colsample_bylevel, param_->colsample_bytree);
   }
 
-  [[nodiscard]] double Gain(bst_node_t nidx) const { return gain_.at(nidx); }
   [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
 };
 
