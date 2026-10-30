@@ -512,6 +512,65 @@ TEST(GpuHist, EvaluateSingleSplitEmptyBins) {
   EXPECT_EQ(result.right_sum, quantiser.ToFixedPoint(GradientPairPrecise(2.0, 1.0)));
 }
 
+TEST(GpuHist, EvaluateSingleSplitLongFeature) {
+  auto ctx = MakeCUDACtx(0);
+  auto quantiser = DummyRoundingFactor(&ctx);
+  TrainParam tparam;
+  tparam.UpdateAllowUnknown(Args{{"reg_lambda", "1.5"}, {"min_child_weight", "1"}});
+  EvalParam param{tparam};
+
+  // Many more candidates than the queue holds.
+  bst_bin_t constexpr kBins = 1000;
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, kBins};
+  std::vector<float> h_feature_values(kBins);
+  std::iota(h_feature_values.begin(), h_feature_values.end(), 0.0f);
+  thrust::device_vector<float> feature_values = h_feature_values;
+  // Values exactly representable in the quantised form, with empty bins scattered and in a
+  // run. The gradient changes sign around bin 613.
+  std::vector<GradientPairPrecise> h_histogram(kBins);
+  GradientPairPrecise h_parent_sum;
+  for (bst_bin_t i = 0; i < kBins; ++i) {
+    if (i % 5 == 2 || (i >= 300 && i < 360)) {
+      continue;
+    }
+    h_histogram[i] = {((i * 37) % 17 - 8) * 0.125 + (i < 613 ? -0.5 : 0.5),
+                      ((i * 13) % 7 + 1) * 0.125};
+    h_parent_sum += h_histogram[i];
+  }
+  auto feature_histogram = ConvertToInteger(&ctx, h_histogram);
+  EvaluateSplitInputs input{1, 0, quantiser.ToFixedPoint(h_parent_sum), dh::ToSpan(feature_set),
+                            dh::ToSpan(feature_histogram)};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
+  GPUHistEvaluator evaluator(tparam, 1, FstCU());
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+
+  // The split before bin `i` puts bins [0, i) on the left.
+  double best_gain = -std::numeric_limits<double>::infinity();
+  bst_bin_t best_bin = -1;
+  GradientPairPrecise left;
+  for (bst_bin_t i = 0; i < kBins; ++i) {
+    auto right = h_parent_sum - left;
+    if (left.GetHess() >= tparam.min_child_weight && right.GetHess() >= tparam.min_child_weight) {
+      auto gain = CalcGain(param, left) + CalcGain(param, right);
+      if (gain > best_gain) {
+        best_gain = gain;
+        best_bin = i;
+      }
+    }
+    left += h_histogram[i];
+  }
+  // The best split is far from the start of the feature.
+  ASSERT_GT(best_bin, 256);
+  auto loss_chg = best_gain - CalcGain(param, h_parent_sum);
+
+  EXPECT_EQ(result.findex, 0);
+  EXPECT_EQ(result.fvalue, h_feature_values[best_bin - 1]);
+  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_NEAR(result.loss_chg, loss_chg, 1e-5 * std::abs(loss_chg));
+}
+
 TEST(GpuHist, EvaluateSplits) {
   auto ctx = MakeCUDACtx(0);
   thrust::device_vector<DeviceSplitCandidate> out_splits(2);

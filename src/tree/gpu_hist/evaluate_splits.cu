@@ -55,14 +55,17 @@ class EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
+  // Capacity of the numerical candidate queue, a ring buffer holding up to two warps of
+  // candidates.
+  static constexpr std::uint32_t kQueueSize = 2 * kBlockSize;
 
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
     // Numerical split candidates waiting for evaluation, in bin order.
-    std::int64_t queue_grad[2 * kBlockSize];
-    std::int64_t queue_hess[2 * kBlockSize];
-    std::uint32_t queue_bin[2 * kBlockSize];
+    std::int64_t queue_grad[kQueueSize];
+    std::int64_t queue_hess[kQueueSize];
+    std::uint32_t queue_bin[kQueueSize];
   };
 
   const int fidx;
@@ -117,18 +120,18 @@ class EvaluateSplitAgent {
   }
 
   /**
-   * @brief Evaluate the first `n` queued numerical candidates, one per lane, and update the
-   *        best split.
+   * @brief Evaluate `n` queued numerical candidates starting at `begin`, at most one per lane,
+   *        and update the best split.
    */
-  __device__ __forceinline__ void EvaluateQueued(std::uint32_t n,
-                                                 DeviceSplitCandidate *best_split) {
+  __device__ __forceinline__ void EvaluateBatch(std::uint32_t begin, std::uint32_t n,
+                                                DeviceSplitCandidate *best_split) {
+    auto idx = begin + threadIdx.x;
     bool thread_active = threadIdx.x < n;
     GradientPairInt64 scan;
     std::uint32_t bin_idx = 0;
     if (thread_active) {
-      scan = GradientPairInt64{temp_storage->queue_grad[threadIdx.x],
-                               temp_storage->queue_hess[threadIdx.x]};
-      bin_idx = temp_storage->queue_bin[threadIdx.x];
+      scan = GradientPairInt64{temp_storage->queue_grad[idx], temp_storage->queue_hess[idx]};
+      bin_idx = temp_storage->queue_bin[idx];
     }
     // Whether the gradient of missing values is put to the left side.
     bool missing_left = true;
@@ -159,9 +162,12 @@ class EvaluateSplitAgent {
 
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *best_split) {
     // The gain is evaluated in double precision, which dominates this kernel on GPUs with low
-    // FP64 throughput. Candidates are queued and evaluated in full warps, skipping those that
-    // can't be selected.
-    std::uint32_t n_queued = 0;
+    // FP64 throughput. Candidates that can't be selected are skipped, and the rest are queued
+    // so they can be evaluated in full warps.
+    // Candidates in [head, tail) are waiting for evaluation, `head` is a multiple of the warp
+    // size.
+    std::uint32_t head = 0;
+    std::uint32_t tail = 0;
     // The last bin of the previous chunk.
     GradientPairInt64 last_bin;
     for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
@@ -189,30 +195,20 @@ class EvaluateSplitAgent {
       bool keep = thread_active && !repeated;
       auto mask = __ballot_sync(dh::WarpFullMask(), keep);
       if (keep) {
-        auto pos = n_queued + __popc(mask & ((1u << threadIdx.x) - 1));
+        auto pos = (tail + __popc(mask & ((1u << threadIdx.x) - 1))) % kQueueSize;
         temp_storage->queue_grad[pos] = bin.GetQuantisedGrad();
         temp_storage->queue_hess[pos] = bin.GetQuantisedHess();
         temp_storage->queue_bin[pos] = bin_idx;
       }
-      n_queued += __popc(mask);
+      tail += __popc(mask);
       __syncwarp();
-
-      if (n_queued >= kBlockSize) {
-        this->EvaluateQueued(kBlockSize, best_split);
-        // Move the rest to the front.
-        n_queued -= kBlockSize;
-        if (threadIdx.x < n_queued) {
-          temp_storage->queue_grad[threadIdx.x] =
-              temp_storage->queue_grad[kBlockSize + threadIdx.x];
-          temp_storage->queue_hess[threadIdx.x] =
-              temp_storage->queue_hess[kBlockSize + threadIdx.x];
-          temp_storage->queue_bin[threadIdx.x] = temp_storage->queue_bin[kBlockSize + threadIdx.x];
-        }
-        __syncwarp();
+      if (tail - head >= kBlockSize) {
+        this->EvaluateBatch(head % kQueueSize, kBlockSize, best_split);
+        head += kBlockSize;
       }
     }
-    if (n_queued > 0) {
-      this->EvaluateQueued(n_queued, best_split);
+    if (tail != head) {
+      this->EvaluateBatch(head % kQueueSize, tail - head, best_split);
     }
   }
 
