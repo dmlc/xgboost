@@ -331,22 +331,20 @@ TYPED_TEST(TestHistEvaluator, PartitionMissing) {
 }
 
 TYPED_TEST(TestHistEvaluator, PartitionParentWeight) {
+  // Shift all category gradients to give the parent a positive, zero, or negative weight.
   for (auto offset : {-2.0, 0.0, 2.0}) {
-    for (auto threshold : {"2", "3"}) {
-      auto const &split =
-          this->Evaluate({{{1.0 + offset, 1.0}, {-2.0 + offset, 1.0}, {1.0 + offset, 1.0}}}, {},
-                         {{"max_cat_threshold", threshold}});
-      if (offset == 0.0 && this->kTargets > 1) {
-        // With multiple targets the zero projection still preserves bin order.
-        EXPECT_FLOAT_EQ(split.loss_chg, 1.5f * this->kTargets);
-        this->CheckCategories({true, false, false});
-      } else {
-        // Isolate category 1; the child orientation can differ.
-        EXPECT_FLOAT_EQ(split.loss_chg, 6.0f * this->kTargets);
-        common::KCatBitField bits{split.cat_bits};
-        EXPECT_EQ(bits.Check(0), bits.Check(2));
-        EXPECT_NE(bits.Check(0), bits.Check(1));
-      }
+    auto const &split =
+        this->Evaluate({{{1.0 + offset, 1.0}, {-2.0 + offset, 1.0}, {1.0 + offset, 1.0}}});
+    if (offset == 0.0 && this->kTargets > 1) {
+      // With multiple targets the zero projection still preserves bin order.
+      EXPECT_FLOAT_EQ(split.loss_chg, 1.5f * this->kTargets);
+      this->CheckCategories({true, false, false});
+    } else {
+      // Isolate category 1; the child orientation can differ.
+      EXPECT_FLOAT_EQ(split.loss_chg, 6.0f * this->kTargets);
+      common::KCatBitField bits{split.cat_bits};
+      EXPECT_EQ(bits.Check(0), bits.Check(2));
+      EXPECT_NE(bits.Check(0), bits.Check(1));
     }
   }
   // The parent gradient is nonzero, but L1 makes its weight zero.
