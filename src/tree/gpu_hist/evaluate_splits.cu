@@ -2,7 +2,9 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #include <algorithm>                               // for :max
+#include <cstdint>                                 // for int64_t, uint32_t
 #include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <cuda/ptx>                                // for get_sreg_laneid
 #include <cuda/std/functional>                     // for plus
 #include <limits>                                  // for numeric_limits
 
@@ -42,6 +44,67 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
   return missing_left_out ? missing_left_gain : missing_right_gain;
 }
 
+/**
+ * @brief A queue of numerical split candidates shared by a warp, kept in bin order.
+ *
+ * The queue is a ring buffer in shared memory. Both `Push` and `Pop` must be called by the
+ * full warp. The head and the tail are warp-uniform, and stay in registers.
+ */
+class CandidateQueue {
+ public:
+  // Two warps of candidates: the warp pops a full warp before the next push can overflow.
+  static constexpr std::uint32_t kCapacity = 2 * dh::WarpThreads();
+
+  struct TempStorage {
+    std::int64_t grad[kCapacity];
+    std::int64_t hess[kCapacity];
+    std::uint32_t bin[kCapacity];
+  };
+
+  __device__ explicit CandidateQueue(TempStorage *storage) : storage_{storage} {}
+
+  [[nodiscard]] __device__ std::uint32_t Size() const { return tail_ - head_; }
+
+  /**
+   * @brief Append the candidate of each lane with `keep` set, in lane order.
+   */
+  __device__ void Push(bool keep, GradientPairInt64 const &sum, std::uint32_t bin_idx) {
+    auto lane = cuda::ptx::get_sreg_laneid();
+    auto mask = __ballot_sync(dh::WarpFullMask(), keep);
+    if (keep) {
+      auto pos = (tail_ + __popc(mask & ((1u << lane) - 1))) % kCapacity;
+      storage_->grad[pos] = sum.GetQuantisedGrad();
+      storage_->hess[pos] = sum.GetQuantisedHess();
+      storage_->bin[pos] = bin_idx;
+    }
+    tail_ += __popc(mask);
+    __syncwarp();
+  }
+
+  /**
+   * @brief Remove up to one warp of candidates, one per lane, in order.
+   *
+   * @return Whether this lane received a candidate.
+   */
+  __device__ bool Pop(GradientPairInt64 *sum, std::uint32_t *bin_idx) {
+    auto lane = cuda::ptx::get_sreg_laneid();
+    bool valid = lane < this->Size();
+    if (valid) {
+      auto pos = (head_ + lane) % kCapacity;
+      *sum = GradientPairInt64{storage_->grad[pos], storage_->hess[pos]};
+      *bin_idx = storage_->bin[pos];
+    }
+    head_ += std::min(this->Size(), static_cast<std::uint32_t>(dh::WarpThreads()));
+    __syncwarp();
+    return valid;
+  }
+
+ private:
+  TempStorage *storage_;
+  std::uint32_t head_{0};
+  std::uint32_t tail_{0};
+};
+
 // This kernel uses block_size == warp_size. This is an unusually small block size for a cuda kernel
 // - normally a larger block size is preferred to increase the number of resident warps on each SM
 // (occupancy). In the below case each thread has a very large amount of work per thread relative to
@@ -55,17 +118,11 @@ class EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
-  // Capacity of the numerical candidate queue, a ring buffer holding up to two warps of
-  // candidates.
-  static constexpr std::uint32_t kQueueSize = 2 * kBlockSize;
-
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
-    // Numerical split candidates waiting for evaluation, in bin order.
-    std::int64_t queue_grad[kQueueSize];
-    std::int64_t queue_hess[kQueueSize];
-    std::uint32_t queue_bin[kQueueSize];
+    // Numerical split candidates waiting for evaluation.
+    CandidateQueue::TempStorage queue;
   };
 
   const int fidx;
@@ -120,19 +177,14 @@ class EvaluateSplitAgent {
   }
 
   /**
-   * @brief Evaluate `n` queued numerical candidates starting at `begin`, at most one per lane,
-   *        and update the best split.
+   * @brief Evaluate up to one warp of queued numerical candidates, one per lane, and update the
+   *        best split.
    */
-  __device__ __forceinline__ void EvaluateBatch(std::uint32_t begin, std::uint32_t n,
-                                                DeviceSplitCandidate *best_split) {
-    auto idx = begin + threadIdx.x;
-    bool thread_active = threadIdx.x < n;
+  __device__ __forceinline__ void EvaluateQueued(CandidateQueue *queue,
+                                                 DeviceSplitCandidate *best_split) {
     GradientPairInt64 scan;
     std::uint32_t bin_idx = 0;
-    if (thread_active) {
-      scan = GradientPairInt64{temp_storage->queue_grad[idx], temp_storage->queue_hess[idx]};
-      bin_idx = temp_storage->queue_bin[idx];
-    }
+    bool thread_active = queue->Pop(&scan, &bin_idx);
     // Whether the gradient of missing values is put to the left side.
     bool missing_left = true;
     float gain = thread_active ? LossChangeMissing(scan, missing, parent_sum, param, nidx, fidx,
@@ -164,10 +216,7 @@ class EvaluateSplitAgent {
     // The gain is evaluated in double precision, which dominates this kernel on GPUs with low
     // FP64 throughput. Candidates that can't be selected are skipped, and the rest are queued
     // so they can be evaluated in full warps.
-    // Candidates in [head, tail) are waiting for evaluation, `head` is a multiple of the warp
-    // size.
-    std::uint32_t head = 0;
-    std::uint32_t tail = 0;
+    CandidateQueue queue{&temp_storage->queue};
     // The last bin of the previous chunk.
     GradientPairInt64 last_bin;
     for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
@@ -191,24 +240,14 @@ class EvaluateSplitAgent {
 #else
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum{}, prefix_op);
 #endif
-      // Append the remaining candidates to the queue, keeping the bin order.
-      bool keep = thread_active && !repeated;
-      auto mask = __ballot_sync(dh::WarpFullMask(), keep);
-      if (keep) {
-        auto pos = (tail + __popc(mask & ((1u << threadIdx.x) - 1))) % kQueueSize;
-        temp_storage->queue_grad[pos] = bin.GetQuantisedGrad();
-        temp_storage->queue_hess[pos] = bin.GetQuantisedHess();
-        temp_storage->queue_bin[pos] = bin_idx;
-      }
-      tail += __popc(mask);
-      __syncwarp();
-      if (tail - head >= kBlockSize) {
-        this->EvaluateBatch(head % kQueueSize, kBlockSize, best_split);
-        head += kBlockSize;
+      // Queue the remaining candidates, and evaluate them once there's a full warp.
+      queue.Push(thread_active && !repeated, bin, bin_idx);
+      if (queue.Size() >= kBlockSize) {
+        this->EvaluateQueued(&queue, best_split);
       }
     }
-    if (tail != head) {
-      this->EvaluateBatch(head % kQueueSize, tail - head, best_split);
+    if (queue.Size() > 0) {
+      this->EvaluateQueued(&queue, best_split);
     }
   }
 
