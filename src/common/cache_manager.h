@@ -5,7 +5,7 @@
 #define XGBOOST_COMMON_CACHE_MANAGER_H_
 
 #include <array>
-#include <cstddef>   // for size_t
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int64_t
 
 namespace xgboost::common {
