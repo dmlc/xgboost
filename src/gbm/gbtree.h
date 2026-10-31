@@ -407,8 +407,8 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // The node position for each row, one for each tree in a group. Kept between iterations to
-  // reuse the device memory.
+  // The leaf position of each row, one for each new tree in a group. The position is negated
+  // if the row is sampled out. Kept between iterations to reuse the memory.
   std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
