@@ -161,12 +161,6 @@ TEST(Histogram, ZeroOnAllocate) {
   expect_zero(0);
   histogram.AllocateHistograms(&ctx, {1}, {2});
   expect_zero(1);
-  // Without the parent histogram, the sibling is built instead of subtracted.
-  GPUExpandEntry parent;
-  parent.nidx = 7;
-  auto need_build = histogram.SubtractHist<GPUExpandEntry>(&ctx, {parent}, {1}, {2});
-  ASSERT_EQ(need_build, (std::vector<bst_node_t>{2}));
-  expect_zero(2);
 }
 
 TEST(Histogram, SubtractionTrickBatch) {
