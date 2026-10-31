@@ -1093,7 +1093,7 @@ def make_categorical(
                 categories = np.arange(0, n_categories, dtype=cat_dtype)
                 c = row_rng.randint(
                     low=0, high=n_categories, size=n_samples, dtype=cat_dtype
-                )
+                )  # type: ignore[arg-type]
 
             df[str(i)] = pd.Series(c, dtype=cat_dtype).astype("category")
             df[str(i)] = df[str(i)].cat.set_categories(categories)
