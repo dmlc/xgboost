@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  */
 #include "stats.h"
 
@@ -8,8 +8,8 @@
 
 #include "../collective/aggregator.h"    // for GlobalSum
 #include "linalg_op.h"                   // for Matrix
+#include "numeric.h"                     // for TransformReduce
 #include "optional_weight.h"             // OptionalWeights
-#include "threading_utils.h"             // ParallelFor, MemStackAllocator
 #include "transform_iterator.h"          // MakeIndexTransformIter
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
@@ -57,11 +57,8 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
   } else {
     auto h_v = v;
     float n = v.Size();
-    MemStackAllocator<float, DefaultMaxThreads()> tloc(ctx->Threads(), 0.0f);
-    ParallelFor(v.Size(), ctx->Threads(),
-                [&](auto i) { tloc[omp_get_thread_num()] += h_v(i) / n; });
-    auto ret = std::accumulate(tloc.cbegin(), tloc.cend(), .0f);
-    out->HostView()(0) = ret;
+    out->HostView()(0) =
+        TransformReduce(v.Size(), ctx->Threads(), 0.0f, [&](std::size_t i) { return h_v(i) / n; });
   }
 }
 
@@ -77,11 +74,8 @@ void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vect
 
     auto n_rows_f64 = static_cast<double>(n_samples);
     for (std::size_t j = 0; j < n_columns; ++j) {
-      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0);
-      ParallelFor(v.Shape(0), ctx->Threads(),
-                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / n_rows_f64); });
-      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
-      h_out(j) = mean;
+      h_out(j) = TransformReduce(v.Shape(0), ctx->Threads(), 0.0,
+                                 [&](std::size_t i) { return h_v(i, j) / n_rows_f64; });
     }
     SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
@@ -103,11 +97,8 @@ void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
     CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
     auto h_out = out->HostView();
     for (std::size_t j = 0; j < v.Shape(1); ++j) {
-      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0);
-      ParallelFor(v.Shape(0), ctx->Threads(),
-                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / sum_w * h_w(i)); });
-      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
-      h_out(j) = mean;
+      h_out(j) = TransformReduce(v.Shape(0), ctx->Threads(), 0.0,
+                                 [&](std::size_t i) { return h_v(i, j) / sum_w * h_w(i); });
     }
     SafeColl(collective::GlobalSum(ctx, h_out));
   } else {

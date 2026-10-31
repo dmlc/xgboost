@@ -8,6 +8,7 @@ import json
 import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager, nullcontext
 from inspect import signature
 from typing import (
     Any,
@@ -72,7 +73,6 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
-from .objective import Objective
 from .training import train
 
 
@@ -168,18 +168,17 @@ class _SklObjWProto(Protocol):
 
 
 _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
-SklObjectiveCallable = Union[Objective, _SklObjWProto, _SklObjProto]
+SklObjectiveCallable = Union[_SklObjWProto, _SklObjProto]
 SklObjective = Optional[Union[str, SklObjectiveCallable]]
 
 
 def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
-    """Decorate or forward a custom objective.
+    """Decorate a custom objective.
 
     Parameters
     ----------
     func:
-        An :py:class:`Objective` instance or a callable with signature
-        ``func(y_true, y_pred)``:
+        A callable with signature ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
             The target values
@@ -191,8 +190,7 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
     Returns
     -------
     new_func:
-        The original :py:class:`Objective` or a function with the signature
-        ``new_func(preds, dmatrix)``:
+        A function with the signature ``new_func(preds, dmatrix)``:
 
         preds: array_like, shape [n_samples]
             The predicted values
@@ -201,9 +199,6 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
             ``dmatrix.get_label()``
 
     """
-
-    if isinstance(func, Objective):
-        return func
 
     parameters = signature(func).parameters
     supports_sw = "sample_weight" in parameters
@@ -228,7 +223,9 @@ def _objective_decorator(func: SklObjectiveCallable) -> CustomObj:
     return inner
 
 
-def _metric_decorator(func: Callable) -> Metric:
+def _metric_decorator(
+    func: Callable,
+) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
     """Decorate a metric function from sklearn.
 
     Converts an metric function that uses the typical sklearn metric signature so that
@@ -246,7 +243,9 @@ def _metric_decorator(func: Callable) -> Metric:
     return inner
 
 
-def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
+def ltr_metric_decorator(
+    func: Callable, n_jobs: Optional[int]
+) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
     """Decorate a learning to rank metric."""
 
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
@@ -258,7 +257,7 @@ def ltr_metric_decorator(func: Callable, n_jobs: Optional[int]) -> Metric:
             )
         scores = np.empty(group_ptr.size - 1)
         futures = []
-        weight = dmatrix.get_group()
+        weight = dmatrix.get_weight()
         no_weight = weight.size == 0
 
         def task(i: int) -> float:
@@ -515,9 +514,21 @@ __model_doc = f"""
         .. versionadded:: 1.6.0
 
         Metric used for monitoring the training result and early stopping.  It can be a
-        string or list of strings as names of predefined metric in XGBoost (See
-        :doc:`/parameter`), one of the metrics in :py:mod:`sklearn.metrics`, or any
-        other user defined metric that looks like `sklearn.metrics`.
+        string naming a predefined metric in XGBoost (See :doc:`/parameter`), one of
+        the metrics in :py:mod:`sklearn.metrics`, any other user defined metric that
+        looks like `sklearn.metrics`, or a list containing strings and callables.
+        Predefined metrics are evaluated first, followed by callable metrics in their
+        supplied order. Each callable's ``__name__`` is used as its metric name;
+        callable names must be distinct from one another and from the names emitted
+        by predefined metrics, including the default metric. Duplicate callable names
+        and exact matches with predefined metric strings are rejected before training.
+        Other name collisions are rejected on the first evaluation. Set
+        ``disable_default_eval_metric=True`` when a custom metric uses the default
+        metric's name.
+
+        .. versionchanged:: 3.5.0
+
+            Lists can contain multiple callable metrics.
 
         If custom objective is also provided, then custom metric should implement the
         corresponding reverse link function.
@@ -563,8 +574,9 @@ __model_doc = f"""
           callback function :py:class:`xgboost.callback.EarlyStopping`.
 
         - If there's more than one item in **eval_set**, the last entry will be used for
-          early stopping.  If there's more than one metric in **eval_metric**, the last
-          metric will be used for early stopping.
+          early stopping. If there's more than one metric in **eval_metric**, the last
+          evaluated metric will be used for early stopping. When callables are present,
+          this is the last callable metric.
 
     callbacks : {Optional[List[TrainingCallback]]}
 
@@ -1150,6 +1162,13 @@ class XGBModel(XGBModelBase):
 
         return params
 
+    def _verbosity_context(self) -> AbstractContextManager[None]:
+        # set_config skips a None verbosity, so the context would only save and
+        # restore the global config.
+        if self.verbosity is None:
+            return nullcontext()
+        return config_context(verbosity=self.verbosity)
+
     def get_xgb_params(self) -> Dict[str, Any]:
         """Get xgboost specific parameters."""
         params: Dict[str, Any] = self.get_params()
@@ -1253,7 +1272,9 @@ class XGBModel(XGBModelBase):
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
 
-        def custom_metric(m: Callable) -> Metric:
+        def custom_metric(
+            m: Callable,
+        ) -> Callable[[np.ndarray, DMatrix], Tuple[str, float]]:
             if self._get_type() == "ranker":
                 wrapped = ltr_metric_decorator(m, self.n_jobs)
             else:
@@ -1275,19 +1296,32 @@ class XGBModel(XGBModelBase):
                     invalid_type(self.eval_metric)
                 # Could be a list of strings or callables
                 builtin_metrics: List[str] = []
+                custom_metrics: List[
+                    Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+                ] = []
                 for m in self.eval_metric:
                     if callable(m):
-                        if metric is not None:
-                            raise NotImplementedError(
-                                "Using multiple custom metrics is not yet supported."
-                            )
-                        metric = custom_metric(m)
+                        custom_metrics.append(custom_metric(m))
                     elif isinstance(m, str):
                         builtin_metrics.append(m)
                     else:
                         invalid_type(m)
+                callable_names = [m.__name__ for m in self.eval_metric if callable(m)]
+                if len(callable_names) != len(set(callable_names)) or set(
+                    callable_names
+                ).intersection(builtin_metrics):
+                    raise ValueError("Metric names must be distinct.")
+                params.pop("eval_metric", None)
                 if builtin_metrics:
                     params.update({"eval_metric": builtin_metrics})
+                if custom_metrics:
+
+                    def composite_metric(
+                        y_score: np.ndarray, dmatrix: DMatrix
+                    ) -> List[Tuple[str, float]]:
+                        return [m(y_score, dmatrix) for m in custom_metrics]
+
+                    metric = composite_metric
 
         return model, metric, params
 
@@ -1366,7 +1400,7 @@ class XGBModel(XGBModelBase):
             object storing base margin for the i-th validation set.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             params = self.get_xgb_params()
             model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
@@ -1471,7 +1505,7 @@ class XGBModel(XGBModelBase):
         prediction
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             iteration_range = self._get_iteration_range(iteration_range)
             if self._can_use_inplace_predict():
                 try:
@@ -1531,7 +1565,7 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             iteration_range = self._get_iteration_range(iteration_range)
             test_dmatrix = DMatrix(
                 X,
@@ -1705,11 +1739,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         # multi-class
         return prediction
-    if (
-        len(prediction.shape) == 2
-        and n_classes == 2
-        and prediction.shape[1] >= n_classes
-    ):
+    if len(prediction.shape) == 2 and 2 == n_classes <= prediction.shape[1]:
         # multi-label
         return prediction
     # binary logistic function
@@ -1752,7 +1782,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             # We keep the n_classes_ as a simple member instead of loading it from
             # booster in a Python property. This way we can have efficient and
             # thread-safe prediction.
@@ -1862,7 +1892,7 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> ArrayLike:
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             class_probs = super().predict(
                 X=X,
                 output_margin=output_margin,
@@ -2299,7 +2329,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             object storing base margin for the i-th validation set.
 
         """
-        with config_context(verbosity=self.verbosity):
+        with self._verbosity_context():
             params = self.get_xgb_params()
 
             model, metric, params = self._configure_fit(xgb_model, params)
@@ -2386,7 +2416,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
         Returns
         -------
         score :
-          The result of the first evaluation metric for the ranker.
+          The result of the last evaluated metric for the ranker.
 
         """
         X, qid = _get_qid(X, None)
@@ -2405,11 +2435,13 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             nthread=self.n_jobs,
             feature_types=self.feature_types,
         )
-        if callable(self.eval_metric):
-            metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
-            result_str = self.get_booster().eval_set([(Xyq, "eval")], feval=metric)
-        else:
-            result_str = self.get_booster().eval(Xyq)
+        booster = self.get_booster()
+        _, end = self._get_iteration_range(None)
+        if 0 < end < booster.num_boosted_rounds():
+            # Use the best iteration from early stopping, consistent with `predict`.
+            booster = booster[:end]
+        _, metric, _ = self._configure_fit(None, {})
+        result_str = booster.eval_set([(Xyq, "eval")], feval=metric)
 
         metric_score = _parse_eval_str(result_str)
         return metric_score[-1][1]

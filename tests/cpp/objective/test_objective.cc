@@ -48,7 +48,10 @@ TEST(Objective, PredTransform) {
     HostDeviceVector<float> predts;
     predts.SetDevice(tparam.Device());
     predts.Resize(n, 3.14f);
-    obj->PredTransform(&predts);
+    auto groups = entry->name.find("multi") != std::string::npos ? 2U : 1U;
+    auto shape = obj->PredTransform(&predts, {n / groups, groups});
+    ASSERT_EQ(shape[0], n / groups);
+    ASSERT_EQ(shape[0] * shape[1], predts.Size());
     ASSERT_EQ(predts.Device(), tparam.Device());
     if (tparam.IsCUDA()) {
       ASSERT_TRUE(predts.DeviceCanRead());

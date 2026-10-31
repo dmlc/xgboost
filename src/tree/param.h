@@ -64,6 +64,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
+  // Fraction of output dimensions used for random-projected vector-leaf split search.
+  float multi_projection_ratio;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
 
@@ -155,6 +157,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
+    DMLC_DECLARE_FIELD(multi_projection_ratio)
+        .set_range(0.0f, 1.0f)
+        .set_default(1.0f)
+        .describe("Fraction of gradient dimensions retained by random projection.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");

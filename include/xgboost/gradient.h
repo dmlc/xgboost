@@ -1,13 +1,10 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #pragma once
 
 #include <xgboost/base.h>    // for GradientPair
 #include <xgboost/linalg.h>  // for Matrix
-#include <xgboost/logging.h>
-
-#include <cstddef>  // for size_t
 
 namespace xgboost {
 /**
@@ -16,37 +13,16 @@ namespace xgboost {
 struct GradientContainer {
   /** @brief Gradient used for multi-target tree split and linear model. */
   linalg::Matrix<GradientPair> gpair;
-  /** @brief Gradient used for tree leaf value, optional. */
+  /** @brief Full gradient for tree leaf value, set by gbtree for projected split gradient. */
   linalg::Matrix<GradientPair> value_gpair;
 
-  [[nodiscard]] bool HasValueGrad() const noexcept { return !value_gpair.Empty(); }
-
-  [[nodiscard]] std::size_t NumSplitTargets() const noexcept { return gpair.Shape(1); }
-  [[nodiscard]] std::size_t NumTargets() const noexcept {
-    return HasValueGrad() ? value_gpair.Shape(1) : this->gpair.Shape(1);
+  [[nodiscard]] static bool HasValueGrad(linalg::Matrix<GradientPair> const& value_gpair) {
+    // !(shape<1> == 0) to fend off dask empty workers.
+    return !(value_gpair.Empty() && value_gpair.Shape(1) == 0);
   }
-
-  linalg::MatrixView<GradientPair const> ValueGrad(Context const* ctx) const {
-    if (HasValueGrad()) {
-      return this->value_gpair.View(ctx->Device());
-    }
-    return this->gpair.View(ctx->Device());
-  }
+  [[nodiscard]] bool HasValueGrad() const noexcept { return HasValueGrad(this->value_gpair); }
 
   [[nodiscard]] linalg::Matrix<GradientPair> const* Grad() const { return &gpair; }
   [[nodiscard]] linalg::Matrix<GradientPair>* Grad() { return &gpair; }
-
-  [[nodiscard]] linalg::Matrix<GradientPair> const* FullGradOnly() const {
-    if (this->HasValueGrad()) {
-      LOG(FATAL) << "Reduced gradient is not yet supported.";
-    }
-    return this->Grad();
-  }
-  [[nodiscard]] linalg::Matrix<GradientPair>* FullGradOnly() {
-    if (this->HasValueGrad()) {
-      LOG(FATAL) << "Reduced gradient is not yet supported.";
-    }
-    return this->Grad();
-  }
 };
 }  // namespace xgboost

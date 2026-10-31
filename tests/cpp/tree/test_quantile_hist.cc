@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>  // for GradientContainer
 #include <xgboost/host_device_vector.h>
+#include <xgboost/json.h>  // for Json, Object
 #include <xgboost/linalg.h>
 #include <xgboost/tree_updater.h>
 
@@ -169,4 +170,75 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
 TEST(QuantileHist, HistUpdaterPartitionerOverrun) { TestPartitionerOverrun(1); }
 
 TEST(QuantileHist, MultiTargetHistBuilderPartitionerOverrun) { TestPartitionerOverrun(3); }
+TEST(QuantileHist, MultiTargetRootSum) {
+  Context ctx;
+  ctx.nthread = 2;
+  constexpr bst_target_t kTargets = 3;
+  for (auto sparsity : {0.0f, 0.5f}) {
+    auto data = RandomDataGenerator{128, 4, sparsity}.GenerateDMatrix();
+    auto gpair = GenerateRandomGradients(&ctx, 128, kTargets);
+    auto grad = gpair.gpair.HostView();
+    std::vector<GradientPairPrecise> expected(kTargets);
+    for (bst_idx_t i = 0; i < grad.Shape(0); ++i) {
+      for (bst_target_t t = 0; t < kTargets; ++t) {
+        expected[t] += GradientPairPrecise{grad(i, t)};
+      }
+    }
+    ObjInfo task{ObjInfo::kRegression, true};
+    std::unique_ptr<TreeUpdater> updater{
+        TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    TrainParam param;
+    param.InitAllowUnknown(Args{{"max_depth", "1"}, {"gamma", "1e10"}, {"lambda", "1"}});
+    RegTree tree{kTargets, 4};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, data.get(), position, {&tree});
+    ASSERT_EQ(tree.Size(), 1);
+    auto weight = tree.HostMtView().LeafValue(RegTree::kRoot);
+    for (bst_target_t t = 0; t < kTargets; ++t) {
+      auto expected_weight =
+          static_cast<float>(-expected[t].GetGrad() / (expected[t].GetHess() + 1));
+      EXPECT_FLOAT_EQ(weight(t), expected_weight * param.learning_rate);
+    }
+  }
+}
+
+TEST(QuantileHist, DistributedMultiTargetRootSum) {
+  std::vector<std::string> models(3);
+  // Local density differs between workers, and one worker has no rows.
+  collective::TestDistributedGlobal(3, [&] {
+    auto rank = collective::GetRank();
+    auto rows = rank == 2 ? 0ul : 64ul;
+    auto data = RandomDataGenerator{rows, 4, rank == 1 ? 0.5f : 0.0f}.GenerateDMatrix();
+    Context ctx;
+    ctx.nthread = 1;
+    auto gpair = GenerateRandomGradients(&ctx, rows, 3);
+    auto grad = gpair.gpair.HostView();
+    for (bst_idx_t i = 0; i < rows; ++i) {
+      for (bst_target_t t = 0; t < 3; ++t) {
+        grad(i, t) = GradientPair{static_cast<float>(t + 1), 1.0f};
+      }
+    }
+    ObjInfo task{ObjInfo::kRegression, true};
+    std::unique_ptr<TreeUpdater> updater{
+        TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    TrainParam param;
+    param.InitAllowUnknown(Args{{"max_depth", "1"}, {"gamma", "1e10"}, {"lambda", "1"}});
+    RegTree tree{3, 4};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, data.get(), position, {&tree});
+    EXPECT_EQ(tree.Size(), 1);
+    auto weight = tree.HostMtView().LeafValue(RegTree::kRoot);
+    for (bst_target_t t = 0; t < 3; ++t) {
+      EXPECT_FLOAT_EQ(weight(t),
+                      static_cast<float>(-128.0 * (t + 1) / 129.0) * param.learning_rate);
+    }
+    Json model{Object{}};
+    tree.SaveModel(&model);
+    Json::Dump(model, &models[rank]);
+  });
+  EXPECT_EQ(models[0], models[1]);
+  EXPECT_EQ(models[0], models[2]);
+}
 }  // namespace xgboost::tree

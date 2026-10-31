@@ -431,6 +431,43 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   EXPECT_EQ(result.fvalue, 1.0);
 }
 
+// Without missing values, the dense path must find the same split, with missing values going
+// right.
+TEST(GpuHist, EvaluateSingleSplitDense) {
+  auto ctx = MakeCUDACtx(0);
+  auto quantiser = DummyRoundingFactor(&ctx);
+  auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{0.0, 1.5});
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  EvalParam param{tparam};
+
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
+  thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 3, 6};
+  thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 3.0, 11.0, 12.0, 13.0};
+  // The bins of every feature add up to the parent sum.
+  auto feature_histogram = ConvertToInteger(
+      &ctx, {{-1.0, 0.5}, {0.25, 0.5}, {0.75, 0.5}, {-0.25, 0.5}, {-0.5, 0.5}, {0.75, 0.5}});
+  EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
+                            dh::ToSpan(feature_histogram)};
+
+  auto evaluate = [&](bool is_dense) {
+    EvaluateSplitSharedInputs shared_inputs{
+        param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), is_dense};
+    GPUHistEvaluator evaluator(tparam, 2, FstCU());
+    return evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+  };
+  auto sparse = evaluate(false);
+  auto dense = evaluate(true);
+
+  EXPECT_EQ(dense.dir, kRightDir);
+  EXPECT_EQ(dense.dir, sparse.dir);
+  EXPECT_EQ(dense.findex, sparse.findex);
+  EXPECT_EQ(dense.fvalue, sparse.fvalue);
+  EXPECT_EQ(dense.loss_chg, sparse.loss_chg);
+  EXPECT_EQ(dense.left_sum, sparse.left_sum);
+  EXPECT_EQ(dense.right_sum, sparse.right_sum);
+}
+
 TEST(GpuHist, EvaluateSplits) {
   auto ctx = MakeCUDACtx(0);
   thrust::device_vector<DeviceSplitCandidate> out_splits(2);

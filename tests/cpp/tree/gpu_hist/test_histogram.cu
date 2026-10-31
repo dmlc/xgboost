@@ -4,7 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 
-#include <algorithm>  // for shuffle, none_of, transform
+#include <algorithm>  // for shuffle, none_of, transform, fill
+#include <cstdint>    // for int64_t, uint32_t, uint64_t
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr
 #include <numeric>    // for iota, accumulate
@@ -130,6 +131,51 @@ TEST(Histogram, SubtractionTrick) {
   ASSERT_EQ(need_build, (std::vector<bst_node_t>{4, 6}));
 }
 
+TEST(Histogram, SubtractionTrickBatch) {
+  auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins = 37;
+
+  DeviceHistogramBuilder histogram;
+  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/16, n_bins, false);
+  histogram.AllocateHistograms(&ctx, {0});
+  histogram.AllocateHistograms(&ctx, {1}, {2});
+  histogram.AllocateHistograms(&ctx, {3, 5, 8}, {4, 6, 7});
+
+  // Distinct values for every node and bin.
+  auto value = [](bst_node_t nidx, bst_bin_t i) {
+    return GradientPairInt64{nidx * 1000 + i, -(nidx * 100 + i)};
+  };
+  auto fill = [&](bst_node_t nidx) {
+    std::vector<GradientPairInt64> h_hist(n_bins);
+    for (bst_bin_t i = 0; i < n_bins; ++i) {
+      h_hist[i] = value(nidx, i);
+    }
+    auto hist = histogram.GetNodeHistogram(nidx);
+    thrust::copy(h_hist.cbegin(), h_hist.cend(), dh::tbegin(hist));
+  };
+  for (bst_node_t nidx : {1, 2, 3, 5, 8}) {
+    fill(nidx);
+  }
+
+  // The parent of nodes 8 and 7 has no histogram, node 7 must be built.
+  std::vector<GPUExpandEntry> candidates(3);
+  candidates[0].nidx = 1;
+  candidates[1].nidx = 2;
+  candidates[2].nidx = 9;
+  auto need_build = histogram.SubtractHist(&ctx, candidates, {3, 5, 8}, {4, 6, 7});
+  ASSERT_EQ(need_build, (std::vector<bst_node_t>{7}));
+
+  auto check = [&](bst_node_t parent, bst_node_t built, bst_node_t subtracted) {
+    std::vector<GradientPairInt64> h_hist(n_bins);
+    dh::CopyDeviceSpanToVector(&h_hist, histogram.GetNodeHistogram(subtracted));
+    for (bst_bin_t i = 0; i < n_bins; ++i) {
+      ASSERT_EQ(h_hist[i], value(parent, i) - value(built, i));
+    }
+  };
+  check(1, 3, 4);
+  check(2, 5, 6);
+}
+
 void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPairInt64> onehot,
                                   common::Span<GradientPairInt64> cat) {
   auto cat_sum = std::accumulate(cat.cbegin(), cat.cend(), GradientPairInt64{});
@@ -212,69 +258,39 @@ TEST(Histogram, GPUHistCategorical) {
 }
 
 namespace {
-// Atomic add as type cast for test.
-XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
-  uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
-  uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
-  uint64_t ret = ::atomicAdd(u_dst, u_src);
-  return *reinterpret_cast<int64_t*>(&ret);
+void TestAtomicAdd(char const* name, std::vector<std::int64_t> const& h_inputs) {
+  SCOPED_TRACE(name);
+  auto expected = static_cast<std::uint64_t>(
+      std::accumulate(h_inputs.cbegin(), h_inputs.cend(), std::int64_t{0}));
+  dh::device_vector<std::int64_t> inputs(h_inputs);
+  // Keep low/high words separate, as in the production SoA layout.
+  dh::device_vector<std::uint32_t> result(3, 0);
+  auto d_inputs = inputs.data().get();
+  auto d_result = result.data().get();
+  dh::LaunchN(inputs.size(), [=] __device__(std::size_t i) {
+    AtomicAdd64As32(d_result, d_result + 2, d_inputs[i]);
+  });
+  EXPECT_EQ(result[0], static_cast<std::uint32_t>(expected));
+  EXPECT_EQ(result[2], static_cast<std::uint32_t>(expected >> 32));
+  EXPECT_EQ(result[1], 0u);
 }
 }  // namespace
 
-void TestAtomicAdd() {
-  size_t n_elements = 1024;
-  dh::device_vector<int64_t> result_a(1, 0);
-  auto d_result_a = result_a.data().get();
-
-  dh::device_vector<int64_t> result_b(1, 0);
-  auto d_result_b = result_b.data().get();
-
-  /**
-   * Test for simple inputs
-   */
-  std::vector<int64_t> h_inputs(n_elements);
-  for (size_t i = 0; i < h_inputs.size(); ++i) {
-    h_inputs[i] = (i % 2 == 0) ? i : -i;
+TEST(Histogram, AtomicAddInt64) {
+  std::size_t constexpr kElements = 1024;
+  std::vector<std::int64_t> inputs(kElements);
+  for (std::size_t i = 0; i < inputs.size(); ++i) {
+    auto value = static_cast<std::int64_t>(i);
+    inputs[i] = i % 2 == 0 ? value : -value;
   }
-  dh::device_vector<int64_t> inputs(h_inputs);
-  auto d_inputs = inputs.data().get();
+  TestAtomicAdd("mixed signs", inputs);
 
-  dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
-    atomicAdd(d_result_b, d_inputs[i]);
-  });
-  ASSERT_EQ(result_a[0], result_b[0]);
-
-  /**
-   * Test for positive values that don't fit into 32 bit integer.
-   */
-  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<uint32_t>::max() / 2));
-  thrust::fill(result_a.begin(), result_a.end(), 0);
-  thrust::fill(result_b.begin(), result_b.end(), 0);
-  dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
-    atomicAdd(d_result_b, d_inputs[i]);
-  });
-  ASSERT_EQ(result_a[0], result_b[0]);
-  ASSERT_GT(result_a[0], std::numeric_limits<uint32_t>::max());
-  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
-
-  /**
-   * Test for negative values that don't fit into 32 bit integer.
-   */
-  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<int32_t>::min() / 2));
-  thrust::fill(result_a.begin(), result_a.end(), 0);
-  thrust::fill(result_b.begin(), result_b.end(), 0);
-  dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    AtomicAdd64As32(d_result_a, d_inputs[i]);
-    atomicAdd(d_result_b, d_inputs[i]);
-  });
-  ASSERT_EQ(result_a[0], result_b[0]);
-  ASSERT_LT(result_a[0], std::numeric_limits<int32_t>::min());
-  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
+  // Positive and negative sums that don't fit in 32 bits.
+  std::fill(inputs.begin(), inputs.end(), std::numeric_limits<std::uint32_t>::max() / 2);
+  TestAtomicAdd("positive overflow", inputs);
+  std::fill(inputs.begin(), inputs.end(), std::numeric_limits<std::int32_t>::min() / 2);
+  TestAtomicAdd("negative overflow", inputs);
 }
-
-TEST(Histogram, AtomicAddInt64) { TestAtomicAdd(); }
 
 TEST(Histogram, Quantiser) {
   auto ctx = MakeCUDACtx(0);
@@ -518,8 +534,10 @@ struct HistInput {
       }
     }
 
-    std::uniform_int_distribution<std::int64_t> grad_dist{-(1 << 20), 1 << 20};
-    std::uniform_int_distribution<std::int64_t> hess_dist{0, 1 << 20};
+    // Exercise both words of each accumulator, including carries and negative gradients.
+    std::uniform_int_distribution<std::int64_t> grad_dist{-(std::int64_t{1} << 40),
+                                                          std::int64_t{1} << 40};
+    std::uniform_int_distribution<std::int64_t> hess_dist{0, std::int64_t{1} << 40};
     for (auto& v : this->gpair.Data()->HostVector()) {
       v = GradientPairInt64{grad_dist(rng), hess_dist(rng)};
     }

@@ -11,6 +11,7 @@
 #include <dmlc/parameter.h>
 
 #include <algorithm>  // for equal, any_of
+#include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy, HostAdapterDispatch
 #include "../predictor/prediction_kernel.h"
 #include "gbtree_model.h"
+#include "random_projection.h"  // for MakeRandomProjection, ProjectGradientKernel
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"
@@ -189,11 +191,15 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
   }
-  if (in_gpair->HasValueGrad()) {
+  if (tree_param_.multi_projection_ratio < 1.0f) {
     CHECK(model_.learner_model_state->IsVectorLeaf())
-        << "Reduced gradient must be used with vector leaf trees";
+        << "multi_projection_ratio requires multi_strategy=multi_output_tree.";
+    CHECK(ctx_->IsCPU() || ctx_->IsCUDA())
+        << "multi_projection_ratio supports CPU and CUDA training.";
+    CHECK_EQ(tparam_.updater_seq, ctx_->IsCUDA() ? "grow_gpu_hist" : "grow_quantile_histmaker")
+        << "multi_projection_ratio requires the hist tree method.";
     CHECK(!tree_param_.HasMonotone())
-        << "Monotonic constraints are not supported with reduced gradients.";
+        << "Monotonic constraints are not supported with projected gradients.";
   }
 
   TreesOneIter new_trees;
@@ -327,19 +333,34 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
     CHECK_EQ(n_out % gpair->gpair.Size(), 0) << msg;
   } else if (model_.learner_model_state->IsVectorLeaf()) {
     // vector leaf
-    if (!gpair->HasValueGrad()) {
-      CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
-    }
+    CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
   }
 
   out_position->resize(new_trees.size());
 
+  auto n_targets = gpair->gpair.Shape(1);
+  auto n_components = static_cast<std::size_t>(tree_param_.multi_projection_ratio * n_targets);
+  CHECK_GT(n_components, 0) << "multi_projection_ratio must retain at least one target.";
+
   // Rescale learning rate according to the number of trees
   auto lr = tree_param_.learning_rate;
   tree_param_.learning_rate /= static_cast<float>(new_trees.size());
+  if (n_components < n_targets) {
+    gpair->value_gpair = std::move(gpair->gpair);
+    auto full_view = std::as_const(gpair->value_gpair).View(ctx_->Device());
+    gpair->gpair = linalg::Empty<GradientPair>(ctx_, full_view.Shape(0), n_components);
+    // Share one projection across all parallel trees in this boosting round.
+    monitor_.Start("ProjectGradient");
+    auto basis = MakeRandomProjection(ctx_, n_targets, n_components);
+    common::DispatchKernel<ProjectGradientKernel>(ctx_, full_view, basis.View(ctx_->Device()),
+                                                  gpair->gpair.View(ctx_->Device()));
+    monitor_.Stop("ProjectGradient");
+  }
   for (auto& up : updaters_) {
-    up->Update(&tree_param_, gpair, p_fmat,
-               common::Span<HostDeviceVector<bst_node_t>>{*out_position}, new_trees);
+    up->Update(&tree_param_, gpair, p_fmat, common::Span{*out_position}, new_trees);
+  }
+  if (n_components < n_targets) {
+    gpair->gpair = std::exchange(gpair->value_gpair, {});
   }
   tree_param_.learning_rate = lr;
 }
@@ -629,8 +650,9 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   }
 }
 
-void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
-                          bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
+std::vector<bst_ulong> GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat,
+                                            HostDeviceVector<float>* out_preds, bool is_training,
+                                            bst_layer_t layer_begin, bst_layer_t layer_end) {
   auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
   auto const* tree_weights_override = static_cast<std::vector<float> const*>(nullptr);
   auto dropped_weights = this->DropTrees(is_training);
@@ -695,11 +717,13 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
   out_preds->SetDevice(ctx_->Device());
   out_preds->Resize(cache->predictions.Size());
   out_preds->Copy(cache->predictions);
+  return {p_fmat->Info().num_row_, model_.learner_model_state->OutputLength()};
 }
 
-void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
-                            HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
-                            bst_layer_t layer_end) const {
+std::vector<bst_ulong> GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
+                                              HostDeviceVector<float>* out_preds,
+                                              bst_layer_t layer_begin,
+                                              bst_layer_t layer_end) const {
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {
@@ -712,7 +736,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
       common::DispatchKernel<predictor::PredictBatchKernel>(ctx_, p_fmat.get(), out_preds, model_,
                                                             tree_begin, tree_end, nullptr);
     }
-    return;
+    return {p_m->Info().num_row_, model_.learner_model_state->OutputLength()};
   }
 
   bool known_type = common::DispatchKernel<predictor::InplacePredictKernel>(
@@ -722,6 +746,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     CHECK(proxy) << error::InplacePredictProxy();
     LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
   }
+  return {p_m->Info().num_row_, model_.learner_model_state->OutputLength()};
 }
 
 // register the objective functions

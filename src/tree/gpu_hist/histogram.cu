@@ -4,6 +4,7 @@
 #include <algorithm>             // for min, max
 #include <cstddef>               // for size_t
 #include <cstdint>               // uint32_t, int32_t
+#include <cuda/std/bit>          // for bit_cast
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
 #include <vector>                // for vector
@@ -27,17 +28,40 @@ XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
   return (ridx - matrix.base_rowid) * matrix.row_stride + fidx;
 }
-}  // anonymous namespace
+// Implement swizzle to avoid within bin bank conflicts.
+//
+// Four contiguous word planes let each atomic instruction use all 32 shared-memory banks.
+class SharedHistogram {
+  std::uint32_t* grad_lo_;
+  std::uint32_t* grad_hi_;
+  std::uint32_t* hess_lo_;
+  std::uint32_t* hess_hi_;
 
-XGBOOST_DEV_INLINE void AtomicAddGpairShared(xgboost::GradientPairInt64* dest,
-                                             xgboost::GradientPairInt64 const& gpair) {
-  auto dst_ptr = reinterpret_cast<int64_t*>(dest);
-  auto g = gpair.GetQuantisedGrad();
-  auto h = gpair.GetQuantisedHess();
+ public:
+  XGBOOST_DEV_INLINE SharedHistogram(std::uint32_t* words, bst_bin_t n_bins)
+      : grad_lo_{words},
+        grad_hi_{words + n_bins},
+        hess_lo_{words + 2 * n_bins},
+        hess_hi_{words + 3 * n_bins} {
+    static_assert(sizeof(GradientPairInt64) == 4 * sizeof(std::uint32_t));
+  }
 
-  AtomicAdd64As32(dst_ptr, g);
-  AtomicAdd64As32(dst_ptr + 1, h);
-}
+  XGBOOST_DEV_INLINE void Add(bst_bin_t bin, GradientPairInt64 const& gpair) const {
+    AtomicAdd64As32(grad_lo_ + bin, grad_hi_ + bin, gpair.GetQuantisedGrad());
+    AtomicAdd64As32(hess_lo_ + bin, hess_hi_ + bin, gpair.GetQuantisedHess());
+  }
+
+  XGBOOST_DEV_INLINE GradientPairInt64 Load(bst_bin_t bin) const {
+    uint4 words{
+        grad_lo_[bin],
+        grad_hi_[bin],
+        hess_lo_[bin],
+        hess_hi_[bin],
+    };
+    return cuda::std::bit_cast<GradientPairInt64>(words);
+  }
+};
+}  // namespace
 
 // Global 64 bit integer atomics at the time of writing do not benefit from being separated into two
 // 32 bit atomics
@@ -144,7 +168,7 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
                                   RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
-                                  GradientPairInt64* smem_hist, GradientPairInt64* gmem_hist,
+                                  SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
                                   bst_idx_t begin, bst_idx_t end) {
   bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
@@ -154,7 +178,7 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 
   auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
     if constexpr (Policy::kSharedMem) {
-      AtomicAddGpairShared(smem_hist + bin_idx, adjusted);
+      smem_hist.Add(bin_idx, adjusted);
     } else {
       // gmem_hist is a subspan for the current target.
       AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
@@ -241,7 +265,8 @@ __global__ __launch_bounds__(
 
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
   // Privatized histogram
-  auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
+  SharedHistogram smem_hist{reinterpret_cast<std::uint32_t*>(shmem),
+                            Policy::kSharedMem ? group.num_bins : 0};
 
   auto d_node_hist = node_hists[nidx_in_set];
   // With a target-major layout.
@@ -250,7 +275,8 @@ __global__ __launch_bounds__(
   __builtin_assume(__isGlobal(gmem_hist));
 
   if constexpr (Policy::kSharedMem) {
-    dh::BlockFill(smem_hist, group.num_bins, GradientPairInt64{});
+    // Zero the full storage with vector stores, independently of the word-plane layout.
+    dh::BlockFill(reinterpret_cast<GradientPairInt64*>(shmem), group.num_bins, GradientPairInt64{});
     __syncthreads();
   }
   HistKernelSegment<Policy>(matrix, group, d_ridx, d_gpair + n_samples * target_idx, smem_hist,
@@ -259,7 +285,7 @@ __global__ __launch_bounds__(
     __syncthreads();
     // Flush this block's histogram.
     for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
-      AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, smem_hist[bin_idx]);
+      AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, smem_hist.Load(bin_idx));
     }
   }
 }
@@ -538,5 +564,42 @@ void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, bst_node_t nidx,
                            d_node_hist.size() * 2 * num_histograms, ctx->Device()));
   SafeColl(rc);
   this->monitor_.Stop(__func__);
+}
+
+namespace {
+struct SubtractionHists {
+  GradientPairInt64 const* parent;
+  GradientPairInt64 const* built;
+  GradientPairInt64* subtraction;
+};
+}  // anonymous namespace
+
+void DeviceHistogramBuilder::SubtractionTrick(Context const* ctx,
+                                              std::vector<bst_node_t> const& parent_nidx,
+                                              std::vector<bst_node_t> const& build_nidx,
+                                              std::vector<bst_node_t> const& subtraction_nidx) {
+  CHECK_EQ(parent_nidx.size(), build_nidx.size());
+  CHECK_EQ(parent_nidx.size(), subtraction_nidx.size());
+  if (parent_nidx.empty()) {
+    return;
+  }
+  std::vector<SubtractionHists> h_nodes(parent_nidx.size());
+  for (std::size_t i = 0; i < parent_nidx.size(); ++i) {
+    h_nodes[i] = {hist_.GetNodeHistogram(parent_nidx[i]).data(),
+                  hist_.GetNodeHistogram(build_nidx[i]).data(),
+                  hist_.GetNodeHistogram(subtraction_nidx[i]).data()};
+  }
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::TemporaryArray<SubtractionHists> nodes(h_nodes.size());
+  dh::CopyTo(h_nodes, &nodes, stream);
+  auto d_nodes = nodes.data().get();
+
+  // All node histograms have the same size.
+  auto n_bins = static_cast<std::size_t>(hist_.Bins());
+  dh::LaunchN(n_bins * h_nodes.size(), stream, [=] __device__(std::size_t idx) {
+    auto const& node = d_nodes[idx / n_bins];
+    auto i = idx % n_bins;
+    node.subtraction[i] = node.parent[i] - node.built[i];
+  });
 }
 }  // namespace xgboost::tree

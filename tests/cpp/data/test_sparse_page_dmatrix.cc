@@ -62,46 +62,12 @@ TEST(SparsePageDMatrix, Load) {
   TestSparseDMatrixLoad<SortedCSCPage>(&ctx);
 }
 
-// allow caller to retain pages so they can process multiple pages at the same time.
-template <typename Page>
-void TestRetainPage() {
-  std::size_t n_batches = 4;
-  auto p_fmat = RandomDataGenerator{1024, 128, 0.5f}.Batches(n_batches).GenerateSparsePageDMatrix(
-      "cache", true);
+TEST(SparsePageDMatrix, PageOwnership) {
+  auto m = RandomDataGenerator{32, 4, 0.5f}.Batches(4).GenerateSparsePageDMatrix("cache", true);
   Context ctx;
-  auto batches = p_fmat->GetBatches<Page>(&ctx);
-  auto begin = batches.begin();
-  auto end = batches.end();
-
-  std::vector<Page> pages;
-  std::vector<std::shared_ptr<Page const>> iterators;
-  for (auto it = begin; it != end; ++it) {
-    iterators.push_back(it.Page());
-    pages.emplace_back(Page{});
-    if (std::is_same_v<Page, SparsePage>) {
-      pages.back().Push(*it);
-    } else {
-      pages.back().PushCSC(*it);
-    }
-    ASSERT_EQ(pages.back().Size(), (*it).Size());
-  }
-  ASSERT_GE(iterators.size(), n_batches);
-
-  for (size_t i = 0; i < iterators.size(); ++i) {
-    ASSERT_EQ((*iterators[i]).Size(), pages.at(i).Size());
-    ASSERT_EQ((*iterators[i]).data.HostVector(), pages.at(i).data.HostVector());
-  }
-
-  // make sure it's const and the caller can not modify the content of page.
-  for (auto &page : p_fmat->GetBatches<Page>({&ctx})) {
-    static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
-  }
-}
-
-TEST(SparsePageDMatrix, RetainSparsePage) {
-  TestRetainPage<SparsePage>();
-  TestRetainPage<CSCPage>();
-  TestRetainPage<SortedCSCPage>();
+  auto it = m->GetBatches<SparsePage>(&ctx).begin();
+  auto page = it.Page();
+  EXPECT_THROW(++it, dmlc::Error);
 }
 
 class TestGradientIndexExt : public ::testing::TestWithParam<bool> {

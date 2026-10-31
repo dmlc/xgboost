@@ -604,6 +604,13 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Version added: 2.0.0
 #'
 #' Note: This parameter is working-in-progress.
+#' @param multi_projection_ratio (for Tree Booster) (default = 1.0)
+#' Fraction of target-gradient dimensions retained by random projection for split search.
+#' Projection requires `multi_strategy = "multi_output_tree"` and `tree_method = "hist"`.
+#'
+#' range: \eqn{(0, 1]}
+#'
+#' Version added: 3.5.0
 #' @param base_score
 #' - The initial prediction score of all instances, global bias
 #' - The parameter is automatically estimated for selected objectives before training. To
@@ -674,6 +681,12 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Note: if XGBoost was installed from CRAN, it won't have GPU support enabled, thus only `"cpu"` will be available.
 #' To get GPU support, the R package for XGBoost must be installed from source or from the GitHub releases - see
 #' [instructions](https://xgboost.readthedocs.io/en/latest/install.html#r).
+#' @param fail_on_invalid_gpu_id (default= `FALSE`)
+#' Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+#' to `FALSE`, XGBoost replaces a non-negative ordinal that is greater than or equal to the
+#' number of visible GPUs with its value modulo that number. For example,
+#' `device = "cuda:1"` is changed to `device = "cuda:0"` when only one GPU is visible. When
+#' no GPU is visible, XGBoost falls back to the CPU regardless of this setting.
 #' @param disable_default_eval_metric (default= `FALSE`)
 #' Flag to disable default metric. Set to 1 or `TRUE` to disable.
 #' @param max_cached_hist_node (for Non-Exact Tree Methods) (default = 65536)
@@ -684,6 +697,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #'
 #' - For most of the cases this parameter should not be set except for growing deep
 #'   trees. After 3.0, this parameter affects GPU algorithms as well.
+#' - For vector-leaf models with many targets, consider `multi_projection_ratio` to reduce
+#'   histogram memory use.
 #' @param max_cat_to_onehot (for Non-Exact Tree Methods) (default = `2^32 - 1`)
 #' Features with fewer categories than this threshold use one-hot encoding based splits;
 #' otherwise, partition-based splits are used.
@@ -813,6 +828,7 @@ xgb.params <- function(
   monotone_constraints = NULL,
   interaction_constraints = NULL,
   multi_strategy = NULL,
+  multi_projection_ratio = NULL,
   base_score = NULL,
   eval_metric = NULL,
   seed_per_iteration = NULL,
@@ -841,7 +857,8 @@ xgb.params <- function(
   lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
   lambdarank_bias_norm = NULL,
-  ndcg_exp_gain = NULL
+  ndcg_exp_gain = NULL,
+  fail_on_invalid_gpu_id = NULL
 ) {
 # nolint end
   out <- as.list(environment())

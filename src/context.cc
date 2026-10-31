@@ -271,7 +271,7 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
 }
 
 std::int32_t Context::Threads() const {
-  auto n_threads = common::OmpGetNumThreads(nthread);
+  auto n_threads = common::GetNumThreads(nthread);
   if (cfs_cpu_count_ > 0) {
     n_threads = std::min(n_threads, cfs_cpu_count_);
   }

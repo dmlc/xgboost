@@ -13,6 +13,13 @@
 #include "./param.h"  // for TrainParam
 
 namespace xgboost::tree {
+/** @brief Calibrate the split threshold to the dimension of the projected gains. */
+inline TrainParam ScaleMinSplitLoss(TrainParam param, bst_target_t n_split_targets,
+                                    bst_target_t n_targets) {
+  param.min_split_loss *= static_cast<float>(n_split_targets) / n_targets;
+  return param;
+}
+
 template <typename ExpandEntryT>
 bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
@@ -82,6 +89,12 @@ class Driver {
     if (param_.max_depth > 0 && parent_entry.depth + 1 >= param_.max_depth) return false;
     if (param_.max_leaves > 0 && num_leaves_ >= param_.max_leaves) return false;
     return true;
+  }
+
+  // Keep both siblings for histogram subtraction if either can be split again.
+  bool IsChildValid(ExpandEntryT const& parent_entry, double left_hess, double right_hess) {
+    auto min_hess = 2.0 * param_.min_child_weight;
+    return this->IsChildValid(parent_entry) && (left_hess >= min_hess || right_hess >= min_hess);
   }
 
   // Return the set of nodes to be expanded

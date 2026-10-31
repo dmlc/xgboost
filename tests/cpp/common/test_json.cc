@@ -1,8 +1,9 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
+#include <cstdlib>  // for strtof
 #include <fstream>
 #include <limits>  // for numeric_limits
 #include <map>
@@ -249,12 +250,12 @@ TEST(Json, ParseArray) {
 }
 
 TEST(Json, Null) {
-  Json json {JsonNull()};
+  Json json{JsonNull()};
   std::string ss;
   Json::Dump(json, &ss);
   ASSERT_EQ(ss, "null");
 
-  std::string null_input {R"null({"key":  null })null"};
+  std::string null_input{R"null({"key":  null })null"};
 
   json = Json::Load({null_input.c_str(), null_input.size()});
   ASSERT_TRUE(IsA<Null>(json["key"]));
@@ -277,7 +278,7 @@ TEST(Json, EmptyObject) {
   auto json = Json::Load(StringView{str.c_str(), str.size()});
   ASSERT_TRUE(IsA<Object>(json["statistic"]));
 
-  str = R"json({"Config": {},"Model": {}})json"; // NOLINT
+  str = R"json({"Config": {},"Model": {}})json";  // NOLINT
   json = Json::Load(StringView{str.c_str(), str.size()});
   ASSERT_TRUE(IsA<Object>(json["Model"]));
 }
@@ -301,7 +302,7 @@ TEST(Json, Boolean) {
   "right_child": false
 }
 )json";
-  Json j {Json::Load(StringView{str.c_str(), str.size()})};
+  Json j{Json::Load(StringView{str.c_str(), str.size()})};
   ASSERT_EQ(get<JsonBoolean>(j["left_child"]), true);
   ASSERT_EQ(get<JsonBoolean>(j["right_child"]), false);
 
@@ -313,7 +314,7 @@ TEST(Json, Boolean) {
 TEST(Json, Indexing) {
   auto str = GetModelStr();
   JsonReader reader(StringView{str.c_str(), str.size()});
-  Json j {Json::Load(&reader)};
+  Json j{Json::Load(&reader)};
   auto& value_1 = j["model_parameter"];
   auto& value = value_1["base_score"];
   std::string result = Cast<JsonString>(&value.GetValue())->GetString();
@@ -331,18 +332,18 @@ TEST(Json, AssigningObjects) {
 
   {
     std::map<std::string, Json> objects;
-    Json json_objects { JsonObject() };
-    std::vector<Json> arr_0 (1, Json(3.3f));
+    Json json_objects{JsonObject()};
+    std::vector<Json> arr_0(1, Json(3.3f));
     json_objects["tree_parameters"] = JsonArray(arr_0);
     std::vector<Json> json_arr = get<JsonArray>(json_objects["tree_parameters"]);
     ASSERT_NEAR(get<JsonNumber>(json_arr[0]), 3.3f, kRtEps);
   }
 
   {
-    Json json_object { JsonObject() };
+    Json json_object{JsonObject()};
     auto str = JsonString("1");
     auto& k = json_object["1"];
-    k  = std::move(str);
+    k = std::move(str);
     ASSERT_TRUE(str.GetString().empty());  // NOLINT
     auto& m = json_object["1"];
     std::string value = get<JsonString>(m);
@@ -354,9 +355,9 @@ TEST(Json, AssigningObjects) {
 TEST(Json, AssigningArray) {
   Json json;
   json = JsonArray();
-  std::vector<Json> tmp_0 {Json(Number(1.0f)), Json(Number(2.0f))};
+  std::vector<Json> tmp_0{Json(Number(1.0f)), Json(Number(2.0f))};
   json = tmp_0;
-  std::vector<Json> tmp_1 {Json(Number(3.0f))};
+  std::vector<Json> tmp_1{Json(Number(3.0f))};
   get<Array>(json) = tmp_1;
   std::vector<Json> res = get<Array>(json);
   ASSERT_EQ(get<Number>(res[0]), 3);
@@ -365,14 +366,14 @@ TEST(Json, AssigningArray) {
 TEST(Json, AssigningNumber) {
   {
     // right value
-    Json json = Json{ Number(4.0f) };
+    Json json = Json{Number(4.0f)};
     get<Number>(json) = 15;
     ASSERT_EQ(get<Number>(json), 15);
   }
 
   {
     // left value ref
-    Json json = Json{ Number(4.0f) };
+    Json json = Json{Number(4.0f)};
     Number::Float& ref = get<Number>(json);
     ref = 15;
     ASSERT_EQ(get<Number>(json), 15);
@@ -380,7 +381,7 @@ TEST(Json, AssigningNumber) {
 
   {
     // left value
-    Json json = Json{ Number(4.0f) };
+    Json json = Json{Number(4.0f)};
     double value = get<Number>(json);
     ASSERT_EQ(value, 4);
     value = 15;  // NOLINT
@@ -388,7 +389,7 @@ TEST(Json, AssigningNumber) {
   }
 
   {
-    Json value {Number(std::numeric_limits<float>::quiet_NaN())};
+    Json value{Number(std::numeric_limits<float>::quiet_NaN())};
     ASSERT_TRUE(IsA<Number>(value));
   }
 }
@@ -396,14 +397,14 @@ TEST(Json, AssigningNumber) {
 TEST(Json, AssigningString) {
   {
     // right value
-    Json json = Json{ String("str") };
+    Json json = Json{String("str")};
     get<String>(json) = "modified";
     ASSERT_EQ(get<String>(json), "modified");
   }
 
   {
     // left value ref
-    Json json = Json{ String("str") };
+    Json json = Json{String("str")};
     std::string& ref = get<String>(json);
     ref = "modified";
     ASSERT_EQ(get<String>(json), "modified");
@@ -411,7 +412,7 @@ TEST(Json, AssigningString) {
 
   {
     // left value
-    Json json = Json{ String("str") };
+    Json json = Json{String("str")};
     std::string value = get<String>(json);
     value = "modified";
     ASSERT_EQ(get<String>(json), "str");
@@ -444,11 +445,11 @@ TEST(Json, Invalid) {
     bool has_thrown = false;
     try {
       Json load{Json::Load(StringView(str.c_str(), str.size()))};
-    } catch (dmlc::Error const &e) {
+    } catch (dmlc::Error const& e) {
       std::string msg = e.what();
       ASSERT_NE(msg.find("Unknown"), std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
   {
@@ -456,11 +457,11 @@ TEST(Json, Invalid) {
     bool has_thrown = false;
     try {
       Json load{Json::Load(StringView(str.c_str(), str.size()))};
-    } catch (dmlc::Error const &e) {
+    } catch (dmlc::Error const& e) {
       std::string msg = e.what();
       ASSERT_NE(msg.find("position: 1"), std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
   {
@@ -473,7 +474,7 @@ TEST(Json, Invalid) {
       // EOF is printed as 255 on s390x
       ASSERT_TRUE(msg.find("EOF") != std::string::npos || msg.find("255") != std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
 }
@@ -483,7 +484,7 @@ TEST(Json, CopyUnicode) {
   std::string json_str = R"json(
 {"m": ["\ud834\udd1e", "\u20ac", "\u0416", "\u00f6"]}
 )json";
-  Json loaded {Json::Load(StringView{json_str.c_str(), json_str.size()})};
+  Json loaded{Json::Load(StringView{json_str.c_str(), json_str.size()})};
 
   std::string dumped_string;
   Json::Dump(loaded, &dumped_string);
@@ -493,11 +494,11 @@ TEST(Json, CopyUnicode) {
 
 TEST(Json, WrongCasts) {
   {
-    Json json = Json{ String{"str"} };
+    Json json = Json{String{"str"}};
     ASSERT_ANY_THROW(get<Number>(json));
   }
   {
-    Json json = Json{ Array{ std::vector<Json>{ Json{ Number{1.0f} } } } };
+    Json json = Json{Array{std::vector<Json>{Json{Number{1.0f}}}}};
     ASSERT_ANY_THROW(get<Number>(json));
   }
   {
@@ -512,6 +513,32 @@ TEST(Json, Integer) {
     std::string str;
     Json::Dump(ten, &str);
     ASSERT_EQ(str, std::to_string(i));
+  }
+}
+
+TEST(Json, IntegerLimits) {
+  for (auto value : {std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::min() + 1,
+                     int64_t{-1}, int64_t{0}, int64_t{1}, std::numeric_limits<int64_t>::max() - 1,
+                     std::numeric_limits<int64_t>::max()}) {
+    auto str = std::to_string(value);
+    SCOPED_TRACE(str);
+    auto json = Json::Load(StringView{str});
+    ASSERT_EQ(get<Integer>(json), value);
+    std::string dumped;
+    Json::Dump(json, &dumped);
+    ASSERT_EQ(dumped, str);
+  }
+  for (auto str : {"9223372036854775808", "-9223372036854775809", "18446744073709551616",
+                   "-18446744073709551616"}) {
+    SCOPED_TRACE(str);
+    ASSERT_THROW(Json::Load(StringView{str}), dmlc::Error);
+  }
+  // A large integer part or long mantissa must still be accepted for floats.
+  for (auto str : {"9223372036854775808.0", "-9223372036854775809.0", "18446744073709551616e-10",
+                   "-18446744073709551616e-10", "0.123456789012345678901234567890"}) {
+    SCOPED_TRACE(str);
+    auto json = Json::Load(StringView{str});
+    ASSERT_EQ(get<Number>(json), std::strtof(str, nullptr));
   }
 }
 
@@ -742,11 +769,12 @@ TEST(UBJson, Basic) {
   }
 }
 
-
 TEST(Json, TypeCheck) {
   Json config{Object{}};
   config["foo"] = String{"bar"};
-  auto test = [&]() { TypeCheck<Number, Integer, Array, I32Array>(config["foo"], "foo"); };
+  auto test = [&]() {
+    TypeCheck<Number, Integer, Array, I32Array>(config["foo"], "foo");
+  };
   ASSERT_THROW({ test(); }, dmlc::Error);
   try {
     test();

@@ -109,7 +109,7 @@ void TestQuantile(Context const* ctx) {
   transform->Configure(transform_args);
   HostDeviceVector<float> crossing{{0.0f, 2.0f, 1.0f, -1.0f, 3.0f, 2.0f}};
   crossing.SetDevice(ctx->Device());
-  transform->PredTransform(&crossing);
+  ASSERT_EQ(transform->PredTransform(&crossing, {2, 3}), (std::vector<bst_ulong>{2, 3}));
   std::vector<float> const expected{0.0f, 1.0f, 2.0f, -1.0f, 2.0f, 3.0f};
   ASSERT_EQ(crossing.HostVector(), expected);
 }

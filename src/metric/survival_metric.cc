@@ -10,14 +10,13 @@
 #include <dmlc/registry.h>
 
 #include <array>
+#include <cstddef>  // for size_t
 #include <memory>
-#include <numeric>  // for accumulate
-#include <vector>
 
 #include "../collective/aggregator.h"
 #include "../common/kernel.h"
-#include "../common/threading_utils.h"
-#include "metric_common.h"  // MetricNoCache
+#include "../common/numeric.h"  // for TransformReduce
+#include "metric_common.h"      // MetricNoCache
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/metric.h"
@@ -31,7 +30,6 @@ PackedReduceResult EvalSurvivalCpu(Context const* ctx, HostDeviceVector<float> c
   auto const& weights = info.weights_;
   auto const& labels_lower_bound = info.labels_lower_bound_;
   auto const& labels_upper_bound = info.labels_upper_bound_;
-  auto n_threads = ctx->Threads();
   size_t ndata = labels_lower_bound.Size();
   CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -40,24 +38,14 @@ PackedReduceResult EvalSurvivalCpu(Context const* ctx, HostDeviceVector<float> c
   const auto& h_weights = weights.HostVector();
   const auto& h_preds = preds.HostVector();
 
-  std::vector<double> score_tloc(n_threads, 0.0);
-  std::vector<double> weight_tloc(n_threads, 0.0);
-
-  common::ParallelFor(ndata, n_threads, [&](size_t i) {
+  return common::TransformReduce(ndata, ctx->Threads(), PackedReduceResult{}, [&](std::size_t i) {
     const double wt = h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
-    auto t_idx = omp_get_thread_num();
-    score_tloc[t_idx] += policy.EvalRow(static_cast<double>(h_labels_lower_bound[i]),
-                                        static_cast<double>(h_labels_upper_bound[i]),
-                                        static_cast<double>(h_preds[i])) *
-                         wt;
-    weight_tloc[t_idx] += wt;
+    auto residue = policy.EvalRow(static_cast<double>(h_labels_lower_bound[i]),
+                                  static_cast<double>(h_labels_upper_bound[i]),
+                                  static_cast<double>(h_preds[i])) *
+                   wt;
+    return PackedReduceResult{residue, wt};
   });
-
-  double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
-  double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
-
-  PackedReduceResult res{residue_sum, weights_sum};
-  return res;
 }
 
 template <typename Policy>
