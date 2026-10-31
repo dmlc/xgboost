@@ -46,7 +46,7 @@ def _as_prediction_dmatrix(
         missing=missing if missing is not None else getattr(model, "missing", None),
         nthread=getattr(model, "n_jobs", None),
         feature_types=getattr(model, "feature_types", None),
-        enable_categorical=getattr(model, "enable_categorical", False),
+        enable_categorical=getattr(model, "enable_categorical", True),
     )
 
 

@@ -3,6 +3,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import interpret
+from xgboost import testing as tm
 
 
 def test_shap_values_matches_predict() -> None:
@@ -76,6 +77,24 @@ def test_shap_values_uses_missing_for_array_like_data() -> None:
 
     values, bias = interpret.shap_values(booster, X, missing=0.0)
     contribs = booster.predict(xgb.DMatrix(X, missing=0.0), pred_contribs=True)
+
+    np.testing.assert_allclose(values, contribs[:, :-1])
+    np.testing.assert_allclose(bias, contribs[:, -1])
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+def test_shap_values_booster_with_categorical_dataframe() -> None:
+    import pandas as pd
+
+    rng = np.random.RandomState(1998)
+    X = pd.DataFrame(
+        {"a": rng.randn(32), "b": pd.Categorical(rng.choice(["x", "y", "z"], 32))}
+    )
+    y = rng.randn(32)
+    booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
+
+    values, bias = interpret.shap_values(booster, X)
+    contribs = booster.predict(xgb.DMatrix(X), pred_contribs=True)
 
     np.testing.assert_allclose(values, contribs[:, :-1])
     np.testing.assert_allclose(bias, contribs[:, -1])
