@@ -86,7 +86,7 @@ class DeviceHistogramStorage {
   std::size_t stop_growing_size_{0};
   /** @brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
-  // Large buffer of zeroed memory, caches histograms
+  // Large buffer caching histograms. Histograms are zeroed when allocated, not on reset.
   dh::device_vector<typename GradientSumT::ValueT> data_;
   // If we run out of storage allocate one histogram at a time in overflow. Not cached,
   // overwritten when a new histogram is requested
@@ -101,11 +101,8 @@ class DeviceHistogramStorage {
  public:
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
-  void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
+  void Reset(Context const*, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
     this->n_total_bins_ = n_total_bins;
-    auto d_data = data_.data().get();
-    dh::LaunchN(data_.size(), ctx->CUDACtx()->Stream(),
-                [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     nidx_map_.clear();
     overflow_nidx_map_.clear();
 
@@ -153,6 +150,10 @@ class DeviceHistogramStorage {
       for (int nidx : new_nidxs) {
         nidx_map_[nidx] = nidx_map_.size() * HistogramSize();
       }
+      // Zero memory
+      auto d_data = data_.data().get() + used_size;
+      dh::LaunchN(HistogramSize() * new_nidxs.size(), ctx->CUDACtx()->Stream(),
+                  [=] __device__(size_t idx) { d_data[idx] = 0.0; });
     }
 
     CHECK_GE(data_.size(), nidx_map_.size() * HistogramSize());
@@ -254,18 +255,14 @@ class DeviceHistogramBuilder {
   }
 
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& nodes_to_build,
-                          std::vector<bst_node_t> const& nodes_to_sub) {
+                          std::vector<bst_node_t> const& nodes_to_sub = {}) {
     this->monitor_.Start(__func__);
     std::vector<bst_node_t> all_new = nodes_to_build;
     all_new.insert(all_new.end(), nodes_to_sub.cbegin(), nodes_to_sub.cend());
     // Allocate the histograms
     // Guaranteed contiguous memory
-    this->AllocateHistograms(ctx, all_new);
+    this->hist_.AllocateHistograms(ctx, all_new);
     this->monitor_.Stop(__func__);
-  }
-
-  void AllocateHistograms(Context const* ctx, std::vector<int> const& new_nidxs) {
-    this->hist_.AllocateHistograms(ctx, new_nidxs);
   }
 };
 }  // namespace xgboost::tree
