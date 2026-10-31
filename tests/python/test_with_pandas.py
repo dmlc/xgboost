@@ -257,8 +257,6 @@ class TestPandas:
 
     @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.int64, np.uint64])
     def test_series_meta_info(self, dtype: Type[np.number]) -> None:
-        # Series meta info is read as the numpy input is, including query ids
-        # above 2**24 that float32 cannot represent.
         X = np.random.randn(64, 2)
         y = np.arange(64, dtype=dtype)
         qid = np.repeat(np.arange(2**24, 2**24 + 16), 4).astype(dtype)
