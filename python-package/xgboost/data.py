@@ -720,8 +720,6 @@ def _meta_from_pandas_series(
     elif is_pa_ext_dtype(data.dtype):
         data = pandas_pa_type(data)
     elif isinstance(data.dtype, np.dtype) and data.dtype.kind in "fiu":
-        # Read natively, as for numpy input, so no float32 copy and no rounding of
-        # integer query ids.
         data = data.to_numpy()
     else:
         data = data.to_numpy(np.float32, na_value=np.nan)
