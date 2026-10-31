@@ -255,6 +255,26 @@ class TestPandas:
         assert data.num_col() == kCols
         np.testing.assert_array_equal(data.get_weight(), w)
 
+    @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.int64, np.uint64])
+    def test_series_meta_info(self, dtype: Type[np.number]) -> None:
+        # Series meta info is read as the numpy input is, including query ids
+        # above 2**24 that float32 cannot represent.
+        X = np.random.randn(64, 2)
+        y = np.arange(64, dtype=dtype)
+        qid = np.repeat(np.arange(2**24, 2**24 + 16), 4).astype(dtype)
+        from_numpy = xgb.DMatrix(X, y, weight=y + 1, qid=qid)
+        from_pandas = xgb.DMatrix(
+            X, pd.Series(y), weight=pd.Series(y + 1), qid=pd.Series(qid)
+        )
+        for field in ("label", "weight"):
+            np.testing.assert_array_equal(
+                from_pandas.get_float_info(field), from_numpy.get_float_info(field)
+            )
+        np.testing.assert_array_equal(
+            from_pandas.get_uint_info("group_ptr"),
+            from_numpy.get_uint_info("group_ptr"),
+        )
+
     def test_base_margin(self):
         run_base_margin_info(pd.DataFrame, xgb.DMatrix, "cpu")
 
