@@ -228,7 +228,14 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
 
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
-  std::vector<HostDeviceVector<bst_node_t>> node_position;
+  auto& node_position = this->node_position_;
+  // Keep the device memory between trees, see `node_position_`.
+  auto reset_positions = [&] {
+    for (auto& position : node_position) {
+      position.Resize(0);
+    }
+  };
+  reset_positions();
   auto predict_from_node_positions = [&](std::vector<HostDeviceVector<bst_node_t>>& positions,
                                          TreesOneGroup const& trees,
                                          linalg::MatrixView<float> out_preds) {
@@ -266,7 +273,7 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
     bool cache_updated{true};
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-      node_position.clear();
+      reset_positions();
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat.get(), gid, &node_position, &ret);
