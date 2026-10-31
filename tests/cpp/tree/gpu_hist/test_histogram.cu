@@ -132,7 +132,7 @@ TEST(Histogram, SubtractionTrick) {
 }
 
 TEST(Histogram, ZeroOnAllocate) {
-  // The storage is reused across trees, and only the histograms to build are zeroed.
+  // The storage is reused across trees without being cleared on reset.
   auto ctx = MakeCUDACtx(0);
   bst_bin_t n_bins = 16;
   DeviceHistogramBuilder histogram;
@@ -161,6 +161,7 @@ TEST(Histogram, ZeroOnAllocate) {
   expect_zero(0);
   histogram.AllocateHistograms(&ctx, {1}, {2});
   expect_zero(1);
+  expect_zero(2);
 }
 
 TEST(Histogram, SubtractionTrickBatch) {

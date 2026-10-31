@@ -86,7 +86,7 @@ class DeviceHistogramStorage {
   std::size_t stop_growing_size_{0};
   /** @brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
-  // Large buffer caching histograms. Histograms to build are zeroed when allocated.
+  // Large buffer caching histograms. Histograms are zeroed when allocated, not on reset.
   dh::device_vector<typename GradientSumT::ValueT> data_;
   // If we run out of storage allocate one histogram at a time in overflow. Not cached,
   // overwritten when a new histogram is requested
@@ -119,19 +119,7 @@ class DeviceHistogramStorage {
   [[nodiscard]] size_t HistogramSize() const { return n_total_bins_ * kNumItemsInGradientSum; }
   dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 
-  /**
-   * @brief Allocate contiguous histograms for new nodes, in the order of `nodes_to_build`
-   *        followed by `nodes_to_sub`.
-   *
-   * Only the histograms to build are zeroed, the subtraction trick writes the others. A
-   * sibling whose parent histogram is missing must be built instead. That only happens in
-   * the overflow buffer, which is zeroed in full: the cache doesn't shrink within a tree, so
-   * the parent of a cached node is also cached.
-   */
-  void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& nodes_to_build,
-                          std::vector<bst_node_t> const& nodes_to_sub = {}) {
-    std::vector<bst_node_t> new_nidxs = nodes_to_build;
-    new_nidxs.insert(new_nidxs.end(), nodes_to_sub.cbegin(), nodes_to_sub.cend());
+  void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& new_nidxs) {
     for (int nidx : new_nidxs) {
       CHECK(!HistogramExists(nidx));
     }
@@ -162,9 +150,9 @@ class DeviceHistogramStorage {
       for (int nidx : new_nidxs) {
         nidx_map_[nidx] = nidx_map_.size() * HistogramSize();
       }
-      // Zero the histograms to build
+      // Zero memory
       auto d_data = data_.data().get() + used_size;
-      dh::LaunchN(HistogramSize() * nodes_to_build.size(), ctx->CUDACtx()->Stream(),
+      dh::LaunchN(HistogramSize() * new_nidxs.size(), ctx->CUDACtx()->Stream(),
                   [=] __device__(size_t idx) { d_data[idx] = 0.0; });
     }
 
@@ -269,7 +257,11 @@ class DeviceHistogramBuilder {
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& nodes_to_build,
                           std::vector<bst_node_t> const& nodes_to_sub = {}) {
     this->monitor_.Start(__func__);
-    this->hist_.AllocateHistograms(ctx, nodes_to_build, nodes_to_sub);
+    std::vector<bst_node_t> all_new = nodes_to_build;
+    all_new.insert(all_new.end(), nodes_to_sub.cbegin(), nodes_to_sub.cend());
+    // Allocate the histograms
+    // Guaranteed contiguous memory
+    this->hist_.AllocateHistograms(ctx, all_new);
     this->monitor_.Stop(__func__);
   }
 };
