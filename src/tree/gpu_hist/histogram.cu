@@ -283,9 +283,12 @@ __global__ __launch_bounds__(
                             gmem_hist, begin, end);
   if constexpr (Policy::kSharedMem) {
     __syncthreads();
-    // Flush this block's histogram.
+    // Flush this block's histogram. Skip the empty bins, most of them at deep levels.
     for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
-      AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, smem_hist.Load(bin_idx));
+      auto gpair = smem_hist.Load(bin_idx);
+      if (gpair.GetQuantisedGrad() != 0 || gpair.GetQuantisedHess() != 0) {
+        AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, gpair);
+      }
     }
   }
 }
