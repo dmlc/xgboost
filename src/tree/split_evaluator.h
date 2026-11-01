@@ -283,19 +283,19 @@ class TreeEvaluator {
       }
     }
 
+    /**
+     * @brief Unregularized weight -G/H used to sort categories for partition-based splits.
+     *
+     * Regularization and weight bounds apply to each child as a whole, not to individual
+     * categories. With a single target, some optimal partition is a threshold on -G/H.
+     */
     template <typename GradientSumT, split_impl::EnableScaGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE float CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
-      // FIXME(jiamingy): This is a temporary solution until we have categorical feature
-      // specific regularization parameters.  During sorting we should try to avoid any
-      // regularization.
-      return ::xgboost::tree::CalcWeight(param, stats);
-    }
-    template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE void CalcWeightCat(ParamT const& param, GradientSumT const& stats,
-                                      linalg::VectorView<float> out) const {
-      for (std::size_t t = 0; t < stats.Size(); ++t) {
-        out(t) = this->CalcWeightCat(param, stats(t));
+    XGBOOST_DEVICE float CalcWeightCat(GradientSumT const& stats) const {
+      // Categories absent from the node have empty bins. Avoid NaN keys, which break sorting.
+      if (stats.GetHess() <= 0) {
+        return 0.0f;
       }
+      return static_cast<float>(-stats.GetGrad() / stats.GetHess());
     }
 
     // Gain given weight

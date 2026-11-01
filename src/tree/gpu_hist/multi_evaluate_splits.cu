@@ -524,8 +524,8 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
           auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
           auto child_sum = quantizer.ToFloatingPoint(target_hist[bin_idx]);
           auto parent_sum = quantizer.ToFloatingPoint(node.parent_sum[t]);
-          auto child_weight = evaluator.CalcWeightCat(shared_inputs.param, child_sum);
-          auto parent_weight = evaluator.CalcWeightCat(shared_inputs.param, parent_sum);
+          auto child_weight = evaluator.CalcWeightCat(child_sum);
+          auto parent_weight = evaluator.CalcWeightCat(parent_sum);
           sc += child_weight * parent_weight;
         }
         return cuda::std::make_tuple(nidx_in_set, fidx, sc);

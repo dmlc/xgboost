@@ -355,11 +355,15 @@ TYPED_TEST(TestHistEvaluator, PartitionParentWeight) {
       EXPECT_NE(bits.Check(0), bits.Check(1));
     }
   }
-  // The parent gradient is nonzero, but L1 makes its weight zero.
+}
+
+TYPED_TEST(TestHistEvaluator, PartitionUnregularizedOrder) {
+  // -G/H sorts the categories as (1, 2, 0). Sorting by -G/(H + lambda) gives (2, 1, 0) and
+  // misses isolating category 1: 2^2/(3+2) + 5^2/(2+2) - 7^2/(5+2) = 0.05.
   auto const &split =
-      this->Evaluate({{{1.0, 1.0}, {-1.5, 1.0}, {1.0, 1.0}}}, {}, {{"reg_alpha", "0.5"}});
-  EXPECT_FLOAT_EQ(split.loss_chg, this->kSplitTargets == 1 ? 2.125f : 0.25f * this->kSplitTargets);
-  this->CheckCategories({true, false, this->kSplitTargets == 1});
+      this->Evaluate({{{-4.0, 1.0}, {-2.0, 3.0}, {-1.0, 1.0}}}, {}, {{"reg_lambda", "2"}});
+  EXPECT_NEAR(split.loss_chg, 0.05f * this->kSplitTargets, kRtEps);
+  this->CheckCategories({false, true, false});
 }
 }  // anonymous namespace
 }  // namespace xgboost::tree

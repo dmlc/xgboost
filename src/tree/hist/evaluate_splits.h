@@ -350,11 +350,11 @@ class HistEvaluatorImpl {
             node_hist[t] = (*hist[t])[entry->nid];
           }
           auto features_set = features[nidx_in_set]->ConstHostSpan();
-          std::array<float, 1> single_weight{};
-          std::vector<float> base_weight(n_split_targets == 1 ? 0 : n_split_targets);
-          auto h_bw = linalg::MakeVec(
-              n_split_targets == 1 ? single_weight.data() : base_weight.data(), n_split_targets);
-          evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
+          // Multi-target categories are sorted by their projection onto the parent weight.
+          std::vector<float> parent_weight(n_split_targets == 1 ? 0 : n_split_targets);
+          for (std::size_t t = 0; t < parent_weight.size(); ++t) {
+            parent_weight[t] = evaluator.CalcWeightCat(parent_sum(t));
+          }
 
           for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
             auto fidx = features_set[fidx_in_set];
@@ -384,31 +384,23 @@ class HistEvaluatorImpl {
             }
 
             // Partition split
-            std::vector<size_t> sorted_idx(n_bins);
-            std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-            linalg::Vector<GradientPairPrecise> grads({n_split_targets}, this->ctx_->Device());
-            auto h_grads = grads.HostView();
-            std::vector<float> child_w(n_split_targets, .0f);
-
-            // Sort by s_c = w_p^T w_c
-            // Project onto the parent's update direction to compare scores l_s < r_s
-            // Since we care only about the ordering, no need to divide the norm.
             std::vector<double> scores(n_bins);
             for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
-              for (decltype(n_split_targets) t_idx = 0; t_idx < n_split_targets; ++t_idx) {
-                auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
-                h_grads(t_idx) = f_hist[bin_idx];
+              auto bin = cut_ptr[fidx] + bin_idx;
+              if (n_split_targets == 1) {
+                scores[bin_idx] = evaluator.CalcWeightCat(node_hist[0][bin]);
+                continue;
               }
-              evaluator.CalcWeightCat(*param_, h_grads,
-                                      linalg::MakeVec(child_w.data(), child_w.size()));
-              double sc = .0;
-              for (decltype(n_split_targets) t_idx = 0; t_idx < n_split_targets; ++t_idx) {
-                sc += h_bw(t_idx) * child_w[t_idx];
+              // s_c = w_p^T w_c. Since we care only about the ordering, no need to divide the norm.
+              double sc = 0.0;
+              for (std::size_t t = 0; t < n_split_targets; ++t) {
+                sc += parent_weight[t] * evaluator.CalcWeightCat(node_hist[t][bin]);
               }
-              // With one target a zero parent weight loses all category ordering.
-              scores[bin_idx] = n_split_targets == 1 && h_bw(0) == 0.0f ? child_w[0] : sc;
+              scores[bin_idx] = sc;
             }
 
+            std::vector<size_t> sorted_idx(n_bins);
+            std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
             std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                              [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
 
