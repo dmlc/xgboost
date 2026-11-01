@@ -2,13 +2,10 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <algorithm>        // for max
-#include <cstddef>          // for size_t
-#include <cstdint>          // for int32_t, uint32_t
-#include <cub/device/device_scan.cuh>  // for DeviceScan
-#include <cuda/functional>  // for proclaim_return_type
-#include <iterator>         // for random_access_iterator_tag
-#include <vector>           // for vector
+#include <algorithm>  // for max, min
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t, uint32_t
+#include <vector>     // for vector
 
 #include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
@@ -20,48 +17,13 @@
 namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
-
-/**
- * @brief Output iterator calling `fn(index, value)` for each written value.
- *
- * Similar to the tabulate output iterator in CCCL, which is in different namespaces across CCCL
- * versions and declares a `void` value type that the scan tuning in cub can't use.
- */
-template <typename Fn, typename T>
-class IndexedOutputIterator {
-  Fn fn_;
-  std::ptrdiff_t idx_;
-
-  struct Proxy {
-    Fn fn;
-    std::ptrdiff_t idx;
-    __device__ Proxy const& operator=(T const& value) const {  // NOLINT
-      fn(idx, value);
-      return *this;
-    }
-  };
-
- public:
-  using value_type = T;                                       // NOLINT
-  using difference_type = std::ptrdiff_t;                     // NOLINT
-  using pointer = void;                                       // NOLINT
-  using reference = Proxy;                                    // NOLINT
-  using iterator_category = std::random_access_iterator_tag;  // NOLINT
-
-  XGBOOST_DEVICE explicit IndexedOutputIterator(Fn fn, std::ptrdiff_t idx = 0)
-      : fn_{fn}, idx_{idx} {}
-
-  XGBOOST_DEVICE Proxy operator*() const { return {fn_, idx_}; }
-  XGBOOST_DEVICE Proxy operator[](difference_type n) const { return {fn_, idx_ + n}; }
-  XGBOOST_DEVICE IndexedOutputIterator operator+(difference_type n) const {
-    return IndexedOutputIterator{fn_, idx_ + n};
-  }
-  XGBOOST_DEVICE IndexedOutputIterator& operator+=(difference_type n) {
-    idx_ += n;
-    return *this;
-  }
-  XGBOOST_DEVICE IndexedOutputIterator& operator++() { return *this += 1; }
-};
+// The rows of a node are split into tiles of this size, a block partitions one tile.
+inline constexpr std::int32_t kPartitionTileRows = 1024;
+inline constexpr std::int32_t kPartitionBlockThreads = 256;
+inline constexpr std::int32_t kPartitionTileWords = kPartitionTileRows / 32;
+// Each warp handles this many words of 32 rows.
+inline constexpr std::int32_t kPartitionWarpWords =
+    kPartitionTileWords / (kPartitionBlockThreads / 32);
 }  // namespace cuda_impl
 
 /**
@@ -84,183 +46,175 @@ template <typename OpDataT>
 struct PerNodeData {
   Segment segment;
   OpDataT data;
-  /** @brief The number of rows before this node in the node batch. */
-  cuda_impl::RowIndexT batch_offset{0};
+  /** @brief The number of tiles before this node in the node batch. */
+  cuda_impl::RowIndexT tile_offset{0};
+  /** @brief The buffer holding the rows of this node, the children are written to the other. */
+  std::int32_t buffer{0};
 };
 
 /**
- * @param n_nodes The number of nodes in this node batch.
- * @param global_thread_idx In practice, the row index within the total number of rows for
- *        this node batch.
- * @param batch_idx The nidx within this node batch (not the actual node index in a tree).
- * @param item_idx The resulting global row index (without accounting for base_rowid). This maps the
- *        row index within the node batch back to the global row index.
- */
-template <typename T>
-XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter, std::int32_t n_nodes,
-                                    cuda_impl::RowIndexT global_thread_idx, int* batch_idx,
-                                    cuda_impl::RowIndexT* item_idx) {
-  // Binary search for the nidx in batch, empty nodes are skipped.
-  auto offsets = dh::MakeTransformIterator<cuda_impl::RowIndexT>(
-      dh::make_counting_iterator(0),
-      [=](std::int32_t i) { return batch_info_iter[i].batch_offset; });
-  *batch_idx =
-      static_cast<std::int32_t>(dh::SegmentId(offsets, offsets + n_nodes, global_thread_idx));
-  auto node = batch_info_iter[*batch_idx];
-  // the beginning of the segment plus the offset into that segment
-  *item_idx = (global_thread_idx - node.batch_offset) + node.segment.begin;
-}
-
-/**
- * @param total_rows The total number of rows for this batch of nodes.
- */
-template <int kBlockSize, typename OpDataT>
-__global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
-    dh::LDGIterator<PerNodeData<OpDataT>> batch_info_iter, std::int32_t n_nodes,
-    common::Span<cuda_impl::RowIndexT> d_ridx,
-    common::Span<cuda_impl::RowIndexT const> const ridx_tmp, bst_idx_t total_rows) {
-  // The loop counter stays 64-bit so the stride can't wrap around near the 32-bit row limit.
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
-    std::int32_t batch_idx;  // unused
-    cuda_impl::RowIndexT item_idx;
-    AssignBatch(batch_info_iter, n_nodes, static_cast<cuda_impl::RowIndexT>(idx), &batch_idx,
-                &item_idx);
-    d_ridx[item_idx] = ridx_tmp[item_idx];
-  }
-}
-
-/**
- * @brief We scan over this value to find how to partition the inputs according to the flag.
+ * @brief State of the partition kernel, zero between launches.
  *
- * It packs the node in the batch (high 31 bits), whether the row goes left (1 bit), and the
- * number of rows going left so far (low 32 bits) into one word. cub can then keep the status and
- * the value of each tile in a single word.
+ * The words are the number of finished blocks, followed by the number of rows written to the
+ * left and to the right of each node in the batch.
  */
-struct IndexFlag {
-  static constexpr std::uint32_t kFlagShift = 32;
-  static constexpr std::uint32_t kBatchShift = 33;
+struct PartitionState {
+  std::uint32_t* words;
 
-  [[nodiscard]] XGBOOST_DEV_INLINE static std::uint64_t Make(std::int32_t batch_idx, bool flag) {
-    return (static_cast<std::uint64_t>(batch_idx) << kBatchShift) |
-           (static_cast<std::uint64_t>(flag) << kFlagShift) | static_cast<std::uint64_t>(flag);
+  [[nodiscard]] static std::size_t Size(std::size_t n_nodes) { return 1 + 2 * n_nodes; }
+  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NDone() const { return words; }
+  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NLeft(std::int32_t i) const {
+    return words + 1 + 2 * i;
   }
-  [[nodiscard]] XGBOOST_DEV_INLINE static std::int32_t BatchIdx(std::uint64_t x) {
-    return static_cast<std::int32_t>(x >> kBatchShift);
-  }
-  [[nodiscard]] XGBOOST_DEV_INLINE static bool Flag(std::uint64_t x) {
-    return (x >> kFlagShift) & 1;
-  }
-  [[nodiscard]] XGBOOST_DEV_INLINE static cuda_impl::RowIndexT FlagScan(std::uint64_t x) {
-    return static_cast<cuda_impl::RowIndexT>(x);
-  }
-};
-
-struct IndexFlagOp {
-  __device__ std::uint64_t operator()(std::uint64_t a, std::uint64_t b) const {
-    // Segmented scan - resets if we cross batch boundaries
-    if (IndexFlag::BatchIdx(a) == IndexFlag::BatchIdx(b)) {
-      // Accumulate the flags. The count is bounded by the number of rows, it doesn't carry into
-      // the flag.
-      return b + IndexFlag::FlagScan(a);
-    }
-    return b;
-  }
-};
-
-// Scatter from `ridx_in` to `ridx_out`.
-template <typename OpDataT>
-struct WriteResultsFunctor {
-  dh::LDGIterator<PerNodeData<OpDataT>> batch_info;
-  cuda_impl::RowIndexT const* ridx_in;
-  cuda_impl::RowIndexT* ridx_out;
-  cuda_impl::RowIndexT* counts;
-
-  // `idx` is the position of the scanned value, the row index within the node batch.
-  __device__ void operator()(std::ptrdiff_t idx, std::uint64_t x) const {
-    auto batch_idx = IndexFlag::BatchIdx(x);
-    auto flag_scan = IndexFlag::FlagScan(x);
-    // Get the node that this row belongs to.
-    auto node = batch_info[batch_idx];
-    auto const& segment = node.segment;
-    // The location of the item we are working on in ridx_
-    auto item_idx = static_cast<cuda_impl::RowIndexT>(idx) - node.batch_offset + segment.begin;
-    cuda_impl::RowIndexT scatter_address;
-    if (IndexFlag::Flag(x)) {
-      // Go left.
-      cuda_impl::RowIndexT num_previous_flagged = flag_scan - 1;  // -1 because inclusive scan
-      scatter_address = segment.begin + num_previous_flagged;
-    } else {
-      cuda_impl::RowIndexT num_previous_unflagged = (item_idx - segment.begin) - flag_scan;
-      scatter_address = segment.end - num_previous_unflagged - 1;
-    }
-    ridx_out[scatter_address] = ridx_in[item_idx];
-
-    if (item_idx == (segment.end - 1)) {
-      // Write out counts
-      counts[batch_idx] = flag_scan;
-    }
+  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NRight(std::int32_t i) const {
+    return words + 2 + 2 * i;
   }
 };
 
 /**
+ * @brief Partition the rows of a batch of nodes in a single pass.
+ *
+ * Each block reads a tile of a node's rows from the node's buffer. It reserves space for its left
+ * and right rows with an atomic for each side, and writes them to the other buffer: left rows
+ * from the beginning of the segment, right rows from the end. The order of rows within a node
+ * depends on the order of the blocks.
+ *
+ * The last block writes the number of rows going left for each node, and resets the state.
+ */
+template <typename OpT, typename OpDataT>
+__global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKernel(
+    dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
+    cuda_impl::RowIndexT* ridx0, cuda_impl::RowIndexT* ridx1, PartitionState state,
+    cuda_impl::RowIndexT* d_counts, OpT op) {
+  using cuda_impl::kPartitionTileRows;
+  using cuda_impl::kPartitionTileWords;
+  using cuda_impl::kPartitionWarpWords;
+  using RowIndexT = cuda_impl::RowIndexT;
+  __shared__ std::uint32_t word_offset[kPartitionTileWords];
+  __shared__ std::uint32_t base[2];
+  __shared__ bool is_last;
+
+  auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
+  auto const lanemask_lt = (1u << lane) - 1u;
+
+  std::uint32_t const t = blockIdx.x;
+  if (t < n_tiles) {
+    // Find the node of this tile, empty nodes are skipped.
+    auto offsets = dh::MakeTransformIterator<RowIndexT>(
+        dh::make_counting_iterator(0), [=](std::int32_t i) { return batch_info[i].tile_offset; });
+    auto i = static_cast<std::int32_t>(dh::SegmentId(offsets, offsets + n_nodes, t));
+    auto const node = batch_info[i];
+    auto const& segment = node.segment;
+    RowIndexT const* in = node.buffer == 0 ? ridx0 : ridx1;
+    RowIndexT* out = node.buffer == 0 ? ridx1 : ridx0;
+    auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
+    auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
+
+    RowIndexT rows[kPartitionWarpWords];
+    bool go_left[kPartitionWarpWords];
+#pragma unroll
+    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+      auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+      bool valid = local < n_rows;
+      rows[j] = valid ? in[tile + local] : 0;
+      go_left[j] = valid && op(rows[j], node.data);
+    }
+    // Rank the left rows within the tile.
+    std::uint32_t bits[kPartitionWarpWords];
+#pragma unroll
+    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+      bits[j] = __ballot_sync(0xffffffff, go_left[j]);
+      if (lane == 0) {
+        word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
+      }
+    }
+    __syncthreads();
+    if (warp == 0) {
+      auto v = word_offset[lane];
+      auto inclusive = v;
+#pragma unroll
+      for (std::int32_t d = 1; d < 32; d *= 2) {
+        auto n = __shfl_up_sync(0xffffffff, inclusive, d);
+        if (lane >= d) {
+          inclusive += n;
+        }
+      }
+      word_offset[lane] = inclusive - v;
+      if (lane == 31) {
+        // Reserve space on both sides of the node.
+        base[0] = atomicAdd(state.NLeft(i), inclusive);
+        base[1] = atomicAdd(state.NRight(i), n_rows - inclusive);
+      }
+    }
+    __syncthreads();
+#pragma unroll
+    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+      auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+      if (local < n_rows) {
+        auto n_left_before =
+            word_offset[warp * kPartitionWarpWords + j] + __popc(bits[j] & lanemask_lt);
+        if (go_left[j]) {
+          out[segment.begin + base[0] + n_left_before] = rows[j];
+        } else {
+          out[segment.end - 1 - (base[1] + local - n_left_before)] = rows[j];
+        }
+      }
+    }
+  }
+
+  // The last block publishes the counts, and resets the state for the next launch.
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    __threadfence();
+    is_last = atomicAdd(state.NDone(), 1u) == gridDim.x - 1;
+  }
+  __syncthreads();
+  if (is_last) {
+    __threadfence();
+    for (std::int32_t i = threadIdx.x; i < n_nodes; i += blockDim.x) {
+      d_counts[i] = atomicExch(state.NLeft(i), 0u);
+      *state.NRight(i) = 0;
+    }
+    if (threadIdx.x == 0) {
+      *state.NDone() = 0;
+    }
+  }
+}
+
+/**
+ * @brief Partition the rows of a batch of nodes, from the buffer of each node to the other one.
+ *
  * @param d_batch_info Node data, with the size of the input number of nodes.
+ * @param n_tiles      The number of tiles, see @ref PerNodeData::tile_offset.
+ * @param d_counts     Output, the number of rows going left for each node.
+ * @param tmp          Storage for the state between launches.
  */
 template <typename OpT, typename OpDataT>
 void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
-                       common::Span<cuda_impl::RowIndexT> ridx,
-                       common::Span<cuda_impl::RowIndexT> ridx_tmp,
-                       common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
-                       dh::DeviceUVector<int8_t>* tmp) {
-  dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
-  auto n_nodes = static_cast<std::int32_t>(d_batch_info.size());
-  WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
-                                             d_counts.data()};
-
-  cuda_impl::IndexedOutputIterator<WriteResultsFunctor<OpDataT>, std::uint64_t> write_iterator{
-      write_results};
-  // A partitioner holds fewer than 2^32 rows, use 32-bit indices for the scan.
-  CHECK_LE(total_rows, std::numeric_limits<cuda_impl::RowIndexT>::max());
-  auto counting = dh::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(0));
-  auto input_iterator = dh::MakeTransformIterator<std::uint64_t>(
-      counting, cuda::proclaim_return_type<std::uint64_t>([=] __device__(cuda_impl::RowIndexT idx) {
-        std::int32_t nidx_in_batch;
-        cuda_impl::RowIndexT item_idx;
-        AssignBatch(batch_info_itr, n_nodes, idx, &nidx_in_batch, &item_idx);
-        auto go_left = op(ridx[item_idx], batch_info_itr[nidx_in_batch].data);
-        return IndexFlag::Make(nidx_in_batch, go_left);
-      }));
-  std::size_t n_bytes = 0;
-  auto scan = [&](void* storage) {
-    return cub::DeviceScan::InclusiveScan(
-        storage, n_bytes, input_iterator, write_iterator, IndexFlagOp{},
-        static_cast<cuda_impl::RowIndexT>(total_rows), ctx->CUDACtx()->Stream());
-  };
-  if (tmp->empty()) {
-    // The size of temporary storage is calculated based on the total number of
-    // rows. Since the root node has all the rows, subsequence allocatioin must be smaller
-    // than the root node. As a result, we can calculate this once and reuse it throughout
-    // the iteration.
-    dh::safe_cuda(scan(nullptr));
-    tmp->resize(n_bytes);
+                       common::Span<cuda_impl::RowIndexT> ridx0,
+                       common::Span<cuda_impl::RowIndexT> ridx1,
+                       common::Span<cuda_impl::RowIndexT> d_counts, std::size_t n_tiles, OpT op,
+                       dh::DeviceUVector<std::uint32_t>* tmp) {
+  auto stream = ctx->CUDACtx()->Stream();
+  auto n_nodes = d_batch_info.size();
+  if (tmp->size() < PartitionState::Size(n_nodes)) {
+    tmp->resize(PartitionState::Size(n_nodes));
+    dh::safe_cuda(cudaMemsetAsync(tmp->data(), 0, tmp->size() * sizeof(std::uint32_t), stream));
   }
-  n_bytes = tmp->size();
-  dh::safe_cuda(scan(tmp->data()));
-
-  constexpr int kBlockSize = 256;
-
-  // Value found by experimentation
-  const int kItemsThread = 12;
-  std::uint32_t const kGridSize =
-      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
-  dh::LaunchKernel{kGridSize, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, n_nodes, ridx, ridx_tmp,
-      total_rows);
+  // At least one block, to write the counts.
+  auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(n_tiles, 1));
+  dh::LaunchKernel{n_blocks, cuda_impl::kPartitionBlockThreads, 0, stream}(
+      PartitionKernel<OpT, OpDataT>, dh::LDGIterator<PerNodeData<OpDataT>>{d_batch_info.data()},
+      static_cast<std::int32_t>(n_nodes), static_cast<std::uint32_t>(n_tiles), ridx0.data(),
+      ridx1.data(), PartitionState{tmp->data()}, d_counts.data(), op);
 }
 
 struct NodePositionInfo {
   Segment segment;
   bst_node_t left_child = -1;
   bst_node_t right_child = -1;
+  // The row buffer holding the rows of this node.
+  std::int32_t buffer = 0;
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return left_child == -1; }
 };
 
@@ -292,11 +246,13 @@ XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
 template <int kBlockSize, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
     common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
-    common::Span<const cuda_impl::RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position,
+    common::Span<const cuda_impl::RowIndexT> d_ridx0,
+    common::Span<const cuda_impl::RowIndexT> d_ridx1, common::Span<bst_node_t> d_out_position,
     OpT op) {
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
+  for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx0.size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    auto global_ridx = d_ridx[idx];
+    // Read from the buffer holding the rows of the leaf.
+    auto global_ridx = d_node_info[position].buffer == 0 ? d_ridx0[idx] : d_ridx1[idx];
     auto local_ridx = global_ridx - base_ridx;
     bst_node_t new_position = op(global_ridx, position);
     d_out_position[local_ridx] = new_position;
@@ -329,7 +285,14 @@ class RowPartitioner {
    * rows idx | 3, 5, 1 | 13, 31 |
    */
   dh::DeviceUVector<RowIndexT> ridx_;
-  dh::DeviceUVector<int8_t> tmp_;
+  // The second row buffer. Partitioning a node moves its rows to the other buffer.
+  dh::DeviceUVector<RowIndexT> ridx_other_;
+  // State of the partition kernel.
+  dh::DeviceUVector<std::uint32_t> tmp_;
+
+  [[nodiscard]] common::Span<RowIndexT> Buffer(std::int32_t i) {
+    return i == 0 ? dh::ToSpan(ridx_) : dh::ToSpan(ridx_other_);
+  }
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.
@@ -353,7 +316,8 @@ class RowPartitioner {
   common::Span<const RowIndexT> GetRows(bst_node_t nidx);
 
   /**
-   * \brief Gets all training rows in the set.
+   * \brief Gets all training rows in the set. The rows of a leaf are only there after
+   *        @ref Consolidate.
    */
   common::Span<const RowIndexT> GetRows() const;
   /**
@@ -398,8 +362,7 @@ class RowPartitioner {
   void UpdatePositionBatch(Context const* ctx, std::vector<bst_node_t> const& nidx,
                            std::vector<bst_node_t> const& left_nidx,
                            std::vector<bst_node_t> const& right_nidx,
-                           std::vector<OpDataT> const& op_data, common::Span<RowIndexT> ridx_tmp,
-                           UpdatePositionOpT op) {
+                           std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
     if (nidx.empty()) {
       return;
     }
@@ -412,25 +375,24 @@ class RowPartitioner {
         pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
-    RowIndexT total_rows = 0;
+    std::size_t n_tiles = 0;
     for (std::size_t i = 0; i < nidx.size(); i++) {
-      auto const& segment = ridx_segments_.at(nidx[i]).segment;
-      h_batch_info[i] = {segment, op_data[i], total_rows};
-      total_rows += segment.Size();
+      auto const& node = ridx_segments_.at(nidx[i]);
+      h_batch_info[i] = {node.segment, op_data[i], static_cast<RowIndexT>(n_tiles), node.buffer};
+      n_tiles += common::DivRoundUp(node.segment.Size(), cuda_impl::kPartitionTileRows);
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                   h_batch_info.size_bytes(), cudaMemcpyDefault,
                                   ctx->CUDACtx()->Stream()));
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
-    // Must initialize with 0 as 0 count is not written in the kernel.
-    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
-    CHECK_EQ(ridx_tmp.size(), this->Size());
+    // Written for every node by the kernel.
+    dh::TemporaryArray<RowIndexT> d_counts(nidx.size());
 
     // Partition the rows of all nodes according to the operator
-    SortPositionBatch<UpdatePositionOpT, OpDataT>(
-        ctx, dh::ToSpan(d_batch_info), dh::ToSpan(this->ridx_), ridx_tmp, dh::ToSpan(d_counts),
-        total_rows, op, &this->tmp_);
+    SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), this->Buffer(0),
+                                                  this->Buffer(1), dh::ToSpan(d_counts), n_tiles,
+                                                  op, &this->tmp_);
 
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
@@ -441,15 +403,17 @@ class RowPartitioner {
     // Update segments
     for (std::size_t i = 0; i < nidx.size(); i++) {
       auto segment = ridx_segments_.at(nidx[i]).segment;
+      auto buffer = ridx_segments_.at(nidx[i]).buffer;
       auto left_count = h_counts[i];
       CHECK_LE(left_count, segment.Size());
       ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                      std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
+      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i], buffer};
+      // The children are in the other buffer.
       ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
+          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}, -1, -1, 1 - buffer};
       ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+          NodePositionInfo{Segment{segment.begin + left_count, segment.end}, -1, -1, 1 - buffer};
     }
   }
 
@@ -474,18 +438,23 @@ class RowPartitioner {
     const int kItemsThread = 8;
     const std::uint32_t grid_size =
         xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
-    common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
+    common::Span<RowIndexT const> d_ridx0{ridx_.data(), ridx_.size()};
+    common::Span<RowIndexT const> d_ridx1{ridx_other_.data(), ridx_other_.size()};
     dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
         FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
-        base_ridx, d_ridx, d_out_position, op);
+        base_ridx, d_ridx0, d_ridx1, d_out_position, op);
   }
+
+  /**
+   * @brief Move the rows of all leaves into the first buffer, for reading all rows with
+   *        @ref GetRows.
+   */
+  void Consolidate(Context const* ctx);
 };
 
 // Partitioner for all batches, used for external memory training.
 class RowPartitionerBatches {
  private:
-  // Temporary buffer for sorting the samples.
-  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp_;
   // Partitioners for each batch.
   std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
@@ -497,7 +466,6 @@ class RowPartitionerBatches {
       partitioners_.clear();
     }
 
-    bst_idx_t n_max_samples = 0;
     for (std::size_t k = 0; k < n_batches; ++k) {
       if (partitioners_.size() != n_batches) {
         // First run.
@@ -507,9 +475,7 @@ class RowPartitionerBatches {
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx, n_samples, base_ridx);
       CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
-      n_max_samples = std::max(n_samples, n_max_samples);
     }
-    this->ridx_tmp_.resize(n_max_samples);
   }
 
   // Accessors
@@ -530,9 +496,7 @@ class RowPartitionerBatches {
                            std::vector<bst_node_t> const& left_nidx,
                            std::vector<bst_node_t> const& right_nidx,
                            std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
-    auto& part = this->At(batch_idx);
-    auto ridx_tmp = dh::ToSpan(this->ridx_tmp_).subspan(0, part->Size());
-    part->UpdatePositionBatch(ctx, nidx, left_nidx, right_nidx, op_data, ridx_tmp, op);
+    this->At(batch_idx)->UpdatePositionBatch(ctx, nidx, left_nidx, right_nidx, op_data, op);
   }
 };
 };  // namespace xgboost::tree

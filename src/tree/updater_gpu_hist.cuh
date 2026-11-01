@@ -360,6 +360,7 @@ class MultiTargetHistMaker {
 #endif
     std::int32_t batch_idx = 0;
     for (auto const& p_part : this->partitioners_) {
+      p_part->Consolidate(this->ctx_);
       auto leaves = p_part->GetLeaves();
       CHECK_EQ(leaves.size(), n_leaves);
       LeafGradSum(this->ctx_, leaves, d_roundings, p_part->GetRows(), d_full_grad, d_out_sum);

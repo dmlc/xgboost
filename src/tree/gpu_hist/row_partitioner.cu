@@ -13,6 +13,7 @@ namespace xgboost::tree {
 void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid) {
   ridx_segments_.clear();
   ridx_.resize(n_samples);
+  ridx_other_.resize(n_samples);
   tmp_.clear();
   n_nodes_ = 1;  // Root
 
@@ -30,8 +31,20 @@ void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t ba
 RowPartitioner::~RowPartitioner() = default;
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {
-  auto segment = ridx_segments_.at(nidx).segment;
-  return dh::ToSpan(ridx_).subspan(segment.begin, segment.Size());
+  auto const& node = ridx_segments_.at(nidx);
+  return this->Buffer(node.buffer).subspan(node.segment.begin, node.segment.Size());
+}
+
+void RowPartitioner::Consolidate(Context const* ctx) {
+  for (auto& node : ridx_segments_) {
+    if (node.IsLeaf() && node.buffer == 1 && node.segment.Size() != 0) {
+      dh::safe_cuda(cudaMemcpyAsync(ridx_.data() + node.segment.begin,
+                                    ridx_other_.data() + node.segment.begin,
+                                    node.segment.Size() * sizeof(RowIndexT), cudaMemcpyDefault,
+                                    ctx->CUDACtx()->Stream()));
+      node.buffer = 0;
+    }
+  }
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() const {
