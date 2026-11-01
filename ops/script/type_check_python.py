@@ -24,6 +24,7 @@ class TypeCheckPaths:
         "tests/python/test_ordinal.py",
         "tests/python/test_interaction_constraints.py",
         "tests/python/test_quantile_dmatrix.py",
+        "tests/python/test_pickling.py",
         "tests/python-gpu/",
         "tests/test_distributed/test_with_dask/",
         "tests/test_distributed/test_with_spark/test_data.py",
