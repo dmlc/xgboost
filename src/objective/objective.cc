@@ -85,5 +85,6 @@ DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 namespace xgboost::sycl::obj {
 DMLC_REGISTRY_LINK_TAG(hinge_kernel_sycl);
 DMLC_REGISTRY_LINK_TAG(multiclass_kernel_sycl);
+DMLC_REGISTRY_LINK_TAG(quantile_kernel_sycl);
 }  // namespace xgboost::sycl::obj
 #endif  // defined(XGBOOST_USE_SYCL)
