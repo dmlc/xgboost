@@ -26,6 +26,45 @@ def test_type_check() -> None:
 
 
 class TestArrowTable:
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    @pytest.mark.parametrize("start,length", [(0, 4), (0, 2), (1, 2), (1, 3)])
+    def test_sliced_dictionary(self, DMatrixT, string_type, start, length):
+        dictionary = pa.array(["discard", "α", "東京", "last"], type=string_type)
+        dictionary = dictionary.slice(start, length)
+        codes = np.tile(np.arange(length), 8)
+        indices = pa.array(codes, mask=np.arange(codes.size) % 7 == 0)
+        array = pa.DictionaryArray.from_arrays(indices, dictionary)
+        table = pa.table({"cat": array})
+        labels = np.arange(codes.size, dtype=np.float32) % 5
+
+        dmat = DMatrixT(table, labels, enable_categorical=True, nthread=1)
+        categories = dmat.get_categories(export_to_arrow=True).to_arrow()
+        assert categories[0][1].to_pylist() == dictionary.to_pylist()
+
+        # Pandas materializes the logical strings independently of Arrow's
+        # dictionary offsets and supplies its own categorical conversion path.
+        frame = pd.DataFrame(
+            {
+                "cat": pd.Categorical(
+                    array.to_pylist(), categories=dictionary.to_pylist()
+                )
+            }
+        )
+        reference = DMatrixT(frame, labels, enable_categorical=True, nthread=1)
+        np.testing.assert_array_equal(
+            dmat.get_data().indptr, reference.get_data().indptr
+        )
+        np.testing.assert_array_equal(dmat.get_data().data, reference.get_data().data)
+
+        params = {"tree_method": "hist", "max_depth": 2, "nthread": 1}
+        model = xgb.train(params, dmat, num_boost_round=3)
+        expected = xgb.train(params, reference, num_boost_round=3)
+        np.testing.assert_allclose(model.predict(dmat), expected.predict(reference))
+        np.testing.assert_allclose(
+            model.inplace_predict(table), model.inplace_predict(frame)
+        )
+
     def test_arrow_table(self):
         df = pd.DataFrame(
             [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
