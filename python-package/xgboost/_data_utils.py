@@ -325,6 +325,14 @@ def _arrow_cat_names_inf(cats: "pa.StringArray") -> Tuple[StringArray, Any]:
         pa = import_pyarrow()
 
     if isinstance(cats, pa.LargeStringArray):
+        offsets = np.frombuffer(cats.buffers()[1], dtype=np.int64)
+        start = int(offsets[cats.offset])
+        n_bytes = int(offsets[cats.offset + len(cats)]) - start
+        # Narrowing checks absolute offsets, so normalize a sliced value range
+        # first, even when its array offset is zero but its first byte offset is not.
+        # Leave unsupported logical ranges to the cast, without copying them.
+        if (cats.offset != 0 or start != 0) and n_bytes <= np.iinfo(np.int32).max:
+            cats = pa.concat_arrays([cats])
         # XGBoost requires 32-bit string offsets.
         cats = cats.cast(pa.string())
     buffers: List[pa.Buffer] = cats.buffers()
