@@ -9,7 +9,7 @@
 
 #include "../../../../src/common/device_vector.cuh"
 #include "../../../../src/tree/gpu_hist/leaf_sum.cuh"
-#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for LeafInfo
+#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for LeafInfo, RowBuffers
 #include "../../helpers.h"
 #include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
@@ -46,8 +46,9 @@ TEST(LeafGradSum, Basic) {
   auto quantizers = MakeDummyQuantizers(n_targets);
   auto out_sum = linalg::Constant(&ctx, GradientPairInt64{}, n_leaves, n_targets);
 
-  LeafGradSum(&ctx, h_leaves, dh::ToSpan(quantizers), dh::ToSpan(ridx0), dh::ToSpan(ridx1),
-              gpairs.View(ctx.Device()), out_sum.View(ctx.Device()));
+  RowBuffers<RowIndexT const> ridx{{dh::ToSpan(ridx0), dh::ToSpan(ridx1)}};
+  LeafGradSum(&ctx, h_leaves, dh::ToSpan(quantizers), ridx, gpairs.View(ctx.Device()),
+              out_sum.View(ctx.Device()));
 
   auto h_out = out_sum.HostView();
   std::int64_t expected[] = {0 + 1, 2 + 3 + 4 + 5};

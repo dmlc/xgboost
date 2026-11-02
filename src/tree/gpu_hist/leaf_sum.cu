@@ -12,7 +12,7 @@
 #include "../split_evaluator.h"  // for GPUTrainingParam
 #include "leaf_sum.cuh"
 #include "quantiser.cuh"        // for GradientQuantiser
-#include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
+#include "row_partitioner.cuh"  // for RowIndexT, LeafInfo, RowBuffers
 #include "xgboost/base.h"       // for GradientPairInt64
 #include "xgboost/context.h"    // for Context
 #include "xgboost/linalg.h"     // for MatrixView
@@ -40,8 +40,7 @@ struct AccumulateLeafSum {
 #endif  // THRUST_VERSION >= 300000
 
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
-                 common::Span<GradientQuantiser const> roundings,
-                 common::Span<RowIndexT const> ridx0, common::Span<RowIndexT const> ridx1,
+                 common::Span<GradientQuantiser const> roundings, RowBuffers<RowIndexT const> ridx,
                  linalg::MatrixView<GradientPair const> grad,
                  linalg::MatrixView<GradientPairInt64> out_sum) {
   CHECK_EQ(h_leaves.size(), out_sum.Shape(0));
@@ -72,7 +71,7 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       // Global index (within a batch).
       auto j = node.segment.begin + k;
       // gradient
-      auto g = grad((node.buffer == 0 ? ridx0 : ridx1)[j], t);
+      auto g = grad(ridx[node.buffer][j], t);
       return roundings[t].ToFixedPoint(g);
     });
     // Use an output iterator to implement running sum. Old thrust versions either don't

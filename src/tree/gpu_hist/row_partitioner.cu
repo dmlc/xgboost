@@ -12,8 +12,9 @@
 namespace xgboost::tree {
 void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid) {
   ridx_segments_.clear();
-  ridx_.resize(n_samples);
-  ridx_other_.resize(n_samples);
+  for (auto& buffer : ridx_) {
+    buffer.resize(n_samples);
+  }
   tmp_.clear();
   n_nodes_ = 1;  // Root
 
@@ -21,7 +22,7 @@ void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t ba
   ridx_segments_.emplace_back(
       NodePositionInfo{Segment{0, static_cast<cuda_impl::RowIndexT>(n_samples)}});
 
-  thrust::sequence(ctx->CUDACtx()->CTP(), ridx_.data(), ridx_.data() + ridx_.size(), base_rowid);
+  thrust::sequence(ctx->CUDACtx()->CTP(), ridx_[0].data(), ridx_[0].data() + n_samples, base_rowid);
 
   // Pre-allocate some host memory
   this->pinned_.GetSpan<std::int32_t>(1 << 11);
@@ -32,7 +33,7 @@ RowPartitioner::~RowPartitioner() = default;
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {
   auto const& node = ridx_segments_.at(nidx);
-  return this->Buffer(node.buffer).subspan(node.segment.begin, node.segment.Size());
+  return this->Buffers()[node.buffer].subspan(node.segment.begin, node.segment.Size());
 }
 
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(bst_node_t nidx) {
