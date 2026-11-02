@@ -15,6 +15,7 @@
 #include <vector>       // for vector
 
 #include "../../common/categorical.h"  // for CatBitField
+#include "../../common/common.h"       // for DivRoundUp
 #include "../../common/hist_util.h"    // for GHistRow, HistogramCuts
 #include "../../common/linalg_op.h"    // for cbegin, cend, begin
 #include "../../common/random.h"       // for ColumnSampler
@@ -123,7 +124,15 @@ class HistEvaluatorImpl {
       std::array<GradientPairPrecise, 2> sums{};
       return scan(sums);
     } else {
-      auto sums = linalg::Empty<GradientPairPrecise>(ctx_, 2, hist.size());
+      // Keep hot writes off cache lines shared with neighboring allocations, which can hold
+      // another worker's candidate gradients. Pad both ends so alignment and target count
+      // don't affect isolation.
+      constexpr std::size_t kCacheLine = 64;
+      auto const kPadding = common::DivRoundUp(kCacheLine, sizeof(GradientPairPrecise));
+      std::vector<GradientPairPrecise> storage(2 * hist.size() + 2 * kPadding);
+      auto sums = linalg::MakeTensorView(
+          ctx_, common::Span<GradientPairPrecise>{storage.data() + kPadding, 2 * hist.size()}, 2,
+          hist.size());
       return scan(sums);
     }
   }
