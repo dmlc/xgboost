@@ -204,25 +204,26 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
  * @param d_batch_info Node data, with the size of the input number of nodes.
  * @param n_tiles      The number of tiles, see @ref PerNodeData::tile_offset.
  * @param d_counts     Output, the number of rows going left for each node.
- * @param tmp          Storage for the state between launches.
+ * @param p_state      Storage for the @ref PartitionState between launches.
  */
 template <typename OpT, typename OpDataT>
 void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
                        RowBuffers<cuda_impl::RowIndexT> ridx,
                        common::Span<cuda_impl::RowIndexT> d_counts, std::size_t n_tiles, OpT op,
-                       dh::DeviceUVector<std::uint32_t>* tmp) {
+                       dh::DeviceUVector<std::uint32_t>* p_state) {
   auto stream = ctx->CUDACtx()->Stream();
   auto n_nodes = d_batch_info.size();
-  if (tmp->size() < PartitionState::Size(n_nodes)) {
-    tmp->resize(PartitionState::Size(n_nodes));
-    dh::safe_cuda(cudaMemsetAsync(tmp->data(), 0, tmp->size() * sizeof(std::uint32_t), stream));
+  if (p_state->size() < PartitionState::Size(n_nodes)) {
+    p_state->resize(PartitionState::Size(n_nodes));
+    dh::safe_cuda(
+        cudaMemsetAsync(p_state->data(), 0, p_state->size() * sizeof(std::uint32_t), stream));
   }
   // At least one block, to write the counts.
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(n_tiles, 1));
   dh::LaunchKernel{n_blocks, cuda_impl::kPartitionBlockThreads, 0, stream}(
       PartitionKernel<OpT, OpDataT>, dh::LDGIterator<PerNodeData<OpDataT>>{d_batch_info.data()},
       static_cast<std::int32_t>(n_nodes), static_cast<std::uint32_t>(n_tiles), ridx,
-      PartitionState{tmp->data()}, d_counts.data(), op);
+      PartitionState{p_state->data()}, d_counts.data(), op);
 }
 
 struct NodePositionInfo {
@@ -300,8 +301,8 @@ class RowPartitioner {
    * rows idx | 3, 5, 1 | 13, 31 |
    */
   std::array<dh::DeviceUVector<RowIndexT>, 2> ridx_;
-  // State of the partition kernel.
-  dh::DeviceUVector<std::uint32_t> tmp_;
+  // Storage for the @ref PartitionState of the partition kernel.
+  dh::DeviceUVector<std::uint32_t> partition_state_;
 
   [[nodiscard]] RowBuffers<RowIndexT> Buffers() {
     return {{dh::ToSpan(ridx_[0]), dh::ToSpan(ridx_[1])}};
@@ -405,7 +406,7 @@ class RowPartitioner {
 
     // Partition the rows of all nodes according to the operator
     SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), this->Buffers(),
-                                                  dh::ToSpan(d_counts), n_tiles, op, &this->tmp_);
+                                                  dh::ToSpan(d_counts), n_tiles, op, &this->partition_state_);
 
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));

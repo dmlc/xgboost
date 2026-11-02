@@ -80,10 +80,10 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                 h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
                                 nullptr));
-  dh::DeviceUVector<std::uint32_t> tmp;
+  dh::DeviceUVector<std::uint32_t> state;
   RowBuffers<cuda_impl::RowIndexT> buffers{{dh::ToSpan(ridx), dh::ToSpan(ridx_tmp)}};
   SortPositionBatch<decltype(op), int>(&ctx, dh::ToSpan(d_batch_info), buffers, dh::ToSpan(counts),
-                                       n_tiles, op, &tmp);
+                                       n_tiles, op, &state);
   // The rows of each node are read from the first buffer, and written to the second.
   ridx = ridx_tmp;
 
