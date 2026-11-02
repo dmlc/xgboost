@@ -71,6 +71,14 @@ def test_polars_missing() -> None:
     predt1 = booster.predict(Xy)
     np.testing.assert_allclose(predt0, predt1)
 
+    for invalid in [df.rename({"a": "x", "b": "y"}), df.select(["b", "a"])]:
+        with pytest.raises(ValueError, match="feature_names mismatch"):
+            booster.inplace_predict(invalid)
+        np.testing.assert_allclose(
+            booster.inplace_predict(invalid, validate_features=False),
+            booster.inplace_predict(invalid.to_numpy()),
+        )
+
 
 def test_classififer(tmp_path: Path) -> None:
     from sklearn.datasets import make_classification, make_multilabel_classification

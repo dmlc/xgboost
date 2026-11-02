@@ -96,6 +96,17 @@ class TestArrowTable:
         assert bst2.feature_names == ["A", "B", "C"]
         assert bst2.feature_types == ["int", "float", "int"]
 
+        for invalid in [
+            table.rename_columns(["x", "y", "z"]),
+            table.select(["C", "B", "A"]),
+        ]:
+            with pytest.raises(ValueError, match="feature_names mismatch"):
+                bst2.inplace_predict(invalid)
+            np.testing.assert_allclose(
+                bst2.inplace_predict(invalid, validate_features=False),
+                bst2.inplace_predict(invalid.to_pandas().to_numpy()),
+            )
+
     @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
     def test_arrow_unsupported_dtype(self, DMatrixT):
         table = pa.table({"a": [1.0, 2.0], "b": ["x", "y"], "c": [1, 2]})
