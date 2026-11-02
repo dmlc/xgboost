@@ -2,11 +2,14 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <algorithm>  // for max, min
-#include <array>      // for array
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t, uint32_t
-#include <vector>     // for vector
+#include <algorithm>                 // for max, min
+#include <array>                     // for array
+#include <cstddef>                   // for size_t
+#include <cstdint>                   // for int32_t, uint32_t
+#include <cub/block/block_load.cuh>  // for LoadDirectWarpStriped
+#include <cub/warp/warp_scan.cuh>    // for WarpScan
+#include <cuda/atomic>               // for atomic_ref
+#include <vector>                    // for vector
 
 #include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
@@ -101,12 +104,14 @@ struct PartitionState {
 template <typename OpT, typename OpDataT>
 __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKernel(
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
-    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionState state,
-    cuda_impl::RowIndexT* d_counts, OpT op) {
+    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionState state, cuda_impl::RowIndexT* d_counts,
+    OpT op) {
   using cuda_impl::kPartitionTileRows;
   using cuda_impl::kPartitionTileWords;
   using cuda_impl::kPartitionWarpWords;
   using RowIndexT = cuda_impl::RowIndexT;
+  using WarpScanT = cub::WarpScan<std::uint32_t>;
+  __shared__ typename WarpScanT::TempStorage scan_storage;
   __shared__ std::uint32_t word_offset[kPartitionTileWords];
   __shared__ std::uint32_t base[2];
   __shared__ bool is_last;
@@ -127,14 +132,14 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
     auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
     auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
 
+    // Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
     RowIndexT rows[kPartitionWarpWords];
+    cub::LoadDirectWarpStriped(threadIdx.x, in + tile, rows, n_rows, RowIndexT{0});
     bool go_left[kPartitionWarpWords];
 #pragma unroll
     for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
       auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
-      bool valid = local < n_rows;
-      rows[j] = valid ? in[tile + local] : 0;
-      go_left[j] = valid && op(rows[j], node.data);
+      go_left[j] = local < n_rows && op(rows[j], node.data);
     }
     // Rank the left rows within the tile.
     std::uint32_t bits[kPartitionWarpWords];
@@ -147,20 +152,12 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
     }
     __syncthreads();
     if (warp == 0) {
-      auto v = word_offset[lane];
-      auto inclusive = v;
-#pragma unroll
-      for (std::int32_t d = 1; d < 32; d *= 2) {
-        auto n = __shfl_up_sync(0xffffffff, inclusive, d);
-        if (lane >= d) {
-          inclusive += n;
-        }
-      }
-      word_offset[lane] = inclusive - v;
-      if (lane == 31) {
+      std::uint32_t n_left;
+      WarpScanT{scan_storage}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
+      if (lane == 0) {
         // Reserve space on both sides of the node.
-        base[0] = atomicAdd(state.NLeft(i), inclusive);
-        base[1] = atomicAdd(state.NRight(i), n_rows - inclusive);
+        base[0] = atomicAdd(state.NLeft(i), n_left);
+        base[1] = atomicAdd(state.NRight(i), n_rows - n_left);
       }
     }
     __syncthreads();
@@ -182,12 +179,11 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
   // The last block publishes the counts, and resets the state for the next launch.
   __syncthreads();
   if (threadIdx.x == 0) {
-    __threadfence();
-    is_last = atomicAdd(state.NDone(), 1u) == gridDim.x - 1;
+    cuda::atomic_ref<std::uint32_t, cuda::thread_scope_device> n_done{*state.NDone()};
+    is_last = n_done.fetch_add(1, cuda::memory_order_acq_rel) == gridDim.x - 1;
   }
   __syncthreads();
   if (is_last) {
-    __threadfence();
     for (std::int32_t i = threadIdx.x; i < n_nodes; i += blockDim.x) {
       d_counts[i] = atomicExch(state.NLeft(i), 0u);
       *state.NRight(i) = 0;
@@ -263,8 +259,7 @@ XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
 template <int kBlockSize, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
     common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
-    RowBuffers<const cuda_impl::RowIndexT> ridx, common::Span<bst_node_t> d_out_position,
-    OpT op) {
+    RowBuffers<const cuda_impl::RowIndexT> ridx, common::Span<bst_node_t> d_out_position, OpT op) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, ridx[0].size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
     // Read from the buffer holding the rows of the leaf.
@@ -406,7 +401,8 @@ class RowPartitioner {
 
     // Partition the rows of all nodes according to the operator
     SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), this->Buffers(),
-                                                  dh::ToSpan(d_counts), n_tiles, op, &this->partition_state_);
+                                                  dh::ToSpan(d_counts), n_tiles, op,
+                                                  &this->partition_state_);
 
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
