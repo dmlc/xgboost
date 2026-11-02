@@ -240,6 +240,11 @@ class TreeEvaluator {
         auto const left_t = left(t);
         auto const right_t = right(t);
         auto [l_w, r_w] = this->CalcSplitWeights(param, nidx, fidx, t, left_t, right_t);
+        // Equal scalar leaf weights cannot improve on the parent. Reject before score
+        // subtraction can turn a zero gain into a positive gain through rounding.
+        if (n_targets == 1 && l_w == r_w) {
+          return -std::numeric_limits<double>::infinity();
+        }
         gain += tree::CalcGainGivenWeight(param, left_t.GetGrad(), left_t.GetHess(), l_w);
         gain += tree::CalcGainGivenWeight(param, right_t.GetGrad(), right_t.GetHess(), r_w);
       }

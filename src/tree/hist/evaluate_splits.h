@@ -225,16 +225,15 @@ class HistEvaluatorImpl {
    */
   template <bst_bin_t d_step>
   void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                     common::Span<common::ConstGHistRow> hist, bst_feature_t fidx, bst_node_t nidx,
-                     TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                     SplitEntryT *p_best) {
+                     common::Span<common::ConstGHistRow> hist, bst_feature_t fidx,
+                     linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
+                     bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                     SplitEntryT *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     auto n_split_targets = kScalar ? 1 : hist.size();
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
-    auto parent_sum = stats_.Slice(nidx, linalg::All());
-    auto parent_gain = gain_[nidx];
 
     bst_bin_t f_begin = cut_ptr[fidx];
     bst_bin_t f_end = cut_ptr[fidx + 1];
@@ -404,8 +403,10 @@ class HistEvaluatorImpl {
             std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                              [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
 
-            this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
-            this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, entry->nid, evaluator, best);
+            this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, parent_sum, parent_gain,
+                                    entry->nid, evaluator, best);
+            this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, parent_sum, parent_gain,
+                                    entry->nid, evaluator, best);
           }
         }));
 
@@ -463,12 +464,10 @@ class HistEvaluatorImpl {
     auto parent_sum = stats_.Slice(candidate.nid, linalg::All());
 
     auto evaluator = tree_evaluator_.GetEvaluator();
-    std::array<float, 3> single_weight{};
-    std::vector<float> weight(n_split_targets == 1 ? 0 : 3 * n_split_targets);
-    auto *data = n_split_targets == 1 ? single_weight.data() : weight.data();
-    auto base_weight = linalg::MakeVec(data, n_split_targets);
-    auto left_weight = linalg::MakeVec(data + n_split_targets, n_split_targets);
-    auto right_weight = linalg::MakeVec(data + 2 * n_split_targets, n_split_targets);
+    std::vector<float> weight(3 * n_split_targets);
+    auto base_weight = linalg::MakeVec(weight.data(), n_split_targets);
+    auto left_weight = linalg::MakeVec(weight.data() + n_split_targets, n_split_targets);
+    auto right_weight = linalg::MakeVec(weight.data() + 2 * n_split_targets, n_split_targets);
     evaluator.CalcWeight(candidate.nid, *param_, parent_sum, base_weight);
     evaluator.CalcSplitWeights(*param_, candidate.nid, candidate.split.SplitIndex(), left_sum,
                                right_sum, left_weight, right_weight);
@@ -534,7 +533,7 @@ class HistEvaluatorImpl {
   // for the entire training session.
   explicit HistEvaluatorImpl(Context const *ctx, TrainParam const *param, MetaInfo const &info,
                              std::shared_ptr<common::ColumnSampler> sampler)
-      : HistEvaluatorImpl{ctx, info, param, 1, std::move(sampler)} {}
+      : HistEvaluatorImpl{ctx, info, param, static_cast<bst_target_t>(1), std::move(sampler)} {}
 
   explicit HistEvaluatorImpl(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                              bst_target_t n_split_targets,

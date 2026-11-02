@@ -101,7 +101,6 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   ASSERT_FLOAT_EQ(entries[0].split.loss_chg, best_score_);
 }
 
-namespace {
 template <typename EntryT, bst_target_t split_targets, bst_target_t targets = split_targets>
 struct EvaluatorTestCase {
   using Entry = EntryT;
@@ -125,9 +124,8 @@ class TestHistEvaluator : public ::testing::Test {
   linalg::Vector<float> weight_{{kSplitTargets}, DeviceOrd::CPU()};
   float root_hess_{0.0f};
 
-  void SetUp() override { ctx_.nthread = 1; }
-
   // A single histogram/missing sum is repeated across targets; otherwise use each target's data.
+  // hist_data is target-major
   auto const &Evaluate(std::vector<std::vector<GradientPairPrecise>> const &hist_data,
                        std::vector<GradientPairPrecise> const &missing = {}, Args args = {}) {
     param_.UpdateAllowUnknown(Args{{"min_child_weight", "0"},
@@ -140,12 +138,8 @@ class TestHistEvaluator : public ::testing::Test {
     MetaInfo info;
     info.num_col_ = ft_.size();
     auto sampler = std::make_shared<common::ColumnSampler>();
-    if constexpr (kScalar) {
-      evaluator_ = std::make_unique<HistEvaluatorImpl<Entry>>(&ctx_, &param_, info, sampler);
-    } else {
-      evaluator_ =
-          std::make_unique<HistEvaluatorImpl<Entry>>(&ctx_, info, &param_, kSplitTargets, sampler);
-    }
+    evaluator_ =
+        std::make_unique<HistEvaluatorImpl<Entry>>(&ctx_, info, &param_, kSplitTargets, sampler);
     std::vector<BoundedHistCollection> hist(kSplitTargets);
     std::vector<BoundedHistCollection const *> ptrs;
     linalg::Vector<GradientPairPrecise> parent({kSplitTargets}, ctx_.Device());
@@ -162,17 +156,11 @@ class TestHistEvaluator : public ::testing::Test {
       root_hess_ += parent(t).GetHess();
     }
     entries_.assign(1, Entry{0, 0});
-    if constexpr (kScalar) {
-      weight_(0) = evaluator_->InitRoot(GradStats{parent(0)});
-      EXPECT_FLOAT_EQ(weight_(0), CalcWeight(param_, parent(0)));
-      evaluator_->EvaluateSplits(hist[0], cuts_, ft_, &entries_);
-    } else {
-      weight_ = evaluator_->InitRoot(parent.HostView());
-      for (bst_target_t t = 0; t < kSplitTargets; ++t) {
-        EXPECT_FLOAT_EQ(weight_(t), CalcWeight(param_, parent(t)));
-      }
-      evaluator_->EvaluateSplits(ptrs, cuts_, ft_, &entries_);
+    weight_ = evaluator_->InitRoot(parent.HostView());
+    for (bst_target_t t = 0; t < kSplitTargets; ++t) {
+      EXPECT_FLOAT_EQ(weight_(t), CalcWeight(param_, parent(t)));
     }
+    evaluator_->EvaluateSplits(ptrs, cuts_, ft_, &entries_);
     EXPECT_EQ(sampler->GetFeatureSet(&ctx_, 0)->Size(), ft_.size());
     return entries_.front().split;
   }
@@ -218,6 +206,7 @@ class TestHistEvaluator : public ::testing::Test {
         return tree.HostMtView();
       }
     }();
+    // Check that the resulting tree is consistent with the generated split entry.
     auto const &split = entries_.front().split;
     ASSERT_EQ(view.Size(), 3);
     EXPECT_EQ(view.SplitIndex(0), split.SplitIndex());
@@ -365,5 +354,4 @@ TYPED_TEST(TestHistEvaluator, PartitionUnregularizedOrder) {
   EXPECT_NEAR(split.loss_chg, 0.05f * this->kSplitTargets, kRtEps);
   this->CheckCategories({false, true, false});
 }
-}  // anonymous namespace
 }  // namespace xgboost::tree
