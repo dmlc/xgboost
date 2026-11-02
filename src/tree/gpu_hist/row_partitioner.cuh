@@ -316,14 +316,15 @@ class RowPartitioner {
   common::Span<const RowIndexT> GetRows(bst_node_t nidx);
 
   /**
-   * \brief Gets all training rows in the set. The rows of a leaf are only there after
-   *        @ref Consolidate.
+   * @brief Gets row buffer @p i, see @ref NodePositionInfo::buffer.
    */
-  common::Span<const RowIndexT> GetRows() const;
+  [[nodiscard]] common::Span<const RowIndexT> GetBuffer(std::int32_t i) const {
+    return i == 0 ? dh::ToSpan(ridx_) : dh::ToSpan(ridx_other_);
+  }
   /**
    * @brief Get the number of rows in this partitioner.
    */
-  std::size_t Size() const { return this->GetRows().size(); }
+  std::size_t Size() const { return ridx_.size(); }
 
   [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
@@ -444,12 +445,6 @@ class RowPartitioner {
         FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
         base_ridx, d_ridx0, d_ridx1, d_out_position, op);
   }
-
-  /**
-   * @brief Move the rows of all leaves into the first buffer, for reading all rows with
-   *        @ref GetRows.
-   */
-  void Consolidate(Context const* ctx);
 };
 
 // Partitioner for all batches, used for external memory training.

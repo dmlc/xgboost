@@ -18,10 +18,12 @@ namespace xgboost::tree::cuda_impl {
  * @brief Calculate gradient sum for leaf nodes based on row partitions.
  *
  *   shape(out_sum) == (n_leaves, n_targets)
+ *
+ * The rows of each leaf are in the row buffer given by its @ref NodePositionInfo::buffer.
  */
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  common::Span<GradientQuantiser const> roundings,
-                 common::Span<RowIndexT const> sorted_ridx,
+                 common::Span<RowIndexT const> ridx0, common::Span<RowIndexT const> ridx1,
                  linalg::MatrixView<GradientPair const> grad,
                  linalg::MatrixView<GradientPairInt64> out_sum);
 

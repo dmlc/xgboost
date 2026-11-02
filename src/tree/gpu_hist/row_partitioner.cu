@@ -6,7 +6,7 @@
 #include <vector>  // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
-#include "../../common/device_helpers.cuh"  // for CopyDeviceSpanToVector, ToSpan
+#include "../../common/device_helpers.cuh"  // for CopyDeviceSpanToVector
 #include "row_partitioner.cuh"
 
 namespace xgboost::tree {
@@ -33,22 +33,6 @@ RowPartitioner::~RowPartitioner() = default;
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {
   auto const& node = ridx_segments_.at(nidx);
   return this->Buffer(node.buffer).subspan(node.segment.begin, node.segment.Size());
-}
-
-void RowPartitioner::Consolidate(Context const* ctx) {
-  for (auto& node : ridx_segments_) {
-    if (node.IsLeaf() && node.buffer == 1 && node.segment.Size() != 0) {
-      dh::safe_cuda(cudaMemcpyAsync(ridx_.data() + node.segment.begin,
-                                    ridx_other_.data() + node.segment.begin,
-                                    node.segment.Size() * sizeof(RowIndexT), cudaMemcpyDefault,
-                                    ctx->CUDACtx()->Stream()));
-      node.buffer = 0;
-    }
-  }
-}
-
-common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() const {
-  return dh::ToSpan(ridx_);
 }
 
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(bst_node_t nidx) {
