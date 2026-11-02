@@ -226,9 +226,6 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
                                     model_.learner_model_state->OutputLength());
   CHECK_NE(n_groups, 0);
 
-  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
-  // position is negated if the row is sampled out.
-  std::vector<HostDeviceVector<bst_node_t>> node_position;
   auto predict_from_node_positions = [&](std::vector<HostDeviceVector<bst_node_t>>& positions,
                                          TreesOneGroup const& trees,
                                          linalg::MatrixView<float> out_preds) {
@@ -252,8 +249,8 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
   if (model_.learner_model_state->IsVectorLeaf() ||
       model_.learner_model_state->OutputLength() == 1u) {
     TreesOneGroup ret;
-    BoostNewTrees(in_gpair, p_fmat.get(), 0, &node_position, &ret);
-    if (predict_from_node_positions(node_position, ret, out)) {
+    BoostNewTrees(in_gpair, p_fmat.get(), 0, &node_position_, &ret);
+    if (predict_from_node_positions(node_position_, ret, out)) {
       predt->Update(1);
     }
     new_trees.push_back(std::move(ret));
@@ -266,12 +263,11 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
     bool cache_updated{true};
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-      node_position.clear();
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
-      BoostNewTrees(&tmp, p_fmat.get(), gid, &node_position, &ret);
+      BoostNewTrees(&tmp, p_fmat.get(), gid, &node_position_, &ret);
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
-      cache_updated = predict_from_node_positions(node_position, ret, v_predt) && cache_updated;
+      cache_updated = predict_from_node_positions(node_position_, ret, v_predt) && cache_updated;
       new_trees.push_back(std::move(ret));
     }
     if (cache_updated) {
@@ -337,6 +333,11 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
   }
 
   out_position->resize(new_trees.size());
+  for (auto& position : *out_position) {
+    // Empty positions tell the updaters that none were written for this tree, for example
+    // `prune` computes them if it runs first. Resizing keeps the memory for the next tree.
+    position.Resize(0);
+  }
 
   auto n_targets = gpair->gpair.Shape(1);
   auto n_components = static_cast<std::size_t>(tree_param_.multi_projection_ratio * n_targets);

@@ -9,10 +9,12 @@
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
-#include <cstddef>   // for size_t
-#include <cstdint>   // for uint32_t
-#include <iterator>  // for distance
-#include <vector>    // for vector
+#include <algorithm>  // for min, max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <iterator>   // for distance
+#include <numeric>    // for iota
+#include <vector>     // for vector
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
@@ -72,7 +74,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   std::size_t total_rows = 0;
   for (size_t i = 0; i < segments.size(); i++) {
-    h_batch_info[i] = {segments.at(i), 0};
+    h_batch_info[i] = {segments.at(i), 0, static_cast<cuda_impl::RowIndexT>(total_rows)};
     total_rows += segments.at(i).Size();
   }
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
@@ -104,6 +106,18 @@ TEST(RowPartitioner, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
+  // Empty segments between and around non-empty ones.
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 0}, {0, 2}, {2, 2}, {2, 2}, {2, 6}, {6, 6}});
+  // Many segments of sizes 0 to 4, more nodes than the former batch limit of 32.
+  std::vector<int> ridx(97);
+  std::iota(ridx.begin(), ridx.end(), 0);
+  std::vector<Segment> segments;
+  for (cuda_impl::RowIndexT begin = 0; begin < ridx.size();) {
+    auto size = std::min<cuda_impl::RowIndexT>(begin % 5, ridx.size() - begin);
+    segments.emplace_back(begin, begin + size);
+    begin += std::max<cuda_impl::RowIndexT>(size, 1);
+  }
+  TestSortPositionBatch(ridx, segments);
 }
 
 namespace {

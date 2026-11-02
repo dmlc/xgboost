@@ -24,13 +24,19 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
                                        TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                                        bool &missing_left_out,  // NOLINT
                                        GradientQuantiser const &quantiser) {
+  float missing_right_gain =
+      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan),
+                              quantiser.ToFloatingPoint(parent_sum - scan));
+  if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
+    // Without missing values both directions have the same gain, and a tie goes right. Skip the
+    // second gain, the floating point evaluation is expensive.
+    missing_left_out = false;
+    return missing_right_gain;
+  }
   const auto left_sum = scan + missing;
   float missing_left_gain =
       evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
                               quantiser.ToFloatingPoint(parent_sum - left_sum));
-  float missing_right_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan),
-                              quantiser.ToFloatingPoint(parent_sum - scan));
 
   missing_left_out = missing_left_gain > missing_right_gain;
   return missing_left_out ? missing_left_gain : missing_right_gain;
@@ -83,12 +89,11 @@ class EvaluateSplitAgent {
         temp_storage(temp_storage),
         rounding(shared_inputs.rounding),
         parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
-        missing(parent_sum - ReduceFeature()),
+        // A dense matrix has no missing value, skip the reduction over the feature.
+        missing(shared_inputs.is_dense ? GradientPairInt64{} : parent_sum - ReduceFeature()),
         param(shared_inputs.param),
         evaluator(evaluator) {
     static_assert(kBlockSize == 32, "This kernel relies on the assumption block_size == warp_size");
-    // There should be no missing value gradients for a dense matrix
-    KERNEL_CHECK(!shared_inputs.is_dense || missing.GetQuantisedHess() == 0);
   }
   __device__ GradientPairInt64 ReduceFeature() {
     GradientPairInt64 local_sum;

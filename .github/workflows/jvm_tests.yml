@@ -99,7 +99,7 @@ jobs:
         include:
           - description: "MacOS (Apple Silicon)"
             libname: libxgboost4j_m1.dylib
-            runner: macos-14
+            runner: macos-15
           - description: "MacOS (Intel)"
             libname: libxgboost4j_intel.dylib
             runner: macos-15-intel

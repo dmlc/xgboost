@@ -215,8 +215,9 @@ def run_cat_container_mixed(device: Device) -> None:
 
         # int type
         X, y = make_categorical(
-            n_samples, 16, 7, onehot=False, cat_dtype=np.int64, device=device
+            n_samples, 16, 7, onehot=False, cat_dtype=np.uint16, device=device
         )
+        assert X["0"].cat.categories.dtype == np.uint16
         Xy = DMatrixT(X, y, enable_categorical=True)
         check(Xy, X)
 
@@ -285,6 +286,7 @@ def run_cat_container_iter(device: Device) -> None:
             cat_dtype=np.int64,
             device=device,
         )
+        assert X_i["0"].cat.categories.dtype == np.int64
         X.append(X_i)
         y.append(y_i)
 
