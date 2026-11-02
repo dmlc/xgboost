@@ -719,6 +719,8 @@ def _meta_from_pandas_series(
         data = data.values.to_dense().astype(np.float32)
     elif is_pa_ext_dtype(data.dtype):
         data = pandas_pa_type(data)
+    elif isinstance(data.dtype, np.dtype) and data.dtype.kind in "fiu":
+        data = data.to_numpy()
     else:
         data = data.to_numpy(np.float32, na_value=np.nan)
 
