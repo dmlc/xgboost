@@ -297,14 +297,9 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    // Empty-bin skipping makes the cost of different node/feature blocks uneven.
-    // Assign the next block to an available worker instead of grouping whole
-    // stretches of nodes on the same worker. Split statistics are unchanged.
-    common::ParallelFor(
-        space.Size(), n_threads, common::Sched::Dyn(1),
-        common::WithWorker([&](std::size_t block_idx, common::Worker worker) {
-          auto nidx_in_set = space.GetFirstDimension(block_idx);
-          auto r = space.GetRange(block_idx);
+    common::ParallelFor2d(
+        space, n_threads,
+        common::WithWorker([&](std::size_t nidx_in_set, common::Range1d r, common::Worker worker) {
           auto tidx = worker.Id();
           auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
           auto best = &entry->split;
