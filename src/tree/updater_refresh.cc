@@ -12,6 +12,7 @@
 #include "../predictor/predict_fn.h"
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
+#include "./split_gain.h"  // for CalcGain, CalcWeight
 #include "sample_position.h"
 #include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"

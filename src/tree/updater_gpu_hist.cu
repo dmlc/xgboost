@@ -39,6 +39,7 @@
 #include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
+#include "split_gain.h"                  // for CalcWeight
 #include "tree_view.h"                   // for ScalarTreeView
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
