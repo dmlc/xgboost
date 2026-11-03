@@ -443,8 +443,7 @@ class HistEvaluatorImpl {
     linalg::Vector<float> weight({n_split_targets}, ctx_->Device());
     auto evaluator = tree_evaluator_.GetEvaluator();
     evaluator.CalcWeight(RegTree::kRoot, *param_, root_sum, weight.HostView());
-    auto root_gain = evaluator.CalcGainGivenWeight(*param_, root_sum, weight.HostView());
-    gain_.front() = root_gain;
+    gain_.front() = evaluator.CalcGain(RegTree::kRoot, *param_, root_sum);
 
     auto h_stats = stats_.HostView();
     std::copy(linalg::cbegin(root_sum), linalg::cend(root_sum), linalg::begin(h_stats));
@@ -525,8 +524,8 @@ class HistEvaluatorImpl {
 
     std::size_t n_nodes = p_tree->Size();
     gain_.resize(n_nodes);
-    gain_[left_child] = evaluator.CalcGainGivenWeight(*param_, left_sum, left_weight);
-    gain_[right_child] = evaluator.CalcGainGivenWeight(*param_, right_sum, right_weight);
+    gain_[left_child] = evaluator.CalcGain(left_child, *param_, left_sum);
+    gain_[right_child] = evaluator.CalcGain(right_child, *param_, right_sum);
 
     if (n_nodes >= stats_.Shape(0)) {
       stats_.Reshape(n_nodes * 2, stats_.Shape(1));

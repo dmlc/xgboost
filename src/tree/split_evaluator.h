@@ -333,14 +333,26 @@ class TreeEvaluator {
 
     template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
     XGBOOST_DEVICE double CalcGain(bst_node_t nidx, ParamT const& p,
-                                   GradientSumT const& stats) const {
-      double gain{0.0};
-      for (std::size_t t = 0, n_targets = stats.Size(); t < n_targets; ++t) {
-        auto const stats_t = stats(t);
-        auto weight = this->CalcWeight(nidx, t, p, stats_t);
-        gain += tree::CalcGainGivenWeight(p, stats_t.GetGrad(), stats_t.GetHess(), weight);
+                                   GradientSumT const& stats) const noexcept {
+      auto for_each_t = [&](auto&& calc_gain) {
+        double gain{0.0};
+        for (std::size_t t = 0, n_targets = stats.Size(); t < n_targets; ++t) {
+          auto const& stats_t = stats(t);
+          gain += calc_gain(t, stats_t);
+        }
+        return gain;
+      };
+
+      if (!has_constraint) {
+        // Match CalcSplitGain's scoring to avoid spurious positive split gains.
+        return for_each_t([&p](std::size_t, auto const& stats_t) {
+          return tree::CalcGain(p, stats_t.GetGrad(), stats_t.GetHess());
+        });
       }
-      return gain;
+      return for_each_t([this, nidx, &p](std::size_t t, auto const& stats_t) {
+        auto weight = this->CalcWeight(nidx, t, p, stats_t);
+        return tree::CalcGainGivenWeight(p, stats_t.GetGrad(), stats_t.GetHess(), weight);
+      });
     }
   };
 
