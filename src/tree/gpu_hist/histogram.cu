@@ -526,7 +526,7 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hi
                                    bst_bin_t n_total_bins, bool force_global_memory) {
   this->monitor_.Start(__func__);
   this->p_impl_ = std::make_unique<HistKernel>(ctx, force_global_memory);
-  this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
+  this->hist_.Reset(n_total_bins, max_cached_hist_nodes);
   this->monitor_.Stop(__func__);
 }
 

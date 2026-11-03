@@ -62,12 +62,12 @@ TEST(Histogram, DeviceHistogramStorage) {
   constexpr int kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
   DeviceHistogramStorage histogram{};
-  histogram.Reset(&ctx, kNBins, kNNodes);
+  histogram.Reset(kNBins, kNNodes);
   for (int i = 0; i < kNNodes; ++i) {
     histogram.AllocateHistograms(&ctx, {i});
   }
   ASSERT_EQ(histogram.Data().size(), kStopGrowing);
-  histogram.Reset(&ctx, kNBins, kNNodes);
+  histogram.Reset(kNBins, kNNodes);
 
   // Use allocated memory but do not erase nidx_map.
   for (int i = 0; i < kNNodes; ++i) {
@@ -129,6 +129,39 @@ TEST(Histogram, SubtractionTrick) {
   candidates[1].nidx = 2;
   need_build = histogram.SubtractHist(&ctx, candidates, {3, 5}, {4, 6});
   ASSERT_EQ(need_build, (std::vector<bst_node_t>{4, 6}));
+}
+
+TEST(Histogram, ZeroOnAllocate) {
+  // The storage is reused across trees without being cleared on reset.
+  auto ctx = MakeCUDACtx(0);
+  bst_bin_t n_bins = 16;
+  DeviceHistogramBuilder histogram;
+  auto fill = [&](bst_node_t nidx) {
+    auto hist = histogram.GetNodeHistogram(nidx);
+    thrust::fill(ctx.CUDACtx()->CTP(), dh::tbegin(hist), dh::tend(hist), GradientPairInt64{1, 1});
+  };
+  auto expect_zero = [&](bst_node_t nidx) {
+    std::vector<GradientPairInt64> h_hist(n_bins);
+    dh::CopyDeviceSpanToVector(&h_hist, histogram.GetNodeHistogram(nidx));
+    for (auto v : h_hist) {
+      ASSERT_EQ(v, GradientPairInt64{});
+    }
+  };
+
+  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/8, n_bins, false);
+  histogram.AllocateHistograms(&ctx, {0});
+  histogram.AllocateHistograms(&ctx, {1}, {2});
+  for (bst_node_t nidx : {0, 1, 2}) {
+    fill(nidx);
+  }
+
+  // The next tree uses the same memory.
+  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/8, n_bins, false);
+  histogram.AllocateHistograms(&ctx, {0});
+  expect_zero(0);
+  histogram.AllocateHistograms(&ctx, {1}, {2});
+  expect_zero(1);
+  expect_zero(2);
 }
 
 TEST(Histogram, SubtractionTrickBatch) {
