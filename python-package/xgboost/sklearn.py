@@ -1116,9 +1116,15 @@ class XGBModel(XGBModelBase):
                 self.kwargs[key] = value
 
         if self.__sklearn_is_fitted__():
-            # Configure the evaluation metrics the same way as `fit`.
+            # Configure the evaluation metrics and the feature constraints the same
+            # way as `fit`.
             _, _, parameters = self._configure_fit(None, self.get_xgb_params())
-            self.get_booster().set_param(_configure_metrics(parameters))
+            booster = self.get_booster()
+            booster.set_param(
+                booster._configure_constraints(  # pylint: disable=protected-access
+                    _configure_metrics(parameters)
+                )
+            )
 
         return self
 

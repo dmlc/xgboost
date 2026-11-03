@@ -1615,6 +1615,40 @@ def test_set_params_after_fit_with_metric_list(
     assert metrics == [m for m in eval_metric if isinstance(m, str)]
 
 
+@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.parametrize(
+    "name, value",
+    [
+        pytest.param("monotone_constraints", {"f1": 1}, id="monotone"),
+        pytest.param(
+            "interaction_constraints", [["f0", "f1"], ["f2"]], id="interaction"
+        ),
+    ],
+)
+def test_set_params_after_fit_with_named_constraints(
+    name: str, value: Union[dict[str, int], list[list[str]]]
+) -> None:
+    import pandas as pd
+
+    rng = np.random.default_rng(2025)
+    X = pd.DataFrame(rng.normal(size=(128, 3)), columns=["f0", "f1", "f2"])
+    y = X["f1"] + rng.normal(scale=0.1, size=128)
+    reg = xgb.XGBRegressor(n_estimators=3, **{name: value})
+    reg.fit(X, y)
+    expected = reg.predict(X)
+
+    def train_param() -> str:
+        config = json.loads(reg.get_booster().save_config())
+        return config["learner"]["gradient_booster"]["tree_train_param"][name]
+
+    fitted = train_param()
+    reg.set_params(n_jobs=1)
+    assert train_param() == fitted
+    np.testing.assert_allclose(reg.predict(X), expected)
+    # Training can continue on the booster with the constraint in place.
+    reg.get_booster().update(xgb.DMatrix(X, y), 3)
+
+
 @pytest.mark.parametrize(
     "eval_metric",
     [
