@@ -238,13 +238,12 @@ class HistEvaluator {
       // try to find a split
       auto const bin_grad = hist[i].GetGrad();
       auto const bin_hess = hist[i].GetHess();
-      left_sum.Add(bin_grad, bin_hess);
-      // Keep the first threshold and accumulation order. Later empty bins repeat
-      // the previous candidate's statistics, and equal gains retain the first
-      // threshold within this feature in either scan direction.
+      // Keep the first threshold. Later empty bins repeat the previous candidate's statistics,
+      // and equal gains retain the first threshold within this feature in either scan direction.
       if (i != ibegin && bin_grad == 0.0 && bin_hess == 0.0) {
         continue;
       }
+      left_sum.Add(bin_grad, bin_hess);
       right_sum.SetSubstract(parent.stats, left_sum);
       bst_float loss_chg;
       bst_float split_pt;
