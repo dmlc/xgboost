@@ -62,12 +62,12 @@ TEST(Histogram, DeviceHistogramStorage) {
   constexpr int kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
   DeviceHistogramStorage histogram{};
-  histogram.Reset(&ctx, kNBins, kNNodes);
+  histogram.Reset(kNBins, kNNodes);
   for (int i = 0; i < kNNodes; ++i) {
     histogram.AllocateHistograms(&ctx, {i});
   }
   ASSERT_EQ(histogram.Data().size(), kStopGrowing);
-  histogram.Reset(&ctx, kNBins, kNNodes);
+  histogram.Reset(kNBins, kNNodes);
 
   // Use allocated memory but do not erase nidx_map.
   for (int i = 0; i < kNNodes; ++i) {

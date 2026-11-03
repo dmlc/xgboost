@@ -101,7 +101,7 @@ class DeviceHistogramStorage {
  public:
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
-  void Reset(Context const*, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
+  void Reset(bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
     this->n_total_bins_ = n_total_bins;
     nidx_map_.clear();
     overflow_nidx_map_.clear();
