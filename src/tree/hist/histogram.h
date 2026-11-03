@@ -16,7 +16,7 @@
 #include "../../common/row_set.h"          // for RowSetCollection
 #include "../../common/threading_utils.h"  // for ParallelFor2d, Range1d, BlockedSpace2d
 #include "../../data/gradient_index.h"     // for GHistIndexMatrix
-#include "expand_entry.h"                  // for MultiExpandEntry, CPUExpandEntry
+#include "expand_entry.h"                  // for CPUExpandEntry
 #include "hist_cache.h"                    // for BoundedHistCollection
 #include "hist_param.h"                    // for HistMakerTrainParam
 #include "xgboost/base.h"                  // for bst_node_t, bst_target_t, bst_bin_t
@@ -32,7 +32,7 @@ namespace xgboost::tree {
  * @brief Decide which node as the build node for multi-target trees.
  */
 void AssignNodes(MultiTargetTreeView const &tree,
-                 std::vector<MultiExpandEntry> const &valid_candidates,
+                 std::vector<CPUExpandEntry> const &valid_candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
 /**

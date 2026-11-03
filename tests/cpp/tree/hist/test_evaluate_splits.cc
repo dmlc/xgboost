@@ -12,11 +12,11 @@
 #include <initializer_list>  // for initializer_list
 #include <memory>            // for make_shared, make_unique
 #include <numeric>           // for accumulate, iota
+#include <string>            // for to_string
 #include <tuple>             // for make_tuple
-#include <type_traits>       // for is_same_v
 
 #include "../../../../src/common/random.h"              // for ColumnSampler
-#include "../../../../src/tree/hist/evaluate_splits.h"  // for HistEvaluatorImpl
+#include "../../../../src/tree/hist/evaluate_splits.h"  // for HistEvaluator
 #include "../../../../src/tree/hist/hist_param.h"       // for HistMakerTrainParam
 #include "../../../../src/tree/tree_view.h"             // for ScalarTreeView
 #include "../../helpers.h"  // for SimpleLCG, SimpleRealUniformDistribution
@@ -101,9 +101,8 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   ASSERT_FLOAT_EQ(entries[0].split.loss_chg, best_score_);
 }
 
-template <typename EntryT, bst_target_t split_targets, bst_target_t targets = split_targets>
+template <bst_target_t split_targets, bst_target_t targets = split_targets>
 struct EvaluatorTestCase {
-  using Entry = EntryT;
   static constexpr bst_target_t kSplitTargets = split_targets;
   static constexpr bst_target_t kTargets = targets;
 };
@@ -111,16 +110,15 @@ struct EvaluatorTestCase {
 template <typename TestCase>
 class TestHistEvaluator : public ::testing::Test {
  protected:
-  using Entry = typename TestCase::Entry;
   static constexpr auto kSplitTargets = TestCase::kSplitTargets;
   static constexpr auto kTargets = TestCase::kTargets;
-  static constexpr bool kScalar = std::is_same_v<Entry, CPUExpandEntry>;
+  static constexpr bool kScalarTree = kTargets == 1;
   Context ctx_;
   TrainParam param_;
   common::HistogramCuts cuts_ = MakeCutsForTest({0.0, 1.0, 2.0}, {0, 3}, DeviceOrd::CPU());
   std::vector<FeatureType> ft_{FeatureType::kCategorical};
-  std::unique_ptr<HistEvaluatorImpl<Entry>> evaluator_;
-  std::vector<Entry> entries_;
+  std::unique_ptr<HistEvaluator> evaluator_;
+  std::vector<CPUExpandEntry> entries_;
   linalg::Vector<float> weight_{{kSplitTargets}, DeviceOrd::CPU()};
   float root_hess_{0.0f};
 
@@ -138,8 +136,7 @@ class TestHistEvaluator : public ::testing::Test {
     MetaInfo info;
     info.num_col_ = ft_.size();
     auto sampler = std::make_shared<common::ColumnSampler>();
-    evaluator_ =
-        std::make_unique<HistEvaluatorImpl<Entry>>(&ctx_, info, &param_, kSplitTargets, sampler);
+    evaluator_ = std::make_unique<HistEvaluator>(&ctx_, info, &param_, kSplitTargets, sampler);
     std::vector<BoundedHistCollection> hist(kSplitTargets);
     std::vector<BoundedHistCollection const *> ptrs;
     linalg::Vector<GradientPairPrecise> parent({kSplitTargets}, ctx_.Device());
@@ -155,7 +152,7 @@ class TestHistEvaluator : public ::testing::Test {
       parent(t) = std::accumulate(bins.begin(), bins.begin() + cuts_.Ptrs()[1], sum);
       root_hess_ += parent(t).GetHess();
     }
-    entries_.assign(1, Entry{0, 0});
+    entries_.assign(1, CPUExpandEntry{0, 0});
     weight_ = evaluator_->InitRoot(parent.HostView());
     for (bst_target_t t = 0; t < kSplitTargets; ++t) {
       EXPECT_FLOAT_EQ(weight_(t), CalcWeight(param_, parent(t)));
@@ -163,14 +160,6 @@ class TestHistEvaluator : public ::testing::Test {
     evaluator_->EvaluateSplits(ptrs, cuts_, ft_, &entries_);
     EXPECT_EQ(sampler->GetFeatureSet(&ctx_, 0)->Size(), ft_.size());
     return entries_.front().split;
-  }
-
-  static auto Stats(decltype(Entry{}.split.left_sum) const &sum, bst_target_t t) {
-    if constexpr (kScalar) {
-      return GradientPairPrecise{sum.GetGrad(), sum.GetHess()};
-    } else {
-      return sum.at(t);
-    }
   }
 
   void CheckCategories(std::initializer_list<bool> expected) {
@@ -185,14 +174,14 @@ class TestHistEvaluator : public ::testing::Test {
 
   void CheckApply() {
     RegTree tree{kTargets, static_cast<bst_feature_t>(ft_.size())};
-    if constexpr (kScalar) {
+    if constexpr (kScalarTree) {
       tree.SetRoot(weight_(0), root_hess_);
     } else {
       tree.SetRoot(weight_.HostView(), root_hess_);
     }
     evaluator_->ApplyTreeSplit(entries_.front(), &tree);
     EXPECT_EQ(tree.NumTargets(), kTargets);
-    if constexpr (!kScalar) {
+    if constexpr (!kScalarTree) {
       EXPECT_EQ(tree.GetMultiTargetTree()->NumSplitTargets(), kSplitTargets);
     }
     // Projected leaves are finalized by the updater using full gradients.
@@ -200,7 +189,7 @@ class TestHistEvaluator : public ::testing::Test {
       tree.FinalizeLeaves(param_.learning_rate);
     }
     auto view = [&] {
-      if constexpr (kScalar) {
+      if constexpr (kScalarTree) {
         return ScalarTreeView{&tree};
       } else {
         return tree.HostMtView();
@@ -218,11 +207,11 @@ class TestHistEvaluator : public ::testing::Test {
       auto const &sum = child == view.LeftChild(0) ? split.left_sum : split.right_sum;
       double hess = 0.0;
       for (bst_target_t t = 0; t < kSplitTargets; ++t) {
-        auto stats = Stats(sum, t);
+        auto stats = sum.at(t);
         hess += stats.GetHess();
         if constexpr (kSplitTargets == kTargets) {
           auto weight = [&] {
-            if constexpr (kScalar) {
+            if constexpr (kScalarTree) {
               return view.LeafValue(child);
             } else {
               return view.LeafValue(child)(t);
@@ -236,10 +225,10 @@ class TestHistEvaluator : public ::testing::Test {
   }
 };
 
-using HistEvaluatorCases = ::testing::Types<
-    EvaluatorTestCase<CPUExpandEntry, 1>,
-    EvaluatorTestCase<MultiExpandEntry, 1, 2>,  // one projected gradient, two outputs
-    EvaluatorTestCase<MultiExpandEntry, 2>>;
+using HistEvaluatorCases =
+    ::testing::Types<EvaluatorTestCase<1>,
+                     EvaluatorTestCase<1, 2>,  // one projected gradient, two outputs
+                     EvaluatorTestCase<2>>;
 TYPED_TEST_SUITE(TestHistEvaluator, HistEvaluatorCases);
 
 TYPED_TEST(TestHistEvaluator, Numeric) {
@@ -262,10 +251,8 @@ TYPED_TEST(TestHistEvaluator, Numeric) {
       EXPECT_FALSE(split.is_cat);
       EXPECT_EQ(split.split_value, missing < 0.0 ? 0.0f : 1.0f);
       for (bst_target_t t = 0; t < this->kSplitTargets; ++t) {
-        EXPECT_EQ(this->Stats(split.left_sum, t),
-                  GradientPairPrecise(missing < 0.0 ? -5.0 : -2.0, 2.0));
-        EXPECT_EQ(this->Stats(split.right_sum, t),
-                  GradientPairPrecise(missing < 0.0 ? 2.0 : 5.0, 2.0));
+        EXPECT_EQ(split.left_sum.at(t), GradientPairPrecise(missing < 0.0 ? -5.0 : -2.0, 2.0));
+        EXPECT_EQ(split.right_sum.at(t), GradientPairPrecise(missing < 0.0 ? 2.0 : 5.0, 2.0));
       }
     }
   }
@@ -307,8 +294,8 @@ TYPED_TEST(TestHistEvaluator, PartitionMissing) {
   EXPECT_TRUE(std::isnan(split.split_value));
   this->CheckCategories({true, false, false, false});
   for (bst_target_t t = 0; t < this->kSplitTargets; ++t) {
-    EXPECT_EQ(this->Stats(split.left_sum, t), GradientPairPrecise(2.5, 2.5));
-    EXPECT_EQ(this->Stats(split.right_sum, t), GradientPairPrecise(-1.5, 3.5));
+    EXPECT_EQ(split.left_sum.at(t), GradientPairPrecise(2.5, 2.5));
+    EXPECT_EQ(split.right_sum.at(t), GradientPairPrecise(-1.5, 3.5));
   }
   this->CheckApply();
 
@@ -321,8 +308,8 @@ TYPED_TEST(TestHistEvaluator, PartitionMissing) {
   if constexpr (TestFixture::kSplitTargets > 1) {
     EXPECT_FALSE(mixed.DefaultLeft());
     this->CheckCategories({false, false, true});
-    EXPECT_EQ(this->Stats(mixed.right_sum, 0), GradientPairPrecise(-6.0, 2.0));
-    EXPECT_EQ(this->Stats(mixed.right_sum, 1), GradientPairPrecise(-4.0, 2.0));
+    EXPECT_EQ(mixed.right_sum.at(0), GradientPairPrecise(-6.0, 2.0));
+    EXPECT_EQ(mixed.right_sum.at(1), GradientPairPrecise(-4.0, 2.0));
     this->CheckApply();
   }
 }

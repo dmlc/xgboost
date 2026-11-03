@@ -4,15 +4,14 @@
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 
-#include <algorithm>    // for copy
-#include <array>        // for array
-#include <cstddef>      // for size_t
-#include <limits>       // for numeric_limits
-#include <memory>       // for shared_ptr
-#include <numeric>      // for iota
-#include <type_traits>  // for is_same_v
-#include <utility>      // for move
-#include <vector>       // for vector
+#include <algorithm>  // for copy
+#include <array>      // for array
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr
+#include <numeric>    // for iota
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../common/categorical.h"  // for CatBitField
 #include "../../common/common.h"       // for DivRoundUp
@@ -22,7 +21,7 @@
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
-#include "expand_entry.h"              // for MultiExpandEntry
+#include "expand_entry.h"              // for CPUExpandEntry
 #include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
 #include "xgboost/context.h"           // for Context
@@ -31,10 +30,8 @@
 
 namespace xgboost::tree {
 /** @brief CPU histogram split evaluation for scalar and vector tree candidates. */
-template <typename ExpandEntryT>
-class HistEvaluatorImpl {
-  using SplitEntryT = decltype(ExpandEntryT{}.split);
-  static constexpr bool kScalar = std::is_same_v<ExpandEntryT, CPUExpandEntry>;
+class HistEvaluator {
+  using SplitEntryT = decltype(CPUExpandEntry{}.split);
 
   std::vector<double> gain_;
   linalg::Matrix<GradientPairPrecise> stats_;
@@ -69,9 +66,6 @@ class HistEvaluatorImpl {
           return std::make_pair(sums.Slice(0, linalg::All()), sums.Slice(1, linalg::All()));
         }
       }();
-      SplitEntryT local_best;
-      // Scalar candidates are cheap to merge. Reuse vector candidate storage across features.
-      auto *best = kScalar ? &local_best : p_best;
       auto n_split_targets = kSingleTarget ? 1 : hist.size();
       // ibegin, iend: smallest/largest cut points for feature fid use int to allow for
       // value -1
@@ -96,17 +90,17 @@ class HistEvaluatorImpl {
           auto split_pt = cut_val[i];
           auto loss_chg =
               evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
-          best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+          p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
         } else {
           // backward enumeration: split at left bound of each bin
           auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
           auto loss_chg =
               evaluator.CalcSplitGain(*param_, nidx, fidx, right_sum, left_sum) - parent_gain;
-          best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
+          p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
         }
       }
-      if constexpr (kScalar) {
-        p_best->Update(local_best);
+      if (!p_best->is_cat) {
+        p_best->cat_bits.clear();
       }
       // if sum of statistics for non-missing values in the node
       // is equal to sum of statistics for all values:
@@ -137,25 +131,12 @@ class HistEvaluatorImpl {
     }
   }
 
-  template <bst_bin_t d_step>
-  bool EnumerateSplit(common::HistogramCuts const &cut, bst_feature_t fidx,
-                      common::Span<common::ConstGHistRow> hist,
-                      linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
-                      bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                      SplitEntryT *p_best) const {
-    if (kScalar || hist.size() == 1) {
-      return this->EnumerateSplitImpl<d_step, true>(cut, fidx, hist, parent_sum, parent_gain, nidx,
-                                                    evaluator, p_best);
-    }
-    return this->EnumerateSplitImpl<d_step, false>(cut, fidx, hist, parent_sum, parent_gain, nidx,
-                                                   evaluator, p_best);
-  }
-
   /**
    * \brief Use learned direction with one-hot split. Other implementations (LGB) create a
    *        pseudo-category for missing value but here we just do a complete scan to avoid
    *        making specialized histogram bin.
    */
+  template <bool kSingleTarget>
   void EnumerateOneHot(common::HistogramCuts const &cut, bst_feature_t fidx,
                        common::Span<common::ConstGHistRow> hist,
                        linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
@@ -167,11 +148,13 @@ class HistEvaluatorImpl {
     bst_bin_t ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
     bst_bin_t iend = static_cast<bst_bin_t>(cut_ptr[fidx + 1]);
     bst_bin_t n_bins = iend - ibegin;
-    auto n_split_targets = kScalar ? 1 : hist.size();
+    auto n_split_targets = kSingleTarget ? 1 : hist.size();
 
     std::array<GradientPairPrecise, 3> single_sum{};
-    std::vector<GradientPairPrecise> sum(n_split_targets == 1 ? 0 : 3 * n_split_targets);
-    auto *data = n_split_targets == 1 ? single_sum.data() : sum.data();
+    // Isolate heap scratch from other workers' candidate buffers.
+    auto const padding = common::DivRoundUp(std::size_t{64}, sizeof(GradientPairPrecise));
+    std::vector<GradientPairPrecise> sum(kSingleTarget ? 0 : 3 * n_split_targets + 2 * padding);
+    auto *data = kSingleTarget ? single_sum.data() : sum.data() + padding;
     auto left_sum = linalg::MakeVec(data, n_split_targets);
     auto right_sum = linalg::MakeVec(data + n_split_targets, n_split_targets);
 
@@ -186,8 +169,7 @@ class HistEvaluatorImpl {
       missing(t) = parent_sum(t) - feature_sum;
     }
 
-    SplitEntryT best;
-    best.is_cat = false;
+    bool updated = false;
 
     for (bst_bin_t i = ibegin; i != iend; ++i) {
       auto split_pt = cut_val[i];
@@ -202,18 +184,18 @@ class HistEvaluatorImpl {
           left_sum(t) = parent_sum(t) - right_sum(t);
         }
         auto gain = evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
-        best.Update(gain, fidx, split_pt, default_left, true, left_sum, right_sum);
+        if (p_best->Update(gain, fidx, split_pt, default_left, true, left_sum, right_sum)) {
+          updated = true;
+        }
       }
     }
 
-    if (best.is_cat) {
+    if (updated) {
       auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
-      best.cat_bits.resize(n, 0);
-      common::CatBitField cat_bits{best.cat_bits};
-      cat_bits.Set(best.split_value);
+      p_best->cat_bits.assign(n, 0);
+      common::CatBitField cat_bits{p_best->cat_bits};
+      cat_bits.Set(p_best->split_value);
     }
-
-    p_best->Update(best);
   }
 
   /**
@@ -232,14 +214,14 @@ class HistEvaluatorImpl {
    *   | [DE] ABC | CDE [AB] |
    *   | [E] ABCD | BCDE [A] |
    */
-  template <bst_bin_t d_step>
+  template <bst_bin_t d_step, bool kSingleTarget>
   void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
                      common::Span<common::ConstGHistRow> hist, bst_feature_t fidx,
                      linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
                      bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                      SplitEntryT *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
-    auto n_split_targets = kScalar ? 1 : hist.size();
+    auto n_split_targets = kSingleTarget ? 1 : hist.size();
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
@@ -259,12 +241,13 @@ class HistEvaluatorImpl {
     }
 
     std::array<GradientPairPrecise, 2> single_sum{};
-    std::vector<GradientPairPrecise> sum(n_split_targets == 1 ? 0 : 2 * n_split_targets);
-    auto *data = n_split_targets == 1 ? single_sum.data() : sum.data();
+    // Isolate heap scratch from other workers' candidate buffers.
+    auto const padding = common::DivRoundUp(std::size_t{64}, sizeof(GradientPairPrecise));
+    std::vector<GradientPairPrecise> sum(kSingleTarget ? 0 : 2 * n_split_targets + 2 * padding);
+    auto *data = kSingleTarget ? single_sum.data() : sum.data() + padding;
     auto left_sum = linalg::MakeVec(data, n_split_targets);
     auto right_sum = linalg::MakeVec(data + n_split_targets, n_split_targets);
 
-    SplitEntryT best;
     bst_bin_t best_thresh{-1};
     for (bst_bin_t i = it_begin; i != it_end; i += d_step) {
       auto j = i - f_begin;  // index local to current feature
@@ -282,16 +265,16 @@ class HistEvaluatorImpl {
       auto loss_chg =
           evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
       // We don't have a numeric split point, nan here is a dummy split.
-      if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
-                      left_sum, right_sum)) {
+      if (p_best->Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
+                         left_sum, right_sum)) {
         best_thresh = i;
       }
     }
 
     if (best_thresh != -1) {
       auto n = common::CatBitField::ComputeStorageSize(n_bins_feature);
-      best.cat_bits = decltype(best.cat_bits)(n, 0);
-      common::CatBitField cat_bits{best.cat_bits};
+      p_best->cat_bits.assign(n, 0);
+      common::CatBitField cat_bits{p_best->cat_bits};
       bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);
       CHECK_GT(partition, 0);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition, [&](std::size_t c) {
@@ -299,14 +282,12 @@ class HistEvaluatorImpl {
         cat_bits.Set(cat);
       });
     }
-
-    p_best->Update(best);
   }
 
  public:
   void EvaluateSplits(BoundedHistCollection const &hist, common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types,
-                      std::vector<ExpandEntryT> *entries) {
+                      std::vector<CPUExpandEntry> *entries) {
     BoundedHistCollection const *hist_ptr = &hist;
     this->EvaluateSplits({&hist_ptr, 1}, cut, feature_types, entries);
   }
@@ -314,7 +295,20 @@ class HistEvaluatorImpl {
   void EvaluateSplits(common::Span<const BoundedHistCollection *> hist,
                       common::HistogramCuts const &cut,
                       common::Span<FeatureType const> feature_types,
-                      std::vector<ExpandEntryT> *p_entries) {
+                      std::vector<CPUExpandEntry> *p_entries) {
+    if (hist.size() == 1) {
+      this->EvaluateSplitsImpl<true>(hist, cut, feature_types, p_entries);
+    } else {
+      this->EvaluateSplitsImpl<false>(hist, cut, feature_types, p_entries);
+    }
+  }
+
+ private:
+  template <bool kSingleTarget>
+  void EvaluateSplitsImpl(common::Span<const BoundedHistCollection *> hist,
+                          common::HistogramCuts const &cut,
+                          common::Span<FeatureType const> feature_types,
+                          std::vector<CPUExpandEntry> *p_entries) {
     auto &entries = *p_entries;
     CHECK_EQ(stats_.Shape(1), hist.size());
     CHECK(!hist.empty());
@@ -331,7 +325,7 @@ class HistEvaluatorImpl {
         entries.size(), [&](std::size_t nidx_in_set) { return features[nidx_in_set]->Size(); },
         grain_size};
 
-    std::vector<ExpandEntryT> tloc_candidates(n_threads * entries.size());
+    std::vector<CPUExpandEntry> tloc_candidates(n_threads * entries.size());
     for (std::size_t i = 0; i < entries.size(); ++i) {
       for (std::int32_t j = 0; j < n_threads; ++j) {
         tloc_candidates[i * n_threads + j] = entries[i];
@@ -347,13 +341,11 @@ class HistEvaluatorImpl {
           auto best = &entry->split;
 
           auto parent_sum = stats_.Slice(entry->nid, linalg::All());
-          auto n_split_targets = kScalar ? 1 : hist.size();
-          std::conditional_t<kScalar, std::array<common::ConstGHistRow, 1>,
-                             std::vector<common::ConstGHistRow>>
-              node_hist;
-          if constexpr (!kScalar) {
-            node_hist.resize(n_split_targets);
-          }
+          auto n_split_targets = kSingleTarget ? 1 : hist.size();
+          std::array<common::ConstGHistRow, 1> single_hist;
+          std::vector<common::ConstGHistRow> multi_hist(n_split_targets == 1 ? 0 : n_split_targets);
+          common::Span<common::ConstGHistRow> node_hist{
+              n_split_targets == 1 ? single_hist.data() : multi_hist.data(), n_split_targets};
           for (std::size_t t = 0; t < n_split_targets; ++t) {
             node_hist[t] = (*hist[t])[entry->nid];
           }
@@ -373,11 +365,11 @@ class HistEvaluatorImpl {
             bool is_cat = common::IsCat(feature_types, fidx);
             // Numeric split
             if (!is_cat) {
-              bool missing = this->EnumerateSplit<+1>(cut, fidx, node_hist, parent_sum, parent_gain,
-                                                      entry->nid, evaluator, best);
+              bool missing = this->EnumerateSplitImpl<+1, kSingleTarget>(
+                  cut, fidx, node_hist, parent_sum, parent_gain, entry->nid, evaluator, best);
               if (missing) {
-                this->EnumerateSplit<-1>(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
-                                         evaluator, best);
+                this->EnumerateSplitImpl<-1, kSingleTarget>(
+                    cut, fidx, node_hist, parent_sum, parent_gain, entry->nid, evaluator, best);
               }
               continue;
             }
@@ -386,8 +378,8 @@ class HistEvaluatorImpl {
             auto n_bins = cut_ptr.at(fidx + 1) - cut_ptr[fidx];
             // One hot split
             if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-              this->EnumerateOneHot(cut, fidx, node_hist, parent_sum, parent_gain, entry->nid,
-                                    evaluator, best);
+              this->EnumerateOneHot<kSingleTarget>(cut, fidx, node_hist, parent_sum, parent_gain,
+                                                   entry->nid, evaluator, best);
               continue;
             }
 
@@ -412,10 +404,10 @@ class HistEvaluatorImpl {
             std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                              [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
 
-            this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, parent_sum, parent_gain,
-                                    entry->nid, evaluator, best);
-            this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, parent_sum, parent_gain,
-                                    entry->nid, evaluator, best);
+            this->EnumeratePart<+1, kSingleTarget>(cut, sorted_idx, node_hist, fidx, parent_sum,
+                                                   parent_gain, entry->nid, evaluator, best);
+            this->EnumeratePart<-1, kSingleTarget>(cut, sorted_idx, node_hist, fidx, parent_sum,
+                                                   parent_gain, entry->nid, evaluator, best);
           }
         }));
 
@@ -426,6 +418,7 @@ class HistEvaluatorImpl {
     }
   }
 
+ public:
   float InitRoot(GradStats const &root_sum) {
     GradientPairPrecise sum{root_sum.GetGrad(), root_sum.GetHess()};
     auto weight = this->InitRoot(linalg::MakeVec(&sum, 1));
@@ -434,9 +427,6 @@ class HistEvaluatorImpl {
 
   linalg::Vector<float> InitRoot(linalg::VectorView<GradientPairPrecise const> root_sum) {
     auto n_split_targets = root_sum.Size();
-    if constexpr (kScalar) {
-      CHECK_EQ(n_split_targets, 1);
-    }
     stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_split_targets);
     gain_.resize(1);
 
@@ -452,22 +442,13 @@ class HistEvaluatorImpl {
   }
 
   // Add splits to tree, handles all statistic
-  void ApplyTreeSplit(ExpandEntryT const &candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(CPUExpandEntry const &candidate, RegTree *p_tree) {
     // Use the split gradient's number of targets for intermediate weights
     // This may differ from p_tree->NumTargets() when using reduced gradient
-    std::array<GradientPairPrecise, 2> single_sum{};
-    auto [left_sum, right_sum] = [&] {
-      if constexpr (kScalar) {
-        single_sum[0] = {candidate.split.left_sum.GetGrad(), candidate.split.left_sum.GetHess()};
-        single_sum[1] = {candidate.split.right_sum.GetGrad(), candidate.split.right_sum.GetHess()};
-        return std::make_pair(linalg::MakeVec(single_sum.data(), 1),
-                              linalg::MakeVec(single_sum.data() + 1, 1));
-      } else {
-        return std::make_pair(
-            linalg::MakeVec(candidate.split.left_sum.data(), candidate.split.left_sum.size()),
-            linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size()));
-      }
-    }();
+    auto left_sum =
+        linalg::MakeVec(candidate.split.left_sum.data(), candidate.split.left_sum.size());
+    auto right_sum =
+        linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size());
     auto n_split_targets = left_sum.Size();
     auto parent_sum = stats_.Slice(candidate.nid, linalg::All());
 
@@ -495,15 +476,14 @@ class HistEvaluatorImpl {
     }
     SplitInfo split{candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                     candidate.split.DefaultLeft(), cat_bits};
-    if constexpr (kScalar) {
-      CHECK(!p_tree->IsMultiTarget());
+    if (!p_tree->IsMultiTarget()) {
+      CHECK_EQ(n_split_targets, 1);
       p_tree->Expand({split,
                       {base_weight(0), left_sum_hess + right_sum_hess},
                       {left_weight(0), left_sum_hess},
                       {right_weight(0), right_sum_hess},
                       loss_chg});
     } else {
-      CHECK(p_tree->IsMultiTarget());
       p_tree->Expand(ctx_, ExpandBatch{{split,
                                         {base_weight.Values(), left_sum_hess + right_sum_hess},
                                         {left_weight.Values(), left_sum_hess},
@@ -539,13 +519,13 @@ class HistEvaluatorImpl {
 
   // The column sampler must be constructed by caller since we need to preserve the rng
   // for the entire training session.
-  explicit HistEvaluatorImpl(Context const *ctx, TrainParam const *param, MetaInfo const &info,
-                             std::shared_ptr<common::ColumnSampler> sampler)
-      : HistEvaluatorImpl{ctx, info, param, static_cast<bst_target_t>(1), std::move(sampler)} {}
+  explicit HistEvaluator(Context const *ctx, TrainParam const *param, MetaInfo const &info,
+                         std::shared_ptr<common::ColumnSampler> sampler)
+      : HistEvaluator{ctx, info, param, static_cast<bst_target_t>(1), std::move(sampler)} {}
 
-  explicit HistEvaluatorImpl(Context const *ctx, MetaInfo const &info, TrainParam const *param,
-                             bst_target_t n_split_targets,
-                             std::shared_ptr<common::ColumnSampler> sampler)
+  explicit HistEvaluator(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+                         bst_target_t n_split_targets,
+                         std::shared_ptr<common::ColumnSampler> sampler)
       : param_{param},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU(),
                         n_split_targets},
@@ -558,9 +538,6 @@ class HistEvaluatorImpl {
 
   [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
 };
-
-using HistEvaluator = HistEvaluatorImpl<CPUExpandEntry>;
-using HistMultiEvaluator = HistEvaluatorImpl<MultiExpandEntry>;
 
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_

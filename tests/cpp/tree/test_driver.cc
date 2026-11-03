@@ -12,9 +12,9 @@
 namespace xgboost::tree {
 namespace {
 CPUExpandEntry MakeCPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
-  SplitEntry split;
-  split.loss_chg = loss_chg;
-  return CPUExpandEntry{nidx, depth, split};
+  CPUExpandEntry entry{nidx, depth};
+  entry.split.loss_chg = loss_chg;
+  return entry;
 }
 }  // namespace
 
