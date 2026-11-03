@@ -62,6 +62,7 @@ from .core import (
     Metric,
     QuantileDMatrix,
     XGBoostError,
+    _configure_metrics,
     _deprecate_positional_args,
     _parse_eval_str,
 )
@@ -1115,8 +1116,9 @@ class XGBModel(XGBModelBase):
                 self.kwargs[key] = value
 
         if self.__sklearn_is_fitted__():
-            parameters = self.get_xgb_params()
-            self.get_booster().set_param(parameters)
+            # Configure the evaluation metrics the same way as `fit`.
+            _, _, parameters = self._configure_fit(None, self.get_xgb_params())
+            self.get_booster().set_param(_configure_metrics(parameters))
 
         return self
 

@@ -1594,6 +1594,30 @@ def test_invalid_metric() -> None:
 @pytest.mark.parametrize(
     "eval_metric",
     [
+        pytest.param(["aucpr", "logloss"], id="builtin"),
+        pytest.param(["aucpr", log_loss], id="mixed"),
+    ],
+)
+def test_set_params_after_fit_with_metric_list(
+    eval_metric: list[Union[str, Callable]],
+) -> None:
+    from sklearn.datasets import make_classification
+
+    X, y = make_classification(random_state=2025)
+    clf = xgb.XGBClassifier(eval_metric=eval_metric, n_estimators=3)
+    clf.fit(X, y, eval_set=[(X, y)], verbose=False)
+    expected = clf.predict_proba(X)
+
+    clf.set_params(n_jobs=1)
+    np.testing.assert_allclose(clf.predict_proba(X), expected)
+    config = json.loads(clf.get_booster().save_config())
+    metrics = [m["name"] for m in config["learner"]["metrics"]]
+    assert metrics == [m for m in eval_metric if isinstance(m, str)]
+
+
+@pytest.mark.parametrize(
+    "eval_metric",
+    [
         pytest.param(
             [mean_absolute_error, mean_squared_error, mean_absolute_error],
             id="repeated",
