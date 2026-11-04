@@ -2677,11 +2677,15 @@ class Booster:
         enable_categorical = True
         if _is_arrow(data):
             data, fns, _ = _transform_arrow_table(data, enable_categorical, None, None)
+            if validate_features:
+                self._validate_features(fns)
         if _is_polars_series(data):
             pl = import_polars()
             data = pl.DataFrame({data.name: data})
         if _is_polars(data):
             data, fns, _ = _transform_polars_df(data, enable_categorical, None, None)
+            if validate_features:
+                self._validate_features(fns)
         if _is_pandas_series(data):
             import pandas as pd
 
