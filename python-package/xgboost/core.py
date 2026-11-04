@@ -115,7 +115,7 @@ def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
     """Parse an eval result string from the booster."""
     splited = result.split()[1:]
     # split up `test-error:0.1234`
-    metric_score_str = [tuple(s.split(":")) for s in splited]
+    metric_score_str = [tuple(s.rsplit(":", 1)) for s in splited]
     # convert to float
     metric_score = [(n, _metric_str_to_float(s)) for n, s in metric_score_str]
     return metric_score
@@ -195,7 +195,7 @@ def _validate_feature_info(
     if len(feature_info) != n_features and n_features != 0:
         msg = (
             f"{name} must have the same length as the number of data columns, "
-            f"expected {n_features}, got {len(feature_info)}",
+            f"expected {n_features}, got {len(feature_info)}"
         )
         raise ValueError(msg)
     return feature_info
@@ -1240,7 +1240,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         rindex
             List of indices to be selected.
         allow_groups
-            Allow slicing of a matrix with a groups attribute
+            Allow slicing of a matrix with a groups attribute. The query groups and
+            the per-group weights are not carried over to the result, set them on the
+            returned matrix if needed.
 
         Returns
         -------
@@ -1743,7 +1745,9 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
 
 
 CustomObj = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+Metric = Callable[
+    [np.ndarray, DMatrix], Union[Tuple[str, float], List[Tuple[str, float]]]
+]
 
 
 def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
@@ -2344,7 +2348,9 @@ class Booster:
         iteration :
             Current iteration.
         feval :
-            Custom evaluation function.
+            Custom evaluation function. Returned metric names must be distinct from
+            each other and from native metric names, including the default metric.
+            Name collisions raise :py:class:`ValueError` during evaluation.
 
         Returns
         -------
@@ -2374,19 +2380,27 @@ class Booster:
         assert msg.value is not None
         res = msg.value.decode()  # pylint: disable=no-member
         if feval is not None:
+            metric_names = {name for name, _ in _parse_eval_str(res)}
             for dmat, evname in evals:
                 feval_ret = feval(
                     self.predict(dmat, training=False, output_margin=output_margin),
                     dmat,
                 )
-                if isinstance(feval_ret, list):
-                    for name, val in feval_ret:
-                        # pylint: disable=consider-using-f-string
-                        res += "\t%s-%s:%f" % (evname, name, val)
-                else:
-                    name, val = feval_ret
-                    # pylint: disable=consider-using-f-string
-                    res += "\t%s-%s:%f" % (evname, name, val)
+                if not isinstance(feval_ret, list):
+                    feval_ret = [feval_ret]
+                for name, val in feval_ret:
+                    if any(c.isspace() for c in name):
+                        raise ValueError(
+                            f"Metric name should not contain whitespace: {name!r}"
+                        )
+                    metric_name = f"{evname}-{name}"
+                    if metric_name in metric_names:
+                        raise ValueError(
+                            f"Metric names must be distinct. Duplicate metric: {name}"
+                        )
+                    metric_names.add(metric_name)
+                    # repr keeps every digit, as the native metrics do.
+                    res += f"\t{metric_name}:{float(val)!r}"
         return res
 
     def eval(self, data: DMatrix, name: str = "eval", iteration: int = 0) -> str:
@@ -3270,33 +3284,30 @@ class Booster:
         if data.num_row() == 0:
             return
 
+        # Each feature info read is a native call, and this runs every iteration.
         fn = data.feature_names
-        ft = data.feature_types
 
         if self.feature_names is None:
             self.feature_names = fn
         if self.feature_types is None:
-            self.feature_types = ft
+            self.feature_types = data.feature_types
 
         self._validate_features(fn)
 
     def _validate_features(self, feature_names: Optional[FeatureNames]) -> None:
-        if self.feature_names is None:
+        booster_names = self.feature_names
+        if booster_names is None:
             return
 
-        if feature_names is None and self.feature_names is not None:
+        if feature_names is None:
             raise ValueError(
                 "data did not contain feature names, but the following fields "
-                "are expected: " + ", ".join(self.feature_names)
+                "are expected: " + ", ".join(booster_names)
             )
 
-        if self.feature_names != feature_names:
-            dat_missing = set(cast(FeatureNames, self.feature_names)) - set(
-                cast(FeatureNames, feature_names)
-            )
-            my_missing = set(cast(FeatureNames, feature_names)) - set(
-                cast(FeatureNames, self.feature_names)
-            )
+        if booster_names != feature_names:
+            dat_missing = set(booster_names) - set(feature_names)
+            my_missing = set(feature_names) - set(booster_names)
 
             msg = "feature_names mismatch: {0} {1}"
 
@@ -3313,7 +3324,7 @@ class Booster:
                     + ", ".join(str(s) for s in my_missing)
                 )
 
-            raise ValueError(msg.format(self.feature_names, feature_names))
+            raise ValueError(msg.format(booster_names, feature_names))
 
     def get_split_value_histogram(
         self,

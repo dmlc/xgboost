@@ -222,6 +222,9 @@ class CompressedIterator {
   }
 
   XGBOOST_DEVICE reference operator[](std::size_t idx) const {
+    if (symbol_bits_ == 8) {
+      return static_cast<T>(buffer_[detail::kPadding + idx]);
+    }
     constexpr std::int32_t kBitsPerByte = 8;
     // Read 5 bytes - the maximum we will need assuming symbols fit in a 32bit int.
     constexpr std::int32_t kBytes = 5;

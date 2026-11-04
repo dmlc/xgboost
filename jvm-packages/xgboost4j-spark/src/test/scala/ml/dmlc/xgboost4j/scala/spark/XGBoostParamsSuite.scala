@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package ml.dmlc.xgboost4j.scala.spark
+
+import java.io.File
 
 import scala.util.Try
 
@@ -56,6 +58,23 @@ class XGBoostParamsSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
     assert(estimator.getNumEarlyStoppingRounds == 0)
     estimator.setNumEarlyStoppingRounds(10)
     assert(estimator.getNumEarlyStoppingRounds == 10)
+  }
+
+  test("null customObj and customEval defaults survive save and load") {
+    val estimator = new XGBoostClassifier()
+    assert(estimator.customObj.jsonEncode(null) === "null")
+    assert(estimator.customEval.jsonEncode(null) === "null")
+
+    val path = new File(tempDir.toFile, "nullCustomParams").getPath
+    estimator.write.overwrite().save(path)
+    // The saved format is unchanged: json4s also writes null
+    val metadata = sc.textFile(new File(path, "metadata").getPath).first()
+    assert(metadata.contains("\"customObj\":null"))
+    assert(metadata.contains("\"customEval\":null"))
+
+    val loaded = XGBoostClassifier.load(path)
+    assert(loaded.getCustomObj === null)
+    assert(loaded.getCustomEval === null)
   }
 
 }

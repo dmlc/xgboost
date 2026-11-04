@@ -39,7 +39,7 @@ jobs:
         with:
           r-version: ${{ matrix.r }}
       - uses: r-lib/actions/setup-pandoc@v2.12.1
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
           architecture: 'x64'

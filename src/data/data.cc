@@ -449,12 +449,9 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
 
   out.labels_upper_bound_.HostVector() = Gather(this->labels_upper_bound_.HostVector(), ridxs);
   out.labels_lower_bound_.HostVector() = Gather(this->labels_lower_bound_.HostVector(), ridxs);
-  // weights
-  if (this->weights_.Size() + 1 == this->group_ptr_.size()) {
-    auto& h_weights = out.weights_.HostVector();
-    // Assuming all groups are available.
-    out.weights_.HostVector() = h_weights;
-  } else {
+  // Weights for ranking are defined per query group and can't be selected by row index.
+  // Like the groups, they are left for the caller to set.
+  if (this->weights_.Size() + 1 != this->group_ptr_.size()) {
     out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
   }
 

@@ -175,8 +175,18 @@ class TestDMatrix:
         data = np.random.randn(5, 5)
 
         # different length
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=r"^feature names must have the same length as the number of data "
+            r"columns, expected 5, got 6$",
+        ):
             xgb.DMatrix(data, feature_names=list("abcdef"))
+        with pytest.raises(
+            ValueError,
+            match=r"^feature types must have the same length as the number of data "
+            r"columns, expected 5, got 1$",
+        ):
+            xgb.DMatrix(data, feature_types=["q"])
         # contains duplicates
         with pytest.raises(ValueError):
             xgb.DMatrix(data, feature_names=["a", "b", "c", "d", "d"])

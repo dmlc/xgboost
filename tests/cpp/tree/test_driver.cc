@@ -6,19 +6,24 @@
 #include "../../../src/tree/driver.h"
 #include "../../../src/tree/hist/expand_entry.h"
 #include "../../../src/tree/param.h"
+#include "test_child_hessian.h"
 #include "test_empty_pop.h"
 
 namespace xgboost::tree {
 namespace {
 CPUExpandEntry MakeCPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
-  SplitEntry split;
-  split.loss_chg = loss_chg;
-  return CPUExpandEntry{nidx, depth, split};
+  CPUExpandEntry entry{nidx, depth};
+  entry.split.loss_chg = loss_chg;
+  return entry;
 }
 }  // namespace
 
 TEST(QuantileHist, DriverEmptyPopSkipsInvalidGroup) {
   TestDriverEmptyPop<CPUExpandEntry>(MakeCPUExpandEntry);
+}
+
+TEST(QuantileHist, DriverChildHessian) {
+  TestDriverChildHessian<CPUExpandEntry>(MakeCPUExpandEntry);
 }
 
 TEST(QuantileHist, DriverRejectsZeroBatchSize) {

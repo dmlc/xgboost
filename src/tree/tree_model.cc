@@ -10,7 +10,8 @@
 
 #include <cmath>
 #include <iomanip>
-#include <limits>  // for numeric_limits
+#include <limits>    // for numeric_limits
+#include <optional>  // for optional
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v, add_const_t
 
@@ -230,6 +231,15 @@ std::string GetFeatureName(FeatureMap const& fmap, bst_feature_t split_index) {
                    : ('f' + std::to_string(split_index));
   return common::EscapeU8(fname);
 }
+
+// The smallest integer not below an integer split's condition, if it fits in int64.
+std::optional<std::int64_t> IntegerThreshold(bst_float cond) {
+  constexpr double kTwoTo63 = 9223372036854775808.0;
+  if (!std::isfinite(cond) || cond < -kTwoTo63 || cond >= kTwoTo63) {
+    return std::nullopt;
+  }
+  return static_cast<std::int64_t>(std::ceil(cond));
+}
 }  // anonymous namespace
 
 template <typename TreeView>
@@ -282,11 +292,11 @@ class TextGenerator : public TreeGenerator<TreeView> {
   std::string Integer(TreeView tree, int32_t nid, uint32_t depth) const override {
     static std::string const kIntegerTemplate =
         "{tabs}{nid}:[{fname}<{cond}] yes={left},no={right},missing={missing}";
-    auto cond = tree.SplitCond(nid);
-    const bst_float floored = std::floor(cond);
-    const int32_t integer_threshold =
-        (floored == cond) ? static_cast<int>(floored) : static_cast<int>(floored) + 1;
-    return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(integer_threshold), depth);
+    auto threshold = IntegerThreshold(tree.SplitCond(nid));
+    if (!threshold) {
+      return this->Quantitive(tree, nid, depth);  // No integer form, write it as a float.
+    }
+    return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(*threshold), depth);
   }
 
   std::string Quantitive(TreeView tree, int32_t nid, uint32_t depth) const override {
@@ -415,18 +425,15 @@ class JsonGenerator : public TreeGenerator<TreeView> {
   }
 
   std::string Integer(TreeView tree, int32_t nid, uint32_t depth) const override {
-    auto cond = tree.SplitCond(nid);
-    if (!std::isfinite(cond)) {
+    auto threshold = IntegerThreshold(tree.SplitCond(nid));
+    if (!threshold) {
       return this->Quantitive(tree, nid, depth);  // No integer form, write it as a float.
     }
-    const bst_float floored = std::floor(cond);
-    const int32_t integer_threshold =
-        (floored == cond) ? static_cast<int32_t>(floored) : static_cast<int32_t>(floored) + 1;
     static std::string const kIntegerTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
         R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
-    return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(integer_threshold), depth);
+    return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(*threshold), depth);
   }
 
   std::string Quantitive(TreeView tree, int32_t nid, uint32_t depth) const override {

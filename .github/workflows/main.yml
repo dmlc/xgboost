@@ -651,7 +651,7 @@ jobs:
 
   python-wheel-macos-arm64:
     name: Build macOS wheel (macosx_arm64)
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       MACOS_PLATFORM_ID: macosx_arm64
     defaults: *macos-shell
@@ -687,9 +687,9 @@ jobs:
         run: python -m pytest -s -v -rxXs --durations=0 tests/test_distributed/test_with_dask
 
   test-python-wheel-macos-arm64:
-    name: Python tests (macos-14)
+    name: Python tests (macos-15)
     needs: python-wheel-macos-arm64
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       MACOS_PLATFORM_ID: macosx_arm64
@@ -707,7 +707,7 @@ jobs:
         include:
         - os: macos-15-intel
           platform_id: macosx_x86_64
-        - os: macos-14
+        - os: macos-15
           platform_id: macosx_arm64
     defaults:
       run:

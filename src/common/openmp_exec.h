@@ -50,6 +50,10 @@ struct OpenMPExecutor {
 #endif
     OmpInd length = static_cast<OmpInd>(size);
     CHECK_GE(n_threads, 1);
+    if (size <= 0) {
+      return;
+    }
+    n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, size));
 
     auto&& callback = detail::BindWorker(fn, [] { return Worker{omp_get_thread_num()}; });
     dmlc::OMPException exc;

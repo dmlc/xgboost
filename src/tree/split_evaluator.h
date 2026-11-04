@@ -240,6 +240,11 @@ class TreeEvaluator {
         auto const left_t = left(t);
         auto const right_t = right(t);
         auto [l_w, r_w] = this->CalcSplitWeights(param, nidx, fidx, t, left_t, right_t);
+        // Equal scalar leaf weights cannot improve on the parent. Reject before score
+        // subtraction can turn a zero gain into a positive gain through rounding.
+        if (n_targets == 1 && l_w == r_w) {
+          return -std::numeric_limits<double>::infinity();
+        }
         gain += tree::CalcGainGivenWeight(param, left_t.GetGrad(), left_t.GetHess(), l_w);
         gain += tree::CalcGainGivenWeight(param, right_t.GetGrad(), right_t.GetHess(), r_w);
       }
@@ -283,19 +288,19 @@ class TreeEvaluator {
       }
     }
 
+    /**
+     * @brief Unregularized weight -G/H used to sort categories for partition-based splits.
+     *
+     * Regularization and weight bounds apply to each child as a whole, not to individual
+     * categories. With a single target, some optimal partition is a threshold on -G/H.
+     */
     template <typename GradientSumT, split_impl::EnableScaGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE float CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
-      // FIXME(jiamingy): This is a temporary solution until we have categorical feature
-      // specific regularization parameters.  During sorting we should try to avoid any
-      // regularization.
-      return ::xgboost::tree::CalcWeight(param, stats);
-    }
-    template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE void CalcWeightCat(ParamT const& param, GradientSumT const& stats,
-                                      linalg::VectorView<float> out) const {
-      for (std::size_t t = 0; t < stats.Size(); ++t) {
-        out(t) = this->CalcWeightCat(param, stats(t));
+    XGBOOST_DEVICE float CalcWeightCat(GradientSumT const& stats) const {
+      // Categories absent from the node have empty bins. Avoid NaN keys, which break sorting.
+      if (stats.GetHess() <= 0) {
+        return 0.0f;
       }
+      return static_cast<float>(-stats.GetGrad() / stats.GetHess());
     }
 
     // Gain given weight
@@ -328,14 +333,26 @@ class TreeEvaluator {
 
     template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
     XGBOOST_DEVICE double CalcGain(bst_node_t nidx, ParamT const& p,
-                                   GradientSumT const& stats) const {
-      double gain{0.0};
-      for (std::size_t t = 0, n_targets = stats.Size(); t < n_targets; ++t) {
-        auto const stats_t = stats(t);
-        auto weight = this->CalcWeight(nidx, t, p, stats_t);
-        gain += tree::CalcGainGivenWeight(p, stats_t.GetGrad(), stats_t.GetHess(), weight);
+                                   GradientSumT const& stats) const noexcept {
+      auto for_each_t = [&](auto&& calc_gain) {
+        double gain{0.0};
+        for (std::size_t t = 0, n_targets = stats.Size(); t < n_targets; ++t) {
+          auto const& stats_t = stats(t);
+          gain += calc_gain(t, stats_t);
+        }
+        return gain;
+      };
+
+      if (!has_constraint) {
+        // Match CalcSplitGain's scoring to avoid spurious positive split gains.
+        return for_each_t([&p](std::size_t, auto const& stats_t) {
+          return tree::CalcGain(p, stats_t.GetGrad(), stats_t.GetHess());
+        });
       }
-      return gain;
+      return for_each_t([this, nidx, &p](std::size_t t, auto const& stats_t) {
+        auto weight = this->CalcWeight(nidx, t, p, stats_t);
+        return tree::CalcGainGivenWeight(p, stats_t.GetGrad(), stats_t.GetHess(), weight);
+      });
     }
   };
 
