@@ -620,8 +620,12 @@ def cv(
             results[key + "-std"].append(std)
 
         if should_break:
-            for k in results.keys():  # pylint: disable=consider-iterating-dictionary
-                results[k] = results[k][: (booster.best_iteration + 1)]
+            # Only early stopping records a best iteration. Any other callback that
+            # stops the training keeps the results of every round it ran.
+            best_iteration = booster.attr("best_iteration")
+            if best_iteration is not None:
+                for k in results.keys():  # pylint: disable=consider-iterating-dictionary
+                    results[k] = results[k][: int(best_iteration) + 1]
             break
 
     results_df: Union[Dict[str, List[float]], "PdDataFrame"] = results

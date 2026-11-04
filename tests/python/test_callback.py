@@ -380,6 +380,28 @@ class TestCallbacks:
             )
         assert len(callbacks) == 1
 
+    def test_cv_stopped_by_custom_callback(self) -> None:
+        """A callback other than early stopping can stop `cv`."""
+        X, y, _ = tm.make_regression(256, 8, False)
+        Xy = xgb.DMatrix(X, y)
+        n_rounds = 4
+
+        class StopAfter(xgb.callback.TrainingCallback):
+            def after_iteration(self, model, epoch: int, evals_log) -> bool:
+                return epoch + 1 >= n_rounds
+
+        results = xgb.cv(
+            {"objective": "reg:squarederror"},
+            Xy,
+            num_boost_round=16,
+            nfold=3,
+            callbacks=[StopAfter()],
+            as_pandas=False,
+        )
+        assert results
+        for history in results.values():
+            assert len(history) == n_rounds
+
     def test_attribute_error(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
 
