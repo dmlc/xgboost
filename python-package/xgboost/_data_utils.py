@@ -325,7 +325,8 @@ def _arrow_cat_names_inf(cats: "pa.StringArray") -> Tuple[StringArray, Any]:
         pa = import_pyarrow()
 
     # Categories should not have missing values.
-    assert cats.null_count == 0
+    if cats.null_count != 0:
+        raise ValueError("Categories should not contain missing values.")
     if isinstance(cats, pa.LargeStringArray):
         import pyarrow.compute as pc
 

@@ -65,7 +65,9 @@ class TestArrowTable:
     def test_dictionary_missing_category(self, DMatrixT, string_type):
         dictionary = pa.array(["a", None], type=string_type)
         array = pa.DictionaryArray.from_arrays(pa.array([0, 1, None]), dictionary)
-        with pytest.raises(AssertionError):
+        with pytest.raises(
+            ValueError, match="Categories should not contain missing values"
+        ):
             DMatrixT(pa.table({"cat": array}), enable_categorical=True, nthread=1)
 
     @pytest.mark.parametrize("array_offset", [0, 1])
