@@ -27,6 +27,47 @@ def test_type_check() -> None:
 
 
 class TestArrowTable:
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_dictionary_all_valid_bitmap(self, DMatrixT, string_type):
+        dictionary = pa.array(["α", "東京"], type=string_type)
+        dictionary = pa.Array.from_buffers(
+            string_type, 2, [pa.py_buffer(b"\x03"), *dictionary.buffers()[1:]]
+        )
+        assert dictionary.null_count == 0
+        indices = pa.array([0, None, 1, 0, 1])
+        table = pa.table({"cat": pa.DictionaryArray.from_arrays(indices, dictionary)})
+        table.validate(full=True)
+        reference_table = pa.table(
+            {"cat": pa.DictionaryArray.from_arrays(indices, pa.array(["α", "東京"]))}
+        )
+        dmat = DMatrixT(table, enable_categorical=True, nthread=1)
+        reference = DMatrixT(reference_table, enable_categorical=True, nthread=1)
+        assert dmat.feature_types == ["c"]
+        categories = dmat.get_categories(export_to_arrow=True).to_arrow()
+        assert categories[0][1].to_pylist() == ["α", "東京"]
+        np.testing.assert_array_equal(
+            dmat.get_data().indptr, reference.get_data().indptr
+        )
+        np.testing.assert_array_equal(dmat.get_data().data, reference.get_data().data)
+
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_empty_dictionary_buffers(self, string_type):
+        from xgboost._data_utils import _arrow_cat_names_inf
+
+        names, buffers = _arrow_cat_names_inf(pa.array([], type=string_type))
+        assert names["offsets"]["shape"] == (1,)
+        assert names["offsets"]["typestr"] == "<i4"
+        np.testing.assert_array_equal(np.frombuffer(buffers[1], dtype=np.int32), [0])
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_dictionary_missing_category(self, DMatrixT, string_type):
+        dictionary = pa.array(["a", None], type=string_type)
+        array = pa.DictionaryArray.from_arrays(pa.array([0, 1, None]), dictionary)
+        with pytest.raises(AssertionError):
+            DMatrixT(pa.table({"cat": array}), enable_categorical=True, nthread=1)
+
     @pytest.mark.parametrize("array_offset", [0, 1])
     def test_large_string_dictionary_oversized_view(self, array_offset, monkeypatch):
         from xgboost._data_utils import _arrow_cat_names_inf
