@@ -21,12 +21,12 @@ inline TrainParam ScaleMinSplitLoss(TrainParam param, bst_target_t n_split_targe
 }
 
 template <typename ExpandEntryT>
-bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool DepthWise(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
-bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool LossGuide(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   if (lhs.GetLossChange() == rhs.GetLossChange()) {
     return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
   } else {
@@ -56,8 +56,9 @@ template <typename ExpandEntryT>
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
-  using ExpandQueue = std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
-                                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
+  using ExpandQueue =
+      std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
+                          std::function<bool(ExpandEntryT const&, ExpandEntryT const&)>>;
 
  public:
   explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)

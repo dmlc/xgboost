@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "../../../src/tree/common_row_partitioner.h"
-#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
+#include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry
 #include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_partitioner.h"
@@ -25,7 +25,6 @@
 
 namespace xgboost::tree {
 namespace {
-template <typename ExpandEntry>
 void TestPartitioner(bst_target_t n_targets) {
   std::size_t n_samples = 1024, base_rowid = 0;
   bst_feature_t n_features = 1;
@@ -39,7 +38,7 @@ void TestPartitioner(bst_target_t n_targets) {
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<ExpandEntry> candidates{{0, 0}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
   auto cuts = common::SketchOnDMatrix(&ctx, Xy.get(), 64);
@@ -53,7 +52,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, min_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -71,7 +70,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree{n_targets, n_features};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, split_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -104,9 +103,9 @@ void TestPartitioner(bst_target_t n_targets) {
 }
 }  // anonymous namespace
 
-TEST(QuantileHist, Partitioner) { TestPartitioner<CPUExpandEntry>(1); }
+TEST(QuantileHist, Partitioner) { TestPartitioner(1); }
 
-TEST(QuantileHist, MultiPartitioner) { TestPartitioner<MultiExpandEntry>(3); }
+TEST(QuantileHist, MultiPartitioner) { TestPartitioner(3); }
 
 namespace {
 // Verify that partitioners from a previous multi-batch DMatrix are not reused.

@@ -56,7 +56,8 @@ ThresholdL1(T0 sum_grad, T1 alpha) {
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T0, typename T1>
-XGBOOST_DEVICE T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess, T1 w) {
+XGBOOST_DEVICE T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess,
+                                      T1 w) noexcept {
   return -(static_cast<T0>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w) +
            (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
 }
@@ -79,7 +80,7 @@ XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(Train
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) noexcept {
   if (sum_hess <= 0.0) {
     return static_cast<T>(0.0);
   }

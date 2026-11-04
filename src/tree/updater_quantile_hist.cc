@@ -23,8 +23,8 @@
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
 #include "fit_stump.h"                       // for SumGradients
-#include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
-#include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
+#include "hist/evaluate_splits.h"            // for HistEvaluator
+#include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
@@ -90,10 +90,6 @@ void CheckPartitionerLeaves(std::vector<CommonRowPartitioner> const &partitioner
 }
 
 std::pair<double, double> ChildHessians(CPUExpandEntry const &entry) {
-  return {entry.split.left_sum.GetHess(), entry.split.right_sum.GetHess()};
-}
-
-std::pair<double, double> ChildHessians(MultiExpandEntry const &entry) {
   double left{0.0}, right{0.0};
   auto n_targets = entry.split.left_sum.size();
   for (std::size_t t = 0; t < n_targets; ++t) {
@@ -105,14 +101,14 @@ std::pair<double, double> ChildHessians(MultiExpandEntry const &entry) {
   return {left / k, right / k};
 }
 
-template <typename ExpandEntry, typename Updater>
+template <typename Updater>
 void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
                 HostDeviceVector<bst_node_t> *p_out_position, RegTree *p_tree) {
   monitor->Start(__func__);
   updater->InitData(p_fmat, p_tree, gpair);
 
-  Driver<ExpandEntry> driver{ScaleMinSplitLoss(*param, gpair.Shape(1), p_tree->NumTargets())};
+  Driver<CPUExpandEntry> driver{ScaleMinSplitLoss(*param, gpair.Shape(1), p_tree->NumTargets())};
   auto const &tree = *p_tree;
   driver.Push(updater->InitRoot(p_fmat, gpair, p_tree));
   auto expand_set = driver.Pop();
@@ -128,9 +124,9 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
    */
   while (!expand_set.empty()) {
     // candidates that can be further splited.
-    std::vector<ExpandEntry> valid_candidates;
+    std::vector<CPUExpandEntry> valid_candidates;
     // candidaates that can be applied.
-    std::vector<ExpandEntry> applied;
+    std::vector<CPUExpandEntry> applied;
     for (auto const &candidate : expand_set) {
       updater->ApplyTreeSplit(candidate, p_tree);
       CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
@@ -143,15 +139,15 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
 
     updater->UpdatePosition(p_fmat, p_tree, applied);
 
-    std::vector<ExpandEntry> best_splits;
+    std::vector<CPUExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
       updater->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair);
       for (auto const &candidate : valid_candidates) {
         auto left_child_nidx = tree.LeftChild(candidate.nid);
         auto right_child_nidx = tree.RightChild(candidate.nid);
         auto child_depth = candidate.depth + 1;
-        ExpandEntry l_best{left_child_nidx, child_depth};
-        ExpandEntry r_best{right_child_nidx, child_depth};
+        CPUExpandEntry l_best{left_child_nidx, child_depth};
+        CPUExpandEntry r_best{right_child_nidx, child_depth};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }
@@ -176,7 +172,7 @@ class MultiTargetHistBuilder {
   TrainParam const *param_{nullptr};
   HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  std::unique_ptr<HistMultiEvaluator> evaluator_;
+  std::unique_ptr<HistEvaluator> evaluator_;
   // Histogram builder for each target.
   std::unique_ptr<MultiHistogramBuilder> histogram_builder_;
   Context const *ctx_{nullptr};
@@ -188,7 +184,7 @@ class MultiTargetHistBuilder {
 
  public:
   void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> const &applied) {
+                      std::vector<CPUExpandEntry> const &applied) {
     monitor_->Start(__func__);
     std::size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(this->param_))) {
@@ -199,7 +195,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void ApplyTreeSplit(MultiExpandEntry const &candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(CPUExpandEntry const &candidate, RegTree *p_tree) {
     this->evaluator_->ApplyTreeSplit(candidate, p_tree);
   }
 
@@ -233,15 +229,15 @@ class MultiTargetHistBuilder {
                               collective::IsDistributed(), hist_param_);
 
     evaluator_ =
-        std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
+        std::make_unique<HistEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
 
-  MultiExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
-                            RegTree *p_tree) {
+  CPUExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
+                          RegTree *p_tree) {
     monitor_->Start(__func__);
-    MultiExpandEntry best;
+    CPUExpandEntry best;
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
@@ -282,7 +278,7 @@ class MultiTargetHistBuilder {
     }
     p_tree->SetRoot(weight.HostView(), root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
-    std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
+    std::vector<CPUExpandEntry> nodes{{RegTree::kRoot, 0}};
 
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
@@ -298,7 +294,7 @@ class MultiTargetHistBuilder {
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> const &valid_candidates,
+                      std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
     histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree->HostMtView(), partitioner_,
@@ -306,7 +302,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, std::vector<MultiExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<CPUExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     std::vector<BoundedHistCollection const *> hists;
     // Use histogram builder's number of targets (may differ from tree for reduced gradient)
@@ -659,11 +655,10 @@ class QuantileHistMaker : public TreeUpdater {
       sampler.Sample(ctx_, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {
-        UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
-                                     h_out_position, *tree_it);
+        UpdateTree(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param, h_out_position,
+                   *tree_it);
       } else {
-        UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
-                                   h_out_position, *tree_it);
+        UpdateTree(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param, h_out_position, *tree_it);
       }
 
       if (in_gpair->HasValueGrad()) {

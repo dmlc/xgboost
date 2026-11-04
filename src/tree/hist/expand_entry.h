@@ -5,52 +5,27 @@
 #define XGBOOST_TREE_HIST_EXPAND_ENTRY_H_
 
 #include <ostream>  // for ostream
-#include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../param.h"      // for SplitEntry, SplitEntryContainer
+#include "../param.h"      // for SplitEntryContainer
 #include "xgboost/base.h"  // for GradientPairPrecise, bst_node_t
 
 namespace xgboost::tree {
 /**
  * @brief Structure for storing tree split candidate.
  */
-template <typename Impl>
-struct ExpandEntryImpl {
+struct CPUExpandEntry {
   bst_node_t nid{0};
   bst_node_t depth{0};
-
-  [[nodiscard]] float GetLossChange() const {
-    return static_cast<Impl const*>(this)->split.loss_chg;
-  }
-  [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
-};
-
-struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
-  SplitEntry split;
-
-  CPUExpandEntry() = default;
-  CPUExpandEntry(bst_node_t nidx, bst_node_t depth, SplitEntry split)
-      : ExpandEntryImpl{nidx, depth}, split(std::move(split)) {}
-  CPUExpandEntry(bst_node_t nidx, bst_node_t depth) : ExpandEntryImpl{nidx, depth} {}
-
-  friend std::ostream& operator<<(std::ostream& os, CPUExpandEntry const& e) {
-    os << "ExpandEntry:\n";
-    os << "nidx: " << e.nid << "\n";
-    os << "depth: " << e.depth << "\n";
-    os << "loss: " << e.split.loss_chg << "\n";
-    os << "split:\n" << e.split << std::endl;
-    return os;
-  }
-};
-
-struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
   SplitEntryContainer<std::vector<GradientPairPrecise>> split;
 
-  MultiExpandEntry() = default;
-  MultiExpandEntry(bst_node_t nidx, bst_node_t depth) : ExpandEntryImpl{nidx, depth} {}
+  [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
+  [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
 
-  friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
+  CPUExpandEntry() = default;
+  CPUExpandEntry(bst_node_t nidx, bst_node_t depth) : nid{nidx}, depth{depth} {}
+
+  friend std::ostream& operator<<(std::ostream& os, CPUExpandEntry const& e) {
     os << "ExpandEntry: \n";
     os << "nidx: " << e.nid << "\n";
     os << "depth: " << e.depth << "\n";

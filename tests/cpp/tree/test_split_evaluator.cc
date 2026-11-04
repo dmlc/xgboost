@@ -42,14 +42,17 @@ TEST(TreeEvaluator, PooledWeightUsesTwoLeafRegularization) {
                   {"reg_lambda", "1"},
                   {"monotone_constraints", "(1)"}});
 
-  linalg::Vector<GradientPairPrecise> left({1}, DeviceOrd::CPU());
-  linalg::Vector<GradientPairPrecise> right({1}, DeviceOrd::CPU());
+  linalg::Vector<GradientPairPrecise> left({2}, DeviceOrd::CPU());
+  linalg::Vector<GradientPairPrecise> right({2}, DeviceOrd::CPU());
   auto h_left = left.HostView();
   auto h_right = right.HostView();
   h_left(0) = {-2.0, 1.0};
   h_right(0) = {-1.0, 1.0};
+  // A second target with zero weight contributes no gain or regularization cost.
+  h_left(1) = {0.0, 1.0};
+  h_right(1) = {0.0, 1.0};
 
-  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU(), 1};
+  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU(), 2};
   auto evaluator = tree_evaluator.GetEvaluator();
   auto pooled = evaluator.CalcPooledWeight(param, 0, 0, h_left(0), h_right(0));
   EXPECT_FLOAT_EQ(pooled, 0.625f);
@@ -113,6 +116,12 @@ TEST(TreeEvaluator, PropagateVectorBounds) {
     EXPECT_FLOAT_EQ(h_root_weight(0, 1), monotone_direction * 1.5f);
     EXPECT_FLOAT_EQ(h_root_weight(1, 0), monotone_direction * 1.0f);
     EXPECT_FLOAT_EQ(h_root_weight(1, 1), monotone_direction * 1.5f);
+
+    // Pooling the second target must not discard the first target's improvement:
+    // the child score is 4 + 9 = 13, versus a parent score of 0 + 9 = 9.
+    EXPECT_DOUBLE_EQ(evaluator.CalcSplitGain(param, 0, 0, root_stats.Slice(0, linalg::All()),
+                                             root_stats.Slice(1, linalg::All())),
+                     13.0);
 
     tree_evaluator.AddSplit(0, 1, 2, 0, root_weight.Slice(0, linalg::All()),
                             root_weight.Slice(1, linalg::All()));
