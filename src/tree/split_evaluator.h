@@ -18,7 +18,8 @@
 
 #include "../common/math.h"
 #include "../common/transform.h"
-#include "param.h"  // for TrainParam
+#include "param.h"       // for TrainParam
+#include "split_gain.h"  // for CalcWeight, CalcGain, CalcGainGivenWeight, IsValidSplit
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 
@@ -148,13 +149,8 @@ class TreeEvaluator {
                                                        bst_target_t target,
                                                        LeftGradientSumT const& left,
                                                        RightGradientSumT const& right) const {
-      // The common value still represents two leaves, each with its own regularization penalty.
-      EvalParam p;
-      p.reg_alpha = 2.0f * param.reg_alpha;
-      p.reg_lambda = 2.0f * param.reg_lambda;
-      p.max_delta_step = param.max_delta_step;
-      auto pooled_weight = ::xgboost::tree::CalcWeight(p, left.GetGrad() + right.GetGrad(),
-                                                       left.GetHess() + right.GetHess());
+      auto pooled_weight = ::xgboost::tree::CalcPooledWeight(
+          param, left.GetGrad() + right.GetGrad(), left.GetHess() + right.GetHess());
       return this->ApplyBounds(nidx, target, pooled_weight);
     }
 
