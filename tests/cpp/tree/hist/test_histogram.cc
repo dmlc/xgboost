@@ -113,8 +113,9 @@ void TestHistogramMinChildWeight(bool limit, bool is_distributed) {
       builder.BuildRootHist(dmat.get(), tree.HostScView(), partitioners, view, best, batch);
 
       auto split_cond = gmat.cut.Values().front();
-      GradStats left{-1.0, left_hess}, right{1.0, right_hess};
-      best.split.Update(1.0f, 0, split_cond, false, false, left, right);
+      GradientPairPrecise left{-1.0, left_hess}, right{1.0, right_hess};
+      best.split.Update(1.0f, 0, split_cond, false, false, linalg::MakeVec(&left, 1),
+                        linalg::MakeVec(&right, 1));
       tree.Expand({{0, 0, split_cond, false},
                    {0.0, left_hess + right_hess},
                    {0.0, left_hess},
@@ -664,11 +665,13 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
                                linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1),
                                best, batch);
 
-    best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
+    GradientPairPrecise sum{1.0, 1.0};
+    best.split.Update(1.0f, 1, split_cond, false, false, linalg::MakeVec(&sum, 1),
+                      linalg::MakeVec(&sum, 1));
     tree.Expand({{best.nid, best.split.SplitIndex(), best.split.split_value, false},
                  {2.0f, 2.0f},
-                 {1.0f, best.split.left_sum.GetHess()},
-                 {1.0f, best.split.right_sum.GetHess()},
+                 {1.0f, best.split.left_sum[0].GetHess()},
+                 {1.0f, best.split.right_sum[0].GetHess()},
                  best.GetLossChange()});
 
     std::vector<CPUExpandEntry> valid_candidates{best};
