@@ -214,6 +214,13 @@ def test_iteration_range_open_end(early_stopping_rounds: Optional[int]) -> None:
         clf.predict_proba(X, iteration_range=(begin, 0)),
         clf.predict_proba(X, iteration_range=(begin, end)),
     )
+    for invalid_begin in [-1, end + 1, n_rounds + 1, 100_000_000]:
+        for predict in [clf.predict, clf.predict_proba]:
+            with pytest.raises(
+                xgb.core.XGBoostError, match="Out of range for tree layers"
+            ):
+                predict(X, iteration_range=(invalid_begin, 0))
+
     # Same as the booster, leaf prediction doesn't take a first iteration.
     with pytest.raises(xgb.core.XGBoostError, match="Predict leaf"):
         clf.apply(X, iteration_range=(begin, 0))
