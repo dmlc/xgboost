@@ -75,19 +75,19 @@ struct PerNodeData {
 /**
  * @brief State of the partition kernel, zero between launches.
  *
- * The words are the number of finished blocks, followed by the number of rows written to the
+ * The counters are the number of finished blocks, followed by the number of rows written to the
  * left and to the right of each node in the batch.
  */
 struct PartitionState {
-  std::uint32_t* words;
+  std::uint32_t* counters;
 
   [[nodiscard]] static std::size_t Size(std::size_t n_nodes) { return 1 + 2 * n_nodes; }
-  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NDone() const { return words; }
+  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NDone() const { return counters; }
   [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NLeft(std::int32_t i) const {
-    return words + 1 + 2 * i;
+    return counters + 1 + 2 * i;
   }
   [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NRight(std::int32_t i) const {
-    return words + 2 + 2 * i;
+    return counters + 2 + 2 * i;
   }
 };
 
