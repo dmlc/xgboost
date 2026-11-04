@@ -184,6 +184,48 @@ def test_best_iteration():
     train("gblinear", None)
 
 
+@pytest.mark.parametrize("early_stopping_rounds", [None, 2])
+def test_iteration_range_open_end(early_stopping_rounds: Optional[int]) -> None:
+    from sklearn.datasets import make_classification
+    from sklearn.model_selection import train_test_split
+
+    X, y = make_classification(n_samples=512, flip_y=0.3, random_state=2025)
+    X_train, X_valid, y_train, y_valid = train_test_split(X, y, random_state=2025)
+    clf = xgb.XGBClassifier(
+        n_estimators=32, early_stopping_rounds=early_stopping_rounds
+    )
+    clf.fit(X_train, y_train, eval_set=[(X_valid, y_valid)], verbose=False)
+
+    n_rounds = clf.get_booster().num_boosted_rounds()
+    if early_stopping_rounds is None:
+        end = n_rounds
+    else:
+        end = clf.best_iteration + 1
+        assert end < n_rounds
+    begin = end // 2
+    assert 0 < begin < end
+
+    # An end of 0 picks the default last iteration and keeps the first one.
+    np.testing.assert_allclose(
+        clf.predict(X, output_margin=True, iteration_range=(begin, 0)),
+        clf.predict(X, output_margin=True, iteration_range=(begin, end)),
+    )
+    np.testing.assert_allclose(
+        clf.predict_proba(X, iteration_range=(begin, 0)),
+        clf.predict_proba(X, iteration_range=(begin, end)),
+    )
+    for invalid_begin in [-1, end + 1, n_rounds + 1, 100_000_000]:
+        for predict in [clf.predict, clf.predict_proba]:
+            with pytest.raises(
+                xgb.core.XGBoostError, match="Out of range for tree layers"
+            ):
+                predict(X, iteration_range=(invalid_begin, 0))
+
+    # Same as the booster, leaf prediction doesn't take a first iteration.
+    with pytest.raises(xgb.core.XGBoostError, match="Predict leaf"):
+        clf.apply(X, iteration_range=(begin, 0))
+
+
 def test_ranking():
     # generate random data
     x_train = np.random.rand(1000, 10)

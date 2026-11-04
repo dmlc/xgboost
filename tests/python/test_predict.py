@@ -113,8 +113,23 @@ class TestInplacePredict:
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
-        with pytest.raises(ValueError):
-            booster.predict(test, iteration_range=(0, booster.num_boosted_rounds() + 2))
+        n_rounds = booster.num_boosted_rounds()
+        for invalid_range in [
+            (0, n_rounds + 2),
+            (-1, 0),
+            (n_rounds + 1, 0),
+            (100_000_000, 0),
+            (2, 1),
+            (0, -1),
+        ]:
+            with pytest.raises(
+                xgb.core.XGBoostError, match="Out of range for tree layers"
+            ):
+                booster.predict(test, iteration_range=invalid_range)
+            with pytest.raises(
+                xgb.core.XGBoostError, match="Out of range for tree layers"
+            ):
+                booster.inplace_predict(X[:10, ...], iteration_range=invalid_range)
 
         default = booster.predict(test)
 

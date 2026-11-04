@@ -1457,11 +1457,12 @@ class XGBModel(XGBModelBase):
         self, iteration_range: Optional[IterationRange]
     ) -> IterationRange:
         if iteration_range is None or iteration_range[1] == 0:
-            # Use best_iteration if defined.
+            # Use best_iteration if defined, keeping the requested first iteration.
+            begin = 0 if iteration_range is None else iteration_range[0]
             try:
-                iteration_range = (0, self.best_iteration + 1)
+                iteration_range = (begin, self.best_iteration + 1)
             except AttributeError:
-                iteration_range = (0, 0)
+                iteration_range = (begin, 0)
         if self.booster == "gblinear":
             iteration_range = (0, 0)
         return iteration_range
