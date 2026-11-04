@@ -109,6 +109,84 @@ struct PartitionTileStates {
   }
 };
 
+namespace cuda_impl {
+using PartitionWarpScanT = cub::WarpScan<std::uint32_t>;
+using PartitionTilePrefixT =
+    cub::TilePrefixCallbackOp<std::uint32_t, cuda::std::plus<>, PartitionTileState>;
+
+/**
+ * @brief Rank the rows going left within a tile.
+ *
+ * Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane. Each warp ballots
+ * its words, and warp 0 scans the number of left rows of each word. Called by all threads.
+ *
+ * @param go_left     The decision for each row of this thread.
+ * @param bits        Output, the ballot of each word of this warp.
+ * @param word_offset Output in shared memory, the number of left rows in the tile before each word.
+ *                    Visible to all threads after the next barrier.
+ *
+ * @return The number of left rows in the tile, valid in warp 0.
+ */
+XGBOOST_DEV_INLINE std::uint32_t RankLeft(bool const (&go_left)[kPartitionWarpWords],
+                                          std::uint32_t (&bits)[kPartitionWarpWords],
+                                          std::uint32_t* word_offset,
+                                          PartitionWarpScanT::TempStorage& storage) {
+  auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    bits[j] = __ballot_sync(0xffffffff, go_left[j]);
+    if (lane == 0) {
+      word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
+    }
+  }
+  __syncthreads();
+  std::uint32_t n_left = 0;
+  if (warp == 0) {
+    PartitionWarpScanT{storage}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
+  }
+  return n_left;
+}
+
+/**
+ * @brief The number of left rows in the tile before the row of this lane in a word.
+ *
+ * @param word_offset See @ref RankLeft.
+ * @param bits        The ballot of the word.
+ * @param word        The index of the word in the tile.
+ */
+XGBOOST_DEV_INLINE std::uint32_t NLeftBefore(std::uint32_t const* word_offset, std::uint32_t bits,
+                                             std::int32_t word) {
+  auto const lanemask_lt = (1u << (threadIdx.x % 32)) - 1u;
+  return word_offset[word] + __popc(bits & lanemask_lt);
+}
+
+/**
+ * @brief The number of left rows in the tiles before tile t in its node.
+ *
+ * The first tile of a node publishes its count as inclusive without looking back. Every other tile
+ * publishes its count, then looks back at the tiles before it until it finds an inclusive count,
+ * which it reaches at the latest at the first tile of the node. Called by warp 0.
+ *
+ * @param first_tile The first tile of the node.
+ * @param n_left     The number of left rows in tile t.
+ *
+ * @return The number of left rows before the tile, valid in lane 0.
+ */
+XGBOOST_DEV_INLINE std::uint32_t NLeftBeforeTile(PartitionTileState tile_state,
+                                                 PartitionTilePrefixT::TempStorage& storage,
+                                                 std::uint32_t t, std::uint32_t first_tile,
+                                                 std::uint32_t n_left) {
+  if (t == first_tile) {
+    if (threadIdx.x == 0) {
+      tile_state.SetInclusive(t, n_left);
+    }
+    return 0;
+  }
+  PartitionTilePrefixT prefix{tile_state, storage, cuda::std::plus<>{}, static_cast<int>(t)};
+  return prefix(n_left);
+}
+}  // namespace cuda_impl
+
 /**
  * @brief Partition the rows of a batch of nodes in a single pass.
  *
@@ -125,26 +203,24 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
     RowBuffers<cuda_impl::RowIndexT> ridx, PartitionTileState tile_state,
     PartitionTileState next_state, std::int32_t n_reset, cuda_impl::RowIndexT* d_counts, OpT op) {
+  // Reset the tile state of the next launch, see @ref PartitionTileStates.
   next_state.InitializeStatus(n_reset);
 
   using cuda_impl::kPartitionTileRows;
   using cuda_impl::kPartitionTileWords;
   using cuda_impl::kPartitionWarpWords;
   using RowIndexT = cuda_impl::RowIndexT;
-  using WarpScanT = cub::WarpScan<std::uint32_t>;
-  using TilePrefixT =
-      cub::TilePrefixCallbackOp<std::uint32_t, cuda::std::plus<>, PartitionTileState>;
   __shared__ union {
-    typename WarpScanT::TempStorage scan;
-    typename TilePrefixT::TempStorage prefix;
+    typename cuda_impl::PartitionWarpScanT::TempStorage scan;
+    typename cuda_impl::PartitionTilePrefixT::TempStorage prefix;
   } temp_storage;
   __shared__ std::uint32_t word_offset[kPartitionTileWords];
+  // Where this tile starts writing its left rows and its right rows in the node.
   __shared__ std::uint32_t base[2];
 
   auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
-  auto const lanemask_lt = (1u << lane) - 1u;
 
-  // Empty nodes have no tiles.
+  // Empty nodes have no tiles, write their counts here.
   if (blockIdx.x == 0) {
     for (std::int32_t i = threadIdx.x; i < n_nodes; i += blockDim.x) {
       if (batch_info[i].segment.Size() == 0) {
@@ -168,57 +244,47 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
   auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
   auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
 
-  // Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
+  // Load the tile, word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
   RowIndexT rows[kPartitionWarpWords];
   cub::LoadDirectWarpStriped(threadIdx.x, in + tile, rows, n_rows, RowIndexT{0});
+  // Evaluate the split for each row, rows past the end of the tile don't go left.
   bool go_left[kPartitionWarpWords];
 #pragma unroll
   for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
     auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
     go_left[j] = local < n_rows && op(rows[j], node.data);
   }
-  // Rank the left rows within the tile.
+
   std::uint32_t bits[kPartitionWarpWords];
-#pragma unroll
-  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
-    bits[j] = __ballot_sync(0xffffffff, go_left[j]);
-    if (lane == 0) {
-      word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
-    }
-  }
-  __syncthreads();
+  auto n_left = cuda_impl::RankLeft(go_left, bits, word_offset, temp_storage.scan);
   if (warp == 0) {
-    std::uint32_t n_left;
-    WarpScanT{temp_storage.scan}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
-    // The number of rows going left in the tiles before this one in the node.
-    std::uint32_t n_left_before = 0;
-    if (t == node.tile_offset) {
-      if (lane == 0) {
-        tile_state.SetInclusive(t, n_left);
-      }
-    } else {
-      __syncwarp();  // The scan storage is reused by the look-back.
-      TilePrefixT prefix{tile_state, temp_storage.prefix, cuda::std::plus<>{}, static_cast<int>(t)};
-      n_left_before = prefix(n_left);
-    }
+    __syncwarp();  // The scan storage is reused by the look-back.
+    auto n_left_before =
+        cuda_impl::NLeftBeforeTile(tile_state, temp_storage.prefix, t, node.tile_offset, n_left);
     if (lane == 0) {
+      // The rows before this tile in the node are split into n_left_before on the left, and the
+      // rest on the right.
       base[0] = n_left_before;
       base[1] = tile - segment.begin - n_left_before;
+      // The last tile of the node has the left count of the node.
       if (tile + n_rows == segment.end) {
         d_counts[i] = n_left_before + n_left;
       }
     }
   }
   __syncthreads();
+
+  // Write the left rows in order from the beginning of the segment, and the right rows in reverse
+  // order from the end.
 #pragma unroll
   for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
     auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
     if (local < n_rows) {
-      auto n_left_before =
-          word_offset[warp * kPartitionWarpWords + j] + __popc(bits[j] & lanemask_lt);
+      auto n_left_before = cuda_impl::NLeftBefore(word_offset, bits[j], warp * kPartitionWarpWords + j);
       if (go_left[j]) {
         out[segment.begin + base[0] + n_left_before] = rows[j];
       } else {
+        // local - n_left_before is the number of right rows before this row in the tile.
         out[segment.end - 1 - (base[1] + local - n_left_before)] = rows[j];
       }
     }
