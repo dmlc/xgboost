@@ -241,11 +241,13 @@ class TestModels:
         X = np.array([[0], [1]], dtype=np.float32)
         dtrain = xgb.DMatrix(X, label=[-1, 1])
         dtest = xgb.DMatrix(X)
-        booster = xgb.train(
-            {"tree_method": tree_method, "max_depth": 1, "eta": 1, "base_score": 0},
-            dtrain,
-            num_boost_round=1,
-        )
+        params = {
+            "tree_method": tree_method,
+            "max_depth": 1,
+            "eta": 1,
+            "base_score": 0,
+        }
+        booster = xgb.train(params, dtrain, num_boost_round=1)
         # With one sample per leaf and lambda=1, each leaf has weight y/2.
         tree_predt = np.array([-0.5, 0.5])
         for data in (dtrain, dtest):
@@ -258,18 +260,6 @@ class TestModels:
                     booster.predict(data), tree_predt + base_score
                 )
 
-    @pytest.mark.parametrize("tree_method", ["hist", "exact", "approx"])
-    def test_base_score_prediction_cache_training(self, tree_method: str) -> None:
-        X = np.array([[0], [1]], dtype=np.float32)
-        dtrain = xgb.DMatrix(X, label=[-1, 1])
-        params = {
-            "tree_method": tree_method,
-            "max_depth": 1,
-            "eta": 1,
-            "base_score": 0,
-        }
-        booster = xgb.train(params, dtrain, num_boost_round=1)
-        np.testing.assert_allclose(booster.predict(dtrain), [-0.5, 0.5])
         # Loading the same trees gives a reference without a prediction cache.
         fresh = xgb.Booster(params=params, model_file=booster.save_raw())
         trees = booster.get_dump(dump_format="json")
@@ -287,8 +277,8 @@ class TestModels:
         # the next tree has leaf weights [-0.375, 0.125].
         expected = np.array([-0.625, 0.875])
         for model in (booster, fresh):
-            np.testing.assert_allclose(model.predict(dtrain), expected)
-            np.testing.assert_allclose(model.predict(xgb.DMatrix(X)), expected)
+            for data in (dtrain, dtest, xgb.DMatrix(X)):
+                np.testing.assert_allclose(model.predict(data), expected)
 
     def test_feature_names_validation(self):
         X = np.random.random((10, 3))
