@@ -21,6 +21,7 @@
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
+#include "../split_gain.h"             // for NodeLossChange, IsValidSplit
 #include "expand_entry.h"              // for CPUExpandEntry
 #include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
@@ -33,7 +34,37 @@ namespace xgboost::tree {
 class HistEvaluator {
   using SplitEntryT = decltype(CPUExpandEntry{}.split);
 
-  std::vector<double> gain_;
+  /** @brief Loss change of the splits of a node on one feature, over all split targets. */
+  template <bool kSingleTarget>
+  struct SplitLoss {
+    common::Span<NodeLossChange const> targets;
+    TrainParam const *param;
+    int constraint;
+
+    template <typename SumT>
+    [[nodiscard]] double operator()(SumT const &left, SumT const &right) const {
+      if constexpr (kSingleTarget) {
+        return targets[0].LossChange(left(0), right(0), constraint);
+      } else {
+        double left_hess{0.0};
+        double right_hess{0.0};
+        for (std::size_t t = 0; t < targets.size(); ++t) {
+          left_hess += left(t).GetHess();
+          right_hess += right(t).GetHess();
+        }
+        auto k = static_cast<double>(targets.size());
+        if (!IsValidSplit(*param, left_hess / k, right_hess / k)) {
+          return -std::numeric_limits<double>::infinity();
+        }
+        double loss_chg{0.0};
+        for (std::size_t t = 0; t < targets.size(); ++t) {
+          loss_chg += targets[t].TargetLossChange(left(t), right(t), constraint);
+        }
+        return loss_chg;
+      }
+    }
+  };
+
   linalg::Matrix<GradientPairPrecise> stats_;
   TrainParam const *param_;
   TreeEvaluator tree_evaluator_;
@@ -47,9 +78,7 @@ class HistEvaluator {
   bool EnumerateSplitImpl(common::HistogramCuts const &cut, bst_feature_t fidx,
                           common::Span<common::ConstGHistRow> hist,
                           linalg::VectorView<GradientPairPrecise const> parent_sum,
-                          double parent_gain, bst_node_t nidx,
-                          TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                          SplitEntryT *p_best) const {
+                          SplitLoss<kSingleTarget> const &split_loss, SplitEntryT *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
@@ -88,14 +117,12 @@ class HistEvaluator {
         if (d_step > 0) {
           // forward enumeration: split at right bound of each bin
           auto split_pt = cut_val[i];
-          auto loss_chg =
-              evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
+          auto loss_chg = split_loss(left_sum, right_sum);
           p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
         } else {
           // backward enumeration: split at left bound of each bin
           auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
-          auto loss_chg =
-              evaluator.CalcSplitGain(*param_, nidx, fidx, right_sum, left_sum) - parent_gain;
+          auto loss_chg = split_loss(right_sum, left_sum);
           p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
         }
       }
@@ -139,9 +166,8 @@ class HistEvaluator {
   template <bool kSingleTarget>
   void EnumerateOneHot(common::HistogramCuts const &cut, bst_feature_t fidx,
                        common::Span<common::ConstGHistRow> hist,
-                       linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
-                       bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                       SplitEntryT *p_best) const {
+                       linalg::VectorView<GradientPairPrecise const> parent_sum,
+                       SplitLoss<kSingleTarget> const &split_loss, SplitEntryT *p_best) const {
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
 
@@ -183,7 +209,7 @@ class HistEvaluator {
           }
           left_sum(t) = parent_sum(t) - right_sum(t);
         }
-        auto gain = evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
+        auto gain = split_loss(left_sum, right_sum);
         if (p_best->Update(gain, fidx, split_pt, default_left, true, left_sum, right_sum)) {
           updated = true;
         }
@@ -217,9 +243,8 @@ class HistEvaluator {
   template <bst_bin_t d_step, bool kSingleTarget>
   void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
                      common::Span<common::ConstGHistRow> hist, bst_feature_t fidx,
-                     linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
-                     bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                     SplitEntryT *p_best) const {
+                     linalg::VectorView<GradientPairPrecise const> parent_sum,
+                     SplitLoss<kSingleTarget> const &split_loss, SplitEntryT *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     auto n_split_targets = kSingleTarget ? 1 : hist.size();
 
@@ -262,8 +287,7 @@ class HistEvaluator {
         }
       }
 
-      auto loss_chg =
-          evaluator.CalcSplitGain(*param_, nidx, fidx, left_sum, right_sum) - parent_gain;
+      auto loss_chg = split_loss(left_sum, right_sum);
       // We don't have a numeric split point, nan here is a dummy split.
       if (p_best->Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
                          left_sum, right_sum)) {
@@ -355,21 +379,27 @@ class HistEvaluator {
           for (std::size_t t = 0; t < parent_weight.size(); ++t) {
             parent_weight[t] = evaluator.CalcWeightCat(parent_sum(t));
           }
+          std::vector<NodeLossChange> node_loss;
+          node_loss.reserve(n_split_targets);
+          for (std::size_t t = 0; t < n_split_targets; ++t) {
+            node_loss.push_back(evaluator.NodeLoss(*param_, entry->nid, t, parent_sum(t)));
+          }
 
           for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
             auto fidx = features_set[fidx_in_set];
             if (!interaction_constraints_.Query(entry->nid, fidx)) {
               continue;
             }
-            auto parent_gain = gain_[entry->nid];
+            SplitLoss<kSingleTarget> const split_loss{node_loss, param_,
+                                                      evaluator.Constraint(fidx)};
             bool is_cat = common::IsCat(feature_types, fidx);
             // Numeric split
             if (!is_cat) {
               bool missing = this->EnumerateSplitImpl<+1, kSingleTarget>(
-                  cut, fidx, node_hist, parent_sum, parent_gain, entry->nid, evaluator, best);
+                  cut, fidx, node_hist, parent_sum, split_loss, best);
               if (missing) {
-                this->EnumerateSplitImpl<-1, kSingleTarget>(
-                    cut, fidx, node_hist, parent_sum, parent_gain, entry->nid, evaluator, best);
+                this->EnumerateSplitImpl<-1, kSingleTarget>(cut, fidx, node_hist, parent_sum,
+                                                            split_loss, best);
               }
               continue;
             }
@@ -378,8 +408,8 @@ class HistEvaluator {
             auto n_bins = cut_ptr.at(fidx + 1) - cut_ptr[fidx];
             // One hot split
             if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-              this->EnumerateOneHot<kSingleTarget>(cut, fidx, node_hist, parent_sum, parent_gain,
-                                                   entry->nid, evaluator, best);
+              this->EnumerateOneHot<kSingleTarget>(cut, fidx, node_hist, parent_sum, split_loss,
+                                                   best);
               continue;
             }
 
@@ -405,9 +435,9 @@ class HistEvaluator {
                              [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
 
             this->EnumeratePart<+1, kSingleTarget>(cut, sorted_idx, node_hist, fidx, parent_sum,
-                                                   parent_gain, entry->nid, evaluator, best);
+                                                   split_loss, best);
             this->EnumeratePart<-1, kSingleTarget>(cut, sorted_idx, node_hist, fidx, parent_sum,
-                                                   parent_gain, entry->nid, evaluator, best);
+                                                   split_loss, best);
           }
         }));
 
@@ -428,12 +458,10 @@ class HistEvaluator {
   linalg::Vector<float> InitRoot(linalg::VectorView<GradientPairPrecise const> root_sum) {
     auto n_split_targets = root_sum.Size();
     stats_ = linalg::Constant(ctx_, GradientPairPrecise{}, 1, n_split_targets);
-    gain_.resize(1);
 
     linalg::Vector<float> weight({n_split_targets}, ctx_->Device());
     auto evaluator = tree_evaluator_.GetEvaluator();
     evaluator.CalcWeight(RegTree::kRoot, *param_, root_sum, weight.HostView());
-    gain_.front() = evaluator.CalcGain(RegTree::kRoot, *param_, root_sum);
 
     auto h_stats = stats_.HostView();
     std::copy(linalg::cbegin(root_sum), linalg::cend(root_sum), linalg::begin(h_stats));
@@ -498,14 +526,10 @@ class HistEvaluator {
     // Set up child constraints
     tree_evaluator_.AddSplit(candidate.nid, left_child, right_child, candidate.split.SplitIndex(),
                              left_weight, right_weight);
-    evaluator = tree_evaluator_.GetEvaluator();
     interaction_constraints_.Split(candidate.nid, candidate.split.SplitIndex(), left_child,
                                    right_child);
 
     std::size_t n_nodes = p_tree->Size();
-    gain_.resize(n_nodes);
-    gain_[left_child] = evaluator.CalcGain(left_child, *param_, left_sum);
-    gain_[right_child] = evaluator.CalcGain(right_child, *param_, right_sum);
 
     if (n_nodes >= stats_.Shape(0)) {
       stats_.Reshape(n_nodes * 2, stats_.Shape(1));
