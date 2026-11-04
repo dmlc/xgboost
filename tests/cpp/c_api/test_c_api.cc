@@ -675,6 +675,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_0(n_samples_ret);
     ASSERT_EQ(vec_0.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_0.size(), vec_0.begin());
 
     // In-place predict
@@ -685,6 +687,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_1(n_samples_ret);
     ASSERT_EQ(vec_1.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_1.size(), vec_1.begin());
 
     // Same result
@@ -707,6 +711,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_0(n_samples_ret);
     ASSERT_EQ(vec_0.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_0.size(), vec_0.begin());
 
     // In-place predict, same proxy as before
@@ -717,6 +723,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_1(n_samples_ret);
     ASSERT_EQ(vec_1.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_1.size(), vec_1.begin());
 
     // Same result

@@ -96,6 +96,33 @@ class TestArrowTable:
         assert bst2.feature_names == ["A", "B", "C"]
         assert bst2.feature_types == ["int", "float", "int"]
 
+        for invalid in [
+            table.rename_columns(["x", "y", "z"]),
+            table.select(["C", "B", "A"]),
+        ]:
+            with pytest.raises(ValueError, match="feature_names mismatch"):
+                bst2.inplace_predict(invalid)
+            np.testing.assert_allclose(
+                bst2.inplace_predict(invalid, validate_features=False),
+                bst2.inplace_predict(invalid.to_pandas().to_numpy()),
+            )
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    def test_arrow_unsupported_dtype(self, DMatrixT):
+        table = pa.table({"a": [1.0, 2.0], "b": ["x", "y"], "c": [1, 2]})
+        with pytest.raises(ValueError, match="Invalid columns:b: string$"):
+            DMatrixT(table)
+
+        table = pa.table({"a": pa.array([1, 2], pa.date32())})
+        with pytest.raises(ValueError, match="Invalid columns:a: date32"):
+            DMatrixT(table)
+
+        table = pa.table({"a": pa.array([1, 2]).dictionary_encode()})
+        with pytest.raises(
+            ValueError, match="Invalid columns:a: dictionary<values=int64"
+        ):
+            DMatrixT(table, enable_categorical=True)
+
     def test_arrow_survival(self):
         data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
         table = pc.read_csv(data)

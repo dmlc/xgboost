@@ -8,6 +8,7 @@
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
 #include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
+#include "ellpack_page_source.h"      // for EllpackPagePool
 #include "iterative_dmatrix.h"
 #include "proxy_dmatrix.cuh"  // for DispatchAny
 #include "proxy_dmatrix.h"    // for BatchSamples, BatchColumns
@@ -129,8 +130,9 @@ void IterativeDMatrix::Save(common::AlignedFileWriteStream* fo) const {
   auto const& p_cuts = this->ellpack_->Impl()->CutsShared();
   p_cuts->Save(fo);
   // Save ellpack
+  EllpackPagePool pool{this->ellpack_->Impl()->gidx_buffer.size_bytes()};
   auto fmt = std::make_unique<EllpackPageRawFormat>(this->Ctx(), p_cuts, this->Ctx()->Device(),
-                                                    BatchParam{}, false);
+                                                    BatchParam{}, false, &pool);
   auto n_bytes = fmt->Write(*this->ellpack_, fo);
   CHECK_GE(n_bytes, this->ellpack_->Impl()->MemCostBytes());
 }
@@ -141,8 +143,9 @@ IterativeDMatrix* IterativeDMatrix::Load(Context const* ctx,
   // Load cuts
   std::shared_ptr<common::HistogramCuts> p_cuts{common::HistogramCuts::Load(fi)};
   // Load ellpack
-  auto fmt =
-      std::make_unique<EllpackPageRawFormat>(ctx, p_cuts, ctx->Device(), BatchParam{}, false);
+  EllpackPagePool pool{fi->Share()->Size() - fi->Tell()};
+  auto fmt = std::make_unique<EllpackPageRawFormat>(ctx, p_cuts, ctx->Device(), BatchParam{}, false,
+                                                    &pool);
   auto ellpack = std::make_shared<EllpackPage>();
   CHECK(fmt->Read(ellpack.get(), fi));
   return new IterativeDMatrix{std::move(ellpack)};

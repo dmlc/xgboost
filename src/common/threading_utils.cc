@@ -4,17 +4,19 @@
 #include "threading_utils.h"
 
 #include <algorithm>   // for max, min
+#include <cstdint>     // for int32_t
 #include <exception>   // for exception
 #include <filesystem>  // for path, exists
 #include <fstream>     // for ifstream
-#include <string>      // for string
+#include <string>      // for stoi, string
+#include <thread>      // for thread
 
-#include "common.h"  // for DivRoundUp
+#include "common.h"               // for DivRoundUp
+#include "xgboost/logging.h"      // for LOG
+#include "xgboost/string_view.h"  // for StringView
 
 #if defined(__linux__)
-#include <pthread.h>
-#include <sys/syscall.h>  // for SYS_getcpu
-#include <unistd.h>       // for syscall
+#include <pthread.h>  // for pthread_getname_np, pthread_setname_np
 #endif
 
 namespace xgboost::common {
@@ -62,7 +64,9 @@ std::int32_t GetCGroupV2Count(std::filesystem::path const& bandwidth_path) noexc
 
   std::int32_t a{0}, b{0};
 
-  auto warn = [] { LOG(WARNING) << "Invalid cgroupv2 file."; };
+  auto warn = [] {
+    LOG(WARNING) << "Invalid cgroupv2 file.";
+  };
   try {
     std::ifstream fin{bandwidth_path, std::ios::in};
     fin >> a;
@@ -105,20 +109,14 @@ std::int32_t GetCfsCPUCount() noexcept {
   return -1;
 }
 
-std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true) {
-  // Don't use parallel if we are in a parallel region.
-  if (omp_in_parallel()) {
-    return 1;
-  }
-  // Honor the openmp thread limit, which can be set via environment variable.
-  auto max_n_threads = std::min({omp_get_num_procs(), omp_get_max_threads(), OmpGetThreadLimit()});
+std::int32_t GetNumThreads(std::int32_t n_threads) noexcept(true) {
+  auto max_n_threads = Executor::MaxNumWorkers();
+  CHECK_GE(max_n_threads, 1);
   // If -1 or 0 is specified by the user, we default to maximum number of threads.
   if (n_threads <= 0) {
     n_threads = max_n_threads;
   }
-  n_threads = std::min(n_threads, max_n_threads);
-  n_threads = std::max(n_threads, 1);
-  return n_threads;
+  return std::min(n_threads, max_n_threads);
 }
 
 void NameThread(std::thread* t, StringView name) {

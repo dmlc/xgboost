@@ -71,6 +71,14 @@ def test_polars_missing() -> None:
     predt1 = booster.predict(Xy)
     np.testing.assert_allclose(predt0, predt1)
 
+    for invalid in [df.rename({"a": "x", "b": "y"}), df.select(["b", "a"])]:
+        with pytest.raises(ValueError, match="feature_names mismatch"):
+            booster.inplace_predict(invalid)
+        np.testing.assert_allclose(
+            booster.inplace_predict(invalid, validate_features=False),
+            booster.inplace_predict(invalid.to_numpy()),
+        )
+
 
 def test_classififer(tmp_path: Path) -> None:
     from sklearn.datasets import make_classification, make_multilabel_classification
@@ -143,6 +151,12 @@ def test_regressor() -> None:
     np.testing.assert_allclose(predt0, predt1)
 
 
+def test_unsupported_dtype() -> None:
+    df = pl.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})
+    with pytest.raises(ValueError, match="Invalid columns:b: large_string"):
+        xgb.DMatrix(df)
+
+
 def test_categorical() -> None:
     cats = ["a", "café", "猫", "🐍", "🐍"]
     df = pl.DataFrame(
@@ -180,7 +194,6 @@ def test_categorical() -> None:
     )
     predt_1 = booster.inplace_predict(df_rev)
     assert (
-        df["f1"].cat.get_categories().to_list()
-        != df_rev["f1"].cat.get_categories().to_list()
+        df["f1"].dtype.categories.to_list() != df_rev["f1"].dtype.categories.to_list()
     )
     np.testing.assert_allclose(predt_0, predt_1)

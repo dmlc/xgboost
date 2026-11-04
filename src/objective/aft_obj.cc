@@ -102,12 +102,17 @@ class AFTObj : public ObjFunction {
                                               param_.aft_loss_distribution_scale, out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) const override {
     // Trees give us a prediction in log scale, so exponentiate.
     common::DispatchKernel<AFTPredTransformKernel>(ctx_, predictions);
+    return shape;
   }
   // Do nothing here, since the AFT metric expects untransformed prediction scores.
-  void EvalTransform(HostDeviceVector<float>*) override {}
+  std::vector<bst_ulong> EvalTransform(HostDeviceVector<float>*,
+                                       std::vector<bst_ulong> shape) override {
+    return shape;
+  }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
     common::DispatchKernel<AFTProbToMarginKernel>(ctx_, base_score);
   }

@@ -565,6 +565,9 @@ def pandas_transform_data(
 
         if npdtypes or dtype in {np.dtype(np.float32), np.dtype(np.float64)}:
             array = ser.to_numpy()
+        elif isinstance(dtype, np.dtype) and dtype.kind in "iu":
+            # Integers are read natively, as for numpy input, so no float32 copy.
+            array = ser.to_numpy()
         else:
             # Specifying the dtype can significantly slow down the conversion (about
             # 15% slow down for dense inplace-predict)
@@ -719,6 +722,8 @@ def _meta_from_pandas_series(
         data = data.values.to_dense().astype(np.float32)
     elif is_pa_ext_dtype(data.dtype):
         data = pandas_pa_type(data)
+    elif isinstance(data.dtype, np.dtype) and data.dtype.kind in "fiu":
+        data = data.to_numpy()
     else:
         data = data.to_numpy(np.float32, na_value=np.nan)
 
@@ -886,6 +891,23 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
 
     table: "pa.Table" = data
     names = table.column_names
+
+    def is_valid(name: str) -> bool:
+        col_type = table.column(name).type
+        if isinstance(col_type, pa.DictionaryType):
+            return pa.types.is_string(col_type.value_type) or pa.types.is_large_string(
+                col_type.value_type
+            )
+        return col_type in _arrow_dtype()
+
+    bad_fields = [
+        f"{name}: {table.column(name).type}" for name in names if not is_valid(name)
+    ]
+    if bad_fields:
+        raise ValueError(
+            "DataFrame.dtypes for data must be int, float, bool or category."
+            " Invalid columns:" + ", ".join(bad_fields)
+        )
 
     def map_type(name: str) -> str:
         col = table.column(name)
@@ -1491,9 +1513,6 @@ def _meta_from_numpy(
     handle: ctypes.c_void_p,
 ) -> None:
     data, dtype = _ensure_np_dtype(data, dtype)
-    interface = data.__array_interface__
-    if interface.get("mask", None) is not None:
-        raise ValueError("Masked array is not supported.")
     interface_str = array_interface(data)
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
 

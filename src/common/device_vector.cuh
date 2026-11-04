@@ -8,7 +8,14 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+#include <cuda/stream>                          // for cuda::stream_ref
+#include <rmm/version_config.hpp>               // for RMM_VERSION_MAJOR, RMM_VERSION_MINOR
+
+// TODO(hcho3): Remove this guard once we require Rapids 26.10+
+#if (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR <= 8) || RMM_VERSION_MAJOR < 26
 #include <rmm/cuda_stream_view.hpp>             // for cuda_stream_view
+#endif  // (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR <= 8) || RMM_VERSION_MAJOR < 26
+
 #include <rmm/mr/thrust_allocator_adaptor.hpp>  // for thrust_allocator
 
 #else
@@ -20,7 +27,12 @@
 #include <atomic>                  // for atomic, memory_order
 #include <cstddef>                 // for size_t
 #include <cstdint>                 // for int64_t
+#include <cub/version.cuh>         // for CUB_VERSION
+#if CUB_VERSION >= 300200
+#include <cuda/memory_pool>        // for device_memory_pool
+#else  // CUB_VERSION >= 300200
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
+#endif  // CUB_VERSION >= 300200
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <functional>              // for function
 #include <memory>                  // for unique_ptr
@@ -102,6 +114,16 @@ class MemoryLogger {
 };
 
 void ThrowOOMError(std::string const &err, std::size_t bytes);
+
+#if CUB_VERSION >= 300200
+/**
+ * @brief Memory pool for the current device, shared by all caching allocators.
+ *
+ * Defined outside of the allocator template so that every element type uses the same pool.
+ * Drivers can limit the number of memory pools a process may create.
+ */
+cuda::device_memory_pool &GlobalCachingPool();
+#endif  // CUB_VERSION >= 300200
 
 struct GrowOnlyPinnedMemoryImpl {
   void *temp_storage{nullptr};
@@ -269,7 +291,7 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
 
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
-            rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
+            cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
 };
 
 template <typename T>
@@ -361,7 +383,7 @@ struct XGBDefaultDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 };
 
 /**
- * @brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
+ * @brief Caching memory allocator, uses a device memory pool as a back-end, unless
  *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
@@ -374,6 +396,9 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
     using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
   };
 
+#if CUB_VERSION >= 300200
+  static cuda::device_memory_pool &GetGlobalCachingAllocator() { return GlobalCachingPool(); }
+#else  // CUB_VERSION >= 300200
   static cub::CachingDeviceAllocator &GetGlobalCachingAllocator() {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
@@ -381,10 +406,20 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         std::make_unique<cub::CachingDeviceAllocator>(2, 9, 29)};
     return *allocator;
   }
+#endif  // CUB_VERSION >= 300200
 
   pointer allocate(std::size_t n) {  // NOLINT
     pointer thrust_ptr;
-    if (use_cub_allocator_) {
+    if (use_caching_allocator_) {
+#if CUB_VERSION >= 300200
+      try {
+        auto *raw_ptr = static_cast<T *>(GetGlobalCachingAllocator().allocate(
+            cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}}, n * sizeof(T)));
+        thrust_ptr = thrust::device_pointer_cast(raw_ptr);
+      } catch (const std::exception &e) {
+        detail::ThrowOOMError(e.what(), n * sizeof(T));
+      }
+#else  // CUB_VERSION >= 300200
       T *raw_ptr{nullptr};
       // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
@@ -394,6 +429,7 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
       thrust_ptr = thrust::device_pointer_cast(raw_ptr);
+#endif  // CUB_VERSION >= 300200
     } else {
       try {
         thrust_ptr = SuperT::allocate(n);
@@ -407,8 +443,14 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
   }
 
   void deallocate(pointer ptr, std::size_t n) {  // NOLINT
-    if (use_cub_allocator_) {
+    if (use_caching_allocator_) {
+#if CUB_VERSION >= 300200
+      GetGlobalCachingAllocator().deallocate(
+          cuda::stream_ref{cudaStream_t{xgboost::curt::DefaultStream()}},
+          thrust::raw_pointer_cast(ptr), n * sizeof(T));
+#else  // CUB_VERSION >= 300200
       GetGlobalCachingAllocator().DeviceFree(thrust::raw_pointer_cast(ptr));
+#endif  // CUB_VERSION >= 300200
     } else {
       SuperT::deallocate(ptr, n);
     }
@@ -417,13 +459,13 @@ struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
 
   XGBCachingDeviceAllocatorImpl()
       : SuperT{},
-        use_cub_allocator_{!(xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm ||
-                             xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)} {}
+        use_caching_allocator_{!(xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm ||
+                                 xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)} {}
 
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
 
  private:
-  bool use_cub_allocator_;
+  bool use_caching_allocator_;
 };
 }  // namespace detail
 

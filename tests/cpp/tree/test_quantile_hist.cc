@@ -4,19 +4,19 @@
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>  // for GradientContainer
 #include <xgboost/host_device_vector.h>
+#include <xgboost/json.h>  // for Json, Object
 #include <xgboost/linalg.h>
 #include <xgboost/tree_updater.h>
 
 #include <cmath>
 #include <cstddef>  // for size_t
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "../../../src/tree/common_row_partitioner.h"
-#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
+#include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry
 #include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_partitioner.h"
@@ -25,7 +25,6 @@
 
 namespace xgboost::tree {
 namespace {
-template <typename ExpandEntry>
 void TestPartitioner(bst_target_t n_targets) {
   std::size_t n_samples = 1024, base_rowid = 0;
   bst_feature_t n_features = 1;
@@ -39,7 +38,7 @@ void TestPartitioner(bst_target_t n_targets) {
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<ExpandEntry> candidates{{0, 0}};
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
   auto cuts = common::SketchOnDMatrix(&ctx, Xy.get(), 64);
@@ -53,7 +52,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, min_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -71,7 +70,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree{n_targets, n_features};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, split_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -104,32 +103,31 @@ void TestPartitioner(bst_target_t n_targets) {
 }
 }  // anonymous namespace
 
-TEST(QuantileHist, Partitioner) { TestPartitioner<CPUExpandEntry>(1); }
+TEST(QuantileHist, Partitioner) { TestPartitioner(1); }
 
-TEST(QuantileHist, MultiPartitioner) { TestPartitioner<MultiExpandEntry>(3); }
+TEST(QuantileHist, MultiPartitioner) { TestPartitioner(3); }
 
 namespace {
-void FillGradients(linalg::Matrix<GradientPair>* gpair) {
-  auto h = gpair->HostView();
-  for (std::size_t row = 0; row < h.Shape(0); ++row) {
-    for (std::size_t target = 0; target < h.Shape(1); ++target) {
-      h(row, target) = GradientPair{1.0f, 0.0f};
-    }
-  }
-}
-
-// Verify partitioner doesn't write past buffer end when doing
-// update on small dataset after large one.
+// Verify that partitioners from a previous multi-batch DMatrix are not reused.
 void TestPartitionerOverrun(bst_target_t n_targets) {
-  constexpr bst_idx_t kNBig = 1 << 16, kNSmall = 1024;
+  // Update with a multi-batch DMatrix, then reuse the updater on a single-batch DMatrix
+  // with the same number of rows. Partitioners left over from the first DMatrix would
+  // overwrite leaf positions of the second one, so the positions must match the ones from
+  // a fresh updater. Both DMatrix objects have the same number of rows to keep any stale
+  // write inside the position vector instead of its reserved storage.
+  constexpr bst_idx_t kRows = 1 << 16;
   constexpr int kCols = 3;
 
   Context ctx;
   ctx.InitAllowUnknown(Args{{"nthread", "1"}});
 
   ObjInfo task{ObjInfo::kRegression, true};
-  auto updater =
-      std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+  auto make_updater = [&] {
+    auto updater =
+        std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    return updater;
+  };
 
   TrainParam param;
   param.InitAllowUnknown(Args{{"max_depth", "1"},
@@ -137,66 +135,109 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
                               {"lambda", "0"},
                               {"gamma", "0"},
                               {"min_child_weight", "0"}});
-  updater->Configure(Args{});
 
-  auto const n_targets_size = static_cast<std::size_t>(n_targets);
+  auto update = [&](TreeUpdater* updater, DMatrix* dmat) {
+    // Random gradients so that the tree has more than one leaf.
+    auto gpair = GenerateRandomGradients(&ctx, dmat->Info().num_row_, n_targets);
 
-  auto dmat_large =
-      RandomDataGenerator{kNBig, kCols, 0.0f}.Seed(0).Batches(8).GenerateSparsePageDMatrix(
-          "part_resize_big_first", true);
+    RegTree tree{n_targets, static_cast<bst_feature_t>(kCols)};
+    std::vector<RegTree*> trees{&tree};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, dmat, common::Span{position.data(), 1}, trees);
+    return position.front().ConstHostVector();
+  };
 
-  std::size_t shape_large[2]{static_cast<std::size_t>(dmat_large->Info().num_row_), n_targets_size};
-  GradientContainer gpair_large;
-  gpair_large.gpair = linalg::Matrix<GradientPair>{shape_large, ctx.Device()};
-  FillGradients(&gpair_large.gpair);
+  auto dmat_multi = RandomDataGenerator{kRows, kCols, 0.0f}.Batches(8).GenerateSparsePageDMatrix(
+      "part_resize_multi_first", true);
+  // In-memory DMatrix with a single page. Unlike the external memory one above, it uses
+  // the seed, so the two DMatrix objects produce different trees.
+  auto dmat_single = RandomDataGenerator{kRows, kCols, 0.0f}.Seed(1).GenerateDMatrix(false);
 
-  RegTree tree_large{n_targets, static_cast<bst_feature_t>(kCols)};
-  std::vector<RegTree*> trees_large{&tree_large};
-  std::vector<HostDeviceVector<bst_node_t>> position_large(1);
-  common::Span<HostDeviceVector<bst_node_t>> pos_large{position_large.data(), 1};
-  updater->Update(&param, &gpair_large, dmat_large.get(), pos_large, trees_large);
+  auto reused = make_updater();
+  update(reused.get(), dmat_multi.get());
+  auto position = update(reused.get(), dmat_single.get());
 
-  auto dmat_small =
-      RandomDataGenerator{kNSmall, kCols, 0.0f}.Seed(1).Batches(1).GenerateSparsePageDMatrix(
-          "part_resize_small_second", false);
+  auto fresh = make_updater();
+  auto expected = update(fresh.get(), dmat_single.get());
 
-  std::vector<HostDeviceVector<bst_node_t>> position_small(1);
-  auto& pos = position_small.front();
-  pos.Resize(kNBig);    // Allocate large
-  pos.Resize(kNSmall);  // Shrink logical size, capacity remains large
-
-  auto& hv = pos.HostVector();
-  std::size_t cap = hv.capacity();
-  ASSERT_GE(cap, static_cast<std::size_t>(kNBig));
-
-  std::size_t tail_elems = cap - hv.size();
-  ASSERT_GT(tail_elems, 0u) << "Expected reserved tail storage";
-  std::vector<bst_node_t> tail_before(tail_elems);
-  std::memcpy(tail_before.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
-
-  std::size_t shape_small[2]{static_cast<std::size_t>(dmat_small->Info().num_row_), n_targets_size};
-  GradientContainer gpair_small;
-  gpair_small.gpair = linalg::Matrix<GradientPair>{shape_small, ctx.Device()};
-  FillGradients(&gpair_small.gpair);
-
-  RegTree tree_small{n_targets, static_cast<bst_feature_t>(kCols)};
-  std::vector<RegTree*> trees_small{&tree_small};
-  common::Span<HostDeviceVector<bst_node_t>> pos_small{position_small.data(), 1};
-  updater->Update(&param, &gpair_small, dmat_small.get(), pos_small, trees_small);
-
-  // Verify no buffer overrun: tail bytes should be unchanged
-  ASSERT_EQ(hv.capacity(), cap) << "Test precondition violated: capacity changed";
-  std::vector<bst_node_t> tail_after(tail_elems);
-  std::memcpy(tail_after.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
-
-  EXPECT_EQ(tail_before, tail_after)
-      << "Buffer overrun detected: writes past kNSmall when updating small "
-         "single-batch DMatrix after large multi-batch one. "
-         "Likely stale partitioner writing to buffer.";
+  ASSERT_EQ(position.size(), kRows);
+  EXPECT_EQ(position, expected) << "Leaf positions were written by a stale partitioner left "
+                                   "over from the previous multi-batch DMatrix.";
 }
 }  // anonymous namespace
 
 TEST(QuantileHist, HistUpdaterPartitionerOverrun) { TestPartitionerOverrun(1); }
 
 TEST(QuantileHist, MultiTargetHistBuilderPartitionerOverrun) { TestPartitionerOverrun(3); }
+TEST(QuantileHist, MultiTargetRootSum) {
+  Context ctx;
+  ctx.nthread = 2;
+  constexpr bst_target_t kTargets = 3;
+  for (auto sparsity : {0.0f, 0.5f}) {
+    auto data = RandomDataGenerator{128, 4, sparsity}.GenerateDMatrix();
+    auto gpair = GenerateRandomGradients(&ctx, 128, kTargets);
+    auto grad = gpair.gpair.HostView();
+    std::vector<GradientPairPrecise> expected(kTargets);
+    for (bst_idx_t i = 0; i < grad.Shape(0); ++i) {
+      for (bst_target_t t = 0; t < kTargets; ++t) {
+        expected[t] += GradientPairPrecise{grad(i, t)};
+      }
+    }
+    ObjInfo task{ObjInfo::kRegression, true};
+    std::unique_ptr<TreeUpdater> updater{
+        TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    TrainParam param;
+    param.InitAllowUnknown(Args{{"max_depth", "1"}, {"gamma", "1e10"}, {"lambda", "1"}});
+    RegTree tree{kTargets, 4};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, data.get(), position, {&tree});
+    ASSERT_EQ(tree.Size(), 1);
+    auto weight = tree.HostMtView().LeafValue(RegTree::kRoot);
+    for (bst_target_t t = 0; t < kTargets; ++t) {
+      auto expected_weight =
+          static_cast<float>(-expected[t].GetGrad() / (expected[t].GetHess() + 1));
+      EXPECT_FLOAT_EQ(weight(t), expected_weight * param.learning_rate);
+    }
+  }
+}
+
+TEST(QuantileHist, DistributedMultiTargetRootSum) {
+  std::vector<std::string> models(3);
+  // Local density differs between workers, and one worker has no rows.
+  collective::TestDistributedGlobal(3, [&] {
+    auto rank = collective::GetRank();
+    auto rows = rank == 2 ? 0ul : 64ul;
+    auto data = RandomDataGenerator{rows, 4, rank == 1 ? 0.5f : 0.0f}.GenerateDMatrix();
+    Context ctx;
+    ctx.nthread = 1;
+    auto gpair = GenerateRandomGradients(&ctx, rows, 3);
+    auto grad = gpair.gpair.HostView();
+    for (bst_idx_t i = 0; i < rows; ++i) {
+      for (bst_target_t t = 0; t < 3; ++t) {
+        grad(i, t) = GradientPair{static_cast<float>(t + 1), 1.0f};
+      }
+    }
+    ObjInfo task{ObjInfo::kRegression, true};
+    std::unique_ptr<TreeUpdater> updater{
+        TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+    updater->Configure(Args{});
+    TrainParam param;
+    param.InitAllowUnknown(Args{{"max_depth", "1"}, {"gamma", "1e10"}, {"lambda", "1"}});
+    RegTree tree{3, 4};
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    updater->Update(&param, &gpair, data.get(), position, {&tree});
+    EXPECT_EQ(tree.Size(), 1);
+    auto weight = tree.HostMtView().LeafValue(RegTree::kRoot);
+    for (bst_target_t t = 0; t < 3; ++t) {
+      EXPECT_FLOAT_EQ(weight(t),
+                      static_cast<float>(-128.0 * (t + 1) / 129.0) * param.learning_rate);
+    }
+    Json model{Object{}};
+    tree.SaveModel(&model);
+    Json::Dump(model, &models[rank]);
+  });
+  EXPECT_EQ(models[0], models[1]);
+  EXPECT_EQ(models[0], models[2]);
+}
 }  // namespace xgboost::tree

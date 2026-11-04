@@ -344,6 +344,24 @@ class TestMetaInfo : public ::testing::TestWithParam<std::tuple<bst_target_t, bo
       ASSERT_EQ(v, "a");
     }
   }
+
+  void RunGroupWeights(Context const *ctx, bst_target_t n_targets) {
+    MetaInfo info;
+    info.num_row_ = 6;
+    info.num_col_ = 1;
+    info.labels.Reshape(info.num_row_, n_targets);
+    info.group_ptr_ = {0, 2, 4, 6};
+    info.weights_.HostVector() = {1.0f, 2.0f, 3.0f};
+
+    HostDeviceVector<bst_idx_t> ridx{2, 3, 4, 5};
+    ridx.SetDevice(ctx->Device());
+    auto out = info.Slice(ctx, ctx->IsCPU() ? ridx.ConstHostSpan() : ridx.ConstDeviceSpan(),
+                          /*nnz=*/0);
+    ASSERT_EQ(out.labels.Shape(0), ridx.Size());
+    // Weights are defined per query group, the caller sets them along with the groups.
+    ASSERT_TRUE(out.weights_.Empty());
+    ASSERT_TRUE(out.group_ptr_.empty());
+  }
 };
 }  // anonymous namespace
 
@@ -354,6 +372,15 @@ TEST_P(TestMetaInfo, Slice) {
     ctx = MakeCUDACtx(0);
   }
   this->Run(&ctx, n_targets);
+}
+
+TEST_P(TestMetaInfo, SliceGroupWeights) {
+  Context ctx;
+  auto [n_targets, is_cuda] = this->GetParam();
+  if (is_cuda) {
+    ctx = MakeCUDACtx(0);
+  }
+  this->RunGroupWeights(&ctx, n_targets);
 }
 
 INSTANTIATE_TEST_SUITE_P(Cpu, TestMetaInfo,

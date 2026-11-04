@@ -62,7 +62,28 @@ class TestQuantileDMatrix:
     def test_categorical_strings(self) -> None:
         check_categorical_strings("cpu")
 
-    def test_error(self):
+    @pytest.mark.parametrize("dtype", ["float32", "float16", "bool", ">f4"])
+    def test_masked_array(self, dtype: str) -> None:
+        data = np.array([[1.0, 2.0], [3.0, 999.0]], dtype=dtype)
+        mask = np.array([[False, False], [False, True]])
+        X = np.ma.array(data, mask=mask)
+        with pytest.raises(ValueError, match="Masked array is not supported"):
+            xgb.QuantileDMatrix(X)
+
+        y: np.ma.MaskedArray = np.ma.array(
+            [1.0, 999.0], mask=[False, True], dtype=dtype
+        )
+        for field in ["label", "weight", "base_margin"]:
+            with pytest.raises(ValueError, match="Masked array is not supported"):
+                xgb.QuantileDMatrix(data, **{field: y})
+
+        unmasked = xgb.QuantileDMatrix(np.ma.array(data))
+        plain = xgb.QuantileDMatrix(data)
+        np.testing.assert_array_equal(
+            unmasked.get_data().toarray(), plain.get_data().toarray()
+        )
+
+    def test_error(self) -> None:
         from sklearn.model_selection import train_test_split
 
         rng = np.random.default_rng(1994)
@@ -156,6 +177,7 @@ class TestQuantileDMatrix:
         from_it = xgb.train(parameters, Xy_it)
 
         X, y, w = it.as_arrays()
+        assert w is not None
         w_it = Xy_it.get_weight()
         np.testing.assert_allclose(w_it, w)
 

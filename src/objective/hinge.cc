@@ -77,8 +77,10 @@ class HingeObj : public ObjFunction {
                                                 out_gpair);
   }
 
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* io_preds,
+                                       std::vector<bst_ulong> shape) const override {
     common::DispatchKernel<HingePredTransformKernel>(ctx_, io_preds, HingeLoss{});
+    return shape;
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "error"; }

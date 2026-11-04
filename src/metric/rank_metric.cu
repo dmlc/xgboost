@@ -4,17 +4,19 @@
 #include <dmlc/registry.h>
 #include <thrust/reduce.h>  // for reduce
 
-#include <algorithm>            // for transform
-#include <cstddef>              // for size_t
-#include <cuda/std/functional>  // for plus
-#include <memory>               // for shared_ptr
-#include <vector>               // for vector
+#include <algorithm>                               // for transform
+#include <cstddef>                                 // for size_t
+#include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <cuda/std/functional>                     // for plus
+#include <memory>                                  // for shared_ptr
+#include <vector>                                  // for vector
 
 #include "../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for MakeTransformIterator
-#include "../common/optional_weight.h"   // for MakeOptionalWeights
-#include "../common/ranking_utils.cuh"   // for CalcQueriesDCG, NDCGCache
+#include "../common/kernel.h"
+#include "../common/optional_weight.h"  // for MakeOptionalWeights
+#include "../common/ranking_utils.cuh"  // for CalcQueriesDCG, NDCGCache
 #include "metric_common.h"
 #include "rank_metric.h"
 #include "xgboost/base.h"                // for XGBOOST_DEVICE
@@ -29,7 +31,7 @@ namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 
-namespace cuda_impl {
+namespace {
 PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
                             HostDeviceVector<float> const &predt,
                             std::shared_ptr<ltr::PreCache> p_cache) {
@@ -198,5 +200,11 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
   }
   return result;
 }
-}  // namespace cuda_impl
+auto const kRegisterPrecisionCuda =
+    common::KernelRegistration<PrecisionEvalKernel>{DeviceOrd::kCUDA, &PreScore};
+auto const kRegisterNDCGCuda =
+    common::KernelRegistration<NDCGEvalKernel>{DeviceOrd::kCUDA, &NDCGScore};
+auto const kRegisterMAPCuda =
+    common::KernelRegistration<MAPEvalKernel>{DeviceOrd::kCUDA, &MAPScore};
+}  // namespace
 }  // namespace xgboost::metric

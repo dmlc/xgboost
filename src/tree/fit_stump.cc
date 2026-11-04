@@ -30,11 +30,12 @@ void SumGradients(Context const* ctx, linalg::MatrixView<GradientPair const> gpa
   auto h_sum_tloc = sum_tloc.HostView();
   // first dim for gpair is samples, second dim is target.
   // Reduce by column, parallel by samples
-  common::ParallelFor(gpair.Shape(0), ctx->Threads(), [&](auto i) {
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      h_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
-    }
-  });
+  common::ParallelFor(gpair.Shape(0), ctx->Threads(),
+                      common::WithWorker([&](auto i, common::Worker worker) {
+                        for (bst_target_t t = 0; t < n_targets; ++t) {
+                          h_sum_tloc(worker.Id(), t) += GradientPairPrecise{gpair(i, t)};
+                        }
+                      }));
   // Aggregate to the first row.
   auto h_sum = h_sum_tloc.Slice(0, linalg::All());
   for (std::int32_t i = 1, t = ctx->Threads(); i < t; ++i) {

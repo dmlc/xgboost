@@ -27,7 +27,7 @@ void TestHingeObj(const Context* ctx) {
   CheckObjFunction(obj, predt, label, {/* Empty weight. */}, grad, hess);
 
   HostDeviceVector<float> transformed{{-1.0f, 0.0f, 1.0f}, ctx->Device()};
-  obj->PredTransform(&transformed);
+  obj->PredTransform(&transformed, {transformed.Size(), 1});
   ASSERT_EQ(transformed.ConstHostVector(), std::vector<float>({0.0f, 0.0f, 1.0f}));
 
   ASSERT_EQ(obj->DefaultEvalMetric(), StringView{"error"});

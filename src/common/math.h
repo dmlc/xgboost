@@ -11,6 +11,8 @@
 
 #include <algorithm>    // for max
 #include <cmath>        // for exp, abs, log, lgamma
+#include <cstdint>      // for uint32_t
+#include <cstring>      // for memcpy
 #include <limits>       // for numeric_limits
 #include <type_traits>  // for is_floating_point_v, conditional, is_signed, is_same, declval
 #include <utility>      // for pair
@@ -158,19 +160,23 @@ XGBOOST_DEVICE typename std::enable_if_t<std::numeric_limits<T>::is_integer, boo
   return false;
 }
 
+XGBOOST_DEVICE bool inline CheckNAN(float x) {
+#if defined(__CUDA_ARCH__)
+  return isnan(x);
+#elif defined(_MSC_VER)
+  std::uint32_t bits;
+  std::memcpy(&bits, &x, sizeof(bits));
+  return (bits & 0x7fffffffu) > 0x7f800000u;
+#else
+  return std::isnan(x);
+#endif  // defined(__CUDA_ARCH__)
+}
+
 #if XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
 
 bool CheckNAN(double v);
 
 #else
-
-XGBOOST_DEVICE bool inline CheckNAN(float x) {
-#if defined(__CUDA_ARCH__)
-  return isnan(x);
-#else
-  return std::isnan(x);
-#endif  // defined(__CUDA_ARCH__)
-}
 
 XGBOOST_DEVICE bool inline CheckNAN(double x) {
 #if defined(__CUDA_ARCH__)

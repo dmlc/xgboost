@@ -82,7 +82,7 @@ void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidate
   }
 }
 
-inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64> d_gpair,
+inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> d_gpair,
                         common::Span<GradientPairInt64> root_sum) {
   auto n_samples = d_gpair.Shape(0);
   auto n_targets = d_gpair.Shape(1);
@@ -151,8 +151,6 @@ class MultiTargetHistMaker {
 
     std::vector<common::Span<GradientPairInt64>> h_hists;
     std::vector<common::Span<RowIndexT const>> h_ridxs;
-    std::vector<std::size_t> h_sizes_csum{0};
-    std::size_t nidx_in_set = 0;
     // TODO(jiamingy): We can assume the histogram buffers contiguous if we don't skip
     // nodes here.
     for (auto nidx : build_nodes) {
@@ -163,20 +161,11 @@ class MultiTargetHistMaker {
         continue;
       }
       h_ridxs.push_back(d_ridx);
-      auto d_hist = histogram_.GetNodeHistogram(nidx);
-      h_hists.push_back(d_hist);
-
-      h_sizes_csum.push_back(d_ridx.size() + h_sizes_csum[nidx_in_set]);
-
-      ++nidx_in_set;
+      h_hists.push_back(histogram_.GetNodeHistogram(nidx));
     }
 
-    dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
-    dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
-
-    this->histogram_.BuildHistogram(this->ctx_, acc,
-                                    this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
-                                    d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum);
+    this->histogram_.BuildHistogram(this->ctx_, acc, *this->feature_groups_, d_gpair, h_ridxs,
+                                    h_hists);
   }
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
@@ -233,7 +222,7 @@ class MultiTargetHistMaker {
     // Sampling
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
                           this->split_quantizer_->DeviceSpan());
-    if (!this->value_gpair_.Empty()) {
+    if (GradientContainer::HasValueGrad(this->value_gpair_)) {
       this->value_quantizer_ =
           std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_->Device()));
       this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
@@ -323,13 +312,12 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, node_cats.size());
         cat_bits = node_cats.subspan(0, n_words);
       }
-      batch.push_back(
-          {{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
-            candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
-           {base_weight, candidate.left_sum + candidate.right_sum},
-           {left_weight, candidate.left_sum},
-           {right_weight, candidate.right_sum},
-           candidate.split.loss_chg});
+      batch.push_back({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
+                        candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
+                       {base_weight, candidate.left_sum + candidate.right_sum},
+                       {left_weight, candidate.left_sum},
+                       {right_weight, candidate.right_sum},
+                       candidate.split.loss_chg});
     }
 
     p_tree->Expand(this->ctx_, batch);
@@ -351,7 +339,7 @@ class MultiTargetHistMaker {
    * storing the output weights.
    */
   void FinalizeLeafWeights(RegTree* p_tree) const {
-    CHECK(!this->value_gpair_.Empty());
+    CHECK(GradientContainer::HasValueGrad(this->value_gpair_));
     CHECK(this->value_quantizer_);
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
@@ -658,7 +646,8 @@ class MultiTargetHistMaker {
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
-    Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
+    Driver<MultiExpandEntry> driver{
+        ScaleMinSplitLoss(param_, split_gpair->Shape(1), p_tree->NumTargets()), kMaxNodeBatchSize};
 
     this->Reset(split_gpair, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
@@ -705,7 +694,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        DftMtHistShmemBytes(ctx_->Ordinal()))},
+                                                        HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}

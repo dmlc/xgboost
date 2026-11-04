@@ -396,12 +396,6 @@ class RegTree : public Model {
      * \return the i-th feature value
      */
     [[nodiscard]] bst_float GetFvalue(size_t i) const;
-    /*!
-     * \brief check whether i-th entry is missing
-     * \param i feature index.
-     * \return whether i-th value is missing.
-     */
-    [[nodiscard]] bool IsMissing(size_t i) const;
     [[nodiscard]] bool HasMissing() const;
     void HasMissing(bool has_missing) { this->has_missing_ = has_missing; }
 
@@ -572,8 +566,6 @@ inline void RegTree::FVec::Drop() { this->Init(this->Size()); }
 inline size_t RegTree::FVec::Size() const { return data_.size(); }
 
 inline float RegTree::FVec::GetFvalue(size_t i) const { return data_[i]; }
-
-inline bool RegTree::FVec::IsMissing(size_t i) const { return std::isnan(data_[i]); }
 
 inline bool RegTree::FVec::HasMissing() const { return has_missing_; }
 

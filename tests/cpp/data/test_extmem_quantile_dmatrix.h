@@ -63,8 +63,7 @@ void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&
                       .GenerateSparsePageDMatrix("temp", true);
   auto it = p_fmat->GetBatches<Page>(ctx, p).begin();
   for (auto const& page : p_sparse->GetBatches<Page>(ctx, p)) {
-    auto orig = it.Page();
-    check_equal(ctx, *orig, page);
+    check_equal(ctx, *it, page);
     ++it;
   }
 

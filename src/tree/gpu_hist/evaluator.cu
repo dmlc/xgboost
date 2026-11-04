@@ -84,7 +84,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                       if (common::IsCat(shared_inputs.feature_types, fidx)) {
                         auto grad =
                             shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[j]);
-                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
+                        auto lw = evaluator.CalcWeightCat(grad);
                         return cuda::std::make_tuple(i, lw);
                       }
                       return cuda::std::make_tuple(i, 0.0f);

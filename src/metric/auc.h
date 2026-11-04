@@ -12,6 +12,7 @@
 #include "../collective/communicator-inl.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
 #include "xgboost/metric.h"
 #include "xgboost/span.h"
 
@@ -27,35 +28,30 @@ XGBOOST_DEVICE inline double TrapezoidArea(double x0, double x1, double y0, doub
 
 namespace cuda_impl {
 struct DeviceAUCCache;
-
-std::tuple<double, double, double> BinaryROCAUC(Context const *ctx,
-                                                common::Span<float const> predts,
-                                                MetaInfo const &info,
-                                                std::shared_ptr<DeviceAUCCache> *p_cache);
-
-double MultiROCAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                   std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
-                   MultiAUCType type);
-
-std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<float const> predts,
-                                            MetaInfo const &info,
-                                            std::shared_ptr<DeviceAUCCache> *cache);
-
-/**********
- * PR AUC *
- **********/
-std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<float const> predts,
-                                               MetaInfo const &info,
-                                               std::shared_ptr<DeviceAUCCache> *p_cache);
-
-double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                  std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
-                  MultiAUCType type);
-
-std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<float const> predts,
-                                              MetaInfo const &info,
-                                              std::shared_ptr<DeviceAUCCache> *cache);
 }  // namespace cuda_impl
+
+enum class AUCCurve : std::uint8_t { kROC, kPR };
+
+template <AUCCurve curve>
+struct BinaryAUCKernel {
+  using Signature = std::tuple<double, double, double>(Context const*,
+                                                       HostDeviceVector<float> const&,
+                                                       MetaInfo const&,
+                                                       std::shared_ptr<cuda_impl::DeviceAUCCache>*);
+};
+
+template <AUCCurve curve>
+struct MultiAUCKernel {
+  using Signature = double(Context const*, HostDeviceVector<float> const&, MetaInfo const&,
+                           std::shared_ptr<cuda_impl::DeviceAUCCache>*, std::size_t, MultiAUCType);
+};
+
+template <AUCCurve curve>
+struct RankingAUCKernel {
+  using Signature = std::pair<double, std::uint32_t>(Context const*, HostDeviceVector<float> const&,
+                                                     MetaInfo const&,
+                                                     std::shared_ptr<cuda_impl::DeviceAUCCache>*);
+};
 
 namespace detail {
 XGBOOST_DEVICE inline double CalcH(double fp_a, double fp_b, double tp_a, double tp_b) {

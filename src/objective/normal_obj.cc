@@ -17,6 +17,7 @@
 #include "../collective/aggregator.h"   // for GlobalSum
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
 #include "../common/linalg_op.h"        // for ElementWiseKernel
+#include "../common/numeric.h"          // for TransformReduce
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
 #include "../common/stats.h"            // for SampleMean, WeightedSampleMean
 #include "init_estimation.h"            // for CheckInitInputs
@@ -59,15 +60,15 @@ void NormalInitEstimationCpu(Context const* ctx, MetaInfo const& info,
   auto weights = common::MakeOptionalWeights(DeviceOrd::CPU(), info.weights_);
   // A finite float label can have a squared residual larger than float can represent.
   // Keep the weighted sum and variance in double until taking the logarithm.
-  double sum_squared_residual{0.0}, sum_weight{0.0};
-#pragma omp parallel for num_threads(ctx->Threads()) reduction(+ : sum_squared_residual, sum_weight)
-  for (bst_omp_uint i = 0; i < info.num_row_; ++i) {
-    auto diff = static_cast<double>(labels(i, 0)) - mean_value;
-    auto weight = static_cast<double>(weights[i]);
-    sum_squared_residual += weight * diff * diff;
-    sum_weight += weight;
-  }
-  std::array<double, 2> stats{sum_squared_residual, sum_weight};
+  using Stats = std::array<double, 2>;
+  auto stats = common::TransformReduce(
+      info.num_row_, ctx->Threads(), Stats{},
+      [&](std::size_t i) -> Stats {
+        auto diff = static_cast<double>(labels(i, 0)) - mean_value;
+        auto weight = static_cast<double>(weights[i]);
+        return {weight * diff * diff, weight};
+      },
+      [](Stats const& a, Stats const& b) -> Stats { return {a[0] + b[0], a[1] + b[1]}; });
   collective::SafeColl(collective::GlobalSum(ctx, linalg::MakeVec(stats.data(), stats.size())));
   CHECK_GT(stats[1], 0.0);
 

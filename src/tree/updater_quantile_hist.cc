@@ -8,7 +8,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <utility>    // for move
+#include <utility>    // for move, pair
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"        // for GlobalSum
@@ -23,8 +23,8 @@
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
 #include "fit_stump.h"                       // for SumGradients
-#include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
-#include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
+#include "hist/evaluate_splits.h"            // for HistEvaluator
+#include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
@@ -89,14 +89,26 @@ void CheckPartitionerLeaves(std::vector<CommonRowPartitioner> const &partitioner
   }
 }
 
-template <typename ExpandEntry, typename Updater>
+std::pair<double, double> ChildHessians(CPUExpandEntry const &entry) {
+  double left{0.0}, right{0.0};
+  auto n_targets = entry.split.left_sum.size();
+  for (std::size_t t = 0; t < n_targets; ++t) {
+    left += entry.split.left_sum[t].GetHess();
+    right += entry.split.right_sum[t].GetHess();
+  }
+  // Match the normalized Hessian trace used by the multi-target split evaluator.
+  auto k = static_cast<double>(n_targets);
+  return {left / k, right / k};
+}
+
+template <typename Updater>
 void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
                 HostDeviceVector<bst_node_t> *p_out_position, RegTree *p_tree) {
   monitor->Start(__func__);
   updater->InitData(p_fmat, p_tree, gpair);
 
-  Driver<ExpandEntry> driver{*param};
+  Driver<CPUExpandEntry> driver{ScaleMinSplitLoss(*param, gpair.Shape(1), p_tree->NumTargets())};
   auto const &tree = *p_tree;
   driver.Push(updater->InitRoot(p_fmat, gpair, p_tree));
   auto expand_set = driver.Pop();
@@ -112,29 +124,30 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
    */
   while (!expand_set.empty()) {
     // candidates that can be further splited.
-    std::vector<ExpandEntry> valid_candidates;
+    std::vector<CPUExpandEntry> valid_candidates;
     // candidaates that can be applied.
-    std::vector<ExpandEntry> applied;
+    std::vector<CPUExpandEntry> applied;
     for (auto const &candidate : expand_set) {
       updater->ApplyTreeSplit(candidate, p_tree);
       CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
       applied.push_back(candidate);
-      if (driver.IsChildValid(candidate)) {
+      auto [left_hess, right_hess] = ChildHessians(candidate);
+      if (driver.IsChildValid(candidate, left_hess, right_hess)) {
         valid_candidates.emplace_back(candidate);
       }
     }
 
     updater->UpdatePosition(p_fmat, p_tree, applied);
 
-    std::vector<ExpandEntry> best_splits;
+    std::vector<CPUExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
       updater->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair);
       for (auto const &candidate : valid_candidates) {
         auto left_child_nidx = tree.LeftChild(candidate.nid);
         auto right_child_nidx = tree.RightChild(candidate.nid);
         auto child_depth = candidate.depth + 1;
-        ExpandEntry l_best{left_child_nidx, child_depth};
-        ExpandEntry r_best{right_child_nidx, child_depth};
+        CPUExpandEntry l_best{left_child_nidx, child_depth};
+        CPUExpandEntry r_best{right_child_nidx, child_depth};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }
@@ -159,7 +172,7 @@ class MultiTargetHistBuilder {
   TrainParam const *param_{nullptr};
   HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  std::unique_ptr<HistMultiEvaluator> evaluator_;
+  std::unique_ptr<HistEvaluator> evaluator_;
   // Histogram builder for each target.
   std::unique_ptr<MultiHistogramBuilder> histogram_builder_;
   Context const *ctx_{nullptr};
@@ -171,7 +184,7 @@ class MultiTargetHistBuilder {
 
  public:
   void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> const &applied) {
+                      std::vector<CPUExpandEntry> const &applied) {
     monitor_->Start(__func__);
     std::size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(this->param_))) {
@@ -182,7 +195,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void ApplyTreeSplit(MultiExpandEntry const &candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(CPUExpandEntry const &candidate, RegTree *p_tree) {
     this->evaluator_->ApplyTreeSplit(candidate, p_tree);
   }
 
@@ -216,30 +229,45 @@ class MultiTargetHistBuilder {
                               collective::IsDistributed(), hist_param_);
 
     evaluator_ =
-        std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
+        std::make_unique<HistEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
 
-  MultiExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
-                            RegTree *p_tree) {
+  CPUExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
+                          RegTree *p_tree) {
     monitor_->Start(__func__);
-    MultiExpandEntry best;
+    CPUExpandEntry best;
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
-    auto n_targets = gpair.Shape(1);
-    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
-    cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
-    auto h_root_sum = root_sum.HostView();
-    CHECK(h_root_sum.CContiguous());
-    auto rc = collective::GlobalSum(
-        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                              h_root_sum.Size() * 2));
-    collective::SafeColl(rc);
-
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
                                       HistBatch(param_));
+
+    auto n_targets = gpair.Shape(1);
+    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
+    auto h_root_sum = root_sum.HostView();
+    if (p_fmat->IsDense() && !collective::IsDistributed()) {
+      // Without missing values, each feature histogram contains the full root sum.
+      auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
+      auto const &ptr = gmat.cut.Ptrs();
+      CHECK_GE(ptr.size(), 2);
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        auto hist = histogram_builder_->Histogram(t)[RegTree::kRoot];
+        h_root_sum(t) = GradientPairPrecise{};
+        for (auto i = ptr[0]; i < ptr[1]; ++i) {
+          h_root_sum(t) += hist[i];
+        }
+      }
+    } else {
+      // Local density can differ between workers, so all distributed workers reduce gradients.
+      cpu_impl::SumGradients(ctx_, gpair, h_root_sum);
+      CHECK(h_root_sum.CContiguous());
+      auto rc = collective::GlobalSum(
+          ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                                h_root_sum.Size() * 2));
+      collective::SafeColl(rc);
+    }
 
     auto weight = evaluator_->InitRoot(h_root_sum);
 
@@ -250,7 +278,7 @@ class MultiTargetHistBuilder {
     }
     p_tree->SetRoot(weight.HostView(), root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
-    std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
+    std::vector<CPUExpandEntry> nodes{{RegTree::kRoot, 0}};
 
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
@@ -266,7 +294,7 @@ class MultiTargetHistBuilder {
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> const &valid_candidates,
+                      std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
     histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree->HostMtView(), partitioner_,
@@ -274,7 +302,7 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void EvaluateSplits(DMatrix *p_fmat, std::vector<MultiExpandEntry> *best_splits) {
+  void EvaluateSplits(DMatrix *p_fmat, std::vector<CPUExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     std::vector<BoundedHistCollection const *> hists;
     // Use histogram builder's number of targets (may differ from tree for reduced gradient)
@@ -344,16 +372,18 @@ class MultiTargetHistBuilder {
           n_leaves, [&](std::size_t leaf_idx) { return part[leaves_idx[leaf_idx]].Size(); }, 1024);
       // when Size() is 0 (node has no rows in a partition), no blocks are created for
       // that leaf and the lambda is never called.
-      common::ParallelFor2d(space, n_threads, [&](std::size_t leaf_idx, common::Range1d r) {
-        auto const &node = part[leaves_idx[leaf_idx]];
-        auto tidx = omp_get_thread_num();
-        // Sum gradients for rows in this leaf (row indices are global)
-        for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
-          for (bst_target_t t = 0; t < n_targets; ++t) {
-            h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
-          }
-        }
-      });
+      common::ParallelFor2d(
+          space, n_threads,
+          common::WithWorker([&](std::size_t leaf_idx, common::Range1d r, common::Worker worker) {
+            auto const &node = part[leaves_idx[leaf_idx]];
+            auto tidx = worker.Id();
+            // Sum gradients for rows in this leaf (row indices are global)
+            for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
+              for (bst_target_t t = 0; t < n_targets; ++t) {
+                h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
+              }
+            }
+          }));
     }
 
     // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]
@@ -625,11 +655,10 @@ class QuantileHistMaker : public TreeUpdater {
       sampler.Sample(ctx_, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {
-        UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
-                                     h_out_position, *tree_it);
+        UpdateTree(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param, h_out_position,
+                   *tree_it);
       } else {
-        UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
-                                   h_out_position, *tree_it);
+        UpdateTree(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param, h_out_position, *tree_it);
       }
 
       if (in_gpair->HasValueGrad()) {
