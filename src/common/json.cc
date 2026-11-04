@@ -553,9 +553,10 @@ Json JsonReader::ParseArray() {
       GetConsecutiveChar(']');
       return Json(std::move(data));
     }
-    // Move the parsed element in directly; the previous lvalue copy cost a
-    // reference-count round trip per element.
-    data.emplace_back(Parse());
+    // Copy instead of moving: the move constructor of Json allocates a null value for
+    // the moved-from object, a copy only bumps the reference count.
+    Json value{Parse()};
+    data.push_back(value);
     ch = GetNextNonSpaceChar();
     if (ch == ']') break;
     if (ch != ',') {
@@ -600,7 +601,8 @@ Json JsonReader::ParseObject() {
 
     Json value{Parse()};
 
-    data.insert_or_assign(std::move(key), std::move(value));
+    // Copy for the same reason as in ParseArray: a new entry would be move-constructed.
+    data.insert_or_assign(std::move(key), value);
 
     ch = GetNextNonSpaceChar();
 
