@@ -80,8 +80,9 @@ class HistEvaluator {
       for (bst_bin_t i = ibegin; i != iend; i += d_step) {
         if constexpr (kSingleTarget) {
           auto const &bin = hist[0][i];
-          // Keep the first threshold. Later empty bins repeat the previous candidate's statistics,
-          // and equal gains retain the first threshold within this feature in either scan direction.
+          // Keep the first threshold. Later empty bins repeat the previous candidate's
+          // statistics, and equal gains retain the first threshold within this feature
+          // in either scan direction.
           if (i != ibegin && bin.GetGrad() == 0.0 && bin.GetHess() == 0.0) {
             continue;
           }
