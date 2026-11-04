@@ -274,6 +274,10 @@ class LearningRateScheduler(TrainingCallback):
 
     .. versionadded:: 1.3.0
 
+    .. versionchanged:: 3.5.0
+        The learning rate of an epoch is applied to the tree built in that epoch, it
+        used to take effect from the next epoch.
+
     Parameters
     ----------
 
@@ -302,7 +306,7 @@ class LearningRateScheduler(TrainingCallback):
             self.learning_rates = lambda epoch: cast(Sequence, learning_rates)[epoch]
         super().__init__()
 
-    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
+    def before_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         model.set_param("learning_rate", self.learning_rates(epoch))
         return False
 
