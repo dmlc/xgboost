@@ -58,7 +58,8 @@ void TestUpdatePositionBatch() {
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 
-void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
+void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments,
+                           PartitionTileStates* p_state = nullptr) {
   auto ctx = MakeCUDACtx(0);
   thrust::device_vector<cuda_impl::RowIndexT> ridx = ridx_in;
   thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
@@ -80,10 +81,10 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                 h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
                                 nullptr));
-  dh::DeviceUVector<std::uint32_t> state;
+  PartitionTileStates state;
   RowBuffers<cuda_impl::RowIndexT> buffers{{dh::ToSpan(ridx), dh::ToSpan(ridx_tmp)}};
   SortPositionBatch<decltype(op), int>(&ctx, dh::ToSpan(d_batch_info), buffers, dh::ToSpan(counts),
-                                       n_tiles, op, &state);
+                                       n_tiles, op, p_state ? p_state : &state);
   // The rows of each node are read from the first buffer, and written to the second.
   ridx = ridx_tmp;
 
@@ -102,13 +103,15 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
     auto right_partition_count =
         thrust::count_if(thrust::device, begin + count, end, op_without_data);
     EXPECT_EQ(right_partition_count, 0);
-    // The segment holds the same rows.
-    std::vector<cuda_impl::RowIndexT> expected(ridx_in.cbegin() + segments[i].begin,
-                                               ridx_in.cbegin() + segments[i].end);
+    // The left rows keep their order, the right rows are reversed.
+    std::vector<cuda_impl::RowIndexT> expected, right;
+    for (auto j = segments[i].begin; j < segments[i].end; ++j) {
+      cuda_impl::RowIndexT r = ridx_in[j];
+      ((r * 2654435761u) % 7 < 3 ? expected : right).push_back(r);
+    }
+    expected.insert(expected.end(), right.crbegin(), right.crend());
     std::vector<cuda_impl::RowIndexT> got(h_ridx.cbegin() + segments[i].begin,
                                           h_ridx.cbegin() + segments[i].end);
-    std::sort(expected.begin(), expected.end());
-    std::sort(got.begin(), got.end());
     EXPECT_EQ(expected, got);
   }
 }
@@ -142,6 +145,19 @@ TEST(RowPartitioner, SortPositionBatchTiles) {
     many.emplace_back(i * 3000, i * 3000 + i * 29);
   }
   TestSortPositionBatch(ridx, many);
+}
+
+TEST(RowPartitioner, SortPositionBatchReuseState) {
+  // The tile state is reset for the next launch, with launches of very different sizes.
+  std::vector<int> ridx(1 << 22);
+  std::iota(ridx.begin(), ridx.end(), 0);
+  PartitionTileStates state;
+  for (std::int32_t i = 0; i < 2; ++i) {
+    TestSortPositionBatch(ridx, {{0, 1 << 22}}, &state);
+    TestSortPositionBatch(ridx, {{0, 3000}, {3000, 3001}}, &state);
+    TestSortPositionBatch(ridx, {{5, 5}}, &state);
+    TestSortPositionBatch(ridx, {{7, 1 << 21}, {1 << 21, (1 << 22) - 1}}, &state);
+  }
 }
 
 namespace {

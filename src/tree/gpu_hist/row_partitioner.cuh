@@ -2,14 +2,15 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <algorithm>                 // for max, min
-#include <array>                     // for array
-#include <cstddef>                   // for size_t
-#include <cstdint>                   // for int32_t, uint32_t
-#include <cub/block/block_load.cuh>  // for LoadDirectWarpStriped
-#include <cub/warp/warp_scan.cuh>    // for WarpScan
-#include <cuda/atomic>               // for atomic_ref
-#include <vector>                    // for vector
+#include <algorithm>                                 // for max, min
+#include <array>                                     // for array
+#include <cstddef>                                   // for size_t
+#include <cstdint>                                   // for int32_t, uint32_t
+#include <cub/agent/single_pass_scan_operators.cuh>  // for ScanTileState, TilePrefixCallbackOp
+#include <cub/block/block_load.cuh>                  // for LoadDirectWarpStriped
+#include <cub/warp/warp_scan.cuh>                    // for WarpScan
+#include <cuda/std/functional>                       // for plus
+#include <vector>                                    // for vector
 
 #include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
@@ -73,123 +74,153 @@ struct PerNodeData {
 };
 
 /**
- * @brief State of the partition kernel, zero between launches.
+ * @brief Status of each tile for the decoupled look-back, holding the number of rows going left.
  *
- * The counters are the number of finished blocks, followed by the number of rows written to the
- * left and to the right of each node in the batch.
+ * The prefix of a node starts at its first tile, which publishes its count as inclusive, so the
+ * look-back of a tile never goes past the first tile of its node.
  */
-struct PartitionState {
-  std::uint32_t* counters;
+using PartitionTileState = cub::ScanTileState<std::uint32_t>;
 
-  [[nodiscard]] static std::size_t Size(std::size_t n_nodes) { return 1 + 2 * n_nodes; }
-  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NDone() const { return counters; }
-  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NLeft(std::int32_t i) const {
-    return counters + 1 + 2 * i;
-  }
-  [[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t* NRight(std::int32_t i) const {
-    return counters + 2 + 2 * i;
+template <typename TileStateT>
+__global__ void InitPartitionTileStateKernel(TileStateT tile_state, std::int32_t n_tiles) {
+  tile_state.InitializeStatus(n_tiles);
+}
+
+/**
+ * @brief Two tile states for the partition kernel, which must be invalid before a launch.
+ *
+ * A launch uses one of them, and resets the tiles the previous launch used in the other one.
+ */
+struct PartitionTileStates {
+  dh::DeviceUVector<std::uint8_t> storage;
+  // The number of tiles and bytes of each state.
+  std::size_t capacity{0};
+  std::size_t state_bytes{0};
+  // The state used by the next launch.
+  std::int32_t current{0};
+  // The number of tiles used in the other state by the previous launch.
+  std::size_t n_dirty{0};
+
+  [[nodiscard]] PartitionTileState Get(std::int32_t i) {
+    PartitionTileState state;
+    dh::safe_cuda(
+        state.Init(static_cast<int>(capacity), storage.data() + i * state_bytes, state_bytes));
+    return state;
   }
 };
 
 /**
  * @brief Partition the rows of a batch of nodes in a single pass.
  *
- * Each block reads a tile of a node's rows from the node's buffer. It reserves space for its left
- * and right rows with an atomic for each side, and writes them to the other buffer: left rows
- * from the beginning of the segment, right rows from the end. The order of rows within a node
- * depends on the order of the blocks.
+ * Each block reads a tile of a node's rows from the node's buffer, and writes them to the other
+ * buffer: left rows from the beginning of the segment, right rows from the end. The offset of a
+ * tile is the number of rows going left in the tiles before it in the same node, found with a
+ * decoupled look-back, so the order of the rows is stable for the left rows and reversed for the
+ * right rows.
  *
- * The last block writes the number of rows going left for each node, and resets the state.
+ * @param next_state The tile state of the next launch, where the first n_reset tiles are reset.
  */
 template <typename OpT, typename OpDataT>
 __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKernel(
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
-    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionState state, cuda_impl::RowIndexT* d_counts,
-    OpT op) {
+    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionTileState tile_state,
+    PartitionTileState next_state, std::int32_t n_reset, cuda_impl::RowIndexT* d_counts, OpT op) {
+  next_state.InitializeStatus(n_reset);
+
   using cuda_impl::kPartitionTileRows;
   using cuda_impl::kPartitionTileWords;
   using cuda_impl::kPartitionWarpWords;
   using RowIndexT = cuda_impl::RowIndexT;
   using WarpScanT = cub::WarpScan<std::uint32_t>;
-  __shared__ typename WarpScanT::TempStorage scan_storage;
+  using TilePrefixT =
+      cub::TilePrefixCallbackOp<std::uint32_t, cuda::std::plus<>, PartitionTileState>;
+  __shared__ union {
+    typename WarpScanT::TempStorage scan;
+    typename TilePrefixT::TempStorage prefix;
+  } temp_storage;
   __shared__ std::uint32_t word_offset[kPartitionTileWords];
   __shared__ std::uint32_t base[2];
-  __shared__ bool is_last;
 
   auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
   auto const lanemask_lt = (1u << lane) - 1u;
 
-  std::uint32_t const t = blockIdx.x;
-  if (t < n_tiles) {
-    // Find the node of this tile, empty nodes are skipped.
-    auto offsets = dh::MakeTransformIterator<RowIndexT>(
-        dh::make_counting_iterator(0), [=](std::int32_t i) { return batch_info[i].tile_offset; });
-    auto i = static_cast<std::int32_t>(dh::SegmentId(offsets, offsets + n_nodes, t));
-    auto const node = batch_info[i];
-    auto const& segment = node.segment;
-    RowIndexT const* in = ridx[node.buffer].data();
-    RowIndexT* out = ridx[1 - node.buffer].data();
-    auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
-    auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
-
-    // Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
-    RowIndexT rows[kPartitionWarpWords];
-    cub::LoadDirectWarpStriped(threadIdx.x, in + tile, rows, n_rows, RowIndexT{0});
-    bool go_left[kPartitionWarpWords];
-#pragma unroll
-    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
-      auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
-      go_left[j] = local < n_rows && op(rows[j], node.data);
-    }
-    // Rank the left rows within the tile.
-    std::uint32_t bits[kPartitionWarpWords];
-#pragma unroll
-    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
-      bits[j] = __ballot_sync(0xffffffff, go_left[j]);
-      if (lane == 0) {
-        word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
-      }
-    }
-    __syncthreads();
-    if (warp == 0) {
-      std::uint32_t n_left;
-      WarpScanT{scan_storage}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
-      if (lane == 0) {
-        // Reserve space on both sides of the node.
-        base[0] = atomicAdd(state.NLeft(i), n_left);
-        base[1] = atomicAdd(state.NRight(i), n_rows - n_left);
-      }
-    }
-    __syncthreads();
-#pragma unroll
-    for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
-      auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
-      if (local < n_rows) {
-        auto n_left_before =
-            word_offset[warp * kPartitionWarpWords + j] + __popc(bits[j] & lanemask_lt);
-        if (go_left[j]) {
-          out[segment.begin + base[0] + n_left_before] = rows[j];
-        } else {
-          out[segment.end - 1 - (base[1] + local - n_left_before)] = rows[j];
-        }
-      }
-    }
-  }
-
-  // The last block publishes the counts, and resets the state for the next launch.
-  __syncthreads();
-  if (threadIdx.x == 0) {
-    cuda::atomic_ref<std::uint32_t, cuda::thread_scope_device> n_done{*state.NDone()};
-    is_last = n_done.fetch_add(1, cuda::memory_order_acq_rel) == gridDim.x - 1;
-  }
-  __syncthreads();
-  if (is_last) {
+  // Empty nodes have no tiles.
+  if (blockIdx.x == 0) {
     for (std::int32_t i = threadIdx.x; i < n_nodes; i += blockDim.x) {
-      d_counts[i] = atomicExch(state.NLeft(i), 0u);
-      *state.NRight(i) = 0;
+      if (batch_info[i].segment.Size() == 0) {
+        d_counts[i] = 0;
+      }
     }
-    if (threadIdx.x == 0) {
-      *state.NDone() = 0;
+  }
+
+  std::uint32_t const t = blockIdx.x;
+  if (t >= n_tiles) {
+    return;
+  }
+  // Find the node of this tile, empty nodes are skipped.
+  auto offsets = dh::MakeTransformIterator<RowIndexT>(
+      dh::make_counting_iterator(0), [=](std::int32_t i) { return batch_info[i].tile_offset; });
+  auto i = static_cast<std::int32_t>(dh::SegmentId(offsets, offsets + n_nodes, t));
+  auto const node = batch_info[i];
+  auto const& segment = node.segment;
+  RowIndexT const* in = ridx[node.buffer].data();
+  RowIndexT* out = ridx[1 - node.buffer].data();
+  auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
+  auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
+
+  // Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
+  RowIndexT rows[kPartitionWarpWords];
+  cub::LoadDirectWarpStriped(threadIdx.x, in + tile, rows, n_rows, RowIndexT{0});
+  bool go_left[kPartitionWarpWords];
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+    go_left[j] = local < n_rows && op(rows[j], node.data);
+  }
+  // Rank the left rows within the tile.
+  std::uint32_t bits[kPartitionWarpWords];
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    bits[j] = __ballot_sync(0xffffffff, go_left[j]);
+    if (lane == 0) {
+      word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
+    }
+  }
+  __syncthreads();
+  if (warp == 0) {
+    std::uint32_t n_left;
+    WarpScanT{temp_storage.scan}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
+    // The number of rows going left in the tiles before this one in the node.
+    std::uint32_t n_left_before = 0;
+    if (t == node.tile_offset) {
+      if (lane == 0) {
+        tile_state.SetInclusive(t, n_left);
+      }
+    } else {
+      __syncwarp();  // The scan storage is reused by the look-back.
+      TilePrefixT prefix{tile_state, temp_storage.prefix, cuda::std::plus<>{}, static_cast<int>(t)};
+      n_left_before = prefix(n_left);
+    }
+    if (lane == 0) {
+      base[0] = n_left_before;
+      base[1] = tile - segment.begin - n_left_before;
+      if (tile + n_rows == segment.end) {
+        d_counts[i] = n_left_before + n_left;
+      }
+    }
+  }
+  __syncthreads();
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+    if (local < n_rows) {
+      auto n_left_before =
+          word_offset[warp * kPartitionWarpWords + j] + __popc(bits[j] & lanemask_lt);
+      if (go_left[j]) {
+        out[segment.begin + base[0] + n_left_before] = rows[j];
+      } else {
+        out[segment.end - 1 - (base[1] + local - n_left_before)] = rows[j];
+      }
     }
   }
 }
@@ -200,26 +231,46 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
  * @param d_batch_info Node data, with the size of the input number of nodes.
  * @param n_tiles      The number of tiles, see @ref PerNodeData::tile_offset.
  * @param d_counts     Output, the number of rows going left for each node.
- * @param p_state      Storage for the @ref PartitionState between launches.
+ * @param p_states     The tile states, kept between launches.
  */
 template <typename OpT, typename OpDataT>
 void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
                        RowBuffers<cuda_impl::RowIndexT> ridx,
                        common::Span<cuda_impl::RowIndexT> d_counts, std::size_t n_tiles, OpT op,
-                       dh::DeviceUVector<std::uint32_t>* p_state) {
+                       PartitionTileStates* p_states) {
   auto stream = ctx->CUDACtx()->Stream();
   auto n_nodes = d_batch_info.size();
-  if (p_state->size() < PartitionState::Size(n_nodes)) {
-    p_state->resize(PartitionState::Size(n_nodes));
-    dh::safe_cuda(
-        cudaMemsetAsync(p_state->data(), 0, p_state->size() * sizeof(std::uint32_t), stream));
+  auto& states = *p_states;
+  auto init = [&](PartitionTileState state, std::size_t n) {
+    auto n_init_blocks = std::max<std::size_t>(common::DivRoundUp(n, 256), 1);
+    dh::LaunchKernel{static_cast<std::uint32_t>(n_init_blocks), 256, 0, stream}(
+        InitPartitionTileStateKernel<PartitionTileState>, state, static_cast<std::int32_t>(n));
+  };
+  // Allocated even without tiles, the kernel writes the padding of the next state.
+  if (n_tiles > states.capacity || states.storage.empty()) {
+    states.capacity = n_tiles;
+    dh::safe_cuda(PartitionTileState::AllocationSize(static_cast<int>(n_tiles), states.state_bytes));
+    states.state_bytes = common::DivRoundUp(states.state_bytes, 16) * 16;
+    states.storage.resize(2 * states.state_bytes);
+    init(states.Get(0), states.capacity);
+    init(states.Get(1), states.capacity);
+    states.n_dirty = 0;
   }
-  // At least one block, to write the counts.
+  // At least one block, to write the counts of empty nodes.
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(n_tiles, 1));
+  auto next_state = states.Get(1 - states.current);
+  auto n_reset = states.n_dirty;
+  if (n_reset > static_cast<std::size_t>(n_blocks) * cuda_impl::kPartitionBlockThreads) {
+    init(next_state, n_reset);
+    n_reset = 0;
+  }
   dh::LaunchKernel{n_blocks, cuda_impl::kPartitionBlockThreads, 0, stream}(
       PartitionKernel<OpT, OpDataT>, dh::LDGIterator<PerNodeData<OpDataT>>{d_batch_info.data()},
       static_cast<std::int32_t>(n_nodes), static_cast<std::uint32_t>(n_tiles), ridx,
-      PartitionState{p_state->data()}, d_counts.data(), op);
+      states.Get(states.current), next_state, static_cast<std::int32_t>(n_reset), d_counts.data(),
+      op);
+  states.n_dirty = n_tiles;
+  states.current = 1 - states.current;
 }
 
 struct NodePositionInfo {
@@ -297,7 +348,7 @@ class RowPartitioner {
    */
   std::array<dh::DeviceUVector<RowIndexT>, 2> ridx_;
   // Storage for the @ref PartitionState of the partition kernel.
-  dh::DeviceUVector<std::uint32_t> partition_state_;
+  PartitionTileStates partition_state_;
 
   [[nodiscard]] RowBuffers<RowIndexT> Buffers() {
     return {{dh::ToSpan(ridx_[0]), dh::ToSpan(ridx_[1])}};
