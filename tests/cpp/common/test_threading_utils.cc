@@ -102,6 +102,20 @@ TEST(ParallelFor, Schedules) {
   }
 }
 
+TEST(ParallelFor, ThreadsCappedBySize) {
+  // A loop never uses more workers than it has iterations.
+  for (auto sched : {Sched::Auto(), Sched::Static(), Sched::Dyn(), Sched::Guided()}) {
+    for (int size : {1, 2, 3}) {
+      ParallelFor(size, 4, sched, WithWorker([&](auto, Worker worker) {
+                    EXPECT_LT(worker.Id(), size);
+#if defined(_OPENMP)
+                    EXPECT_LE(omp_get_num_threads(), size);
+#endif
+                  }));
+    }
+  }
+}
+
 TEST(ParallelFor, ExceptionDrainsTasks) {
   bool finished{false};
   EXPECT_THROW(ParallelFor(2, 2,
