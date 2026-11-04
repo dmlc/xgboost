@@ -86,25 +86,36 @@ __global__ void InitPartitionTileStateKernel(TileStateT tile_state, std::int32_t
   tile_state.InitializeStatus(n_tiles);
 }
 
+/** @brief The state of one launch of the partition kernel. */
+struct PartitionLaunchState {
+  PartitionTileState tiles;
+  // The number of tiles taken by the blocks, see @ref PartitionKernel.
+  std::uint32_t* n_taken;
+};
+
 /**
- * @brief Two tile states for the partition kernel, which must be invalid before a launch.
+ * @brief Two launch states for the partition kernel, which must be reset before a launch.
  *
- * A launch uses one of them, and resets the tiles the previous launch used in the other one.
+ * A launch uses one of them, and resets the other one for the next launch: its counter, and the
+ * tiles the previous launch used.
  */
 struct PartitionTileStates {
+  // The counter is followed by the tile status, in each state.
+  static constexpr std::size_t kCounterBytes = 16;
+
   dh::DeviceUVector<std::uint8_t> storage;
-  // The number of tiles and bytes of each state.
+  // The number of tiles and bytes of the tile status of each state.
   std::size_t capacity{0};
-  std::size_t state_bytes{0};
+  std::size_t tile_bytes{0};
   // The state used by the next launch.
   std::int32_t current{0};
   // The number of tiles used in the other state by the previous launch.
   std::size_t n_dirty{0};
 
-  [[nodiscard]] PartitionTileState Get(std::int32_t i) {
-    PartitionTileState state;
-    dh::safe_cuda(
-        state.Init(static_cast<int>(capacity), storage.data() + i * state_bytes, state_bytes));
+  [[nodiscard]] PartitionLaunchState Get(std::int32_t i) {
+    auto* ptr = storage.data() + i * (kCounterBytes + tile_bytes);
+    PartitionLaunchState state{{}, reinterpret_cast<std::uint32_t*>(ptr)};
+    dh::safe_cuda(state.tiles.Init(static_cast<int>(capacity), ptr + kCounterBytes, tile_bytes));
     return state;
   }
 };
@@ -165,7 +176,9 @@ XGBOOST_DEV_INLINE std::uint32_t NLeftBefore(std::uint32_t const* word_offset, s
  *
  * The first tile of a node publishes its count as inclusive without looking back. Every other tile
  * publishes its count, then looks back at the tiles before it until it finds an inclusive count,
- * which it reaches at the latest at the first tile of the node. Called by warp 0.
+ * which it reaches at the latest at the first tile of the node. The tiles before t were taken by
+ * blocks that have started, so the look-back doesn't wait for a block that can't run. Called by
+ * warp 0.
  *
  * @param first_tile The first tile of the node.
  * @param n_left     The number of left rows in tile t.
@@ -196,15 +209,21 @@ XGBOOST_DEV_INLINE std::uint32_t NLeftBeforeTile(PartitionTileState tile_state,
  * decoupled look-back, so the order of the rows is stable for the left rows and reversed for the
  * right rows.
  *
- * @param next_state The tile state of the next launch, where the first n_reset tiles are reset.
+ * Blocks take tiles from a counter in the order they start, instead of using the block index.
+ *
+ * @param next_state The state of the next launch, where the counter and the first n_reset tiles
+ *                   are reset.
  */
 template <typename OpT, typename OpDataT>
 __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKernel(
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
-    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionTileState tile_state,
-    PartitionTileState next_state, std::int32_t n_reset, cuda_impl::RowIndexT* d_counts, OpT op) {
-  // Reset the tile state of the next launch, see @ref PartitionTileStates.
-  next_state.InitializeStatus(n_reset);
+    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionLaunchState state,
+    PartitionLaunchState next_state, std::int32_t n_reset, cuda_impl::RowIndexT* d_counts, OpT op) {
+  // Reset the state of the next launch, see @ref PartitionTileStates.
+  next_state.tiles.InitializeStatus(n_reset);
+  if (blockIdx.x == 0 && threadIdx.x == 0) {
+    *next_state.n_taken = 0;
+  }
 
   using cuda_impl::kPartitionTileRows;
   using cuda_impl::kPartitionTileWords;
@@ -217,6 +236,7 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
   __shared__ std::uint32_t word_offset[kPartitionTileWords];
   // Where this tile starts writing its left rows and its right rows in the node.
   __shared__ std::uint32_t base[2];
+  __shared__ std::uint32_t tile_idx;
 
   auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
 
@@ -229,7 +249,12 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
     }
   }
 
-  std::uint32_t const t = blockIdx.x;
+  // Take the next tile.
+  if (threadIdx.x == 0) {
+    tile_idx = atomicAdd(state.n_taken, 1u);
+  }
+  __syncthreads();
+  std::uint32_t const t = tile_idx;
   if (t >= n_tiles) {
     return;
   }
@@ -260,7 +285,7 @@ __global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKe
   if (warp == 0) {
     __syncwarp();  // The scan storage is reused by the look-back.
     auto n_left_before =
-        cuda_impl::NLeftBeforeTile(tile_state, temp_storage.prefix, t, node.tile_offset, n_left);
+        cuda_impl::NLeftBeforeTile(state.tiles, temp_storage.prefix, t, node.tile_offset, n_left);
     if (lane == 0) {
       // The rows before this tile in the node are split into n_left_before on the left, and the
       // rest on the right.
@@ -307,19 +332,20 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   auto stream = ctx->CUDACtx()->Stream();
   auto n_nodes = d_batch_info.size();
   auto& states = *p_states;
-  auto init = [&](PartitionTileState state, std::size_t n) {
+  auto init = [&](PartitionTileState tiles, std::size_t n) {
     auto n_init_blocks = std::max<std::size_t>(common::DivRoundUp(n, 256), 1);
     dh::LaunchKernel{static_cast<std::uint32_t>(n_init_blocks), 256, 0, stream}(
-        InitPartitionTileStateKernel<PartitionTileState>, state, static_cast<std::int32_t>(n));
+        InitPartitionTileStateKernel<PartitionTileState>, tiles, static_cast<std::int32_t>(n));
   };
-  // Allocated even without tiles, the kernel writes the padding of the next state.
+  // Allocated even without tiles, the kernel resets the next state.
   if (n_tiles > states.capacity || states.storage.empty()) {
     states.capacity = n_tiles;
-    dh::safe_cuda(PartitionTileState::AllocationSize(static_cast<int>(n_tiles), states.state_bytes));
-    states.state_bytes = common::DivRoundUp(states.state_bytes, 16) * 16;
-    states.storage.resize(2 * states.state_bytes);
-    init(states.Get(0), states.capacity);
-    init(states.Get(1), states.capacity);
+    dh::safe_cuda(PartitionTileState::AllocationSize(static_cast<int>(n_tiles), states.tile_bytes));
+    states.tile_bytes = common::DivRoundUp(states.tile_bytes, 16) * 16;
+    states.storage.resize(2 * (PartitionTileStates::kCounterBytes + states.tile_bytes));
+    dh::safe_cuda(cudaMemsetAsync(states.storage.data(), 0, states.storage.size(), stream));
+    init(states.Get(0).tiles, states.capacity);
+    init(states.Get(1).tiles, states.capacity);
     states.n_dirty = 0;
   }
   // At least one block, to write the counts of empty nodes.
@@ -327,7 +353,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   auto next_state = states.Get(1 - states.current);
   auto n_reset = states.n_dirty;
   if (n_reset > static_cast<std::size_t>(n_blocks) * cuda_impl::kPartitionBlockThreads) {
-    init(next_state, n_reset);
+    init(next_state.tiles, n_reset);
     n_reset = 0;
   }
   dh::LaunchKernel{n_blocks, cuda_impl::kPartitionBlockThreads, 0, stream}(
