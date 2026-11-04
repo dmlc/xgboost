@@ -148,6 +148,44 @@ TEST(Json, TestParseObject) {
   auto json = Json::Load(StringView{str.c_str(), str.size()});
 }
 
+TEST(Json, ParseContainerValues) {
+  std::string str =
+      R"json({"a": [1, [2, "x"], {"b": null}, -3.5, true], "a": {"c": false}, "d": [], "e": {},
+              "f": [[], {}, [[]]]})json";
+  auto json = Json::Load(StringView{str});
+  ASSERT_EQ(get<Object const>(json).size(), 4);
+  // The last duplicated key wins.
+  ASSERT_EQ(get<Object const>(json["a"]).size(), 1);
+  ASSERT_FALSE(get<Boolean const>(json["a"]["c"]));
+  ASSERT_TRUE(get<Array const>(json["d"]).empty());
+  ASSERT_TRUE(get<Object const>(json["e"]).empty());
+  auto const& nested = get<Array const>(json["f"]);
+  ASSERT_EQ(nested.size(), 3);
+  ASSERT_TRUE(get<Array const>(nested[0]).empty());
+  ASSERT_TRUE(get<Object const>(nested[1]).empty());
+  ASSERT_TRUE(get<Array const>(nested[2][0]).empty());
+
+  std::string arr_str = R"json([1, [2, "x"], {"b": null}, -3.5, true])json";
+  auto arr = Json::Load(StringView{arr_str});
+  auto const& values = get<Array const>(arr);
+  ASSERT_EQ(values.size(), 5);
+  ASSERT_EQ(get<Integer const>(values[0]), 1);
+  ASSERT_EQ(get<Integer const>(values[1][0]), 2);
+  ASSERT_EQ(get<String const>(values[1][1]), "x");
+  ASSERT_TRUE(IsA<Null>(values[2]["b"]));
+  ASSERT_EQ(get<Number const>(values[3]), -3.5f);
+  ASSERT_TRUE(get<Boolean const>(values[4]));
+
+  std::string dumped;
+  Json::Dump(json, &dumped);
+  ASSERT_EQ(Json::Load(StringView{dumped}), json);
+
+  // Partially built containers are released when a nested value fails to parse.
+  for (std::string bad : {R"json([1, {"x": ?}])json", R"json({"a": [1], "b": [?]})json"}) {
+    ASSERT_THROW({ Json::Load(StringView{bad}); }, dmlc::Error) << bad;
+  }
+}
+
 TEST(Json, ParseNumber) {
   {
     std::string str = "31.8892";
