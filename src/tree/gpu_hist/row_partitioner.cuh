@@ -555,6 +555,7 @@ class RowPartitioner {
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,
                         bst_idx_t base_ridx, FinalisePositionOpT op) const {
+    CHECK_GE(d_out_position.size(), this->Size());
     // The leaves with rows, ordered by their segments, which cover all rows.
     std::vector<LeafStart> h_leaves;
     for (bst_node_t nidx = 0, n = ridx_segments_.size(); nidx < n; ++nidx) {
@@ -583,7 +584,6 @@ class RowPartitioner {
       d_out_position[ridx[leaf.buffer][i] - base_ridx] = leaf.nidx;
     });
     // Then finalise the positions in row order, so the reads by `op` are contiguous.
-    CHECK_GE(d_out_position.size(), this->Size());
     dh::LaunchN<1>(this->Size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
       d_out_position[i] = op(i + base_ridx, d_out_position[i]);
     });
