@@ -601,7 +601,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   CHECK_GE(step, 1);
   CHECK_NE(end, begin) << "Empty slice is not allowed.";
 
-  if (step > (end - begin)) {
+  if (end < begin) {
     *out_of_bound = true;
     return;
   }
@@ -612,7 +612,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
   auto const& in_tree_info = this->model_.tree_info.ConstHostVector();
 
-  bst_layer_t n_layers = (end - begin) / step;
+  bst_layer_t n_layers = detail::SliceSize(begin, end, step);
   out_indptr.resize(n_layers + 1, 0);
 
   if (!this->model_.trees_to_update.empty()) {

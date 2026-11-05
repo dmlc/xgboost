@@ -306,6 +306,13 @@ class TestModels:
         sliced = booster[beg:end:2]
         assert sliced_trees == len(sliced.get_dump())
 
+        # The stop does not have to line up with the step, same as a Python sequence.
+        for partial in (slice(3, 6, 2), slice(1, None, 2), slice(0, 2, 3)):
+            rounds = range(num_boost_round)[partial]
+            sliced = booster[partial]
+            assert sliced.num_boosted_rounds() == len(rounds)
+            assert sliced.get_dump() == sum((booster[i].get_dump() for i in rounds), [])
+
         sliced = booster[beg:]
         sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
