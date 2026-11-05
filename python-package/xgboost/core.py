@@ -1902,7 +1902,7 @@ class Booster:
         return tuple(value.get(name, 0) for name in feature_names)
 
     def _transform_interaction_constraints(
-        self, value: Union[Sequence[Sequence[str]], str]
+        self, value: Union[Sequence[Sequence[Union[str, int]]], str]
     ) -> Union[str, List[List[int]]]:
         if isinstance(value, str):
             return value
@@ -1914,7 +1914,12 @@ class Booster:
             result = []
             for constraint in value:
                 result.append(
-                    [feature_idx_mapping[feature_name] for feature_name in constraint]
+                    [
+                        feature_idx_mapping[feature]
+                        if isinstance(feature, str)
+                        else feature
+                        for feature in constraint
+                    ]
                 )
             return result
         except KeyError as e:
