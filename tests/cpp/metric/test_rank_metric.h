@@ -10,6 +10,7 @@
 
 #include <algorithm>  // for max
 #include <cmath>      // for log2
+#include <cstddef>    // for size_t
 #include <memory>     // for unique_ptr
 #include <string>     // for string
 #include <vector>     // for vector
@@ -48,7 +49,29 @@ inline void VerifyRankingKernelCache(DeviceOrd device, std::string const& name, 
   EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.25, 1e-6);
 }
 
+inline void VerifyRankingCutoff(DeviceOrd device, std::string const& name, double expected) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::vector<float> labels(64);
+  HostDeviceVector<float> preds(64);
+  auto& h_preds = preds.HostVector();
+  // The first 32 ranked documents are irrelevant; the last 32 are relevant.
+  for (std::size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i < 32 ? 0.0f : 1.0f;
+    h_preds[i] = static_cast<float>(labels.size() - i);
+  }
+  for (auto cutoff : {0, 32, 64}) {
+    auto metric_name = name;
+    if (cutoff != 0) {
+      metric_name += "@" + std::to_string(cutoff);
+    }
+    std::unique_ptr<Metric> metric{Metric::Create(metric_name, &ctx)};
+    EXPECT_NEAR(GetMetricEval(metric.get(), preds, labels), cutoff == 32 ? 0.0 : expected, kRtEps)
+        << metric_name;
+  }
+}
+
 inline void VerifyPrecision(DeviceOrd device) {
+  VerifyRankingCutoff(device, "pre", 0.5);
   VerifyRankingKernelCache(device, "pre", 0.5, 0.625);
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
@@ -72,6 +95,12 @@ inline void VerifyPrecision(DeviceOrd device) {
 }
 
 inline void VerifyNDCG(DeviceOrd device) {
+  double dcg{0.0}, idcg{0.0};
+  for (std::size_t i = 0; i < 32; ++i) {
+    dcg += 1.0 / std::log2(i + 34.0);
+    idcg += 1.0 / std::log2(i + 2.0);
+  }
+  VerifyRankingCutoff(device, "ndcg", dcg / idcg);
   auto discount = 1.0 / std::log2(3.0);
   VerifyRankingKernelCache(device, "ndcg", (1.0 / (1.0 + discount) + 3.0 * discount) / 4.0, 1.0);
   auto ctx = MakeCUDACtx(device.ordinal);
@@ -119,6 +148,11 @@ inline void VerifyNDCG(DeviceOrd device) {
 }
 
 inline void VerifyMAP(DeviceOrd device) {
+  double ap{0.0};
+  for (std::size_t i = 1; i <= 32; ++i) {
+    ap += static_cast<double>(i) / (32 + i);
+  }
+  VerifyRankingCutoff(device, "map", ap / 32.0);
   VerifyRankingKernelCache(device, "map", 0.5, 1.0);
   auto ctx = MakeCUDACtx(device.ordinal);
   Metric* metric = xgboost::Metric::Create("map", &ctx);
