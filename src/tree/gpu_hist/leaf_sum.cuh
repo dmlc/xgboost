@@ -8,7 +8,7 @@
 #include "../split_evaluator.h"       // for TreeEvaluator
 #include "../updater_gpu_common.cuh"  // for GPUTrainingParam
 #include "quantiser.cuh"              // for GradientQuantiser
-#include "row_partitioner.cuh"        // for RowIndexT, LeafInfo
+#include "row_partitioner.cuh"        // for RowIndexT, LeafInfo, RowBuffers
 #include "xgboost/context.h"          // for Context
 #include "xgboost/linalg.h"           // for MatrixView
 #include "xgboost/span.h"             // for Span
@@ -18,10 +18,12 @@ namespace xgboost::tree::cuda_impl {
  * @brief Calculate gradient sum for leaf nodes based on row partitions.
  *
  *   shape(out_sum) == (n_leaves, n_targets)
+ *
+ * The rows of each leaf are in the row buffer given by its @ref NodePositionInfo::buffer.
  */
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  common::Span<GradientQuantiser const> roundings,
-                 common::Span<RowIndexT const> sorted_ridx,
+                 RowBuffers<RowIndexT const> ridx,
                  linalg::MatrixView<GradientPair const> grad,
                  linalg::MatrixView<GradientPairInt64> out_sum);
 
