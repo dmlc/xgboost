@@ -196,6 +196,10 @@ class EvalRank : public Metric {
     if (topn != kMax) {
       param_.UpdateAllowUnknown(Args{{"lambdarank_num_pair_per_sample", std::to_string(topn)},
                                      {"lambdarank_pair_method", "topk"}});
+    } else {
+      // Without a cutoff the metric covers the whole list, the default pair method would
+      // truncate it.
+      param_.UpdateAllowUnknown(Args{{"lambdarank_pair_method", "mean"}});
     }
     param_.UpdateAllowUnknown(Args{});
   }
