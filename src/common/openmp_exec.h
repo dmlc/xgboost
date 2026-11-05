@@ -112,6 +112,10 @@ struct OpenMPExecutor {
 #if !defined(_OPENMP)
     n_threads = 1;
 #endif
+    if (n_blocks_in_space == 0) {
+      return;
+    }
+    n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, n_blocks_in_space));
 
     dmlc::OMPException exc;
 #pragma omp parallel num_threads(n_threads)
