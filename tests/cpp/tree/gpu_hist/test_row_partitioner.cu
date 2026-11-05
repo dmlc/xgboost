@@ -161,6 +161,46 @@ TEST(RowPartitioner, SortPositionBatchReuseState) {
 }
 
 namespace {
+void TestFinalisePosition() {
+  auto ctx = MakeCUDACtx(0);
+  // Leaves of uneven sizes that don't align with the tiles, including empty leaves.
+  bst_idx_t n_samples = 5000, base_rowid = 100;
+  RowPartitioner rp;
+  rp.Reset(&ctx, n_samples, base_rowid);
+  // Rows go left when their hash modulo 7 is less than the node's threshold.
+  auto op = [] XGBOOST_DEVICE(RowPartitioner::RowIndexT ridx, int threshold) {
+    return static_cast<int>((ridx * 2654435761u) % 7) < threshold;
+  };
+  rp.UpdatePositionBatch(&ctx, {0}, {1}, {2}, std::vector<int>{3}, op);
+  rp.UpdatePositionBatch(&ctx, {1, 2}, {3, 5}, {4, 6}, std::vector<int>{2, 5}, op);
+  rp.UpdatePositionBatch(&ctx, {4, 5, 6}, {7, 9, 11}, {8, 10, 12}, std::vector<int>{2, 7, 1}, op);
+  // Leaf 3 is in the first buffer and the other leaves in the second one.
+  ASSERT_FALSE(rp.GetRows(3).empty());
+  ASSERT_TRUE(rp.GetRows(10).empty());
+
+  // The output depends on the row, to check that each row gets its own leaf.
+  dh::device_vector<bst_node_t> position(n_samples, -1);
+  rp.FinalisePosition(&ctx, dh::ToSpan(position), base_rowid,
+                      [] XGBOOST_DEVICE(bst_idx_t ridx, bst_node_t nidx) {
+                        return static_cast<bst_node_t>(nidx * 2 + ridx % 2);
+                      });
+  std::vector<bst_node_t> h_position(position.size());
+  thrust::copy(position.begin(), position.end(), h_position.begin());
+
+  std::size_t n_checked = 0;
+  for (auto const& leaf : rp.GetLeaves()) {
+    for (auto ridx : rp.GetRowsHost(leaf.nidx)) {
+      ASSERT_EQ(h_position.at(ridx - base_rowid), leaf.nidx * 2 + ridx % 2);
+      ++n_checked;
+    }
+  }
+  ASSERT_EQ(n_checked, n_samples);
+}
+}  // anonymous namespace
+
+TEST(RowPartitioner, FinalisePosition) { TestFinalisePosition(); }
+
+namespace {
 void GetSplit(RegTree* tree, float split_value, std::vector<GPUExpandEntry>* candidates) {
   CHECK(!tree->IsMultiTarget());
   tree->Expand(

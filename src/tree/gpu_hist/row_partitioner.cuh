@@ -2,7 +2,7 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <algorithm>                                 // for max, min
+#include <algorithm>                                 // for max, min, sort
 #include <array>                                     // for array
 #include <cstddef>                                   // for size_t
 #include <cstdint>                                   // for int32_t, uint32_t
@@ -379,39 +379,12 @@ struct LeafInfo {
   NodePositionInfo node;
 };
 
-XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
-                                               const NodePositionInfo* d_node_info) {
-  int position = 0;
-  NodePositionInfo node = d_node_info[position];
-  while (!node.IsLeaf()) {
-    NodePositionInfo left = d_node_info[node.left_child];
-    NodePositionInfo right = d_node_info[node.right_child];
-    if (idx >= left.segment.begin && idx < left.segment.end) {
-      position = node.left_child;
-      node = left;
-    } else if (idx >= right.segment.begin && idx < right.segment.end) {
-      position = node.right_child;
-      node = right;
-    } else {
-      KERNEL_CHECK(false);
-    }
-  }
-  return position;
-}
-
-template <int kBlockSize, typename OpT>
-__global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
-    common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
-    RowBuffers<const cuda_impl::RowIndexT> ridx, common::Span<bst_node_t> d_out_position, OpT op) {
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, ridx[0].size())) {
-    auto position = GetPositionFromSegments(idx, d_node_info.data());
-    // Read from the buffer holding the rows of the leaf.
-    auto global_ridx = ridx[d_node_info[position].buffer][idx];
-    auto local_ridx = global_ridx - base_ridx;
-    bst_node_t new_position = op(global_ridx, position);
-    d_out_position[local_ridx] = new_position;
-  }
-}
+/** @brief Start of the rows of a leaf, and the buffer holding them. */
+struct LeafStart {
+  cuda_impl::RowIndexT begin;
+  bst_node_t nidx;
+  std::int32_t buffer;
+};
 
 /** \brief Class responsible for tracking subsets of rows as we add splits and
  * partition training rows into different leaf nodes. */
@@ -582,18 +555,38 @@ class RowPartitioner {
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,
                         bst_idx_t base_ridx, FinalisePositionOpT op) const {
-    dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
-    dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
-                                  sizeof(NodePositionInfo) * ridx_segments_.size(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+    // The leaves with rows, ordered by their segments, which cover all rows.
+    std::vector<LeafStart> h_leaves;
+    for (bst_node_t nidx = 0, n = ridx_segments_.size(); nidx < n; ++nidx) {
+      auto const& node = ridx_segments_[nidx];
+      if (node.IsLeaf() && node.segment.Size() != 0) {
+        h_leaves.push_back({node.segment.begin, nidx, node.buffer});
+      }
+    }
+    if (h_leaves.empty()) {
+      return;
+    }
+    std::sort(h_leaves.begin(), h_leaves.end(),
+              [](LeafStart const& l, LeafStart const& r) { return l.begin < r.begin; });
+    dh::TemporaryArray<LeafStart> d_leaves_storage(h_leaves.size());
+    dh::safe_cuda(cudaMemcpyAsync(d_leaves_storage.data().get(), h_leaves.data(),
+                                  sizeof(LeafStart) * h_leaves.size(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
 
-    constexpr std::uint32_t kBlockSize = 512;
-    const int kItemsThread = 8;
-    const std::uint32_t grid_size =
-        xgboost::common::DivRoundUp(this->Size(), kBlockSize * kItemsThread);
-    dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-        FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
-        base_ridx, this->GetBuffers(), d_out_position, op);
+    // Scatter the leaf of each row into the output, searching the leaf of each row.
+    auto d_leaves = dh::ToSpan(d_leaves_storage);
+    auto ridx = this->GetBuffers();
+    dh::LaunchN<1>(this->Size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+      auto begin = dh::MakeTransformIterator<cuda_impl::RowIndexT>(
+          d_leaves.data(), [] XGBOOST_DEVICE(LeafStart const& leaf) { return leaf.begin; });
+      auto leaf = d_leaves[dh::SegmentId(begin, begin + d_leaves.size(), i)];
+      d_out_position[ridx[leaf.buffer][i] - base_ridx] = leaf.nidx;
+    });
+    // Then finalise the positions in row order, so the reads by `op` are contiguous.
+    CHECK_GE(d_out_position.size(), this->Size());
+    dh::LaunchN<1>(this->Size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+      d_out_position[i] = op(i + base_ridx, d_out_position[i]);
+    });
   }
 };
 
