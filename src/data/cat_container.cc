@@ -287,6 +287,14 @@ void CatContainer::Load(Json const& in) {
   auto& h_sorted_idx = this->sorted_idx_.HostVector();
   LoadJson<std::int32_t>(in["sorted_idx"], &h_sorted_idx);
 
+  // Older models can contain per-column placeholders without any category values.
+  // Match the empty representation used by the constructors.
+  if (!this->HasCategorical()) {
+    columns.clear();
+    this->feature_segments_.Resize(0);
+    this->sorted_idx_.Resize(0);
+  }
+
   this->cpu_impl_->Finalize();
 }
 
