@@ -282,6 +282,22 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
+@pytest.mark.parametrize("Estimator", [xgb.XGBRegressor, xgb.XGBClassifier])
+def test_refit_without_eval_set_drops_evals_result(Estimator: Type) -> None:
+    rng = np.random.RandomState(1994)
+    X = rng.randn(64, 4)
+    y = (X[:, 0] > 0).astype(np.int32)
+
+    model = Estimator(n_estimators=3)
+    model.fit(X, y, eval_set=[(X, y)], verbose=False)
+    assert model.evals_result()
+
+    # The second fit has no eval set, so there is nothing to report.
+    model.fit(X, y)
+    with pytest.raises(xgb.core.XGBoostError, match="No evaluation result"):
+        model.evals_result()
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 def test_ranking_categorical() -> None:
     run_ranking_categorical(device="cpu")
