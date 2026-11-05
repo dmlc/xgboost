@@ -258,6 +258,33 @@ TYPED_TEST(TestHistEvaluator, Numeric) {
   }
 }
 
+TYPED_TEST(TestHistEvaluator, NumericEmptyBins) {
+  this->ft_ = {FeatureType::kNumerical};
+  this->cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0, 4.0}, {0, 5}, DeviceOrd::CPU());
+  for (auto missing : {-3.0, 3.0}) {
+    auto const &split = this->Evaluate(
+        {{{0.0, 0.0}, {-2.0, 1.0}, {0.0, 0.0}, {2.0, 1.0}, {0.0, 0.0}}}, {{missing, 1.0}});
+    EXPECT_FLOAT_EQ(split.loss_chg, 13.5f * this->kSplitTargets);
+    EXPECT_EQ(split.DefaultLeft(), missing < 0.0);
+    EXPECT_EQ(split.split_value, missing < 0.0 ? 2.0f : 1.0f);
+    this->CheckApply();
+  }
+
+  // Leading and trailing empty bins must not move a split isolating missing values.
+  this->cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, DeviceOrd::CPU());
+  for (bool leading_empty : {true, false}) {
+    std::vector<GradientPairPrecise> bins{{0.0, 0.0}, {-1.0, 1.0}, {0.0, 0.0}, {-1.0, 1.0}};
+    if (!leading_empty) {
+      std::reverse(bins.begin(), bins.end());
+    }
+    auto const &split = this->Evaluate({bins}, {{4.0, 1.0}});
+    EXPECT_NEAR(split.loss_chg, (50.0f / 3.0f) * this->kSplitTargets, kRtEps);
+    EXPECT_FALSE(split.DefaultLeft());
+    EXPECT_EQ(split.split_value, leading_empty ? 3.0f : 2.0f);
+    this->CheckApply();
+  }
+}
+
 TYPED_TEST(TestHistEvaluator, OneHot) {
   for (auto missing : {-3.0, 3.0}) {
     auto const &split = this->Evaluate({{{1.0, 1.0}, {-2.0, 1.0}, {1.0, 1.0}}}, {{missing, 1.0}},

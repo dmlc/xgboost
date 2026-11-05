@@ -78,6 +78,15 @@ class HistEvaluator {
         iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
       }
       for (bst_bin_t i = ibegin; i != iend; i += d_step) {
+        if constexpr (kSingleTarget) {
+          auto const &bin = hist[0][i];
+          // Keep the first threshold. Later empty bins repeat the previous candidate's
+          // statistics, and equal gains retain the first threshold within this feature
+          // in either scan direction.
+          if (i != ibegin && bin.GetGrad() == 0.0 && bin.GetHess() == 0.0) {
+            continue;
+          }
+        }
         for (bst_target_t t = 0; t < n_split_targets; ++t) {
           auto t_hist = hist[t];
           auto t_p = parent_sum(t);
