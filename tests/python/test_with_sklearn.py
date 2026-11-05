@@ -1191,19 +1191,57 @@ def test_XGBClassifier_resume(tmp_path: Path) -> None:
     assert log_loss1 > log_loss2
 
 
-def test_constraint_parameters():
-    reg = xgb.XGBRegressor(interaction_constraints="[[0, 1], [2, 3, 4]]")
-    X = np.random.randn(10, 10)
-    y = np.random.randn(10)
-    reg.fit(X, y)
+@pytest.mark.parametrize(
+    "name, value, expected",
+    [
+        pytest.param(
+            "interaction_constraints",
+            "[[0, 1], [2, 3, 4]]",
+            "[[0, 1], [2, 3, 4]]",
+            id="interaction-indices",
+        ),
+        pytest.param(
+            "interaction_constraints",
+            [["f0", "f1"], ["f2", "f3", "f4"]],
+            "[[0, 1], [2, 3, 4]]",
+            id="interaction-names",
+            marks=pytest.mark.skipif(**tm.no_pandas()),
+        ),
+        pytest.param(
+            "monotone_constraints",
+            {"f1": 1},
+            "(0,1,0,0,0)",
+            id="monotone-names",
+            marks=pytest.mark.skipif(**tm.no_pandas()),
+        ),
+    ],
+)
+def test_constraint_parameters(
+    name: str, value: Union[str, dict[str, int], list[list[str]]], expected: str
+) -> None:
+    rng = np.random.default_rng(2025)
+    X = rng.normal(size=(32, 5))
+    y = X[:, 1] + rng.normal(scale=0.1, size=32)
+    if not isinstance(value, str):
+        import pandas as pd
 
-    config = json.loads(reg.get_booster().save_config())
-    assert (
-        config["learner"]["gradient_booster"]["tree_train_param"][
-            "interaction_constraints"
-        ]
-        == "[[0, 1], [2, 3, 4]]"
-    )
+        X = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+    reg = xgb.XGBRegressor(n_estimators=3, n_jobs=1, **{name: value})
+    reg.fit(X, y)
+    predictions = reg.predict(X)
+
+    def train_param() -> str:
+        config = json.loads(reg.get_booster().save_config())
+        return config["learner"]["gradient_booster"]["tree_train_param"][name]
+
+    assert train_param() == expected
+    reg.set_params(n_jobs=2)
+    assert train_param() == expected
+    if name == "interaction_constraints":
+        reg.set_params(interaction_constraints=[[0, 1], [2, 3, 4]])
+        assert train_param() == expected
+    np.testing.assert_allclose(reg.predict(X), predictions)
+    reg.get_booster().update(xgb.DMatrix(X, y), 3)
 
 
 @pytest.mark.filterwarnings("error")
