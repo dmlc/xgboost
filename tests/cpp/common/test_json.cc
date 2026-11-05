@@ -146,6 +146,12 @@ std::string GetModelStr() {
 TEST(Json, TestParseObject) {
   std::string str = R"obj({"TreeParam" : {"num_feature": "10"}})obj";
   auto json = Json::Load(StringView{str.c_str(), str.size()});
+
+  // The last duplicate key wins, including when it replaces a nested container.
+  str = R"obj({"TreeParam": [1, {"depth": 2}], "TreeParam": {"num_feature": "20"}})obj";
+  json = Json::Load(StringView{str});
+  ASSERT_EQ(get<Object const>(json).size(), 1);
+  ASSERT_EQ(get<String const>(json["TreeParam"]["num_feature"]), "20");
 }
 
 TEST(Json, ParseNumber) {
