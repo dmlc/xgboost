@@ -565,6 +565,9 @@ def pandas_transform_data(
 
         if npdtypes or dtype in {np.dtype(np.float32), np.dtype(np.float64)}:
             array = ser.to_numpy()
+        elif isinstance(dtype, np.dtype) and dtype.kind in "iu":
+            # Integers are read natively, as for numpy input, so no float32 copy.
+            array = ser.to_numpy()
         else:
             # Specifying the dtype can significantly slow down the conversion (about
             # 15% slow down for dense inplace-predict)
@@ -719,6 +722,8 @@ def _meta_from_pandas_series(
         data = data.values.to_dense().astype(np.float32)
     elif is_pa_ext_dtype(data.dtype):
         data = pandas_pa_type(data)
+    elif isinstance(data.dtype, np.dtype) and data.dtype.kind in "fiu":
+        data = data.to_numpy()
     else:
         data = data.to_numpy(np.float32, na_value=np.nan)
 

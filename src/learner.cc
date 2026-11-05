@@ -611,6 +611,7 @@ class LearnerConfiguration : public LearnerModelStateContainer {
     }
     obj_->LoadConfig(objective_fn);
     model_state_.task = obj_->Task();
+    model_state_.multi_strategy = tparam_.multi_strategy;
 
     tparam_.booster = CanonicalizeBoosterName(get<String>(gradient_booster["name"]));
     if (!gbm_) {

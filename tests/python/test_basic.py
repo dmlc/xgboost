@@ -370,18 +370,82 @@ def test_parse_ver() -> None:
     assert post == "post1"
 
 
-def test_parse_eval_str_nonfinite() -> None:
-    # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
-    result = _parse_eval_str(
-        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:nan(ind)"
-    )
-    names = [name for name, _ in result]
-    values = [value for _, value in result]
-    assert names == ["train-cox-nloglik", "eval-cox-nloglik"]
-    assert all(math.isnan(v) for v in values)
+@pytest.mark.parametrize(
+    "data_name,metric_name",
+    [
+        ("train", "rmse"),
+        ("fold:1", "rmse"),
+        ("train", "my:rmse"),
+        ("fold:1", "my:rmse"),
+        ("fold:1:2", "my:custom:rmse"),
+        ("検証:1", "誤差:rmse"),
+    ],
+)
+@pytest.mark.parametrize(
+    "score,expected",
+    [
+        ("0", 0.0),
+        ("-0.0", -0.0),
+        ("0.1234", 0.1234),
+        ("-1.25", -1.25),
+        ("+2.5", 2.5),
+        ("1e-12", 1e-12),
+        ("-2.5E+10", -2.5e10),
+        ("inf", math.inf),
+        ("+inf", math.inf),
+        ("-inf", -math.inf),
+        ("nan", math.nan),
+        ("-nan", math.nan),
+        # MSVC builds print indeterminate NaNs this way, see #6885.
+        ("nan(ind)", math.nan),
+        ("-nan(ind)", math.nan),
+    ],
+)
+def test_parse_eval_str(
+    data_name: str, metric_name: str, score: str, expected: float
+) -> None:
+    name = f"{data_name}-{metric_name}"
+    result = _parse_eval_str(f"[42]\t{name}:{score}")
+    assert len(result) == 1
+    assert result[0][0] == name
+    if math.isnan(expected):
+        assert math.isnan(result[0][1])
+    else:
+        assert result[0][1] == expected
+        if expected == 0:
+            assert math.copysign(1, result[0][1]) == math.copysign(1, expected)
 
-    # Regular, finite values and the usual `inf`/`-inf` spellings still work.
-    result = _parse_eval_str("[0]\ttrain-rmse:0.1234\teval-tweedie-nloglik:-inf")
-    assert result[0] == ("train-rmse", 0.1234)
-    assert result[1][0] == "eval-tweedie-nloglik"
-    assert math.isinf(result[1][1])
+
+@pytest.mark.parametrize("separator", ["\t", " ", "  \t "])
+def test_parse_eval_str_multiple_metrics(separator: str) -> None:
+    result = _parse_eval_str(
+        separator.join(
+            [
+                "[3]",
+                "train-rmse:0.1234",
+                "fold:1-my:rmse:2.5e-3",
+                "eval-tweedie-nloglik:-inf",
+                "fold:1-my:mae:1.5",
+            ]
+        )
+        + "\n"
+    )
+    assert result == [
+        ("train-rmse", 0.1234),
+        ("fold:1-my:rmse", 0.0025),
+        ("eval-tweedie-nloglik", -math.inf),
+        ("fold:1-my:mae", 1.5),
+    ]
+
+
+@pytest.mark.parametrize("result", ["[0]", "[42]\t\n"])
+def test_parse_eval_str_no_metrics(result: str) -> None:
+    assert _parse_eval_str(result) == []
+
+
+@pytest.mark.parametrize(
+    "result", ["[0]\ttrain-rmse", "[0]\ttrain-rmse:", "[0]\tfold:1-my:rmse:bad"]
+)
+def test_parse_eval_str_invalid(result: str) -> None:
+    with pytest.raises(ValueError):
+        _parse_eval_str(result)

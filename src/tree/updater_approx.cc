@@ -189,7 +189,8 @@ class GlobalApproxBuilder {
       for (auto const &candidate : expand_set) {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);
-        if (driver.IsChildValid(candidate)) {
+        if (driver.IsChildValid(candidate, candidate.split.left_sum[0].GetHess(),
+                                candidate.split.right_sum[0].GetHess())) {
           valid_candidates.emplace_back(candidate);
         }
       }

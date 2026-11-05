@@ -133,6 +133,8 @@ inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& mod
   CHECK(!model.iteration_indptr.empty());
   end = end == 0 ? model.BoostedRounds() : end;
   CHECK_LE(end, model.BoostedRounds()) << "Out of range for tree layers.";
+  CHECK_GE(begin, 0) << "Out of range for tree layers.";
+  CHECK_LE(begin, end) << "Out of range for tree layers.";
   bst_tree_t tree_begin = model.iteration_indptr[begin];
   bst_tree_t tree_end = model.iteration_indptr[end];
   if (model.trees.size() != 0) {
@@ -407,6 +409,9 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+  // The leaf position of each row, one for each new tree in a group. The position is negated
+  // if the row is sampled out. Kept between iterations to reuse the memory.
+  std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
   mutable PredictionContainer prediction_cache_;

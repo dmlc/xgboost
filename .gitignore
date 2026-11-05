@@ -156,6 +156,8 @@ demo/**/*.txt
 __MACOSX/
 model*.json
 /tests/python/models/models/
+*.whl
+*.venv/
 
 # R tests
 *.htm

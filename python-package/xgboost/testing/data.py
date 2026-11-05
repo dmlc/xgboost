@@ -1088,10 +1088,17 @@ def make_categorical(
                 categories = np.array(unique_random_strings(n_categories, i))
                 c = row_rng.choice(categories, size=n_samples, replace=True)
             else:
-                categories = np.arange(0, n_categories)
-                c = row_rng.randint(low=0, high=n_categories, size=n_samples)
+                if not np.issubdtype(cat_dtype, np.integer):
+                    raise ValueError("cat_dtype must be an integer type")
+                categories = np.arange(0, n_categories, dtype=cat_dtype)
+                c = row_rng.randint(
+                    low=0,
+                    high=n_categories,
+                    size=n_samples,
+                    dtype=cat_dtype,  # type: ignore[arg-type]
+                )
 
-            df[str(i)] = pd.Series(c, dtype="category")
+            df[str(i)] = pd.Series(c, dtype=cat_dtype).astype("category")
             df[str(i)] = df[str(i)].cat.set_categories(categories)
         else:
             num = row_rng.randint(low=0, high=n_categories, size=n_samples)
