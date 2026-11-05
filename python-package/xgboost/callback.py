@@ -370,6 +370,8 @@ class EarlyStopping(TrainingCallback):
         save_best: Optional[bool] = False,
         min_delta: float = 0.0,
     ) -> None:
+        if rounds < 0:
+            raise ValueError("rounds must not be negative.")
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds

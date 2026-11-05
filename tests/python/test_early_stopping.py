@@ -157,3 +157,21 @@ class TestEarlyStopping:
             else:
                 assert np.all(df >= df.iloc[-1])
         assert num_iteration_history[:3] == num_iteration_history[3:]
+
+
+@pytest.mark.parametrize("rounds", [-1, -5])
+def test_negative_early_stopping_rounds_is_rejected(rounds: int) -> None:
+    X = rng.randn(64, 4)
+    y = X[:, 0]
+    Xy = xgb.DMatrix(X, y)
+    params = {"eval_metric": "rmse"}
+
+    # A negative value used to stop training after the first round.
+    with pytest.raises(ValueError, match="must not be negative"):
+        xgb.train(
+            params, Xy, 10, evals=[(Xy, "Valid")], early_stopping_rounds=rounds
+        )
+    with pytest.raises(ValueError, match="must not be negative"):
+        xgb.cv(params, Xy, 10, nfold=2, early_stopping_rounds=rounds)
+    with pytest.raises(ValueError, match="must not be negative"):
+        xgb.callback.EarlyStopping(rounds=rounds)
