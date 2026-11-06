@@ -466,6 +466,21 @@ test_that("xgb.cv works with stratified folds", {
   expect_true(all(cv$evaluation_log[, test_logloss_mean] != cv2$evaluation_log[, test_logloss_mean]))
 })
 
+test_that("stratified folds are balanced across label values", {
+  y <- c(0, 0, 0, 0, 1, 1, 1, 1)
+  params <- list(objective = "binary:logistic")
+  set.seed(314159)
+  for (i in seq_len(20)) {
+    folds <- xgboost:::generate.cv.folds(
+      nfold = 2, nrows = length(y), stratified = TRUE, label = y, group = NULL, params = params
+    )
+    expect_equal(sort(unlist(folds)), seq_along(y))
+    for (fold in folds) {
+      expect_equal(sum(y[fold]), 2)
+    }
+  }
+})
+
 test_that("train and predict with non-strict classes", {
   # standard dense matrix input
   train_dense <- as.matrix(train$data)

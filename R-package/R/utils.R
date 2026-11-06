@@ -320,6 +320,8 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
       y <- convert.labels(y, objective)
     }
     folds <- xgb.createFolds(y = y, k = nfold)
+    # map positions in the shuffled labels back to the original row indices
+    folds <- lapply(folds, function(idx) rnd_idx[idx])
   } else {
     # make simple non-stratified folds
     kstep <- length(rnd_idx) %/% nfold
