@@ -3,6 +3,7 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
+#include <thrust/scan.h>  // for inclusive_scan_by_key
 #include <thrust/unique.h>
 
 #include <algorithm>
@@ -11,16 +12,11 @@
 #include <cuda/std/functional>  // for equal_to, greater
 #include <cuda/std/iterator>    // for make_reverse_iterator
 #include <cuda/std/tuple>       // for make_tuple, tie, tuple
-#include <limits>               // for numeric_limits
-#include <numeric>              // for partial_sum
 #include <type_traits>          // for is_same_v
-#include <utility>
 #include <vector>
 
-#include "../collective/allgather.h"
 #include "../collective/allreduce.h"
 #include "../collective/comm.cuh"
-#include "../collective/comm_group.h"
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
@@ -537,7 +533,7 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
         columns_ptr_tmp.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
     columns_ptr.Copy(columns_ptr_tmp);
     entries.resize(n_uniques);
-    this->FixError();
+    this->FixError(ctx);
   };
   if (entries.empty()) {
     CHECK_EQ(columns_ptr.HostVector().back(), 0);
@@ -574,27 +570,43 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
   timer_.Stop(__func__);
 }
 
-void SketchContainer::FixError() {
+void SketchContainer::FixError(Context const *ctx) {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->entries_);
-  dh::LaunchN(in.size(), [=] __device__(size_t idx) {
-    auto column_id = dh::SegmentId(d_columns_ptr, idx);
-    auto in_column = in.subspan(d_columns_ptr[column_id],
-                                d_columns_ptr[column_id + 1] - d_columns_ptr[column_id]);
-    idx -= d_columns_ptr[column_id];
-    float prev_rmin = idx == 0 ? 0.0f : in_column[idx - 1].rmin;
-    if (in_column[idx].rmin < prev_rmin) {
-      in_column[idx].rmin = prev_rmin;
-    }
-    float prev_rmax = idx == 0 ? 0.0f : in_column[idx - 1].rmax;
-    if (in_column[idx].rmax < prev_rmax) {
-      in_column[idx].rmax = prev_rmax;
-    }
-    float rmin_next = in_column[idx].RMinNext();
-    if (in_column[idx].rmax < rmin_next) {
-      in_column[idx].rmax = rmin_next;
-    }
-  });
+  this->entries_tmp_.resize(in.size());
+  auto scratch = dh::ToSpan(this->entries_tmp_);
+  auto key_it = dh::MakeTransformIterator<size_t>(
+      dh::make_counting_iterator(0ul),
+      [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr, idx); });
+
+  // Propagate corrections across the entire column. Reading a predecessor while it is
+  // being updated in place races and can leave decreasing ranks across thread blocks.
+  auto rmin_it =
+      dh::MakeTransformIterator<SketchEntry>(in.data(), [] __device__(SketchEntry entry) {
+        entry.rmin = fmaxf(0.0f, entry.rmin);
+        return entry;
+      });
+  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + in.size(), rmin_it,
+                                scratch.data(), cuda::std::equal_to<size_t>{},
+                                cuda::proclaim_return_type<SketchEntry>(
+                                    [] __device__(SketchEntry const &left, SketchEntry right) {
+                                      right.rmin = fmaxf(left.rmin, right.rmin);
+                                      return right;
+                                    }));
+
+  // Use the corrected rmin before propagating rmax, matching the serial repair.
+  auto rmax_it =
+      dh::MakeTransformIterator<SketchEntry>(scratch.data(), [] __device__(SketchEntry entry) {
+        entry.rmax = fmaxf(0.0f, fmaxf(entry.rmax, entry.RMinNext()));
+        return entry;
+      });
+  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + in.size(), rmax_it,
+                                in.data(), cuda::std::equal_to<size_t>{},
+                                cuda::proclaim_return_type<SketchEntry>(
+                                    [] __device__(SketchEntry const &left, SketchEntry right) {
+                                      right.rmax = fmaxf(left.rmax, right.rmax);
+                                      return right;
+                                    }));
 }
 
 void SketchContainer::AllReduce(Context const *ctx) {
