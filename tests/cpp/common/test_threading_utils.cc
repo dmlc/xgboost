@@ -67,6 +67,19 @@ TEST(ParallelFor2d, Coverage) {
   }
 }
 
+TEST(ParallelFor2d, ThreadsCappedByBlocks) {
+  // A 2d loop never uses more workers than it has blocks.
+  for (std::size_t n_blocks : {1, 2, 3}) {
+    BlockedSpace2d space(n_blocks, [](std::size_t) { return std::size_t{1}; }, 1);
+    ParallelFor2d(space, 4, WithWorker([&](std::size_t, Range1d, Worker worker) {
+                    EXPECT_LT(worker.Id(), n_blocks);
+#if defined(_OPENMP)
+                    EXPECT_LE(omp_get_num_threads(), n_blocks);
+#endif
+                  }));
+  }
+}
+
 TEST(ParallelFor, WithWorker) {
   for (auto n_threads : {1, 4}) {
     // Owning the thread limit makes the callback move-only.
