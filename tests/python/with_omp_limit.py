@@ -6,7 +6,7 @@ from sklearn.metrics import roc_auc_score
 import xgboost as xgb
 
 
-def run_omp(output_path: str):
+def run_omp(output_path: str) -> None:
     X, y = make_classification(
         n_samples=200, n_features=32, n_classes=3, n_informative=8
     )

@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Tuple, cast
 
 import numpy as np
 import pytest
@@ -15,10 +16,10 @@ PYTHON = sys.executable
 
 
 class TestOMP:
-    def test_omp(self):
+    def test_omp(self) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
 
-        param = {
+        param: Dict[str, Any] = {
             "booster": "gbtree",
             "objective": "binary:logistic",
             "grow_policy": "depthwise",
@@ -28,17 +29,19 @@ class TestOMP:
             "min_child_weight": 0,
         }
 
-        watchlist = [(dtest, "eval"), (dtrain, "train")]
+        watchlist: List[Tuple[xgb.DMatrix, str]] = [(dtest, "eval"), (dtrain, "train")]
         num_round = 5
 
-        def run_trial():
-            res = {}
+        def run_trial() -> Tuple[List[float], np.ndarray]:
+            res: xgb.callback.TrainingCallback.EvalsLog = {}
             bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
-            metrics = [res["train"]["error"][-1], res["eval"]["error"][-1]]
+            metrics = cast(
+                List[float], [res["train"]["error"][-1], res["eval"]["error"][-1]]
+            )
             preds = bst.predict(dtest)
             return metrics, preds
 
-        def consist_test(title, n):
+        def consist_test(title: str, n: int) -> Tuple[List[float], np.ndarray]:
             auc, pred = run_trial()
             for i in range(n - 1):
                 auc2, pred2 = run_trial()
