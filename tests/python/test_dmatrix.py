@@ -171,8 +171,11 @@ class TestDMatrix:
         sliced = d.slice(ridxs_arr)
         np.testing.assert_equal(sliced.get_label(), y[2:7])
 
-    @pytest.mark.parametrize("ridxs", [[10], [99], [-1], [0, 10], [-1000000]])
-    def test_slice_out_of_range(self, ridxs: list) -> None:
+    @pytest.mark.parametrize(
+        "ridxs",
+        [[10], [99], [-1], [0, 10], [-1000000], [2**32], np.array([2**32, 2**32 + 3])],
+    )
+    def test_slice_out_of_range(self, ridxs) -> None:
         X = np.arange(20.0).reshape(10, 2)
         d = xgb.DMatrix(X, np.arange(10.0))
 
