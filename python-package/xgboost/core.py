@@ -1254,6 +1254,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         handle = ctypes.c_void_p()
 
         rindex = _maybe_np_slice(rindex, dtype=np.int32)
+        n_rows = self.num_row()
+        if rindex.size != 0 and (rindex.min() < 0 or rindex.max() >= n_rows):
+            raise IndexError(
+                f"Row index out of range for a DMatrix with {n_rows} rows."
+            )
         _check_call(
             _LIB.XGDMatrixSliceDMatrixEx(
                 self.handle,
