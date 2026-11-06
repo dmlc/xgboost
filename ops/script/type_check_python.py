@@ -27,6 +27,8 @@ class TypeCheckPaths:
         "tests/python/test_tree_regularization.py",
         "tests/python/test_quantile_dmatrix.py",
         "tests/python/test_pickling.py",
+        "tests/python/test_openmp.py",
+        "tests/python/with_omp_limit.py",
         "tests/python-gpu/",
         "tests/test_distributed/test_with_dask/",
         "tests/test_distributed/test_with_spark/test_data.py",
