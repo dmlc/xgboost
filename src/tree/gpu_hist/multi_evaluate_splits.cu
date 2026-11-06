@@ -756,7 +756,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 }
 
 void MultiHistEvaluator::PrepareTreeSplit(Context const *ctx,
-                                         common::Span<MultiExpandEntry const> candidates) {
+                                          common::Span<MultiExpandEntry const> candidates) {
   auto staged = h_split_candidates_.GetSpan<MultiExpandEntry>(candidates.size());
   std::copy(candidates.begin(), candidates.end(), staged.begin());
   dh::CopyTo(staged, &d_split_candidates_, ctx->CUDACtx()->Stream());
