@@ -1,13 +1,11 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <algorithm>             // for min, max
-#include <cstddef>               // for size_t
-#include <cstdint>               // uint32_t, int32_t
-#include <cuda/std/bit>          // for bit_cast
-#include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
-#include <memory>                // for unique_ptr
-#include <vector>                // for vector
+#include <algorithm>  // for min, max
+#include <cstddef>    // for size_t
+#include <cstdint>    // uint32_t, int32_t
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
@@ -28,37 +26,29 @@ XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
   return (ridx - matrix.base_rowid) * matrix.row_stride + fidx;
 }
-// Implement swizzle to avoid within bin bank conflicts.
-//
-// Four contiguous word planes let each atomic instruction use all 32 shared-memory banks.
+// A 32-bit histogram in shared memory, in two word planes so that each atomic instruction uses
+// all 32 shared-memory banks: signed gradients and unsigned Hessians (see SharedBinRounding).
 class SharedHistogram {
-  std::uint32_t* grad_lo_;
-  std::uint32_t* grad_hi_;
-  std::uint32_t* hess_lo_;
-  std::uint32_t* hess_hi_;
+  std::int32_t* grad_;
+  std::uint32_t* hess_;
 
  public:
-  XGBOOST_DEV_INLINE SharedHistogram(std::uint32_t* words, bst_bin_t n_bins)
-      : grad_lo_{words},
-        grad_hi_{words + n_bins},
-        hess_lo_{words + 2 * n_bins},
-        hess_hi_{words + 3 * n_bins} {
-    static_assert(sizeof(GradientPairInt64) == 4 * sizeof(std::uint32_t));
+  XGBOOST_DEV_INLINE SharedHistogram(void* words, bst_bin_t n_bins)
+      : grad_{static_cast<std::int32_t*>(words)},
+        hess_{reinterpret_cast<std::uint32_t*>(static_cast<std::int32_t*>(words) + n_bins)} {}
+
+  [[nodiscard]] XGBOOST_DEV_INLINE void* Data() const { return grad_; }
+
+  XGBOOST_DEV_INLINE void Add(bst_bin_t bin, std::int32_t grad, std::uint32_t hess) const {
+    atomicAdd(grad_ + bin, grad);
+    atomicAdd(hess_ + bin, hess);
   }
 
-  XGBOOST_DEV_INLINE void Add(bst_bin_t bin, GradientPairInt64 const& gpair) const {
-    AtomicAdd64As32(grad_lo_ + bin, grad_hi_ + bin, gpair.GetQuantisedGrad());
-    AtomicAdd64As32(hess_lo_ + bin, hess_hi_ + bin, gpair.GetQuantisedHess());
-  }
-
-  XGBOOST_DEV_INLINE GradientPairInt64 Load(bst_bin_t bin) const {
-    uint4 words{
-        grad_lo_[bin],
-        grad_hi_[bin],
-        hess_lo_[bin],
-        hess_hi_[bin],
-    };
-    return cuda::std::bit_cast<GradientPairInt64>(words);
+  // Widen the bin to the fixed-point unit.
+  XGBOOST_DEV_INLINE GradientPairInt64 Load(bst_bin_t bin, SharedBinRounding const& r) const {
+    using T = GradientPairInt64::ValueT;
+    return {static_cast<T>(grad_[bin]) * (T{1} << r.shift_grad),
+            static_cast<T>(hess_[bin]) * (T{1} << r.shift_hess)};
   }
 };
 }  // namespace
@@ -165,49 +155,88 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
 }
 
 // Accumulate sub-segment entries [begin, end) for one target.
+//
+// With shared memory, a narrow gradient pair goes to the 32-bit shared histogram and any other
+// pair, marked by an odd gradient, straight to the global histogram (see SharedBinRounding). A bin
+// receives at most one value from each row, and `(window_rows - 1) * feature_stride` consecutive
+// entries span at most `window_rows` rows. The block flushes after every such window, so no
+// 32-bit bin can overflow.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
                                   RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
-                                  SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
-                                  bst_idx_t begin, bst_idx_t end) {
+                                  SharedBinRounding const& rounding, SharedHistogram smem_hist,
+                                  GradientPairInt64* gmem_hist, bst_idx_t begin, bst_idx_t end) {
   bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
   using Idx = RowPartitioner::RowIndexT;
+  using T = GradientPairInt64::ValueT;
 
   auto const d_ridx = d_ridx_iter.data();
 
-  auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
-    if constexpr (Policy::kSharedMem) {
-      smem_hist.Add(bin_idx, adjusted);
-    } else {
-      // gmem_hist is a subspan for the current target.
-      AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
+  auto accumulate = [&](bst_idx_t window_begin, bst_idx_t window_end) {
+    for (bst_idx_t idx = window_begin + threadIdx.x; idx < window_end;
+         idx += Policy::kBlockThreads) {
+      // unrolled version unravel to save registers:
+      // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
+      //
+      // ridx_in_set: Index into the row batch
+      // fidx_in_set: Index into the feature group
+      Idx ridx_in_set = idx / feature_stride;
+      Idx fidx_in_set = idx - ridx_in_set * feature_stride;
+
+      Idx ridx = d_ridx[ridx_in_set];
+      auto fidx = fidx_in_set + group.start_feature;
+
+      bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
+      if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
+        auto g = LoadGpair(gpair + ridx);
+        if constexpr (Policy::kCompressed) {
+          compressed_bin += matrix.feature_segments[fidx];
+        }
+        if constexpr (Policy::kSharedMem) {
+          compressed_bin -= group.start_bin;
+          T const grad = g.GetQuantisedGrad(), hess = g.GetQuantisedHess();
+          if ((grad & 1) == 0) {
+            smem_hist.Add(compressed_bin, static_cast<std::int32_t>(grad >> rounding.shift_grad),
+                          static_cast<std::uint32_t>(hess >> rounding.shift_hess));
+          } else {
+            AtomicAddGpairGlobal(gmem_hist + group.start_bin + compressed_bin, g);
+          }
+        } else {
+          // gmem_hist is a subspan for the current target.
+          AtomicAddGpairGlobal(gmem_hist + compressed_bin, g);
+        }
+      }
     }
   };
 
-  for (bst_idx_t idx = begin + threadIdx.x; idx < end; idx += Policy::kBlockThreads) {
-    // unrolled version unravel to save registers:
-    // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
-    //
-    // ridx_in_set: Index into the row batch
-    // fidx_in_set: Index into the feature group
-    Idx ridx_in_set = idx / feature_stride;
-    Idx fidx_in_set = idx - ridx_in_set * feature_stride;
-
-    Idx ridx = d_ridx[ridx_in_set];
-    auto fidx = fidx_in_set + group.start_feature;
-
-    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
-      auto g = LoadGpair(gpair + ridx);
-      if constexpr (Policy::kCompressed) {
-        compressed_bin += matrix.feature_segments[fidx];
+  if constexpr (!Policy::kSharedMem) {
+    accumulate(begin, end);
+  } else {
+    auto flush = [&] {
+      // Skip the empty bins, most of them at deep levels.
+      for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
+        auto gpair = smem_hist.Load(bin_idx, rounding);
+        if (gpair.GetQuantisedGrad() != 0 || gpair.GetQuantisedHess() != 0) {
+          AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, gpair);
+        }
       }
-      if constexpr (Policy::kSharedMem) {
-        compressed_bin -= group.start_bin;
+    };
+    auto const window = static_cast<bst_idx_t>(rounding.window_rows - 1) * feature_stride;
+    for (bst_idx_t window_begin = begin; window_begin < end; window_begin += window) {
+      if (window_begin != begin) {
+        // Flush the previous window, and clear the bins for the next one.
+        __syncthreads();
+        flush();
+        __syncthreads();
+        dh::BlockFill(reinterpret_cast<std::uint64_t*>(smem_hist.Data()), group.num_bins,
+                      std::uint64_t{0});
+        __syncthreads();
       }
-      atomic_add(compressed_bin, g);
+      accumulate(window_begin, cuda::std::min(window_begin + window, end));
     }
+    __syncthreads();
+    flush();
   }
 }
 
@@ -233,6 +262,7 @@ __global__ __launch_bounds__(
                                                        common::Span<GradientPairInt64> const*
                                                            node_hists,
                                                        GradientPairInt64 const* d_gpair,
+                                                       GradientQuantiser const* d_roundings,
                                                        bst_idx_t n_samples, bst_target_t n_targets,
                                                        bst_idx_t n_entries_per_subsegment,
                                                        std::uint32_t n_subsegments_per_segment) {
@@ -263,10 +293,9 @@ __global__ __launch_bounds__(
   }
   bst_idx_t const end = cuda::std::min(begin + n_entries_per_subsegment, n_segment_entries);
 
-  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+  extern __align__(sizeof(std::uint64_t)) __shared__ char shmem[];
   // Privatized histogram
-  SharedHistogram smem_hist{reinterpret_cast<std::uint32_t*>(shmem),
-                            Policy::kSharedMem ? group.num_bins : 0};
+  SharedHistogram smem_hist{shmem, Policy::kSharedMem ? group.num_bins : 0};
 
   auto d_node_hist = node_hists[nidx_in_set];
   // With a target-major layout.
@@ -275,22 +304,13 @@ __global__ __launch_bounds__(
   __builtin_assume(__isGlobal(gmem_hist));
 
   if constexpr (Policy::kSharedMem) {
-    // Zero the full storage with vector stores, independently of the word-plane layout.
-    dh::BlockFill(reinterpret_cast<GradientPairInt64*>(shmem), group.num_bins, GradientPairInt64{});
+    // Zero both word planes with vector stores.
+    dh::BlockFill(reinterpret_cast<std::uint64_t*>(shmem), group.num_bins, std::uint64_t{0});
     __syncthreads();
   }
-  HistKernelSegment<Policy>(matrix, group, d_ridx, d_gpair + n_samples * target_idx, smem_hist,
-                            gmem_hist, begin, end);
-  if constexpr (Policy::kSharedMem) {
-    __syncthreads();
-    // Flush this block's histogram. Skip the empty bins, most of them at deep levels.
-    for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
-      auto gpair = smem_hist.Load(bin_idx);
-      if (gpair.GetQuantisedGrad() != 0 || gpair.GetQuantisedHess() != 0) {
-        AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, gpair);
-      }
-    }
-  }
+  SharedBinRounding const rounding = d_roundings[target_idx].Narrow();
+  HistKernelSegment<Policy>(matrix, group, d_ridx, d_gpair + n_samples * target_idx, rounding,
+                            smem_hist, gmem_hist, begin, end);
 }
 
 namespace cuda_impl {
@@ -412,9 +432,11 @@ struct HistKernel {
   void DispatchHist(Context const* ctx, Accessor const& matrix,
                     FeatureGroups const& h_feature_groups,
                     linalg::MatrixView<GradientPairInt64 const> gpair,
+                    common::Span<GradientQuantiser const> roundings,
                     std::vector<RidxIterSpan> const& h_ridx_iters,
                     std::vector<common::Span<GradientPairInt64>> const& h_hists) {
     CHECK(gpair.FContiguous());
+    CHECK_EQ(roundings.size(), gpair.Shape(1));
     CHECK_EQ(h_ridx_iters.size(), h_hists.size());
     auto feature_groups = h_feature_groups.DeviceAccessor(ctx->Device());
     // Sparse data requires one group because the kernel scans every entry in each padded row.
@@ -463,15 +485,18 @@ struct HistKernel {
       auto kernel = HistogramKernel<Policy, Accessor, RidxIterSpan>;
       auto n_blks_per_mp = this->BlocksPerMp(Policy{}, shmem_bytes, kernel);
       auto n_resident_blks_per_target = std::max<std::size_t>(n_blks_per_mp * n_mps / n_targets, 1);
+      // A flush adds a 64-bit pair to the global histogram for every bin.
+      auto flush_bytes = use_shared ? shmem_bytes / kSharedBinBytes * sizeof(GradientPairInt64) : 0;
       auto n_entries_per_subsegment =
           cuda_impl::SliceSegment(n_total_entries, Policy::kBlockThreads,
-                                  n_resident_blks_per_target, n_targets, shmem_bytes, symbol_bits);
+                                  n_resident_blks_per_target, n_targets, flush_bytes, symbol_bits);
       auto grid = MakeGrid(max_segment_entries, n_entries_per_subsegment, Policy::kBlockThreads,
                            n_groups, n_targets, h_ridx_iters.size());
 
       dh::LaunchKernel(grid.n_blks, Policy::kBlockThreads, shmem_bytes, stream)(
           kernel, matrix, feature_groups, ridx_iters.data().get(), hists.data().get(), d_gpair,
-          n_samples, n_targets, grid.n_entries_per_subsegment, grid.n_subsegments_per_segment);
+          roundings.data(), n_samples, n_targets, grid.n_entries_per_subsegment,
+          grid.n_subsegments_per_segment);
     };
 
     DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
@@ -497,15 +522,19 @@ struct HistKernel {
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
                       FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
+                      common::Span<GradientQuantiser const> roundings,
                       std::vector<common::Span<cuda_impl::RowIndexT const>> const& ridxs,
                       std::vector<common::Span<GradientPairInt64>> const& hists) {
     auto dispatch = [&](auto const& ridx_iters) {
       if (matrix.IsDense()) {
-        this->DispatchHist<true, true>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+        this->DispatchHist<true, true>(ctx, matrix, feature_groups, gpair, roundings, ridx_iters,
+                                       hists);
       } else if (matrix.IsDenseCompressed()) {
-        this->DispatchHist<false, true>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+        this->DispatchHist<false, true>(ctx, matrix, feature_groups, gpair, roundings, ridx_iters,
+                                        hists);
       } else {
-        this->DispatchHist<false, false>(ctx, matrix, feature_groups, gpair, ridx_iters, hists);
+        this->DispatchHist<false, false>(ctx, matrix, feature_groups, gpair, roundings, ridx_iters,
+                                         hists);
       }
     };
     if (ridxs.size() == 1 && ridxs.front().size() == matrix.n_rows) {
@@ -536,22 +565,24 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hi
 void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                                             FeatureGroups const& feature_groups,
                                             common::Span<GradientPairInt64 const> gpair,
+                                            common::Span<GradientQuantiser const> roundings,
                                             common::Span<cuda_impl::RowIndexT const> ridx,
                                             common::Span<GradientPairInt64> histogram) {
   this->BuildHistogram(ctx, matrix, feature_groups,
-                       linalg::MakeTensorView(ctx, linalg::kF, gpair, gpair.size(), 1), {ridx},
-                       {histogram});
+                       linalg::MakeTensorView(ctx, linalg::kF, gpair, gpair.size(), 1), roundings,
+                       {ridx}, {histogram});
 }
 
 void DeviceHistogramBuilder::BuildHistogram(
     Context const* ctx, EllpackAccessor const& matrix, FeatureGroups const& feature_groups,
     linalg::MatrixView<GradientPairInt64 const> gpair,
+    common::Span<GradientQuantiser const> roundings,
     std::vector<common::Span<cuda_impl::RowIndexT const>> const& ridxs,
     std::vector<common::Span<GradientPairInt64>> const& hists) {
   this->monitor_.Start(__func__);
   std::visit(
       [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists);
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, roundings, ridxs, hists);
       },
       matrix);
   this->monitor_.Stop(__func__);

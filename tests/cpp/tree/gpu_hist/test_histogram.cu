@@ -237,7 +237,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
 
-  auto gpairs_i64 = GenerateGradientsFixedPoint(&ctx, kRows, 1, 0.0f, 2.0f).gpair;
+  auto fixed_point = GenerateGradientsFixedPoint(&ctx, kRows, 1, 0.0f, 2.0f);
+  auto const& gpairs_i64 = fixed_point.gpair;
+  auto const& quantiser = fixed_point.quantizer;
   /**
    * Generate hist with cat data.
    */
@@ -247,8 +249,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_categories, false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
-                             dh::ToSpan(cat_hist));
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(),
+                             quantiser.DeviceSpan(), ridx, dh::ToSpan(cat_hist));
     });
   }
 
@@ -264,8 +266,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), encode_hist.size(), false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(), ridx,
-                             dh::ToSpan(encode_hist));
+      builder.BuildHistogram(&ctx, acc, single_group, gpairs_i64.View(ctx.Device()).Values(),
+                             quantiser.DeviceSpan(), ridx, dh::ToSpan(encode_hist));
     });
   }
 
@@ -286,43 +288,8 @@ TEST(Histogram, GPUHistCategorical) {
   // group with a single feature. The one-hot matrix is `n_categories` squared, so exceed the
   // budget by the smallest margin that still forces the global path.
   auto max_shmem = dh::MaxSharedMemoryOptin(0);
-  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) + 1;
+  auto n_categories = common::DivRoundUp(max_shmem, kSharedBinBytes) + 1;
   TestGPUHistogramCategorical(n_categories);
-}
-
-namespace {
-void TestAtomicAdd(char const* name, std::vector<std::int64_t> const& h_inputs) {
-  SCOPED_TRACE(name);
-  auto expected = static_cast<std::uint64_t>(
-      std::accumulate(h_inputs.cbegin(), h_inputs.cend(), std::int64_t{0}));
-  dh::device_vector<std::int64_t> inputs(h_inputs);
-  // Keep low/high words separate, as in the production SoA layout.
-  dh::device_vector<std::uint32_t> result(3, 0);
-  auto d_inputs = inputs.data().get();
-  auto d_result = result.data().get();
-  dh::LaunchN(inputs.size(), [=] __device__(std::size_t i) {
-    AtomicAdd64As32(d_result, d_result + 2, d_inputs[i]);
-  });
-  EXPECT_EQ(result[0], static_cast<std::uint32_t>(expected));
-  EXPECT_EQ(result[2], static_cast<std::uint32_t>(expected >> 32));
-  EXPECT_EQ(result[1], 0u);
-}
-}  // namespace
-
-TEST(Histogram, AtomicAddInt64) {
-  std::size_t constexpr kElements = 1024;
-  std::vector<std::int64_t> inputs(kElements);
-  for (std::size_t i = 0; i < inputs.size(); ++i) {
-    auto value = static_cast<std::int64_t>(i);
-    inputs[i] = i % 2 == 0 ? value : -value;
-  }
-  TestAtomicAdd("mixed signs", inputs);
-
-  // Positive and negative sums that don't fit in 32 bits.
-  std::fill(inputs.begin(), inputs.end(), std::numeric_limits<std::uint32_t>::max() / 2);
-  TestAtomicAdd("positive overflow", inputs);
-  std::fill(inputs.begin(), inputs.end(), std::numeric_limits<std::int32_t>::min() / 2);
-  TestAtomicAdd("negative overflow", inputs);
 }
 
 TEST(Histogram, Quantiser) {
@@ -403,7 +370,9 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
     dh::device_vector<GradientPairInt64> single_hist;
     dh::device_vector<GradientPairInt64> multi_hist;
 
-    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples).gpair;
+    auto fixed_point = GenerateGradientsFixedPoint(&ctx, n_samples);
+    auto const& gpair = fixed_point.gpair;
+    auto const& quantiser = fixed_point.quantizer;
     std::shared_ptr<common::HistogramCuts> cuts;
 
     std::size_t row_stride = 0;
@@ -433,8 +402,8 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
         builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                       force_global);
         impl->Visit(&ctx, {}, [&](auto&& acc) {
-          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                                 d_histogram);
+          builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(),
+                                 quantiser.DeviceSpan(), ridx, d_histogram);
         });
         ++k;
       }
@@ -461,8 +430,8 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
                     force_global);
       concat.Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(), ridx,
-                               d_histogram);
+        builder.BuildHistogram(&ctx, acc, *fg, gpair.View(ctx.Device()).Values(),
+                               quantiser.DeviceSpan(), ridx, d_histogram);
       });
     }
 
@@ -507,6 +476,8 @@ std::ostream& operator<<(std::ostream& os, Layout layout) {
  *        it doesn't depend on any other histogram implementation.
  */
 struct HistInput {
+  // Small windows, so that blocks flush their 32-bit bins many times.
+  SharedBinRounding rounding;
   bst_idx_t n_samples;
   bst_feature_t n_features;
   // Bins of each feature. Uniform unless `skewed`, which makes `FeatureGroups` produce groups
@@ -522,9 +493,28 @@ struct HistInput {
   // Number of rows in each node.
   std::vector<std::size_t> sizes;
 
+  static SharedBinRounding MakeRounding(std::int32_t window_rows) {
+    SharedBinRounding r{/*shift_grad=*/3, /*shift_hess=*/5, 0, 0, window_rows};
+    while (window_rows * (std::int64_t{2} << r.bits_grad) <=
+           std::int64_t{std::numeric_limits<std::int32_t>::max()} + 1) {
+      ++r.bits_grad;
+    }
+    while (window_rows * (std::int64_t{2} << r.bits_hess) <=
+           std::int64_t{std::numeric_limits<std::uint32_t>::max()} + 1) {
+      ++r.bits_hess;
+    }
+    return r;
+  }
+  // The narrow range: [-2^bits_grad, 2^bits_grad - 1] and [0, 2^bits_hess - 1].
+  [[nodiscard]] std::int64_t MinGrad() const { return -(std::int64_t{1} << rounding.bits_grad); }
+  [[nodiscard]] std::int64_t MaxGrad() const { return (std::int64_t{1} << rounding.bits_grad) - 1; }
+  [[nodiscard]] std::int64_t MaxHess() const { return (std::int64_t{1} << rounding.bits_hess) - 1; }
+
   HistInput(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins, bst_target_t n_targets,
-            Layout layout, bool root, bool skewed = false)
-      : n_samples{n_samples},
+            Layout layout, bool root, bool skewed = false, bool extreme = false,
+            std::int32_t window_rows = 8)
+      : rounding{MakeRounding(window_rows)},
+        n_samples{n_samples},
         n_features{n_features},
         feature_bins(n_features, n_bins),
         bin_ptrs(n_features + 1, 0),
@@ -567,12 +557,53 @@ struct HistInput {
       }
     }
 
-    // Exercise both words of each accumulator, including carries and negative gradients.
-    std::uniform_int_distribution<std::int64_t> grad_dist{-(std::int64_t{1} << 40),
-                                                          std::int64_t{1} << 40};
-    std::uniform_int_distribution<std::int64_t> hess_dist{0, std::int64_t{1} << 40};
-    for (auto& v : this->gpair.Data()->HostVector()) {
-      v = GradientPairInt64{grad_dist(rng), hess_dist(rng)};
+    auto const& r = this->rounding;
+    auto narrow = [&](std::int64_t grad, std::int64_t hess) {
+      return GradientPairInt64{grad * (std::int64_t{1} << r.shift_grad),
+                               hess * (std::int64_t{1} << r.shift_hess)};
+    };
+    if (extreme) {
+      // Every row adds the largest narrow values, so a bin reaches its limit within a window.
+      // The first target takes the most negative gradient.
+      auto h_gpair = this->gpair.HostView();
+      for (bst_idx_t i = 0; i < n_samples; ++i) {
+        for (bst_target_t t = 0; t < n_targets; ++t) {
+          h_gpair(i, t) = narrow(t == 0 ? this->MinGrad() : this->MaxGrad(), this->MaxHess());
+        }
+      }
+    } else {
+      // Mostly narrow values of either sign, and values that must go to the global histogram:
+      // large, negative Hessians, and not multiples of 2^shift. As produced by
+      // `GradientQuantiser::ToRoundedFixedPoint`, those have an odd gradient.
+      std::uniform_int_distribution<std::int64_t> narrow_grad{this->MinGrad(), this->MaxGrad()};
+      std::uniform_int_distribution<std::int64_t> narrow_hess{0, this->MaxHess()};
+      std::uniform_int_distribution<std::int64_t> grad_dist{-(std::int64_t{1} << 40),
+                                                            std::int64_t{1} << 40};
+      std::uniform_int_distribution<std::int64_t> hess_dist{0, std::int64_t{1} << 40};
+      std::uniform_int_distribution<std::int32_t> kind{0, 9};
+      auto heavy = [](std::int64_t grad, std::int64_t hess) {
+        return GradientPairInt64{grad | 1, hess};
+      };
+      for (auto& v : this->gpair.Data()->HostVector()) {
+        switch (kind(rng)) {
+          case 0:
+            v = heavy(grad_dist(rng), hess_dist(rng));
+            break;
+          case 1: {
+            auto n = narrow(narrow_grad(rng), narrow_hess(rng));
+            v = heavy(n.GetQuantisedGrad(), -n.GetQuantisedHess());
+            break;
+          }
+          case 2: {
+            auto n = narrow(narrow_grad(rng), narrow_hess(rng));
+            v = heavy(n.GetQuantisedGrad() + 1, n.GetQuantisedHess());
+            break;
+          }
+          default:
+            v = narrow(narrow_grad(rng), narrow_hess(rng));
+            break;
+        }
+      }
     }
 
     std::iota(this->ridx.begin(), this->ridx.end(), 0);
@@ -655,9 +686,11 @@ struct BuildInfo {
 
 void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t n_bins,
                         bst_target_t n_targets, Layout layout, bool root, bool force_global,
-                        bool small_groups, BuildInfo* info = nullptr, bool skewed = false) {
+                        bool small_groups, BuildInfo* info = nullptr, bool skewed = false,
+                        bool extreme = false, std::int32_t window_rows = 8) {
   auto ctx = MakeCUDACtx(0);
-  HistInput input{n_samples, n_features, n_bins, n_targets, layout, root, skewed};
+  HistInput input(n_samples, n_features, n_bins, n_targets, layout, root, skewed, extreme,
+                  window_rows);
   auto expected = input.Expected();
 
   auto page = input.MakeEllpack(&ctx);
@@ -667,7 +700,7 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
   auto shmem_bytes = HistShmemBytes(ctx.Ordinal());
   if (small_groups) {
     // Budget for four features per group with uniform bin counts.
-    shmem_bytes = sizeof(GradientPairInt64) * n_bins * 4;
+    shmem_bytes = kSharedBinBytes * n_bins * 4;
   }
   FeatureGroups fg{page->Cuts(), page->IsDenseCompressed(), shmem_bytes};
   if (small_groups && page->IsDenseCompressed()) {
@@ -698,8 +731,11 @@ void TestBuildHistogram(bst_idx_t n_samples, bst_feature_t n_features, bst_bin_t
     hists.push_back(builder.GetNodeHistogram(i));
     beg += input.sizes[i];
   }
+  std::vector<GradientQuantiser> h_roundings(
+      n_targets, GradientQuantiser{{1.0, 1.0}, {1.0, 1.0}, input.rounding});
+  dh::device_vector<GradientQuantiser> roundings{h_roundings};
   builder.BuildHistogram(&ctx, page->GetDeviceEllpack(&ctx, {}), fg, input.gpair.View(ctx.Device()),
-                         ridxs, hists);
+                         dh::ToSpan(roundings), ridxs, hists);
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     std::vector<GradientPairInt64> got(hists[i].size());
@@ -771,5 +807,77 @@ TEST(Histogram, BuildMultiGroup) {
       }
     }
   }
+}
+
+// Every row adds the largest narrow value to the only bin of each feature: a bin reaches its
+// 32-bit limit within each window, and overflows unless the block flushes after it.
+TEST(Histogram, BuildNarrowLimit) {
+  for (std::int32_t window_rows : {2, 4}) {
+    for (auto layout : {Layout::kDense, Layout::kDenseMissing, Layout::kSparse}) {
+      for (bool root : {true, false}) {
+        ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1 << 13, 37, /*n_bins=*/1, /*n_targets=*/2,
+                                                   layout, root, /*force_global=*/false,
+                                                   /*small_groups=*/false, nullptr,
+                                                   /*skewed=*/false, /*extreme=*/true, window_rows))
+            << layout << " root:" << root << " window:" << window_rows;
+      }
+    }
+  }
+}
+
+TEST(Histogram, QuantiserNarrow) {
+  auto ctx = MakeCUDACtx(0);
+  // Mostly small gradients and a few large ones. Fewer rows than kMaxSharedRows, so the window
+  // is the number of rows.
+  bst_idx_t n_samples = 4096;
+  HostDeviceVector<GradientPair> gpair(n_samples);
+  auto& h_gpair = gpair.HostVector();
+  std::mt19937 rng{2026};
+  std::uniform_real_distribution<float> dist{-1.0f, 1.0f};
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    h_gpair[i] = GradientPair{dist(rng), std::abs(dist(rng))};
+  }
+  h_gpair[7] = GradientPair{1e6f, 1e6f};
+  h_gpair[8] = GradientPair{-1e6f, 0.0f};
+  h_gpair[9] = GradientPair{0.5f, -0.5f};
+  gpair.SetDevice(ctx.Device());
+  GradientQuantiserGroup group{&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan())};
+  auto const& q = group[0];
+  auto const& r = q.Narrow();
+  ASSERT_GT(r.shift_grad, 0);
+  ASSERT_GT(r.shift_hess, 0);
+  ASSERT_EQ(r.window_rows, n_samples);
+  // The limits keep a window of values within the 32-bit bins.
+  auto max_grad = std::int64_t{1} << r.bits_grad, max_hess = (std::int64_t{1} << r.bits_hess) - 1;
+  ASSERT_LE(r.window_rows * max_grad, std::int64_t{std::numeric_limits<std::int32_t>::max()} + 1);
+  ASSERT_LE(r.window_rows * max_hess, std::numeric_limits<std::uint32_t>::max());
+
+  std::size_t n_narrow = 0;
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    auto v = q.ToRoundedFixedPoint(h_gpair[i]);
+    auto grad = v.GetQuantisedGrad(), hess = v.GetQuantisedHess();
+    bool narrow = grad % (std::int64_t{1} << r.shift_grad) == 0 &&
+                  hess % (std::int64_t{1} << r.shift_hess) == 0 &&
+                  (grad >> r.shift_grad) >= -max_grad && (grad >> r.shift_grad) < max_grad &&
+                  hess >= 0 && (hess >> r.shift_hess) <= max_hess;
+    ASSERT_EQ(narrow, r.IsNarrow(grad, hess)) << i;
+    // The kernel tests the parity of the gradient alone.
+    ASSERT_EQ(narrow, grad % 2 == 0) << i;
+    n_narrow += narrow;
+    if (i == 7 || i == 8 || i == 9) {
+      // Too large or a negative Hessian: full precision, but for the lowest bit.
+      ASSERT_FALSE(narrow) << i;
+      auto back = q.ToFloatingPoint(v);
+      ASSERT_NEAR(back.GetGrad(), h_gpair[i].GetGrad(), std::abs(h_gpair[i].GetGrad()) * 1e-12);
+    } else {
+      ASSERT_TRUE(narrow) << i;
+      // Truncated toward zero to a multiple of the narrow unit.
+      auto back = q.ToFloatingPoint(v);
+      ASSERT_LE(std::abs(back.GetGrad()), std::abs(h_gpair[i].GetGrad()));
+      ASSERT_LT(std::abs(back.GetGrad() - h_gpair[i].GetGrad()),
+                std::ldexp(q.ToFloatingPoint({1, 1}).GetGrad(), r.shift_grad));
+    }
+  }
+  ASSERT_EQ(n_narrow, n_samples - 3);
 }
 }  // namespace xgboost::tree

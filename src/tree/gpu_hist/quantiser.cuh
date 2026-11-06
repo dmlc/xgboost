@@ -2,7 +2,8 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #pragma once
-#include <vector>  // for vector
+#include <cstdint>  // for int32_t, int64_t
+#include <vector>   // for vector
 
 #include "../../common/deterministic.cuh"   // for CreateRoundingFactor
 #include "../../common/device_helpers.cuh"  // for ToSpan
@@ -46,8 +47,59 @@ struct ToFloatingPointOp {
 };
 
 /**
+ * @brief The most rows whose values a 32-bit shared-memory histogram bin may hold between
+ *        flushes. A bin receives at most one value from each row.
+ */
+inline constexpr std::int64_t kMaxSharedRows = 8192;
+
+/**
+ * @brief How the histogram kernel narrows fixed-point gradients into 32-bit shared bins.
+ *
+ * A gradient pair is narrow when both values are multiples of their `2^shift`, the gradient
+ * satisfies `-2^bits_grad <= grad >> shift < 2^bits_grad` and the Hessian
+ * `0 <= hess >> shift < 2^bits_hess`. The kernel adds `value >> shift` to a 32-bit bin and adds
+ * any other pair straight to the global histogram. A bin holds at most `window_rows` values
+ * between flushes, and the bits keep `window_rows * 2^bits_grad` within int32 and
+ * `window_rows * (2^bits_hess - 1)` within uint32, so no bin can overflow.
+ *
+ * `GradientQuantiser::ToRoundedFixedPoint` gives every pair that is not narrow an odd gradient.
+ * The gradient shift is at least one, so narrow gradients are even, and the kernel tells the two
+ * apart by the parity of the gradient alone. Gradients for the histograms must come from it.
+ */
+struct SharedBinRounding {
+  // At least one.
+  std::int8_t shift_grad{1};
+  std::int8_t shift_hess{0};
+  // The defaults leave almost no pair narrow.
+  std::int8_t bits_grad{0};
+  std::int8_t bits_hess{0};
+  // At least 2.
+  std::int32_t window_rows{static_cast<std::int32_t>(kMaxSharedRows)};
+
+  /** @brief Whether the pair is narrow, see above. */
+  [[nodiscard]] XGBOOST_DEVICE bool IsNarrow(std::int64_t grad, std::int64_t hess) const {
+    auto narrow_grad = grad >> shift_grad, narrow_hess = hess >> shift_hess;
+    // Shift back unsigned, a left shift of a negative value is undefined.
+    auto back = [](std::int64_t v, std::int8_t shift) {
+      return static_cast<std::int64_t>(static_cast<std::uint64_t>(v) << shift);
+    };
+    // Multiples of 2^shift; a gradient whose top bits are all zero or all one; a Hessian whose
+    // top bits are zero.
+    return back(narrow_grad, shift_grad) == grad && back(narrow_hess, shift_hess) == hess &&
+           static_cast<std::uint64_t>((narrow_grad >> bits_grad) + 1) <= 1 &&
+           (narrow_hess >> bits_hess) == 0;
+  }
+};
+
+/**
  * @brief Per-target quantiser for converting gradients between floating-point and
  *        fixed-point representations.
+ *
+ * The gradients of the rows are converted with `ToRoundedFixedPoint`: most are rounded to a
+ * multiple of `2^shift` fixed-point units so that the histogram kernel can sum them in 32-bit
+ * shared memory (see @ref SharedBinRounding), and values too large for that keep the full
+ * fixed-point precision. Every user of the quantised gradients reads the same values, so
+ * histograms and node sums stay consistent.
  */
 class GradientQuantiser {
  private:
@@ -55,6 +107,7 @@ class GradientQuantiser {
   GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
   GradientPairPrecise to_floating_point_;
+  SharedBinRounding narrow_;
 
   template <typename GradientPairT>
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
@@ -70,9 +123,38 @@ class GradientQuantiser {
 
  public:
   GradientQuantiser() = default;
-  // Used for test
+  // Used for test. No value is narrow.
   GradientQuantiser(GradientPairPrecise to_fixed, GradientPairPrecise to_float)
-      : to_fixed_point_{to_fixed}, to_floating_point_{to_float} {}
+      : GradientQuantiser{to_fixed, to_float, SharedBinRounding{}} {}
+  GradientQuantiser(GradientPairPrecise to_fixed, GradientPairPrecise to_float,
+                    SharedBinRounding narrow)
+      : to_fixed_point_{to_fixed}, to_floating_point_{to_float}, narrow_{narrow} {}
+  [[nodiscard]] XGBOOST_DEVICE SharedBinRounding const& Narrow() const { return narrow_; }
+  /**
+   * @brief Convert a row's gradient for the histograms: a multiple of 2^shift fixed-point units
+   *        when it is narrow, otherwise the full fixed-point value with the lowest bit of the
+   *        gradient set. See @ref SharedBinRounding.
+   */
+  template <typename GradientPairT>
+  [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
+  ToRoundedFixedPoint(GradientPairT const& gpair) const {
+    using T = GradientPairInt64::ValueT;
+    auto exact = this->ToFixedPointImpl(gpair);
+    T grad = exact.GetQuantisedGrad(), hess = exact.GetQuantisedHess();
+    // Truncate toward zero to a multiple of 2^shift, as `%` keeps the sign of the dividend.
+    grad -= grad % (T{1} << narrow_.shift_grad);
+    hess -= hess % (T{1} << narrow_.shift_hess);
+    // Preserve positive curvature through truncation.
+    if (gpair.GetHess() > 0.0 && hess == 0) {
+      hess = T{1} << narrow_.shift_hess;
+    }
+    if (narrow_.IsNarrow(grad, hess)) {
+      return {grad, hess};
+    }
+    // An odd gradient marks the pair for the global histogram. The narrow ones are even, since
+    // the gradient shift is at least one.
+    return {exact.GetQuantisedGrad() | 1, exact.GetQuantisedHess()};
+  }
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
     return this->ToFixedPointImpl(gpair);
   }

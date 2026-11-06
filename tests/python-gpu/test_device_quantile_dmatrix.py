@@ -122,7 +122,9 @@ class TestQuantileDMatrix:
         qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
         predt0 = booster0.predict(qXy)
         predt1 = booster1.predict(qXy)
-        np.testing.assert_allclose(predt0, predt1)
+        # The GPU rounds the gradients to a unit of about 2^-25 of their range for its
+        # 32-bit histogram bins.
+        np.testing.assert_allclose(predt0, predt1, rtol=1e-6, atol=1e-6)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(

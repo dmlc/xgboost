@@ -164,8 +164,8 @@ class MultiTargetHistMaker {
       h_hists.push_back(histogram_.GetNodeHistogram(nidx));
     }
 
-    this->histogram_.BuildHistogram(this->ctx_, acc, *this->feature_groups_, d_gpair, h_ridxs,
-                                    h_hists);
+    this->histogram_.BuildHistogram(this->ctx_, acc, *this->feature_groups_, d_gpair,
+                                    this->split_quantizer_->DeviceSpan(), h_ridxs, h_hists);
   }
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {

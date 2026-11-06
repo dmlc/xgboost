@@ -13,6 +13,7 @@
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
 #include "feature_groups.cuh"               // for FeatureGroups
+#include "quantiser.cuh"                    // for GradientQuantiser
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
@@ -20,23 +21,6 @@
 namespace xgboost::tree {
 // Shared-memory budget per block for the architecture's histogram launch bounds.
 [[nodiscard]] std::size_t HistShmemBytes(std::int32_t device);
-
-/**
- * @brief An atomicAdd designed for gradient pair with better performance.  For general
- *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
- *        Separate low/high pointers allow a structure-of-arrays shared-memory layout.
- */
-XGBOOST_DEV_INLINE void AtomicAdd64As32(uint32_t* y_low, uint32_t* y_high, int64_t src) {
-  auto cast_src = reinterpret_cast<uint64_t*>(&src);
-
-  uint32_t const x_low = static_cast<uint32_t>(src);
-  uint32_t const x_high = (*cast_src) >> 32;
-
-  auto const old = atomicAdd(y_low, x_low);
-  uint32_t const carry = old > (std::numeric_limits<uint32_t>::max() - x_low) ? 1 : 0;
-  uint32_t const sig = x_high + carry;
-  atomicAdd(y_high, sig);
-}
 
 namespace cuda_impl {
 // Start with about 16mb
@@ -196,17 +180,20 @@ class DeviceHistogramBuilder {
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroups const& feature_groups,
                       common::Span<GradientPairInt64 const> gpair,
+                      common::Span<GradientQuantiser const> roundings,
                       common::Span<std::uint32_t const> ridx,
                       common::Span<GradientPairInt64> histogram);
   /**
    * @brief Build histograms for multiple nodes and multiple targets.
    *
+   * @param roundings The quantiser of each target, for the 32-bit shared-memory bins.
    * @param ridxs One span of row indices for each node, empty nodes are allowed.
    * @param hists One histogram for each node, must match `ridxs`.
    */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroups const& feature_groups,
                       linalg::MatrixView<GradientPairInt64 const> gpair,
+                      common::Span<GradientQuantiser const> roundings,
                       std::vector<common::Span<std::uint32_t const>> const& ridxs,
                       std::vector<common::Span<GradientPairInt64>> const& hists);
 

@@ -7,6 +7,9 @@
 #include <xgboost/host_device_vector.h>
 #include <xgboost/span.h>
 
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+
 namespace xgboost {
 
 // Forward declarations.
@@ -15,6 +18,10 @@ class HistogramCuts;
 }  // namespace common
 
 namespace tree {
+/**
+ * @brief Shared memory per histogram bin: a 32-bit gradient and a 32-bit Hessian.
+ */
+inline constexpr std::size_t kSharedBinBytes = 2 * sizeof(std::uint32_t);
 
 /**
  * @brief FeatureGroup is a single group of features.
@@ -60,9 +67,7 @@ struct FeatureGroupsAccessor {
     return {p_fs[i], p_fs[i + 1] - p_fs[i], bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
   }
   /** @brief The needed shared memory size for the largest group. */
-  [[nodiscard]] std::size_t ShmemSize() const {
-    return sizeof(GradientPairInt64) * this->max_group_bins;
-  }
+  [[nodiscard]] std::size_t ShmemSize() const { return kSharedBinBytes * this->max_group_bins; }
 };
 
 /**
