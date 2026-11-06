@@ -282,22 +282,6 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
-@pytest.mark.parametrize("Estimator", [xgb.XGBRegressor, xgb.XGBClassifier])
-def test_refit_without_eval_set_drops_evals_result(Estimator: Type) -> None:
-    rng = np.random.RandomState(1994)
-    X = rng.randn(64, 4)
-    y = (X[:, 0] > 0).astype(np.int32)
-
-    model = Estimator(n_estimators=3)
-    model.fit(X, y, eval_set=[(X, y)], verbose=False)
-    assert model.evals_result()
-
-    # The second fit has no eval set, so there is nothing to report.
-    model.fit(X, y)
-    with pytest.raises(xgb.core.XGBoostError, match="No evaluation result"):
-        model.evals_result()
-
-
 @pytest.mark.skipif(**tm.no_pandas())
 def test_ranking_categorical() -> None:
     run_ranking_categorical(device="cpu")
@@ -1552,6 +1536,11 @@ def test_evaluation_metric():
     for line in lines:
         assert line.find("mean_absolute_error") != -1
 
+    assert reg.evals_result()
+    reg.fit(X, y)
+    with pytest.raises(xgb.core.XGBoostError, match="No evaluation result"):
+        reg.evals_result()
+
     def merror(y_true: np.ndarray, predt: np.ndarray):
         n_samples = y_true.shape[0]
         assert n_samples == predt.size
@@ -1582,6 +1571,11 @@ def test_evaluation_metric():
     np.testing.assert_allclose(
         custom["validation_0"]["merror"], internal["validation_0"]["merror"], atol=1e-6
     )
+
+    assert clf.evals_result()
+    clf.fit(X, y)
+    with pytest.raises(xgb.core.XGBoostError, match="No evaluation result"):
+        clf.evals_result()
 
     clf = xgb.XGBRFClassifier(
         tree_method="hist",
