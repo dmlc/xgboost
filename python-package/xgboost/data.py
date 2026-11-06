@@ -378,7 +378,7 @@ def pandas_feature_info(
         if isinstance(data.columns, pd.MultiIndex):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
         else:
-            feature_names = list(data.columns.map(str))
+            feature_names = [str(col) for col in data.columns]
 
     # handle feature types and dtype validation
     new_feature_types = []
@@ -574,24 +574,24 @@ def pandas_transform_data(
             array = ser.to_numpy(dtype=np.float32, na_value=np.nan)
         return _ensure_np_dtype(array, array.dtype)[0]
 
-    for col, dtype in zip(data.columns, data.dtypes):
+    for dtype, (_, ser) in zip(data.dtypes, data.items()):
         if is_pa_ext_categorical_dtype(dtype):
             raise ValueError(
                 "pyarrow dictionary type is not supported. Use pandas category instead."
             )
         if is_pd_cat_dtype(dtype):
-            result.append(cat_codes(data[col]))
+            result.append(cat_codes(ser))
         elif is_pa_ext_dtype(dtype):
-            result.append(pandas_pa_type(data[col]))
+            result.append(pandas_pa_type(ser))
         elif is_nullable_dtype(dtype):
-            result.append(nu_type(data[col]))
+            result.append(nu_type(ser))
         elif is_pd_sparse_dtype(dtype):
-            arr = cast("PdSparseArray", data[col].values).to_dense()
+            arr = cast("PdSparseArray", ser.values).to_dense()
             if _is_np_array_like(arr):
                 arr, _ = _ensure_np_dtype(arr, arr.dtype)
             result.append(arr)
         else:
-            result.append(oth_type(data[col]))
+            result.append(oth_type(ser))
 
     # FIXME(jiamingy): Investigate the possibility of using dataframe protocol or arrow
     # IPC format for pandas so that we can apply the data transformation inside XGBoost
