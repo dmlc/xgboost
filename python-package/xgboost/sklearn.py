@@ -1613,9 +1613,8 @@ class XGBModel(XGBModelBase):
         evals_result
 
         """
-        if getattr(self, "evals_result_", None) is not None:
-            evals_result = self.evals_result_
-        else:
+        evals_result = getattr(self, "evals_result_", None)
+        if evals_result is None:
             raise XGBoostError(
                 "No evaluation result, `eval_set` is not used during training."
             )
