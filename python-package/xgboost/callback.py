@@ -603,7 +603,10 @@ class TrainingCheckPoint(TrainingCallback):
     ----------
 
     directory :
-        Output model directory.
+        Output model directory. It is created if it does not exist.
+
+        .. versionchanged:: 3.5.0
+
     name :
         pattern of output model file.  Models will be saved as name_0.ubj, name_1.ubj,
         name_2.ubj ....
@@ -635,6 +638,9 @@ class TrainingCheckPoint(TrainingCallback):
 
     def before_training(self, model: _Model) -> _Model:
         self._start = model.num_boosted_rounds()
+        if collective.get_rank() == 0:
+            # Otherwise training fails at the first checkpoint, after `interval` rounds.
+            os.makedirs(self._path, exist_ok=True)
         return model
 
     def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:

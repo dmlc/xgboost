@@ -365,6 +365,20 @@ class TestCallbacks:
         for i in range(1, 10):
             assert (tmp_path / f"model_{i}.pkl").exists()
 
+    @pytest.mark.parametrize("as_pickle", [False, True])
+    def test_check_point_creates_directory(
+        self, as_pickle: bool, tmp_path: Path
+    ) -> None:
+        X, y, _ = tm.make_regression(64, 4, False)
+        directory = tmp_path / "checkpoints" / "run"
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=directory, interval=1, as_pickle=as_pickle
+        )
+        xgb.train({}, xgb.DMatrix(X, y), num_boost_round=3, callbacks=[check_point])
+        ext = "pkl" if as_pickle else xgb.callback.TrainingCheckPoint.default_format
+        for i in range(1, 3):
+            assert (directory / f"model_{i}.{ext}").exists()
+
     def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
