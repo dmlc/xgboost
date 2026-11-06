@@ -638,9 +638,12 @@ class TrainingCheckPoint(TrainingCallback):
 
     def before_training(self, model: _Model) -> _Model:
         self._start = model.num_boosted_rounds()
-        if collective.get_rank() == 0:
-            # Otherwise training fails at the first checkpoint, after `interval` rounds.
-            os.makedirs(self._path, exist_ok=True)
+        # Otherwise training fails at the first checkpoint, after `interval` rounds.
+        # An empty directory is the current one. `save_model` expands `~`, `open`
+        # (for pickle) does not.
+        if collective.get_rank() == 0 and self._path:
+            path = self._path if self._as_pickle else os.path.expanduser(self._path)
+            os.makedirs(path, exist_ok=True)
         return model
 
     def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:

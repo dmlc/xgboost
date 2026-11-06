@@ -1,4 +1,5 @@
 import math
+import os
 from collections import namedtuple
 from pathlib import Path
 from typing import Optional, Tuple, Union
@@ -378,6 +379,30 @@ class TestCallbacks:
         ext = "pkl" if as_pickle else xgb.callback.TrainingCheckPoint.default_format
         for i in range(1, 3):
             assert (directory / f"model_{i}.{ext}").exists()
+
+    def test_check_point_directory_empty_and_home(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        X, y, _ = tm.make_regression(64, 4, False)
+        Xy = xgb.DMatrix(X, y)
+        ext = xgb.callback.TrainingCheckPoint.default_format
+        monkeypatch.chdir(tmp_path)
+        # An empty directory writes to the current directory.
+        check_point = xgb.callback.TrainingCheckPoint(directory="", interval=1)
+        xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
+        assert (tmp_path / f"model_1.{ext}").exists()
+
+        # `~` is expanded, as in `save_model`.
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("USERPROFILE", str(home))
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=os.path.join("~", "ckpt"), interval=1
+        )
+        xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
+        assert (home / "ckpt" / f"model_1.{ext}").exists()
+        assert not (tmp_path / "~").exists()
 
     def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
