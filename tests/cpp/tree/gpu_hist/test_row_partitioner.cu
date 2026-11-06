@@ -2,17 +2,14 @@
  * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/count.h>  // for count_if
 #include <thrust/device_vector.h>
-#include <thrust/sort.h>  // for sort
-#include <thrust/transform.h>
-#include <thrust/unique.h>  // for unique
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
 #include <algorithm>  // for min, max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
-#include <iterator>   // for distance
 #include <numeric>    // for iota
 #include <vector>     // for vector
 
@@ -54,6 +51,17 @@ void TestUpdatePositionBatch() {
                          [=] __device__(RowPartitioner::RowIndexT ridx, int) { return ridx < 7; });
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
+
+  // Send all rows of node 3 left, leaving node 6 empty.
+  rp.UpdatePositionBatch(&ctx, {3}, {5}, {6}, extra_data,
+                         [=] __device__(RowPartitioner::RowIndexT, int) { return true; });
+  // The leaves are in both buffers, and their segments aren't in node order.
+  dh::device_vector<bst_node_t> position(kNumRows, -1);
+  rp.FinalisePosition(&ctx, dh::ToSpan(position), 0,
+                      [] XGBOOST_DEVICE(bst_idx_t, bst_node_t nidx) { return nidx; });
+  std::vector<bst_node_t> h_position(position.size());
+  thrust::copy(position.begin(), position.end(), h_position.begin());
+  EXPECT_EQ(h_position, (std::vector<bst_node_t>{2, 2, 2, 2, 2, 5, 5, 4, 4, 4}));
 }
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
@@ -161,46 +169,6 @@ TEST(RowPartitioner, SortPositionBatchReuseState) {
 }
 
 namespace {
-void TestFinalisePosition() {
-  auto ctx = MakeCUDACtx(0);
-  // Leaves of uneven sizes that don't align with the tiles, including empty leaves.
-  bst_idx_t n_samples = 5000, base_rowid = 100;
-  RowPartitioner rp;
-  rp.Reset(&ctx, n_samples, base_rowid);
-  // Rows go left when their hash modulo 7 is less than the node's threshold.
-  auto op = [] XGBOOST_DEVICE(RowPartitioner::RowIndexT ridx, int threshold) {
-    return static_cast<int>((ridx * 2654435761u) % 7) < threshold;
-  };
-  rp.UpdatePositionBatch(&ctx, {0}, {1}, {2}, std::vector<int>{3}, op);
-  rp.UpdatePositionBatch(&ctx, {1, 2}, {3, 5}, {4, 6}, std::vector<int>{2, 5}, op);
-  rp.UpdatePositionBatch(&ctx, {4, 5, 6}, {7, 9, 11}, {8, 10, 12}, std::vector<int>{2, 7, 1}, op);
-  // Leaf 3 is in the first buffer and the other leaves in the second one.
-  ASSERT_FALSE(rp.GetRows(3).empty());
-  ASSERT_TRUE(rp.GetRows(10).empty());
-
-  // The output depends on the row, to check that each row gets its own leaf.
-  dh::device_vector<bst_node_t> position(n_samples, -1);
-  rp.FinalisePosition(&ctx, dh::ToSpan(position), base_rowid,
-                      [] XGBOOST_DEVICE(bst_idx_t ridx, bst_node_t nidx) {
-                        return static_cast<bst_node_t>(nidx * 2 + ridx % 2);
-                      });
-  std::vector<bst_node_t> h_position(position.size());
-  thrust::copy(position.begin(), position.end(), h_position.begin());
-
-  std::size_t n_checked = 0;
-  for (auto const& leaf : rp.GetLeaves()) {
-    for (auto ridx : rp.GetRowsHost(leaf.nidx)) {
-      ASSERT_EQ(h_position.at(ridx - base_rowid), leaf.nidx * 2 + ridx % 2);
-      ++n_checked;
-    }
-  }
-  ASSERT_EQ(n_checked, n_samples);
-}
-}  // anonymous namespace
-
-TEST(RowPartitioner, FinalisePosition) { TestFinalisePosition(); }
-
-namespace {
 void GetSplit(RegTree* tree, float split_value, std::vector<GPUExpandEntry>* candidates) {
   CHECK(!tree->IsMultiTarget());
   tree->Expand(
@@ -278,17 +246,20 @@ void TestExternalMemory() {
       [=] XGBOOST_DEVICE(bst_node_t v) { return SamplePosition::Decode(v) == node.LeftChild(); });
   ASSERT_EQ(n_left, n_left_pos);
 
+  // Each row gets the leaf holding it, encoded with its global row index.
   std::vector<bst_node_t> h_position(position.size());
   dh::CopyDeviceSpanToVector(&h_position, dh::ToSpan(position));
-  for (bst_idx_t ridx = 0; ridx < n_rows; ++ridx) {
-    EXPECT_EQ(SamplePosition::IsValid(h_position[ridx]), ridx < n_rows / 2);
+  bst_idx_t n_checked = 0;
+  for (auto const& partitioner : partitioners) {
+    for (auto const& leaf : partitioner->GetLeaves()) {
+      for (auto ridx : partitioner->GetRowsHost(leaf.nidx)) {
+        ASSERT_EQ(SamplePosition::Decode(h_position.at(ridx)), leaf.nidx);
+        ASSERT_EQ(SamplePosition::IsValid(h_position[ridx]), ridx < n_rows / 2);
+        ++n_checked;
+      }
+    }
   }
-
-  thrust::transform(thrust::device, position.cbegin(), position.cend(), position.begin(),
-                    [] XGBOOST_DEVICE(bst_node_t nidx) { return SamplePosition::Decode(nidx); });
-  thrust::sort(position.begin(), position.end());
-  auto end_it = thrust::unique(position.begin(), position.end());
-  ASSERT_EQ(std::distance(position.begin(), end_it), 2);
+  ASSERT_EQ(n_checked, n_rows);
 }
 }  // anonymous namespace
 
