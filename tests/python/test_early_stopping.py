@@ -168,9 +168,7 @@ def test_negative_early_stopping_rounds_is_rejected(rounds: int) -> None:
 
     # A negative value used to stop training after the first round.
     with pytest.raises(ValueError, match="must not be negative"):
-        xgb.train(
-            params, Xy, 10, evals=[(Xy, "Valid")], early_stopping_rounds=rounds
-        )
+        xgb.train(params, Xy, 10, evals=[(Xy, "Valid")], early_stopping_rounds=rounds)
     with pytest.raises(ValueError, match="must not be negative"):
         xgb.cv(params, Xy, 10, nfold=2, early_stopping_rounds=rounds)
     with pytest.raises(ValueError, match="must not be negative"):
