@@ -8,4 +8,4 @@ dependencies:
 - wheel
 - cmake
 - ninja
-- python-build<1.6
+- python-build>=1.6.1
