@@ -1345,8 +1345,13 @@ class XGBModel(XGBModelBase):
         return DMatrix(**kwargs, nthread=self.n_jobs)
 
     def _set_evaluation_result(self, evals_result: EvalsLog) -> None:
-        if evals_result:
-            self.evals_result_ = cast(Dict[str, Dict[str, List[float]]], evals_result)
+        # A refit starts from scratch, so a fit without an eval set must not keep the
+        # history of the previous one.
+        self.evals_result_ = (
+            cast(Dict[str, Dict[str, List[float]]], evals_result)
+            if evals_result
+            else None
+        )
 
     @_deprecate_positional_args
     def fit(
@@ -1608,9 +1613,8 @@ class XGBModel(XGBModelBase):
         evals_result
 
         """
-        if getattr(self, "evals_result_", None) is not None:
-            evals_result = self.evals_result_
-        else:
+        evals_result = getattr(self, "evals_result_", None)
+        if evals_result is None:
             raise XGBoostError(
                 "No evaluation result, `eval_set` is not used during training."
             )
