@@ -290,7 +290,7 @@ class MultiTargetHistMaker {
 
     CHECK(!h_candidates.empty());
     auto n_targets = this->split_gpair_.Shape(1);
-    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
+    this->evaluator_.PrepareTreeSplit(this->ctx_, h_candidates);
 
     // Candidate spans can become stale while entries wait in the loss-guide queue, so
     // look up the persistent weight storage by node ID.
@@ -329,8 +329,7 @@ class MultiTargetHistMaker {
     }
 
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
-                                    common::Span<MultiExpandEntry const>{h_candidates},
-                                    dh::ToSpan(candidates), n_targets);
+                                    common::Span<MultiExpandEntry const>{h_candidates}, n_targets);
   }
   /**
    * @brief Calculate output weights using value gradients and finalize prediction leaves.

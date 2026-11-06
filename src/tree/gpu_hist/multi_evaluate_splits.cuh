@@ -4,10 +4,11 @@
 #pragma once
 #include <memory>  // for unique_ptr
 
-#include "../../common/device_vector.cuh"  // for device_vector
-#include "evaluate_splits.cuh"             // for MultiEvaluateSplitSharedInputs
-#include "xgboost/base.h"                  // for GradientPairInt64
-#include "xgboost/context.h"               // for Context
+#include "../../common/device_helpers.cuh"  // for PinnedMemory
+#include "../../common/device_vector.cuh"   // for CachingDeviceUVector, DeviceUVector
+#include "evaluate_splits.cuh"              // for MultiEvaluateSplitSharedInputs
+#include "xgboost/base.h"                   // for GradientPairInt64
+#include "xgboost/context.h"                // for Context
 
 namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
@@ -68,6 +69,10 @@ class MultiHistEvaluator {
 
  private:
   std::unique_ptr<TreeEvaluator> tree_evaluator_{nullptr};
+  // Separate staging from evaluation downloads. The caller synchronizes the stream
+  // after ApplyTreeSplit before the next PrepareTreeSplit reuses these buffers.
+  dh::PinnedMemory h_split_candidates_;
+  dh::CachingDeviceUVector<MultiExpandEntry> d_split_candidates_;
   // Persistent buffer for node weights, indexed by node id.
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
@@ -150,9 +155,11 @@ class MultiHistEvaluator {
         .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
   }
 
-  // Update the tree evaluator state and track child gradient sums.
+  // Queue the candidate upload before host tree expansion.
+  void PrepareTreeSplit(Context const *ctx, common::Span<MultiExpandEntry const> candidates);
+
+  // Update the tree evaluator state and track child gradient sums using the prepared batch.
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
-                      common::Span<MultiExpandEntry const> h_candidates,
-                      common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
+                      common::Span<MultiExpandEntry const> h_candidates, bst_target_t n_targets);
 };
 }  // namespace xgboost::tree::cuda_impl
