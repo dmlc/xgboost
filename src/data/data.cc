@@ -1133,6 +1133,7 @@ bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32
   if (batch_size == 0) {
     return max_columns;
   }
+  nthread = static_cast<std::int32_t>(std::min<std::size_t>(nthread, batch_size));
   const size_t thread_size = batch_size / nthread;
 
   builder.InitBudget(expected_rows, nthread);
