@@ -107,7 +107,7 @@ class PoissonSampling {
     if (!sampling_.IsSampled(ridx, p)) {
       return {};
     }
-    return q.ToFixedPoint(RescaleGrad(p, q.ToFloatingPoint(gpair)));
+    return q.ToRoundedFixedPoint(RescaleGrad(p, q.ToFloatingPoint(gpair)));
   }
 
  private:

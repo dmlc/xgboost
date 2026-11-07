@@ -26,7 +26,8 @@ FeatureGroups::FeatureGroups(common::HistogramCuts const& cuts, bool is_dense, s
   bin_segments_h.push_back(0);
 
   std::vector<std::uint32_t> const& cut_ptrs = cuts.Ptrs();
-  // Maximum number of bins that can be placed into shared memory (single target).
+  // Maximum number of bins in a group (single target). Groups are sized for 16 bytes per bin
+  // though the shared bins take kSharedBinBytes: a wider group flushes more bins per entry.
   std::size_t max_shmem_bins = shm_size / sizeof(GradientPairInt64);
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
