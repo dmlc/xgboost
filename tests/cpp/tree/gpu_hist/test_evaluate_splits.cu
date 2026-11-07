@@ -237,6 +237,169 @@ TEST(GpuHist, PartitionTwoFeatures) {
   }
 }
 
+TEST(GpuHist, PartitionSeparatedByNumeric) {
+  auto ctx = MakeCUDACtx(0);
+  TrainParam tparam = ZeroParam();
+  tparam.max_cat_to_onehot = 0;
+  EvalParam param{tparam};
+
+  common::HistogramCuts cuts{3};
+  cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
+  cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3, 6, 9};
+  cuts.cut_ptrs_.SetDevice(ctx.Device());
+  cuts.cut_values_.SetDevice(ctx.Device());
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1, 2};
+  dh::device_vector<FeatureType> feature_types{std::vector<FeatureType>{
+      FeatureType::kCategorical, FeatureType::kNumerical, FeatureType::kCategorical}};
+  auto max_cat =
+      *std::max_element(cuts.cut_values_.HostVector().begin(), cuts.cut_values_.HostVector().end());
+  cuts.SetCategorical(true, max_cat);
+
+  auto quantiser = DummyRoundingFactor(&ctx);
+  EvaluateSplitSharedInputs shared_inputs{param,
+                                          quantiser,
+                                          dh::ToSpan(feature_types),
+                                          cuts.cut_ptrs_.ConstDeviceSpan(),
+                                          cuts.cut_values_.ConstDeviceSpan(),
+                                          false};
+
+  GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
+
+  {
+    // Partition column after the numeric column. Categories 0 and 1 go together.
+    auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
+    auto feature_histogram = ConvertToInteger(&ctx, {{-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-4.0, 1.0}});
+    EvaluateSplitInputs input{0, 0, parent_sum, dh::ToSpan(feature_set),
+                              dh::ToSpan(feature_histogram)};
+    DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+    auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.findex, 2);
+    EXPECT_EQ(result.dir, kLeftDir);
+    EXPECT_EQ(cats, std::bitset<32>("11000000000000000000000000000000"));
+    EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  }
+  {
+    // Partition column before the numeric column.
+    auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
+    auto feature_histogram = ConvertToInteger(&ctx, {{-1.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-4.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0}});
+    EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
+                              dh::ToSpan(feature_histogram)};
+    DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+    auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.findex, 0);
+    EXPECT_EQ(result.dir, kLeftDir);
+    EXPECT_EQ(cats, std::bitset<32>("11000000000000000000000000000000"));
+    EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  }
+  {
+    // Only the lowest-weight category is selected on the later column.
+    auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
+    auto feature_histogram = ConvertToInteger(&ctx, {{-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-2.5, 1.0},
+                                                     {-2.5, 1.0}});
+    EvaluateSplitInputs input{2, 0, parent_sum, dh::ToSpan(feature_set),
+                              dh::ToSpan(feature_histogram)};
+    DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+    auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.findex, 2);
+    EXPECT_EQ(result.dir, kLeftDir);
+    EXPECT_EQ(cats, std::bitset<32>("10000000000000000000000000000000"));
+    EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  }
+}
+
+TEST(GpuHist, PartitionSeparatedByOneHot) {
+  auto ctx = MakeCUDACtx(0);
+  TrainParam tparam = ZeroParam();
+  // 2 bins is one-hot. 3 bins stays partition-based.
+  tparam.max_cat_to_onehot = 3;
+  EvalParam param{tparam};
+
+  common::HistogramCuts cuts{3};
+  cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0, 0.0, 1.0, 0.0, 1.0, 2.0};
+  cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3, 5, 8};
+  cuts.cut_ptrs_.SetDevice(ctx.Device());
+  cuts.cut_values_.SetDevice(ctx.Device());
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1, 2};
+  dh::device_vector<FeatureType> feature_types(feature_set.size(), FeatureType::kCategorical);
+  auto max_cat =
+      *std::max_element(cuts.cut_values_.HostVector().begin(), cuts.cut_values_.HostVector().end());
+  cuts.SetCategorical(true, max_cat);
+
+  auto quantiser = DummyRoundingFactor(&ctx);
+  EvaluateSplitSharedInputs shared_inputs{param,
+                                          quantiser,
+                                          dh::ToSpan(feature_types),
+                                          cuts.cut_ptrs_.ConstDeviceSpan(),
+                                          cuts.cut_values_.ConstDeviceSpan(),
+                                          false};
+
+  GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
+
+  {
+    auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
+    auto feature_histogram = ConvertToInteger(&ctx, {{-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-3.0, 1.0},
+                                                     {-3.0, 2.0},
+                                                     {-1.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-4.0, 1.0}});
+    EvaluateSplitInputs input{0, 0, parent_sum, dh::ToSpan(feature_set),
+                              dh::ToSpan(feature_histogram)};
+    DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+    auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.findex, 2);
+    EXPECT_EQ(result.dir, kLeftDir);
+    EXPECT_EQ(cats, std::bitset<32>("11000000000000000000000000000000"));
+    EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  }
+  {
+    auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
+    auto feature_histogram = ConvertToInteger(&ctx, {{-1.0, 1.0},
+                                                     {-1.0, 1.0},
+                                                     {-4.0, 1.0},
+                                                     {-3.0, 1.0},
+                                                     {-3.0, 2.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0},
+                                                     {-2.0, 1.0}});
+    EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
+                              dh::ToSpan(feature_histogram)};
+    DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+    auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.findex, 0);
+    EXPECT_EQ(result.dir, kLeftDir);
+    EXPECT_EQ(cats, std::bitset<32>("11000000000000000000000000000000"));
+    EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
+  }
+}
+
 TEST(GpuHist, PartitionTwoNodes) {
   auto ctx = MakeCUDACtx(0);
   TrainParam tparam = ZeroParam();
