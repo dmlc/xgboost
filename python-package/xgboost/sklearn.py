@@ -705,10 +705,6 @@ def get_model_categories(
 
     """
     # Skip if it's not a dataframe as there's no new encoding to be recoded.
-    #
-    # This function helps override the `feature_types` parameter. The `feature_types`
-    # from user is not useful when input is a dataframe as the real feature type should
-    # be encoded into the DF.
     if model is None or not is_dataframe(X):
         return model, feature_types
 
@@ -717,10 +713,10 @@ def get_model_categories(
 
     categories = model.get_categories()
     if not categories.empty():
-        # override the `feature_types`.
+        # Keep the model feature types alongside its reference dictionaries.
         return model, categories
-    # Convert empty into None.
-    return model, feature_types
+    # A model with manually encoded categories can have types but no dictionaries.
+    return model, feature_types if feature_types is not None else model.feature_types
 
 
 def pick_ref_categories(
