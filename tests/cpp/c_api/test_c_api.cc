@@ -22,6 +22,7 @@
 #include "../../../src/data/adapter.h"              // for ArrayAdapter
 #include "../../../src/data/array_interface.h"      // for ArrayInterface
 #include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
+#include "../../../src/data/cat_container.h"        // for CatContainer
 #include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
@@ -62,6 +63,30 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
 }
 
 namespace xgboost {
+
+TEST(CAPI, EmptyCategories) {
+  auto dmat = RandomDataGenerator{8, 2, 0.0f}.GenerateDMatrix();
+  auto saved = Json::Load(R"({"enc":[{"offsets":[],"values":[]},{"offsets":[],"values":[]}],)"
+                          R"("feature_segments":[0,0,0],"sorted_idx":[]})");
+  dmat->Info().Cats()->Load(saved);
+  ASSERT_FALSE(dmat->Cats()->Empty());
+  ASSERT_FALSE(dmat->Cats()->HasCategorical());
+
+  CategoriesHandle categories{nullptr};
+  ASSERT_EQ(XGDMatrixGetCategories(&dmat, "{}", &categories), 0);
+  EXPECT_EQ(categories, nullptr);
+  if (categories) {
+    ASSERT_EQ(XGBCategoriesFree(categories), 0);
+  }
+
+  char const *exported{nullptr};
+  ASSERT_EQ(XGDMatrixGetCategoriesExportToArrow(&dmat, "{}", &categories, &exported), 0);
+  EXPECT_EQ(categories, nullptr);
+  EXPECT_EQ(exported, nullptr);
+  if (categories) {
+    ASSERT_EQ(XGBCategoriesFree(categories), 0);
+  }
+}
 
 TEST(CAPI, Version) {
   int patch{0};
