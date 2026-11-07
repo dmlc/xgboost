@@ -310,6 +310,10 @@ class TestModels:
             model = json.loads(bst.save_raw(raw_format="json"))
             return model["learner"]["gradient_booster"]["model"].get("weight_drop", [])
 
+        weights = tree_weights(booster)
+        model = json.loads(booster.save_raw(raw_format="json"))
+        indptr = model["learner"]["gradient_booster"]["model"]["iteration_indptr"]
+
         # The stop does not have to line up with the step, same as a Python sequence.
         for partial in (
             slice(3, 6, 2),
@@ -322,7 +326,7 @@ class TestModels:
             assert sliced.num_boosted_rounds() == len(rounds)
             assert sliced.get_dump() == sum((booster[i].get_dump() for i in rounds), [])
             assert tree_weights(sliced) == sum(
-                (tree_weights(booster[i]) for i in rounds), []
+                (weights[indptr[i] : indptr[i + 1]] for i in rounds), []
             )
 
         sliced = booster[beg:]
