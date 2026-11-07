@@ -306,6 +306,29 @@ class TestModels:
         sliced = booster[beg:end:2]
         assert sliced_trees == len(sliced.get_dump())
 
+        def tree_weights(bst: xgb.Booster) -> list:
+            model = json.loads(bst.save_raw(raw_format="json"))
+            return model["learner"]["gradient_booster"]["model"].get("weight_drop", [])
+
+        weights = tree_weights(booster)
+        model = json.loads(booster.save_raw(raw_format="json"))
+        indptr = model["learner"]["gradient_booster"]["model"]["iteration_indptr"]
+
+        # The stop does not have to line up with the step, same as a Python sequence.
+        for partial in (
+            slice(3, 6, 2),
+            slice(1, None, 2),
+            slice(0, 2, 3),
+            slice(1, 2, 2**31 - 1),
+        ):
+            rounds = range(num_boost_round)[partial]
+            sliced = booster[partial]
+            assert sliced.num_boosted_rounds() == len(rounds)
+            assert sliced.get_dump() == sum((booster[i].get_dump() for i in rounds), [])
+            assert tree_weights(sliced) == sum(
+                (weights[indptr[i] : indptr[i + 1]] for i in rounds), []
+            )
+
         sliced = booster[beg:]
         sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
@@ -394,17 +417,17 @@ class TestModels:
         num_parallel_tree = 4
         num_boost_round = 16
         total_trees = num_parallel_tree * num_classes * num_boost_round
-        booster = xgb.train(
-            {
-                "num_parallel_tree": num_parallel_tree,
-                "subsample": 0.5,
-                "num_class": num_classes,
-                "booster": booster_name,
-                "objective": "multi:softprob",
-            },
-            num_boost_round=num_boost_round,
-            dtrain=dtrain,
-        )
+        params = {
+            "num_parallel_tree": num_parallel_tree,
+            "subsample": 0.5,
+            "num_class": num_classes,
+            "booster": booster_name,
+            "objective": "multi:softprob",
+        }
+        if booster_name == "dart":
+            # Drop a tree every round so that the tree weights are not all 1.
+            params["one_drop"] = 1
+        booster = xgb.train(params, num_boost_round=num_boost_round, dtrain=dtrain)
         booster.feature_types = ["q"] * X.shape[1]
 
         assert len(booster.get_dump()) == total_trees
