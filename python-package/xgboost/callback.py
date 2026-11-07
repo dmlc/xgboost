@@ -605,7 +605,11 @@ class TrainingCheckPoint(TrainingCallback):
     ----------
 
     directory :
-        Output model directory.
+        Output model directory. A local directory must exist when training starts,
+        otherwise the first worker raises :py:class:`FileNotFoundError`.
+
+        .. versionchanged:: 3.5.0
+
     name :
         pattern of output model file.  Models will be saved as name_0.ubj, name_1.ubj,
         name_2.ubj ....
@@ -637,6 +641,13 @@ class TrainingCheckPoint(TrainingCallback):
 
     def before_training(self, model: _Model) -> _Model:
         self._start = model.num_boosted_rounds()
+        # Otherwise training fails at the first checkpoint, after `interval` rounds.
+        # An empty directory is the current one and dmlc-core handles URIs. `save_model`
+        # expands `~`, `open` (for pickle) does not.
+        if collective.get_rank() == 0 and self._path and "://" not in self._path:
+            path = self._path if self._as_pickle else os.path.expanduser(self._path)
+            if not os.path.isdir(path):
+                raise FileNotFoundError(f"Checkpoint directory does not exist: {path}")
         return model
 
     def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
