@@ -1253,6 +1253,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         handle = ctypes.c_void_p()
 
+        # The C API takes int32. Narrowing would wrap a larger index such as ``2**32``
+        # back to a valid row, so reject those here. Range checks are done in C++.
+        checked = np.asarray(rindex)
+        i32 = np.iinfo(np.int32)
+        if checked.size != 0 and (checked.min() < i32.min or checked.max() > i32.max):
+            raise IndexError("Row index does not fit in a 32-bit integer.")
         rindex = _maybe_np_slice(rindex, dtype=np.int32)
         _check_call(
             _LIB.XGDMatrixSliceDMatrixEx(
