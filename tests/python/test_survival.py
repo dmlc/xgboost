@@ -55,6 +55,49 @@ def test_default_metric(toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray]) ->
     run(None)
 
 
+def test_aft_metric_configuration_survives_reset(
+    toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray],
+) -> None:
+    dmat, _, _ = toy_data
+    params = {
+        "objective": "survival:aft",
+        "aft_loss_distribution": "normal",
+        "aft_loss_distribution_scale": 2.0,
+        "eval_metric": "aft-nloglik",
+        "tree_method": "hist",
+        "seed": 0,
+    }
+    evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+    booster = xgb.train(
+        params,
+        dmat,
+        num_boost_round=2,
+        evals=[(dmat, "train")],
+        evals_result=evals_result,
+        verbose_eval=False,
+    )
+    expected = evals_result["train"]["aft-nloglik"][-1]
+
+    def evaluate(model: xgb.Booster) -> float:
+        return float(model.eval(dmat).rsplit(":", maxsplit=1)[1])
+
+    assert evaluate(booster) == pytest.approx(expected)
+    assert evaluate(booster.copy()) == pytest.approx(expected)
+
+    default_params = params.copy()
+    del default_params["eval_metric"]
+    default_evals: xgb.callback.TrainingCallback.EvalsLog = {}
+    xgb.train(
+        default_params,
+        dmat,
+        num_boost_round=2,
+        evals=[(dmat, "train")],
+        evals_result=default_evals,
+        verbose_eval=False,
+    )
+    assert default_evals["train"]["aft-nloglik"][-1] == pytest.approx(expected)
+
+
 def test_aft_survival_toy_data(
     toy_data: Tuple[xgb.DMatrix, np.ndarray, np.ndarray],
 ) -> None:
