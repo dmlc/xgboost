@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -111,6 +112,26 @@ class TestCallbacks:
         self.run_evaluation_monitor(D_train, D_valid, rounds, 2)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 4)
         self.run_evaluation_monitor(D_train, D_valid, rounds, rounds + 1)
+
+    def test_unhashable_callback(self) -> None:
+        @dataclass
+        class Counter(xgb.callback.TrainingCallback):
+            calls: int = 0
+
+            def after_iteration(self, model, epoch, evals_log) -> bool:
+                self.calls += 1
+                return False
+
+        X, y = np.random.randn(32, 4), np.random.randn(32)
+        Xy = xgb.DMatrix(X, y)
+        cb = Counter()
+        # The same object twice is still dropped to one.
+        xgb.train({}, Xy, 3, callbacks=[cb, cb])
+        assert cb.calls == 3
+
+        # A non-callback is reported as such, hashable or not.
+        with pytest.raises(TypeError, match="must be an instance"):
+            xgb.train({}, Xy, 3, callbacks=[{}])
 
     def test_early_stopping(self, breast_cancer: BreastCancer) -> None:
         D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
