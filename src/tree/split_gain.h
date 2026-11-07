@@ -20,10 +20,11 @@
 #define XGBOOST_TREE_SPLIT_GAIN_H_
 
 #include <cmath>        // for abs
+#include <limits>       // for numeric_limits
 #include <type_traits>  // for enable_if_t, is_floating_point_v
 
 #include "../common/math.h"  // for Sqr
-#include "xgboost/base.h"    // for XGBOOST_DEVICE
+#include "xgboost/base.h"    // for XGBOOST_DEVICE, GradientPairPrecise
 
 namespace xgboost::tree {
 /**
@@ -123,5 +124,140 @@ XGBOOST_DEVICE T CalcPooledWeight(TrainingParams const &p, T sum_grad, T sum_hes
   PooledParams pooled{2.0f * p.reg_lambda, 2.0f * p.reg_alpha, p.max_delta_step};
   return CalcWeight(pooled, sum_grad, sum_hess);
 }
+
+/**
+ * @brief Clamp a leaf weight to the interval set by monotone constraints.
+ */
+XGBOOST_DEVICE inline float ClampWeight(float w, float lower, float upper) {
+  if (w < lower) {
+    return lower;
+  }
+  if (w > upper) {
+    return upper;
+  }
+  return w;
+}
+
+/**
+ * @brief Loss change of the splits of one node: the gain of the children minus the gain of
+ *        the node.
+ *
+ * Constructed once for each node and target, then evaluated for each split candidate, so that
+ * every tree method scores a split in the same way.
+ *
+ * Without monotone constraints, a gain is the closed form of `CalcGain`. With monotone
+ * constraints, a gain is evaluated at the weight the tree stores: `CalcWeight` clamped to the
+ * bounds of the node. If the weights of a split violate the constraint, a split with a single
+ * target is rejected, and both children of a split with multiple targets take the pooled
+ * weight instead.
+ */
+class NodeLossChange {
+  struct Params {
+    float min_child_weight;
+    float reg_lambda;
+    float reg_alpha;
+    float max_delta_step;
+  };
+
+  Params param_;
+  float lower_{-std::numeric_limits<float>::max()};
+  float upper_{std::numeric_limits<float>::max()};
+  // Whether the gains are evaluated at the bounded weights.
+  bool constrained_{false};
+  double parent_gain_{0.0};
+
+  template <typename TrainingParams>
+  XGBOOST_DEVICE static Params MakeParams(TrainingParams const &p) {
+    return {p.min_child_weight, p.reg_lambda, p.reg_alpha, p.max_delta_step};
+  }
+  [[nodiscard]] XGBOOST_DEVICE double Gain(GradientPairPrecise const &sum) const {
+    return CalcGain(param_, sum.GetGrad(), sum.GetHess());
+  }
+  [[nodiscard]] XGBOOST_DEVICE double GainGivenWeight(GradientPairPrecise const &sum,
+                                                      float w) const {
+    return CalcGainGivenWeight(param_, sum.GetGrad(), sum.GetHess(), w);
+  }
+  [[nodiscard]] XGBOOST_DEVICE static bool Ordered(float w_left, float w_right, int constraint) {
+    return constraint == 0 || (constraint > 0 && w_left <= w_right) ||
+           (constraint < 0 && w_left >= w_right);
+  }
+
+ public:
+  /**
+   * @brief A node of a tree without monotone constraints.
+   */
+  template <typename TrainingParams>
+  XGBOOST_DEVICE NodeLossChange(TrainingParams const &p, GradientPairPrecise const &parent)
+      : param_{MakeParams(p)} {
+    parent_gain_ = this->Gain(parent);
+  }
+  /**
+   * @brief A node of a tree with monotone constraints.
+   *
+   * @param lower The lower bound of the weights in the node.
+   * @param upper The upper bound.
+   */
+  template <typename TrainingParams>
+  XGBOOST_DEVICE NodeLossChange(TrainingParams const &p, GradientPairPrecise const &parent,
+                                float lower, float upper)
+      : param_{MakeParams(p)}, lower_{lower}, upper_{upper}, constrained_{true} {
+    parent_gain_ = this->GainGivenWeight(parent, this->Weight(parent));
+  }
+
+  /**
+   * @brief The weight of a leaf in the node, as the tree stores it.
+   */
+  [[nodiscard]] XGBOOST_DEVICE float Weight(GradientPairPrecise const &sum) const {
+    return ClampWeight(CalcWeight(param_, sum.GetGrad(), sum.GetHess()), lower_, upper_);
+  }
+  /**
+   * @brief Loss change of a split with a single target.
+   *
+   * -inf if a child doesn't satisfy `min_child_weight`, or if the weights violate the
+   * monotone constraint. Equal weights can't improve on the node, so they are rejected too,
+   * before rounding can turn a zero loss change into a positive one.
+   */
+  [[nodiscard]] XGBOOST_DEVICE double LossChange(GradientPairPrecise const &left,
+                                                 GradientPairPrecise const &right,
+                                                 int constraint) const {
+    constexpr double kNegInf = -std::numeric_limits<double>::infinity();
+    if (!IsValidSplit(param_, left.GetHess(), right.GetHess())) {
+      return kNegInf;
+    }
+    if (!constrained_) {
+      return this->Gain(left) + this->Gain(right) - parent_gain_;
+    }
+    auto w_left = this->Weight(left);
+    auto w_right = this->Weight(right);
+    if (!Ordered(w_left, w_right, constraint) || w_left == w_right) {
+      return kNegInf;
+    }
+    return this->GainGivenWeight(left, w_left) + this->GainGivenWeight(right, w_right) -
+           parent_gain_;
+  }
+  /**
+   * @brief Loss change for one target of a split with multiple targets.
+   *
+   * The caller checks `min_child_weight` over all targets. If the weights violate the
+   * monotone constraint, both children take the pooled weight.
+   */
+  [[nodiscard]] XGBOOST_DEVICE double TargetLossChange(GradientPairPrecise const &left,
+                                                       GradientPairPrecise const &right,
+                                                       int constraint) const {
+    if (!constrained_) {
+      return this->Gain(left) + this->Gain(right) - parent_gain_;
+    }
+    auto w_left = this->Weight(left);
+    auto w_right = this->Weight(right);
+    if (!Ordered(w_left, w_right, constraint)) {
+      w_left = ClampWeight(CalcPooledWeight(param_, left.GetGrad() + right.GetGrad(),
+                                            left.GetHess() + right.GetHess()),
+                           lower_, upper_);
+      w_right = w_left;
+    }
+    return this->GainGivenWeight(left, w_left) + this->GainGivenWeight(right, w_right) -
+           parent_gain_;
+  }
+};
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_SPLIT_GAIN_H_
