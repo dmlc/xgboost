@@ -1,3 +1,4 @@
+import mmap
 import os
 
 import numpy as np
@@ -26,6 +27,176 @@ def test_type_check() -> None:
 
 
 class TestArrowTable:
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_dictionary_all_valid_bitmap(self, DMatrixT, string_type):
+        dictionary = pa.array(["α", "東京"], type=string_type)
+        dictionary = pa.Array.from_buffers(
+            string_type, 2, [pa.py_buffer(b"\x03"), *dictionary.buffers()[1:]]
+        )
+        assert dictionary.null_count == 0
+        indices = pa.array([0, None, 1, 0, 1])
+        table = pa.table({"cat": pa.DictionaryArray.from_arrays(indices, dictionary)})
+        table.validate(full=True)
+        reference_table = pa.table(
+            {"cat": pa.DictionaryArray.from_arrays(indices, pa.array(["α", "東京"]))}
+        )
+        dmat = DMatrixT(table, enable_categorical=True, nthread=1)
+        reference = DMatrixT(reference_table, enable_categorical=True, nthread=1)
+        assert dmat.feature_types == ["c"]
+        categories = dmat.get_categories(export_to_arrow=True).to_arrow()
+        assert categories[0][1].to_pylist() == ["α", "東京"]
+        np.testing.assert_array_equal(
+            dmat.get_data().indptr, reference.get_data().indptr
+        )
+        np.testing.assert_array_equal(dmat.get_data().data, reference.get_data().data)
+
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_empty_dictionary_buffers(self, string_type):
+        from xgboost._data_utils import _arrow_cat_names_inf
+
+        names, buffers = _arrow_cat_names_inf(pa.array([], type=string_type))
+        assert names["offsets"]["shape"] == (1,)
+        assert names["offsets"]["typestr"] == "<i4"
+        np.testing.assert_array_equal(np.frombuffer(buffers[1], dtype=np.int32), [0])
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    def test_dictionary_missing_category(self, DMatrixT, string_type):
+        dictionary = pa.array(["a", None], type=string_type)
+        array = pa.DictionaryArray.from_arrays(pa.array([0, 1, None]), dictionary)
+        with pytest.raises(
+            ValueError, match="Categories should not contain missing values"
+        ):
+            DMatrixT(pa.table({"cat": array}), enable_categorical=True, nthread=1)
+
+    @pytest.mark.parametrize("array_offset", [0, 1])
+    def test_large_string_dictionary_oversized_view(self, array_offset, monkeypatch):
+        from xgboost._data_utils import _arrow_cat_names_inf
+
+        if os.name != "posix" or np.dtype(np.intp).itemsize < 8:
+            pytest.skip("Requires a 64-bit POSIX anonymous virtual mapping")
+        start = mmap.PAGESIZE
+        end = start + (1 << 31) + mmap.PAGESIZE
+        try:
+            backing = mmap.mmap(-1, end)
+        except (OSError, OverflowError, MemoryError):
+            pytest.skip("Insufficient virtual address space for the Arrow buffer")
+        # Never touch or decode this genuinely oversized logical value.
+        offsets = [0, start, end] if array_offset else [start, end]
+        dictionary = pa.Array.from_buffers(
+            pa.large_string(),
+            len(offsets) - 1,
+            [
+                None,
+                pa.py_buffer(np.array(offsets, dtype=np.int64)),
+                pa.py_buffer(backing),
+            ],
+        )
+        if array_offset:
+            dictionary = dictionary.slice(1)
+        del backing
+
+        def no_materialization(_):
+            pytest.fail(
+                "An unsupported logical span must reject before copying", pytrace=False
+            )
+
+        # Make the regression safe even if normalization is moved before the guard.
+        monkeypatch.setattr(pa, "concat_arrays", no_materialization)
+        with pytest.raises(pa.ArrowInvalid, match="input array too large"):
+            _arrow_cat_names_inf(dictionary)
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("array_offset", [0, 1])
+    def test_large_string_dictionary_backing_offset(self, DMatrixT, array_offset):
+        if os.name != "posix" or np.dtype(np.intp).itemsize < 8:
+            pytest.skip("Requires a 64-bit POSIX anonymous virtual mapping")
+        start = (1 << 31) + mmap.PAGESIZE
+        try:
+            backing = mmap.mmap(-1, start + 2)
+        except (OSError, OverflowError, MemoryError):
+            pytest.skip("Insufficient virtual address space for the Arrow buffer")
+        # Reserve virtual space, but touch only the two logical string bytes.
+        backing[start : start + 2] = b"ab"
+        offsets = (
+            [0, start, start + 1, start + 2]
+            if array_offset
+            else [start, start + 1, start + 2]
+        )
+        dictionary = pa.Array.from_buffers(
+            pa.large_string(),
+            len(offsets) - 1,
+            [
+                None,
+                pa.py_buffer(np.array(offsets, dtype=np.int64)),
+                pa.py_buffer(backing),
+            ],
+        )
+        if array_offset:
+            dictionary = dictionary.slice(1)
+        # The Arrow buffer keeps the mapping alive until all views are released.
+        del backing
+        assert dictionary.offset == array_offset
+        assert dictionary.to_pylist() == ["a", "b"]
+        codes = pa.array([0, 1, None, 0, 1])
+        table = pa.table({"cat": pa.DictionaryArray.from_arrays(codes, dictionary)})
+        reference_table = pa.table(
+            {"cat": pa.DictionaryArray.from_arrays(codes, pa.array(["a", "b"]))}
+        )
+        dmat = DMatrixT(table, enable_categorical=True, nthread=1)
+        reference = DMatrixT(reference_table, enable_categorical=True, nthread=1)
+        categories = dmat.get_categories(export_to_arrow=True).to_arrow()
+        assert categories[0][1].to_pylist() == ["a", "b"]
+        for actual, expected in zip(
+            (dmat.get_data().indptr, dmat.get_data().indices, dmat.get_data().data),
+            (
+                reference.get_data().indptr,
+                reference.get_data().indices,
+                reference.get_data().data,
+            ),
+        ):
+            np.testing.assert_array_equal(actual, expected)
+
+    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize("string_type", [pa.string(), pa.large_string()])
+    @pytest.mark.parametrize("start,length", [(0, 4), (0, 2), (1, 2), (1, 3)])
+    def test_sliced_dictionary(self, DMatrixT, string_type, start, length):
+        dictionary = pa.array(["discard", "α", "東京", "last"], type=string_type)
+        dictionary = dictionary.slice(start, length)
+        codes = np.tile(np.arange(length), 8)
+        indices = pa.array(codes, mask=np.arange(codes.size) % 7 == 0)
+        array = pa.DictionaryArray.from_arrays(indices, dictionary)
+        table = pa.table({"cat": array})
+        labels = np.arange(codes.size, dtype=np.float32) % 5
+
+        dmat = DMatrixT(table, labels, enable_categorical=True, nthread=1)
+        categories = dmat.get_categories(export_to_arrow=True).to_arrow()
+        assert categories[0][1].to_pylist() == dictionary.to_pylist()
+
+        # Pandas materializes the logical strings independently of Arrow's
+        # dictionary offsets and supplies its own categorical conversion path.
+        frame = pd.DataFrame(
+            {
+                "cat": pd.Categorical(
+                    array.to_pylist(), categories=dictionary.to_pylist()
+                )
+            }
+        )
+        reference = DMatrixT(frame, labels, enable_categorical=True, nthread=1)
+        np.testing.assert_array_equal(
+            dmat.get_data().indptr, reference.get_data().indptr
+        )
+        np.testing.assert_array_equal(dmat.get_data().data, reference.get_data().data)
+
+        params = {"tree_method": "hist", "max_depth": 2, "nthread": 1}
+        model = xgb.train(params, dmat, num_boost_round=3)
+        expected = xgb.train(params, reference, num_boost_round=3)
+        np.testing.assert_allclose(model.predict(dmat), expected.predict(reference))
+        np.testing.assert_allclose(
+            model.inplace_predict(table), model.inplace_predict(frame)
+        )
+
     def test_arrow_table(self):
         df = pd.DataFrame(
             [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
