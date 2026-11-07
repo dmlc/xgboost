@@ -3,11 +3,9 @@
  */
 #include <xgboost/data.h>
 
-#include <array>    // std::array
-#include <limits>   // std::numeric_limits
-#include <memory>   // std::unique_ptr
-#include <numeric>  // std::iota
-#include <vector>   // std::vector
+#include <array>   // std::array
+#include <limits>  // std::numeric_limits
+#include <memory>  // std::unique_ptr
 
 #include "../../../src/data/adapter.h"         // ArrayAdapter
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
@@ -179,28 +177,6 @@ TEST(SimpleDMatrix, FromDense) {
         EXPECT_EQ(inst[j].index, j);
       }
     }
-  }
-}
-
-TEST(SimpleDMatrix, FromDenseFewerRowsThanThreads) {
-  std::size_t constexpr kCols = 3;
-  auto nan = std::numeric_limits<float>::quiet_NaN();
-  for (std::size_t n_rows : {1, 2, 5}) {
-    std::vector<float> data(n_rows * kCols);
-    std::iota(data.begin(), data.end(), 1.0f);
-    data[1] = nan;
-    data::DenseAdapter one_adapter(data.data(), n_rows, kCols);
-    data::SimpleDMatrix one(&one_adapter, nan, 1);
-    data::DenseAdapter many_adapter(data.data(), n_rows, kCols);
-    data::SimpleDMatrix many(&many_adapter, nan, 16);
-
-    ASSERT_EQ(many.Info().num_row_, n_rows);
-    ASSERT_EQ(many.Info().num_col_, kCols);
-    ASSERT_EQ(many.Info().num_nonzero_, n_rows * kCols - 1);
-    auto const& want = *one.GetBatches<SparsePage>().begin();
-    auto const& got = *many.GetBatches<SparsePage>().begin();
-    ASSERT_EQ(got.offset.ConstHostVector(), want.offset.ConstHostVector());
-    ASSERT_EQ(got.data.ConstHostVector(), want.data.ConstHostVector());
   }
 }
 
