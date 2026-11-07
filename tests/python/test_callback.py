@@ -367,20 +367,34 @@ class TestCallbacks:
             assert (tmp_path / f"model_{i}.pkl").exists()
 
     @pytest.mark.parametrize("as_pickle", [False, True])
-    def test_check_point_creates_directory(
+    def test_check_point_missing_directory(
         self, as_pickle: bool, tmp_path: Path
     ) -> None:
         X, y, _ = tm.make_regression(64, 4, False)
-        directory = tmp_path / "checkpoints" / "run"
+        directory = tmp_path / "missing"
         check_point = xgb.callback.TrainingCheckPoint(
             directory=directory, interval=1, as_pickle=as_pickle
         )
-        xgb.train({}, xgb.DMatrix(X, y), num_boost_round=3, callbacks=[check_point])
-        ext = "pkl" if as_pickle else xgb.callback.TrainingCheckPoint.default_format
-        for i in range(1, 3):
-            assert (directory / f"model_{i}.{ext}").exists()
+        rounds = []
 
-    def test_check_point_directory_empty_and_home(
+        class Count(xgb.callback.TrainingCallback):
+            def after_iteration(
+                self, model: xgb.Booster, epoch: int, evals_log: dict
+            ) -> bool:
+                rounds.append(epoch)
+                return False
+
+        with pytest.raises(FileNotFoundError, match="Checkpoint directory"):
+            xgb.train(
+                {},
+                xgb.DMatrix(X, y),
+                num_boost_round=3,
+                callbacks=[check_point, Count()],
+            )
+        assert rounds == []
+        assert not directory.exists()
+
+    def test_check_point_directory_not_checked(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         X, y, _ = tm.make_regression(64, 4, False)
@@ -394,7 +408,7 @@ class TestCallbacks:
 
         # `~` is expanded, as in `save_model`.
         home = tmp_path / "home"
-        home.mkdir()
+        (home / "ckpt").mkdir(parents=True)
         monkeypatch.setenv("HOME", str(home))
         monkeypatch.setenv("USERPROFILE", str(home))
         check_point = xgb.callback.TrainingCheckPoint(
@@ -402,7 +416,10 @@ class TestCallbacks:
         )
         xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
         assert (home / "ckpt" / f"model_1.{ext}").exists()
-        assert not (tmp_path / "~").exists()
+
+        # Remote paths can't be checked with `os.path`.
+        check_point = xgb.callback.TrainingCheckPoint(directory="s3://bucket/ckpt")
+        check_point.before_training(xgb.Booster())
 
     def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
