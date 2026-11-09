@@ -171,6 +171,21 @@ class TestDMatrix:
         sliced = d.slice(ridxs_arr)
         np.testing.assert_equal(sliced.get_label(), y[2:7])
 
+    def test_slice_boolean_mask(self) -> None:
+        X = np.arange(10.0).reshape(5, 2)
+        y = np.arange(5.0)
+        d = xgb.DMatrix(X, y)
+
+        mask = np.array([True, False, True, False, False])
+        sliced = d.slice(mask)
+        # The same rows NumPy picks, not rows 1, 0, 1, 0, 0.
+        assert sliced.num_row() == 2
+        np.testing.assert_equal(sliced.get_label(), y[mask])
+
+        # A mask of the wrong length is an error.
+        with pytest.raises(ValueError, match="boolean mask"):
+            d.slice(mask[:3])
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 

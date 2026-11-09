@@ -1253,6 +1253,15 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         handle = ctypes.c_void_p()
 
+        # A boolean mask selects rows like it does in NumPy. Read as integers it would
+        # select rows 0 and 1 over and over.
+        as_array = np.asarray(rindex)
+        if as_array.dtype == np.bool_:
+            if as_array.ndim != 1 or as_array.shape[0] != self.num_row():
+                raise ValueError(
+                    "A boolean mask must be 1-D with one entry per row of the DMatrix."
+                )
+            rindex = np.flatnonzero(as_array)
         rindex = _maybe_np_slice(rindex, dtype=np.int32)
         _check_call(
             _LIB.XGDMatrixSliceDMatrixEx(
