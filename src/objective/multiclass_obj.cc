@@ -7,7 +7,7 @@
 
 #include <dmlc/registry.h>
 
-#include <algorithm>  // for max
+#include <algorithm>  // for max, min
 #include <cassert>    // for assert
 #include <cmath>      // for expf, fmaxf
 #include <cstddef>    // for size_t
@@ -74,14 +74,17 @@ void MulticlassTransformCpu(Context const* ctx, HostDeviceVector<float>* predict
                             std::int32_t n_classes, bool probability) {
   auto values = predictions->HostSpan();
   auto n_samples = values.size() / n_classes;
+  constexpr std::size_t kMinScoresPerThread = 2048;
+  auto n_threads = static_cast<std::int32_t>(std::min<std::size_t>(
+      ctx->Threads(), std::max<std::size_t>(1, values.size() / kMinScoresPerThread)));
   if (probability) {
-    common::ParallelFor(n_samples, ctx->Threads(), [&](std::size_t row) {
+    common::ParallelFor(n_samples, n_threads, [&](std::size_t row) {
       auto point = values.subspan(row * n_classes, n_classes);
       common::Softmax(point.begin(), point.end());
     });
   } else {
     std::vector<float> output(n_samples);
-    common::ParallelFor(n_samples, ctx->Threads(), [&](std::size_t row) {
+    common::ParallelFor(n_samples, n_threads, [&](std::size_t row) {
       auto point = common::Span<float const>{values.data() + row * n_classes,
                                              static_cast<std::size_t>(n_classes)};
       output[row] = common::FindMaxIndex(point.cbegin(), point.cend()) - point.cbegin();
