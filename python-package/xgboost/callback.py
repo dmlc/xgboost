@@ -156,10 +156,12 @@ class CallbackContainer:
         output_margin: bool = True,
         is_cv: bool = False,
     ) -> None:
-        self.callbacks = list(dict.fromkeys(callbacks))
         for cb in callbacks:
             if not isinstance(cb, TrainingCallback):
                 raise TypeError("callback must be an instance of `TrainingCallback`.")
+        # Drop repeats of the same object. Keyed by identity because a callback can
+        # be unhashable, for example a dataclass that defines ``__eq__``.
+        self.callbacks = list({id(cb): cb for cb in callbacks}.values())
 
         msg = (
             "metric must be callable object for monitoring.  For builtin metrics"

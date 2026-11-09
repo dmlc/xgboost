@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -366,9 +367,20 @@ class TestCallbacks:
             assert (tmp_path / f"model_{i}.pkl").exists()
 
     def test_callback_list(self) -> None:
+        @dataclass
+        class Counter(xgb.callback.TrainingCallback):
+            calls: int = 0
+
+            def after_iteration(self, model, epoch, evals_log) -> bool:
+                self.calls += 1
+                return False
+
         X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
-        callbacks = [xgb.callback.EarlyStopping(rounds=10)]
+        first, second = Counter(), Counter()
+        assert first is not second and first == second
+        callbacks = [first, second, first, xgb.callback.EarlyStopping(rounds=10)]
+        callback_ids = [id(cb) for cb in callbacks]
         for i in range(4):
             xgb.train(
                 {"objective": "reg:squarederror", "eval_metric": "rmse"},
@@ -378,7 +390,13 @@ class TestCallbacks:
                 verbose_eval=True,
                 callbacks=callbacks,
             )
-        assert len(callbacks) == 1
+            # Distinct equal callbacks both run; repeated references run only once.
+            assert first.calls == second.calls == i + 1
+            assert [id(cb) for cb in callbacks] == callback_ids
+
+        # A non-callback gets the callback type error even when it is unhashable.
+        with pytest.raises(TypeError, match="must be an instance"):
+            xgb.train({}, m, 1, callbacks=[{}])
 
     def test_cv_stopped_by_custom_callback(self) -> None:
         """A callback other than early stopping can stop `cv`."""
