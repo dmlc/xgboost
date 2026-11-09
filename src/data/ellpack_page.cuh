@@ -154,6 +154,9 @@ struct EllpackAccessorImpl {
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const {
     return this->null_value_ & ((Ind() << NullShift()) - Ind());
   }
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE std::uint32_t SymbolBits() const {
+    return this->gidx_iter.SymbolBits();
+  }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumRows() const { return n_rows; }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return n_features; }

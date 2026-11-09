@@ -344,6 +344,32 @@ TEST(GPUQuantile, MergeBasic) {
     auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
     ValidateSketchInvariants(h_sketch);
     ASSERT_LE(h_sketch.data.size(), rhs_size + size_before_merge);
+
+    // Reverse only the rank bounds within each column to force correction chains.
+    // Feature values stay sorted; repair must restore the rank invariants even when
+    // a chain spans multiple thread blocks.
+    auto entries = h_sketch.data;
+    for (std::size_t c = 0; c < kCols; ++c) {
+      auto begin = h_sketch.columns_ptr[c];
+      auto end = h_sketch.columns_ptr[c + 1];
+      for (auto i = begin; i < end; ++i) {
+        entries[i].rmin = h_sketch.data[end - 1 - (i - begin)].rmin;
+        entries[i].rmax = h_sketch.data[end - 1 - (i - begin)].rmax;
+      }
+    }
+    dh::device_vector<SketchEntry> d_entries{entries};
+    SketchContainer repaired(ft, n_bins, kCols, ctx.Device());
+    repaired.Merge(&ctx, sketch_0.ColumnsPtr(), dh::ToSpan(d_entries));
+    auto corrected = CopySketchToHost(repaired.Data(), repaired.ColumnsPtr());
+    ValidateSketchInvariants(corrected);
+    ASSERT_EQ(corrected.columns_ptr, h_sketch.columns_ptr);
+    ASSERT_EQ(corrected.data.size(), entries.size());
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+      EXPECT_GE(corrected.data[i].rmin, entries[i].rmin);
+      EXPECT_GE(corrected.data[i].rmax, entries[i].rmax);
+      EXPECT_EQ(corrected.data[i].wmin, entries[i].wmin);
+      EXPECT_EQ(corrected.data[i].value, entries[i].value);
+    }
   }
 }
 

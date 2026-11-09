@@ -100,7 +100,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
         auto bin = global_idx % total_bins;
         auto const &input = d_inputs[node];
         auto grad = shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[bin]);
-        auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
+        auto lw = evaluator.CalcWeightCat(grad);
         partition_key[k] = cuda::std::make_tuple(global_idx, lw);
       });
   // Sort an array segmented according to

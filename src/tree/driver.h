@@ -13,13 +13,20 @@
 #include "./param.h"  // for TrainParam
 
 namespace xgboost::tree {
+/** @brief Calibrate the split threshold to the dimension of the projected gains. */
+inline TrainParam ScaleMinSplitLoss(TrainParam param, bst_target_t n_split_targets,
+                                    bst_target_t n_targets) {
+  param.min_split_loss *= static_cast<float>(n_split_targets) / n_targets;
+  return param;
+}
+
 template <typename ExpandEntryT>
-bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool DepthWise(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
-bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool LossGuide(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   if (lhs.GetLossChange() == rhs.GetLossChange()) {
     return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
   } else {
@@ -49,8 +56,9 @@ template <typename ExpandEntryT>
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
-  using ExpandQueue = std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
-                                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
+  using ExpandQueue =
+      std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
+                          std::function<bool(ExpandEntryT const&, ExpandEntryT const&)>>;
 
  public:
   explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
@@ -82,6 +90,12 @@ class Driver {
     if (param_.max_depth > 0 && parent_entry.depth + 1 >= param_.max_depth) return false;
     if (param_.max_leaves > 0 && num_leaves_ >= param_.max_leaves) return false;
     return true;
+  }
+
+  // Keep both siblings for histogram subtraction if either can be split again.
+  bool IsChildValid(ExpandEntryT const& parent_entry, double left_hess, double right_hess) {
+    auto min_hess = 2.0 * param_.min_child_weight;
+    return this->IsChildValid(parent_entry) && (left_hess >= min_hess || right_hess >= min_hess);
   }
 
   // Return the set of nodes to be expanded

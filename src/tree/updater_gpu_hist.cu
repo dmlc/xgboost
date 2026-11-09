@@ -39,6 +39,7 @@
 #include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
+#include "split_gain.h"                  // for CalcWeight
 #include "tree_view.h"                   // for ScalarTreeView
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
@@ -150,8 +151,8 @@ struct GPUHistMakerDevice {
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(
-            *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
+                                                        HistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
@@ -282,7 +283,7 @@ struct GPUHistMakerDevice {
     this->monitor.Stop(__func__);
   }
 
-  // Build histograms for all the nodes with one call to the histogram builder.
+  // Build histograms for all the nodes in one kernel launch.
   void BuildHist(EllpackPage const& page, std::int32_t k,
                  std::vector<bst_node_t> const& build_nidx) {
     monitor.Start(__func__);
@@ -610,7 +611,11 @@ struct GPUHistMakerDevice {
       // e.g. We do not bother further processing nodes whose children are beyond max depth
       std::vector<GPUExpandEntry> valid_candidates;
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
-                   [&](auto const& e) { return driver.IsChildValid(e); });
+                   [&](auto const& e) {
+                     auto const& q = (*quantiser)[0];
+                     return driver.IsChildValid(e, q.ToFloatingPoint(e.split.left_sum).GetHess(),
+                                                q.ToFloatingPoint(e.split.right_sum).GetHess());
+                   });
 
       // Allocaate children nodes.
       auto new_candidates = pinned.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});
@@ -804,7 +809,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     monitor_.Start(__func__);
 
     this->InitDataOnce(p_fmat);
-    auto gpair = in_gpair->FullGradOnly();
+    auto gpair = in_gpair->Grad();
     // build tree
     hess_.resize(gpair->Size());
     auto hess = dh::ToSpan(hess_);

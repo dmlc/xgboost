@@ -20,6 +20,7 @@
 #include "../common/kernel.h"  // for DispatchKernel
 #include "../common/timer.h"
 #include "../predictor/prediction_kernel.h"
+#include "../predictor/prediction_shape.h"
 #include "../tree/param.h"      // TrainParam
 #include "../tree/tree_view.h"  // for WalkTree
 #include "gbtree_model.h"
@@ -132,6 +133,8 @@ inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& mod
   CHECK(!model.iteration_indptr.empty());
   end = end == 0 ? model.BoostedRounds() : end;
   CHECK_LE(end, model.BoostedRounds()) << "Out of range for tree layers.";
+  CHECK_GE(begin, 0) << "Out of range for tree layers.";
+  CHECK_LE(begin, end) << "Out of range for tree layers.";
   bst_tree_t tree_begin = model.iteration_indptr[begin];
   bst_tree_t tree_end = model.iteration_indptr[end];
   if (model.trees.size() != 0) {
@@ -238,12 +241,13 @@ class GBTree : public GradientBooster {
     return *prediction_cache_.Entry(p_fmat);
   }
 
-  void PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
-                    bool training, bst_layer_t layer_begin, bst_layer_t layer_end) override;
+  std::vector<bst_ulong> PredictBatch(std::shared_ptr<DMatrix> p_fmat,
+                                      HostDeviceVector<float>* out_preds, bool training,
+                                      bst_layer_t layer_begin, bst_layer_t layer_end) override;
 
-  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
-                      HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
-                      bst_layer_t layer_end) const override;
+  std::vector<bst_ulong> InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
+                                        HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
+                                        bst_layer_t layer_end) const override;
 
   void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
                     std::vector<bst_feature_t>* features,
@@ -318,8 +322,9 @@ class GBTree : public GradientBooster {
 
   [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
 
-  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
-                   bst_layer_t layer_end, bool strict_shape) override {
+  std::vector<bst_ulong> PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
+                                     bst_layer_t layer_begin, bst_layer_t layer_end,
+                                     bool strict_shape) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: [0, "
                                "n_iteration), use model slicing instead.";
@@ -335,11 +340,17 @@ class GBTree : public GradientBooster {
           << "`strict_shape` with predict leaf is not supported when vector leaf trees are used.";
     }
     common::DispatchKernel<predictor::PredictLeafKernel>(ctx_, p_fmat, out_preds, model_, tree_end);
+    auto rounds = layer_end == 0 ? model_.BoostedRounds() : layer_end;
+    auto groups = model_.learner_model_state->OutputLength();
+    auto forest = rounds == 0 ? static_cast<bst_ulong>(model_.param.num_parallel_tree)
+                              : tree_end / (static_cast<bst_ulong>(rounds) * groups);
+    return predictor::LeafPredictionShape(p_fmat->Info().num_row_, tree_end, rounds, groups, forest,
+                                          strict_shape);
   }
 
-  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           bst_layer_t layer_begin, bst_layer_t layer_end,
-                           bool approximate) override {
+  std::vector<bst_ulong> PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                                             bst_layer_t layer_begin, bst_layer_t layer_end,
+                                             bool approximate) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
@@ -350,16 +361,24 @@ class GBTree : public GradientBooster {
       common::DispatchKernel<predictor::PredictContributionKernel>(
           ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights());
     }
+    return predictor::ContributionPredictionShape(
+        p_fmat->Info().num_row_, model_.learner_model_state->num_feature,
+        model_.learner_model_state->OutputLength(), false);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                                       bst_layer_t layer_begin, bst_layer_t layer_end,
-                                       bool approximate) override {
+  std::vector<bst_ulong> PredictInteractionContributions(DMatrix* p_fmat,
+                                                         HostDeviceVector<float>* out_contribs,
+                                                         bst_layer_t layer_begin,
+                                                         bst_layer_t layer_end,
+                                                         bool approximate) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
     common::DispatchKernel<predictor::PredictInteractionContributionsKernel>(
         ctx_, p_fmat, out_contribs, model_, tree_end, model_.TreeWeights(), approximate);
+    return predictor::ContributionPredictionShape(p_fmat->Info().num_row_,
+                                                  model_.learner_model_state->num_feature,
+                                                  model_.learner_model_state->OutputLength(), true);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -390,6 +409,9 @@ class GBTree : public GradientBooster {
   bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+  // The leaf position of each row, one for each new tree in a group. The position is negated
+  // if the row is sampled out. Kept between iterations to reuse the memory.
+  std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
   mutable PredictionContainer prediction_cache_;

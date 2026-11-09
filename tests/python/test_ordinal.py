@@ -136,5 +136,7 @@ def test_update() -> None:
     run_update("cpu")
 
 
-def test_recode_dmatrix_predict() -> None:
-    run_recode_dmatrix_predict("cpu")
+# Exercise narrow and wide prediction paths without multiplying every recoding test.
+@pytest.mark.parametrize("n_features", [16, 4096])
+def test_recode_dmatrix_predict(n_features: int) -> None:
+    run_recode_dmatrix_predict("cpu", n_features=n_features)

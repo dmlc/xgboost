@@ -18,36 +18,15 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-// Single-target shared memory policy
-[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
-  auto optin = dh::MaxSharedMemoryOptin(device);
-  return std::min(optin, std::size_t{96} * 1024);
-}
-
-// Multi-target shared memory policy
-[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
-  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
-  auto max_shared = dh::MaxSharedMemory(device);
-  // Use larger shared memory if available.
-  //
-  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
-  // have large optin size, like the H200. We expand the shared memory size for those
-  // large devices.
-  constexpr std::size_t kThreshold = 4;
-  if (max_shared_optin > max_shared * kThreshold) {
-    return 2 * max_shared;
-  }
-  return max_shared;
-}
+// Shared-memory budget per block for the architecture's histogram launch bounds.
+[[nodiscard]] std::size_t HistShmemBytes(std::int32_t device);
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
  *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
+ *        Separate low/high pointers allow a structure-of-arrays shared-memory layout.
  */
-XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
-  uint32_t* y_low = reinterpret_cast<uint32_t*>(dst);
-  uint32_t* y_high = y_low + 1;
-
+XGBOOST_DEV_INLINE void AtomicAdd64As32(uint32_t* y_low, uint32_t* y_high, int64_t src) {
   auto cast_src = reinterpret_cast<uint64_t*>(&src);
 
   uint32_t const x_low = static_cast<uint32_t>(src);
@@ -62,6 +41,37 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
+
+// An entry is one stored ELLPACK bin index or missing marker.
+// A segment contains one node's entries for one feature group, shared across targets.
+// A sub-segment is a contiguous range of entries processed by a single CUDA block.
+// A wave is enough blocks to fill the GPU's estimated concurrent block capacity once.
+// A flush adds a block's shared-memory histogram to the global histogram.
+
+// Wave target for load balance; determines the minimum entries per sub-segment.
+inline constexpr std::size_t kTargetWaves = 32;
+// Minimum wave target; limits entries per sub-segment even when the flush budget cannot be met.
+inline constexpr std::size_t kMinWaves = 4;
+// Histogram payload flushed across targets, as a percent of ELLPACK entry bytes counted once.
+inline constexpr std::size_t kMaxFlushPercent = 25;
+
+/**
+ * @brief Choose entries per sub-segment to amortize histogram flushes The result is
+ * rounded to whole tiles.
+ *
+ * @param n_total_entries            Entries across all nodes and feature groups, counted once for all
+ *                                   targets.
+ * @param entries_per_tile           Entries per full tile; equal to threads per block.
+ * @param n_resident_blks_per_target Estimated share of concurrent GPU blocks per target, at least one.
+ * @param n_targets                  Number of outputs being trained.
+ * @param hist_bytes_per_block       Largest feature group's bin count times sizeof(GradientPairInt64),
+ *                                   for one target; zero for global accumulation.
+ * @param symbol_bits                Bits per ELLPACK symbol.
+ */
+[[nodiscard]] bst_idx_t SliceSegment(bst_idx_t n_total_entries, std::size_t entries_per_tile,
+                                     std::size_t n_resident_blks_per_target, bst_target_t n_targets,
+                                     std::size_t hist_bytes_per_block, std::uint32_t symbol_bits);
+
 }  // namespace cuda_impl
 
 /**
@@ -76,7 +86,7 @@ class DeviceHistogramStorage {
   std::size_t stop_growing_size_{0};
   /** @brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
-  // Large buffer of zeroed memory, caches histograms
+  // Large buffer caching histograms. Histograms are zeroed when allocated, not on reset.
   dh::device_vector<typename GradientSumT::ValueT> data_;
   // If we run out of storage allocate one histogram at a time in overflow. Not cached,
   // overwritten when a new histogram is requested
@@ -91,11 +101,8 @@ class DeviceHistogramStorage {
  public:
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
-  void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
+  void Reset(bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
     this->n_total_bins_ = n_total_bins;
-    auto d_data = data_.data().get();
-    dh::LaunchN(data_.size(), ctx->CUDACtx()->Stream(),
-                [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     nidx_map_.clear();
     overflow_nidx_map_.clear();
 
@@ -143,6 +150,10 @@ class DeviceHistogramStorage {
       for (int nidx : new_nidxs) {
         nidx_map_[nidx] = nidx_map_.size() * HistogramSize();
       }
+      // Zero memory
+      auto d_data = data_.data().get() + used_size;
+      dh::LaunchN(HistogramSize() * new_nidxs.size(), ctx->CUDACtx()->Stream(),
+                  [=] __device__(size_t idx) { d_data[idx] = 0.0; });
     }
 
     CHECK_GE(data_.size(), nidx_map_.size() * HistogramSize());
@@ -168,10 +179,10 @@ class DeviceHistogramStorage {
   }
 };
 
-struct DeviceHistogramBuilderImpl;
+struct HistKernel;
 
 class DeviceHistogramBuilder {
-  std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;
+  std::unique_ptr<HistKernel> p_impl_;
   DeviceHistogramStorage hist_;
   common::Monitor monitor_;
 
@@ -190,8 +201,7 @@ class DeviceHistogramBuilder {
   /**
    * @brief Build histograms for multiple nodes and multiple targets.
    *
-   * @param ridxs One span of row indices for each node. Empty nodes are only allowed for
-   *              single-target.
+   * @param ridxs One span of row indices for each node, empty nodes are allowed.
    * @param hists One histogram for each node, must match `ridxs`.
    */
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
@@ -208,22 +218,16 @@ class DeviceHistogramBuilder {
   [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
     return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);
   }
-  // Attempt to do subtraction trick
-  // return true if succeeded
-  [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
-                                      bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
-    if (!this->CanSubtract(nidx_parent, nidx_histogram)) {
-      return false;
-    }
-    auto d_node_hist_parent = hist_.GetNodeHistogram(nidx_parent);
-    auto d_node_hist_histogram = hist_.GetNodeHistogram(nidx_histogram);
-    auto d_node_hist_subtraction = hist_.GetNodeHistogram(nidx_subtraction);
-
-    dh::LaunchN(d_node_hist_parent.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-      d_node_hist_subtraction[idx] = d_node_hist_parent[idx] - d_node_hist_histogram[idx];
-    });
-    return true;
-  }
+  /**
+   * @brief Obtain sibling histograms with the subtraction trick, using a single kernel.
+   *
+   * @param parent_nidx      The parent of each pair of siblings.
+   * @param build_nidx       The sibling with a built histogram.
+   * @param subtraction_nidx The sibling to fill with `parent - built`.
+   */
+  void SubtractionTrick(Context const* ctx, std::vector<bst_node_t> const& parent_nidx,
+                        std::vector<bst_node_t> const& build_nidx,
+                        std::vector<bst_node_t> const& subtraction_nidx);
 
   template <typename ExpandEntry>
   [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<ExpandEntry> const& candidates,
@@ -231,32 +235,34 @@ class DeviceHistogramBuilder {
                                   std::vector<bst_node_t> const& subtraction_nidx) {
     this->monitor_.Start(__func__);
     std::vector<bst_node_t> need_build;
+    std::vector<bst_node_t> parents, built, subtracted;
     for (std::size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = build_nidx.at(i);
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
       auto parent_nidx = candidates.at(i).nidx;
 
-      if (!this->SubtractionTrick(ctx, parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
+      if (this->CanSubtract(parent_nidx, build_hist_nidx)) {
+        parents.push_back(parent_nidx);
+        built.push_back(build_hist_nidx);
+        subtracted.push_back(subtraction_trick_nidx);
+      } else {
         need_build.push_back(subtraction_trick_nidx);
       }
     }
+    this->SubtractionTrick(ctx, parents, built, subtracted);
     this->monitor_.Stop(__func__);
     return need_build;
   }
 
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& nodes_to_build,
-                          std::vector<bst_node_t> const& nodes_to_sub) {
+                          std::vector<bst_node_t> const& nodes_to_sub = {}) {
     this->monitor_.Start(__func__);
     std::vector<bst_node_t> all_new = nodes_to_build;
     all_new.insert(all_new.end(), nodes_to_sub.cbegin(), nodes_to_sub.cend());
     // Allocate the histograms
     // Guaranteed contiguous memory
-    this->AllocateHistograms(ctx, all_new);
+    this->hist_.AllocateHistograms(ctx, all_new);
     this->monitor_.Stop(__func__);
-  }
-
-  void AllocateHistograms(Context const* ctx, std::vector<int> const& new_nidxs) {
-    this->hist_.AllocateHistograms(ctx, new_nidxs);
   }
 };
 }  // namespace xgboost::tree

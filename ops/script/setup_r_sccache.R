@@ -41,4 +41,27 @@ if (use_cmake) {
     "CXX20 := sccache $(CXX20)"
   )
 }
+# Source-root normalization applies to both compiler wrappers and CMake launchers.
+if (.Platform$OS.type != "windows") {
+  settings <- c(
+    settings,
+    "",
+    "# R CMD build installs under a random Rbuild directory for vignettes.",
+    "# Normalize that source root before hashing; sccache reads it at server startup.",
+    "# Keep R's default target and restart only for XGBoost's CMake build.",
+    "all:",
+    ".PHONY: xgboost-ci-sccache",
+    "xgboost-cmake: xgboost-ci-sccache",
+    "xgboost-ci-sccache:",
+    "# A missing server is harmless; preserve other shutdown failures.",
+    "\t@status=0; output=$$(LC_ALL=C sccache --stop-server 2>&1) || status=$$?; \\",
+    "\tprintf '%s\\n' \"$$output\"; \\",
+    "\tcase \"$$output\" in \\",
+    "\t  *'Connection refused (os error 61)'*|*'Connection refused (os error 111)'*) ;; \\",
+    "\t  *) exit $$status ;; \\",
+    "\tesac",
+    "# R CMD check can set TMPDIR beyond the Unix socket path limit on macOS.",
+    "\tTMPDIR=/tmp SCCACHE_BASEDIRS=\"$(CURDIR)\" sccache --start-server"
+  )
+}
 writeLines(settings, makevars)

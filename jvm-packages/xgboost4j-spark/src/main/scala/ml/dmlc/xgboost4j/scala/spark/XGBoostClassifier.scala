@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2024 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.{col, udf}
-import org.json4s.DefaultFormats
 
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{BINARY_CLASSIFICATION_OBJS, MULTICLASSIFICATION_OBJS}
@@ -196,8 +195,13 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     override def load(path: String): XGBoostClassificationModel = {
       val xgbModel = loadBooster(path)
       val meta = SparkUtils.loadMetadata(path, sc)
-      implicit val format = DefaultFormats
-      val numClasses = (meta.params \ "numClass").extractOpt[Int].getOrElse(2)
+      // The model needs numClasses to be constructed, so let Spark decode the saved params onto a
+      // placeholder first rather than parsing the metadata JSON here, which would tie this jar to
+      // the json4s version of the Spark it was built against. num_class is only set for
+      // multi-class models.
+      val saved = new XGBoostClassificationModel(meta.uid)
+      meta.getAndSetParams(saved)
+      val numClasses = if (saved.isSet(saved.numClass)) saved.getNumClass else 2
       val model = new XGBoostClassificationModel(meta.uid, numClasses, xgbModel)
       meta.getAndSetParams(model)
       model

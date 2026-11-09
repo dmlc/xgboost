@@ -35,6 +35,10 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          # Master caches both SM75 and full builds; PRs restore without saving snapshots.
+          cache-key-prefix: ${{ github.job }}-cuda
+          restore-only: ${{ github.ref != 'refs/heads/master' }}
       - run: ops/pipeline/build-win64.ps1 -variant gpu
       - run: sccache --show-stats
       - name: Stash files
@@ -62,17 +66,32 @@ jobs:
       - run: ops/pipeline/build-win64.ps1 -variant cpu
       - run: sccache --show-stats
 
-  test-win64-gpu:
-    name: Test XGBoost on Windows
+  test-win64:
+    name: Test XGBoost on Windows (${{ matrix.suite }})
+    # Both suites test the same CUDA-enabled wheel; compile it only once.
     needs: build-win64-gpu
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: cpu
+            runner: windows-cpu
+          - suite: gpu
+            runner: windows-gpu
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=windows-gpu
-      - tag=windows-test-win64-gpu
+      - runner=${{ matrix.runner }}
+      - tag=windows-test-win64-${{ matrix.suite }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: "true"
+      - name: Set up Python test environment
+        id: test-env
+        uses: ./.github/actions/setup-windows-test-env
+        with:
+          # Only one suite compresses/uploads the shared environment on master.
+          save-cache: ${{ matrix.suite == 'cpu' }}
       - name: Unstash files
         shell: powershell
         run: |
@@ -85,4 +104,4 @@ jobs:
           New-Item -ItemType Directory -Path python-package/dist/ -Force
           Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
             -Destination python-package/dist/
-      - run: powershell ops/pipeline/test-win64-gpu.ps1
+      - run: powershell ops/pipeline/test-win64.ps1 -Suite '${{ matrix.suite }}' -CondaEnv '${{ steps.test-env.outputs.prefix }}'

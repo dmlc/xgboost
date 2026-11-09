@@ -30,7 +30,6 @@ from .core import (
     DMatrix,
     XGBoostError,
     _deprecate_positional_args,
-    _metric_str_to_float,
     _parse_eval_str,
 )
 
@@ -104,15 +103,11 @@ def _aggcv(rlist: List[str]) -> List[Tuple[str, float, float]]:
     cvmap: Dict[Tuple[int, str], List[float]] = {}
     idx = rlist[0].split()[0]
     for line in rlist:
-        arr: List[str] = line.split()
-        assert idx == arr[0]
-        for metric_idx, it in enumerate(arr[1:]):
-            if not isinstance(it, str):
-                it = it.decode()
-            k, v = it.split(":")
+        assert idx == line.split()[0]
+        for metric_idx, (k, v) in enumerate(_parse_eval_str(line)):
             if (metric_idx, k) not in cvmap:
                 cvmap[(metric_idx, k)] = []
-            cvmap[(metric_idx, k)].append(_metric_str_to_float(v))
+            cvmap[(metric_idx, k)].append(v)
     msg = idx
     results = []
     for (_, name), s in sorted(cvmap.items(), key=lambda x: x[0][0]):
@@ -161,10 +156,12 @@ class CallbackContainer:
         output_margin: bool = True,
         is_cv: bool = False,
     ) -> None:
-        self.callbacks = list(dict.fromkeys(callbacks))
         for cb in callbacks:
             if not isinstance(cb, TrainingCallback):
                 raise TypeError("callback must be an instance of `TrainingCallback`.")
+        # Drop repeats of the same object. Keyed by identity because a callback can
+        # be unhashable, for example a dataclass that defines ``__eq__``.
+        self.callbacks = list({id(cb): cb for cb in callbacks}.values())
 
         msg = (
             "metric must be callable object for monitoring.  For builtin metrics"
@@ -263,6 +260,10 @@ class CallbackContainer:
             evals = [] if evals is None else evals
             for _, name in evals:
                 assert name.find("-") == -1, "Dataset name should not contain `-`"
+                if any(c.isspace() for c in name):
+                    raise ValueError(
+                        f"Dataset name should not contain whitespace: {name!r}"
+                    )
             score: str = model.eval_set(evals, epoch, self.metric, self._output_margin)
             metric_score = _parse_eval_str(score)
             self._update_history(metric_score, epoch)
@@ -274,6 +275,10 @@ class LearningRateScheduler(TrainingCallback):
     """Callback function for scheduling learning rate.
 
     .. versionadded:: 1.3.0
+
+    .. versionchanged:: 3.5.0
+        The learning rate of an epoch is applied to the tree built in that epoch, it
+        used to take effect from the next epoch.
 
     Parameters
     ----------
@@ -303,7 +308,7 @@ class LearningRateScheduler(TrainingCallback):
             self.learning_rates = lambda epoch: cast(Sequence, learning_rates)[epoch]
         super().__init__()
 
-    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
+    def before_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         model.set_param("learning_rate", self.learning_rates(epoch))
         return False
 
@@ -367,6 +372,8 @@ class EarlyStopping(TrainingCallback):
         save_best: Optional[bool] = False,
         min_delta: float = 0.0,
     ) -> None:
+        if rounds < 0:
+            raise ValueError("rounds must not be negative.")
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
@@ -420,6 +427,8 @@ class EarlyStopping(TrainingCallback):
                 "aucpr@",
                 "map@",
                 "ndcg@",
+                "ams@",
+                "interval-regression-accuracy",
             )
             if metric != "mape" and any(metric.startswith(x) for x in maximize_metrics):
                 self.maximize = True

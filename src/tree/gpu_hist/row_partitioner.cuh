@@ -2,13 +2,15 @@
  * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
-
-#include <algorithm>        // for max
-#include <cstddef>          // for size_t
-#include <cstdint>          // for int32_t, uint32_t
-#include <cuda/functional>  // for proclaim_return_type
-#include <vector>           // for vector
+#include <algorithm>                                 // for max, min, sort
+#include <array>                                     // for array
+#include <cstddef>                                   // for size_t
+#include <cstdint>                                   // for int32_t, uint32_t
+#include <cub/agent/single_pass_scan_operators.cuh>  // for ScanTileState, TilePrefixCallbackOp
+#include <cub/block/block_load.cuh>                  // for LoadDirectWarpStriped
+#include <cub/warp/warp_scan.cuh>                    // for WarpScan
+#include <cuda/std/functional>                       // for plus
+#include <vector>                                    // for vector
 
 #include "../../common/cuda_compat.cuh"     // for CUDA compatibility
 #include "../../common/cuda_context.cuh"    // for CUDAContext
@@ -20,9 +22,30 @@
 namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
-// TODO(Rory): Can be larger. To be tuned alongside other batch operations.
-inline constexpr std::int32_t kMaxUpdatePositionBatchSize = 32;
+// The rows of a node are split into tiles of this size, a block partitions one tile.
+inline constexpr std::int32_t kPartitionTileRows = 1024;
+inline constexpr std::int32_t kPartitionBlockThreads = 256;
+inline constexpr std::int32_t kPartitionTileWords = kPartitionTileRows / 32;
+// Each warp handles this many words of 32 rows.
+inline constexpr std::int32_t kPartitionWarpWords =
+    kPartitionTileWords / (kPartitionBlockThreads / 32);
 }  // namespace cuda_impl
+
+/**
+ * @brief The two row buffers of a partitioner.
+ *
+ * Partitioning a node moves its rows from its buffer to the other one, so the rows of a node at
+ * depth d are in buffer d % 2. A node's segment is the same range in both buffers.
+ */
+template <typename T>
+struct RowBuffers {
+  common::Span<T> buffers[2];
+
+  [[nodiscard]] XGBOOST_DEVICE common::Span<T> operator[](std::int32_t i) const {
+    // A select instead of indexing, so the array is not placed in local memory.
+    return i == 0 ? buffers[0] : buffers[1];
+  }
+};
 
 /**
  * @brief Used to demarcate a contiguous set of row indices associated with some tree
@@ -44,170 +67,310 @@ template <typename OpDataT>
 struct PerNodeData {
   Segment segment;
   OpDataT data;
+  /** @brief The number of tiles before this node in the node batch. */
+  cuda_impl::RowIndexT tile_offset{0};
+  /** @brief The buffer holding the rows of this node, see @ref RowBuffers. */
+  std::int32_t buffer{0};
 };
 
 /**
- * @param global_thread_idx In practice, the row index within the total number of rows for
- *        this node batch.
- * @param batch_idx The nidx within this node batch (not the actual node index in a tree).
- * @param item_idx The resulting global row index (without accounting for base_rowid). This maps the
- *        row index within the node batch back to the global row index.
+ * @brief Status of each tile for the decoupled look-back, holding the number of rows going left.
+ *
+ * The prefix of a node starts at its first tile, which publishes its count as inclusive, so the
+ * look-back of a tile never goes past the first tile of its node.
  */
-template <typename T>
-XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
-                                    std::size_t global_thread_idx, int* batch_idx,
-                                    std::size_t* item_idx) {
-  cuda_impl::RowIndexT sum = 0;
-  // Search for the nidx in batch and the corresponding global row index, exit once found.
-  for (std::int32_t i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
-    if (sum + batch_info_iter[i].segment.Size() > global_thread_idx) {
-      *batch_idx = i;
-      // the beginning of the segment plus the offset into that segment
-      *item_idx = (global_thread_idx - sum) + batch_info_iter[i].segment.begin;
-      break;
+using PartitionTileState = cub::ScanTileState<std::uint32_t>;
+
+template <typename TileStateT>
+__global__ void InitPartitionTileStateKernel(TileStateT tile_state, std::int32_t n_tiles) {
+  tile_state.InitializeStatus(n_tiles);
+}
+
+/** @brief The state of one launch of the partition kernel. */
+struct PartitionLaunchState {
+  PartitionTileState tiles;
+  // The number of tiles taken by the blocks, see @ref PartitionKernel.
+  std::uint32_t* n_taken;
+};
+
+/**
+ * @brief Two launch states for the partition kernel, which must be reset before a launch.
+ *
+ * A launch uses one of them, and resets the other one for the next launch: its counter, and the
+ * tiles the previous launch used.
+ */
+struct PartitionTileStates {
+  // The counter is followed by the tile status, in each state.
+  static constexpr std::size_t kCounterBytes = 16;
+
+  dh::DeviceUVector<std::uint8_t> storage;
+  // The number of tiles and bytes of the tile status of each state.
+  std::size_t capacity{0};
+  std::size_t tile_bytes{0};
+  // The state used by the next launch.
+  std::int32_t current{0};
+  // The number of tiles used in the other state by the previous launch.
+  std::size_t n_dirty{0};
+
+  [[nodiscard]] PartitionLaunchState Get(std::int32_t i) {
+    auto* ptr = storage.data() + i * (kCounterBytes + tile_bytes);
+    PartitionLaunchState state{{}, reinterpret_cast<std::uint32_t*>(ptr)};
+    dh::safe_cuda(state.tiles.Init(static_cast<int>(capacity), ptr + kCounterBytes, tile_bytes));
+    return state;
+  }
+};
+
+namespace cuda_impl {
+using PartitionWarpScanT = cub::WarpScan<std::uint32_t>;
+using PartitionTilePrefixT =
+    cub::TilePrefixCallbackOp<std::uint32_t, cuda::std::plus<>, PartitionTileState>;
+
+/**
+ * @brief Rank the rows going left within a tile.
+ *
+ * Word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane. Each warp ballots
+ * its words, and warp 0 scans the number of left rows of each word. Called by all threads.
+ *
+ * @param go_left     The decision for each row of this thread.
+ * @param bits        Output, the ballot of each word of this warp.
+ * @param word_offset Output in shared memory, the number of left rows in the tile before each word.
+ *                    Visible to all threads after the next barrier.
+ *
+ * @return The number of left rows in the tile, valid in warp 0.
+ */
+XGBOOST_DEV_INLINE std::uint32_t RankLeft(bool const (&go_left)[kPartitionWarpWords],
+                                          std::uint32_t (&bits)[kPartitionWarpWords],
+                                          std::uint32_t* word_offset,
+                                          PartitionWarpScanT::TempStorage& storage) {
+  auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    bits[j] = __ballot_sync(0xffffffff, go_left[j]);
+    if (lane == 0) {
+      word_offset[warp * kPartitionWarpWords + j] = __popc(bits[j]);
     }
-    sum += batch_info_iter[i].segment.Size();
+  }
+  __syncthreads();
+  std::uint32_t n_left = 0;
+  if (warp == 0) {
+    PartitionWarpScanT{storage}.ExclusiveSum(word_offset[lane], word_offset[lane], n_left);
+  }
+  return n_left;
+}
+
+/**
+ * @brief The number of left rows in the tile before the row of this lane in a word.
+ *
+ * @param word_offset See @ref RankLeft.
+ * @param bits        The ballot of the word.
+ * @param word        The index of the word in the tile.
+ */
+XGBOOST_DEV_INLINE std::uint32_t NLeftBefore(std::uint32_t const* word_offset, std::uint32_t bits,
+                                             std::int32_t word) {
+  auto const lanemask_lt = (1u << (threadIdx.x % 32)) - 1u;
+  return word_offset[word] + __popc(bits & lanemask_lt);
+}
+
+/**
+ * @brief The number of left rows in the tiles before tile t in its node.
+ *
+ * The first tile of a node publishes its count as inclusive without looking back. Every other tile
+ * publishes its count, then looks back at the tiles before it until it finds an inclusive count,
+ * which it reaches at the latest at the first tile of the node. The tiles before t were taken by
+ * blocks that have started, so the look-back doesn't wait for a block that can't run. Called by
+ * warp 0.
+ *
+ * @param first_tile The first tile of the node.
+ * @param n_left     The number of left rows in tile t.
+ *
+ * @return The number of left rows before the tile, valid in lane 0.
+ */
+XGBOOST_DEV_INLINE std::uint32_t NLeftBeforeTile(PartitionTileState tile_state,
+                                                 PartitionTilePrefixT::TempStorage& storage,
+                                                 std::uint32_t t, std::uint32_t first_tile,
+                                                 std::uint32_t n_left) {
+  if (t == first_tile) {
+    if (threadIdx.x == 0) {
+      tile_state.SetInclusive(t, n_left);
+    }
+    return 0;
+  }
+  PartitionTilePrefixT prefix{tile_state, storage, cuda::std::plus<>{}, static_cast<int>(t)};
+  return prefix(n_left);
+}
+}  // namespace cuda_impl
+
+/**
+ * @brief Partition the rows of a batch of nodes in a single pass.
+ *
+ * Each block reads a tile of a node's rows from the node's buffer, and writes them to the other
+ * buffer: left rows from the beginning of the segment, right rows from the end. The offset of a
+ * tile is the number of rows going left in the tiles before it in the same node, found with a
+ * decoupled look-back, so the order of the rows is stable for the left rows and reversed for the
+ * right rows.
+ *
+ * Blocks take tiles from a counter in the order they start, instead of using the block index.
+ *
+ * @param next_state The state of the next launch, where the counter and the first n_reset tiles
+ *                   are reset.
+ */
+template <typename OpT, typename OpDataT>
+__global__ __launch_bounds__(cuda_impl::kPartitionBlockThreads) void PartitionKernel(
+    dh::LDGIterator<PerNodeData<OpDataT>> batch_info, std::int32_t n_nodes, std::uint32_t n_tiles,
+    RowBuffers<cuda_impl::RowIndexT> ridx, PartitionLaunchState state,
+    PartitionLaunchState next_state, std::int32_t n_reset, cuda_impl::RowIndexT* d_counts, OpT op) {
+  // Reset the state of the next launch, see @ref PartitionTileStates.
+  next_state.tiles.InitializeStatus(n_reset);
+  if (blockIdx.x == 0 && threadIdx.x == 0) {
+    *next_state.n_taken = 0;
+  }
+
+  using cuda_impl::kPartitionTileRows;
+  using cuda_impl::kPartitionTileWords;
+  using cuda_impl::kPartitionWarpWords;
+  using RowIndexT = cuda_impl::RowIndexT;
+  __shared__ union {
+    typename cuda_impl::PartitionWarpScanT::TempStorage scan;
+    typename cuda_impl::PartitionTilePrefixT::TempStorage prefix;
+  } temp_storage;
+  __shared__ std::uint32_t word_offset[kPartitionTileWords];
+  // Where this tile starts writing its left rows and its right rows in the node.
+  __shared__ std::uint32_t base[2];
+  __shared__ std::uint32_t tile_idx;
+
+  auto const warp = threadIdx.x / 32, lane = threadIdx.x % 32;
+
+  // Empty nodes have no tiles, write their counts here.
+  if (blockIdx.x == 0) {
+    for (std::int32_t i = threadIdx.x; i < n_nodes; i += blockDim.x) {
+      if (batch_info[i].segment.Size() == 0) {
+        d_counts[i] = 0;
+      }
+    }
+  }
+
+  // Take the next tile.
+  if (threadIdx.x == 0) {
+    tile_idx = atomicAdd(state.n_taken, 1u);
+  }
+  __syncthreads();
+  std::uint32_t const t = tile_idx;
+  if (t >= n_tiles) {
+    return;
+  }
+  // Find the node of this tile, empty nodes are skipped.
+  auto offsets = dh::MakeTransformIterator<RowIndexT>(
+      dh::make_counting_iterator(0), [=](std::int32_t i) { return batch_info[i].tile_offset; });
+  auto i = static_cast<std::int32_t>(dh::SegmentId(offsets, offsets + n_nodes, t));
+  auto const node = batch_info[i];
+  auto const& segment = node.segment;
+  RowIndexT const* in = ridx[node.buffer].data();
+  RowIndexT* out = ridx[1 - node.buffer].data();
+  auto tile = segment.begin + (t - node.tile_offset) * kPartitionTileRows;
+  auto n_rows = std::min(segment.end - tile, static_cast<RowIndexT>(kPartitionTileRows));
+
+  // Load the tile, word j of a warp holds the rows (warp * kPartitionWarpWords + j) * 32 + lane.
+  RowIndexT rows[kPartitionWarpWords];
+  cub::LoadDirectWarpStriped(threadIdx.x, in + tile, rows, n_rows, RowIndexT{0});
+  // Evaluate the split for each row, rows past the end of the tile don't go left.
+  bool go_left[kPartitionWarpWords];
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+    go_left[j] = local < n_rows && op(rows[j], node.data);
+  }
+
+  std::uint32_t bits[kPartitionWarpWords];
+  auto n_left = cuda_impl::RankLeft(go_left, bits, word_offset, temp_storage.scan);
+  if (warp == 0) {
+    __syncwarp();  // The scan storage is reused by the look-back.
+    auto n_left_before =
+        cuda_impl::NLeftBeforeTile(state.tiles, temp_storage.prefix, t, node.tile_offset, n_left);
+    if (lane == 0) {
+      // The rows before this tile in the node are split into n_left_before on the left, and the
+      // rest on the right.
+      base[0] = n_left_before;
+      base[1] = tile - segment.begin - n_left_before;
+      // The last tile of the node has the left count of the node.
+      if (tile + n_rows == segment.end) {
+        d_counts[i] = n_left_before + n_left;
+      }
+    }
+  }
+  __syncthreads();
+
+  // Write the left rows in order from the beginning of the segment, and the right rows in reverse
+  // order from the end.
+#pragma unroll
+  for (std::int32_t j = 0; j < kPartitionWarpWords; ++j) {
+    auto local = (warp * kPartitionWarpWords + j) * 32 + lane;
+    if (local < n_rows) {
+      auto n_left_before = cuda_impl::NLeftBefore(word_offset, bits[j], warp * kPartitionWarpWords + j);
+      if (go_left[j]) {
+        out[segment.begin + base[0] + n_left_before] = rows[j];
+      } else {
+        // local - n_left_before is the number of right rows before this row in the tile.
+        out[segment.end - 1 - (base[1] + local - n_left_before)] = rows[j];
+      }
+    }
   }
 }
 
 /**
- * @param total_rows The total number of rows for this batch of nodes.
- */
-template <int kBlockSize, typename OpDataT>
-__global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
-    dh::LDGIterator<PerNodeData<OpDataT>> batch_info_iter,
-    common::Span<cuda_impl::RowIndexT> d_ridx,
-    common::Span<cuda_impl::RowIndexT const> const ridx_tmp, bst_idx_t total_rows) {
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
-    std::int32_t batch_idx;  // unused
-    std::size_t item_idx = std::numeric_limits<std::size_t>::max();
-    AssignBatch(batch_info_iter, idx, &batch_idx, &item_idx);
-    d_ridx[item_idx] = ridx_tmp[item_idx];
-  }
-}
-
-// We can scan over this tuple, where the scan gives us information on how to partition inputs
-// according to the flag
-struct IndexFlagTuple {
-  cuda_impl::RowIndexT idx;        // The location of the item we are working on in ridx_
-  cuda_impl::RowIndexT flag_scan;  // This gets populated after scanning
-  std::int32_t batch_idx;          // Which node in the batch does this item belong to
-  bool flag;                       // Result of op (is this item going left?)
-};
-
-struct IndexFlagOp {
-  __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
-    // Segmented scan - resets if we cross batch boundaries
-    if (a.batch_idx == b.batch_idx) {
-      // Accumulate the flags, everything else stays the same
-      return {b.idx, a.flag_scan + b.flag_scan, b.batch_idx, b.flag};
-    } else {
-      return b;
-    }
-  }
-};
-
-// Scatter from `ridx_in` to `ridx_out`.
-template <typename OpDataT>
-struct WriteResultsFunctor {
-  dh::LDGIterator<PerNodeData<OpDataT>> batch_info;
-  cuda_impl::RowIndexT const* ridx_in;
-  cuda_impl::RowIndexT* ridx_out;
-  cuda_impl::RowIndexT* counts;
-
-  __device__ IndexFlagTuple operator()(IndexFlagTuple const& x) {
-    cuda_impl::RowIndexT scatter_address;
-    // Get the segment that this row belongs to.
-    const Segment& segment = batch_info[x.batch_idx].segment;
-    if (x.flag) {
-      // Go left.
-      cuda_impl::RowIndexT num_previous_flagged = x.flag_scan - 1;  // -1 because inclusive scan
-      scatter_address = segment.begin + num_previous_flagged;
-    } else {
-      cuda_impl::RowIndexT num_previous_unflagged = (x.idx - segment.begin) - x.flag_scan;
-      scatter_address = segment.end - num_previous_unflagged - 1;
-    }
-    ridx_out[scatter_address] = ridx_in[x.idx];
-
-    if (x.idx == (segment.end - 1)) {
-      // Write out counts
-      counts[x.batch_idx] = x.flag_scan;
-    }
-
-    // Discard
-    return {};
-  }
-};
-
-/**
+ * @brief Partition the rows of a batch of nodes, from the buffer of each node to the other one.
+ *
  * @param d_batch_info Node data, with the size of the input number of nodes.
+ * @param n_tiles      The number of tiles, see @ref PerNodeData::tile_offset.
+ * @param d_counts     Output, the number of rows going left for each node.
+ * @param p_states     The tile states, kept between launches.
  */
 template <typename OpT, typename OpDataT>
 void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
-                       common::Span<cuda_impl::RowIndexT> ridx,
-                       common::Span<cuda_impl::RowIndexT> ridx_tmp,
-                       common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
-                       dh::DeviceUVector<int8_t>* tmp) {
-  dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
-  WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
-                                             d_counts.data()};
-
-  auto discard_write_iterator =
-      thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
-  auto counting = dh::make_counting_iterator(0llu);
-  auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
-      counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
-        std::int32_t nidx_in_batch;
-        std::size_t item_idx;
-        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
-        auto go_left = op(ridx[item_idx], batch_info_itr[nidx_in_batch].data);
-        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
-                              go_left};
-      }));
-  // Reach down to the dispatch function to avoid using int as the offset type.
-  std::size_t n_bytes = 0;
-  if (tmp->empty()) {
-    // The size of temporary storage is calculated based on the total number of
-    // rows. Since the root node has all the rows, subsequence allocatioin must be smaller
-    // than the root node. As a result, we can calculate this once and reuse it throughout
-    // the iteration.
-    auto ret =
-        cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                          cub::NullType, std::uint64_t>::Dispatch(nullptr, n_bytes, input_iterator,
-                                                                  discard_write_iterator,
-                                                                  IndexFlagOp{}, cub::NullType{},
-                                                                  static_cast<std::uint64_t>(
-                                                                      total_rows),
-                                                                  ctx->CUDACtx()->Stream());
-    dh::safe_cuda(ret);
-    tmp->resize(n_bytes);
+                       RowBuffers<cuda_impl::RowIndexT> ridx,
+                       common::Span<cuda_impl::RowIndexT> d_counts, std::size_t n_tiles, OpT op,
+                       PartitionTileStates* p_states) {
+  auto stream = ctx->CUDACtx()->Stream();
+  auto n_nodes = d_batch_info.size();
+  auto& states = *p_states;
+  auto init = [&](PartitionTileState tiles, std::size_t n) {
+    auto n_init_blocks = std::max<std::size_t>(common::DivRoundUp(n, 256), 1);
+    dh::LaunchKernel{static_cast<std::uint32_t>(n_init_blocks), 256, 0, stream}(
+        InitPartitionTileStateKernel<PartitionTileState>, tiles, static_cast<std::int32_t>(n));
+  };
+  // Allocated even without tiles, the kernel resets the next state.
+  if (n_tiles > states.capacity || states.storage.empty()) {
+    states.capacity = n_tiles;
+    dh::safe_cuda(PartitionTileState::AllocationSize(static_cast<int>(n_tiles), states.tile_bytes));
+    states.tile_bytes = common::DivRoundUp(states.tile_bytes, 16) * 16;
+    states.storage.resize(2 * (PartitionTileStates::kCounterBytes + states.tile_bytes));
+    dh::safe_cuda(cudaMemsetAsync(states.storage.data(), 0, states.storage.size(), stream));
+    init(states.Get(0).tiles, states.capacity);
+    init(states.Get(1).tiles, states.capacity);
+    states.n_dirty = 0;
   }
-  n_bytes = tmp->size();
-  auto ret =
-      cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                        cub::NullType, std::uint64_t>::Dispatch(tmp->data(), n_bytes,
-                                                                input_iterator,
-                                                                discard_write_iterator,
-                                                                IndexFlagOp{}, cub::NullType{},
-                                                                static_cast<std::uint64_t>(
-                                                                    total_rows),
-                                                                ctx->CUDACtx()->Stream());
-  dh::safe_cuda(ret);
-
-  constexpr int kBlockSize = 256;
-
-  // Value found by experimentation
-  const int kItemsThread = 12;
-  std::uint32_t const kGridSize =
-      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
-  dh::LaunchKernel{kGridSize, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, ridx, ridx_tmp, total_rows);
+  // At least one block, to write the counts of empty nodes.
+  auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(n_tiles, 1));
+  auto next_state = states.Get(1 - states.current);
+  auto n_reset = states.n_dirty;
+  if (n_reset > static_cast<std::size_t>(n_blocks) * cuda_impl::kPartitionBlockThreads) {
+    init(next_state.tiles, n_reset);
+    n_reset = 0;
+  }
+  dh::LaunchKernel{n_blocks, cuda_impl::kPartitionBlockThreads, 0, stream}(
+      PartitionKernel<OpT, OpDataT>, dh::LDGIterator<PerNodeData<OpDataT>>{d_batch_info.data()},
+      static_cast<std::int32_t>(n_nodes), static_cast<std::uint32_t>(n_tiles), ridx,
+      states.Get(states.current), next_state, static_cast<std::int32_t>(n_reset), d_counts.data(),
+      op);
+  states.n_dirty = n_tiles;
+  states.current = 1 - states.current;
 }
 
 struct NodePositionInfo {
   Segment segment;
   bst_node_t left_child = -1;
   bst_node_t right_child = -1;
+  // The buffer holding the rows of this node, see @ref RowBuffers.
+  std::int32_t buffer = 0;
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return left_child == -1; }
 };
 
@@ -216,39 +379,12 @@ struct LeafInfo {
   NodePositionInfo node;
 };
 
-XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
-                                               const NodePositionInfo* d_node_info) {
-  int position = 0;
-  NodePositionInfo node = d_node_info[position];
-  while (!node.IsLeaf()) {
-    NodePositionInfo left = d_node_info[node.left_child];
-    NodePositionInfo right = d_node_info[node.right_child];
-    if (idx >= left.segment.begin && idx < left.segment.end) {
-      position = node.left_child;
-      node = left;
-    } else if (idx >= right.segment.begin && idx < right.segment.end) {
-      position = node.right_child;
-      node = right;
-    } else {
-      KERNEL_CHECK(false);
-    }
-  }
-  return position;
-}
-
-template <int kBlockSize, typename OpT>
-__global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
-    common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
-    common::Span<const cuda_impl::RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position,
-    OpT op) {
-  for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
-    auto position = GetPositionFromSegments(idx, d_node_info.data());
-    auto global_ridx = d_ridx[idx];
-    auto local_ridx = global_ridx - base_ridx;
-    bst_node_t new_position = op(global_ridx, position);
-    d_out_position[local_ridx] = new_position;
-  }
-}
+/** @brief Start of the rows of a leaf, and the buffer holding them. */
+struct LeafStart {
+  cuda_impl::RowIndexT begin;
+  bst_node_t nidx;
+  std::int32_t buffer;
+};
 
 /** \brief Class responsible for tracking subsets of rows as we add splits and
  * partition training rows into different leaf nodes. */
@@ -275,8 +411,13 @@ class RowPartitioner {
    * node id  |    1    |    2   |
    * rows idx | 3, 5, 1 | 13, 31 |
    */
-  dh::DeviceUVector<RowIndexT> ridx_;
-  dh::DeviceUVector<int8_t> tmp_;
+  std::array<dh::DeviceUVector<RowIndexT>, 2> ridx_;
+  // Storage for the @ref PartitionState of the partition kernel.
+  PartitionTileStates partition_state_;
+
+  [[nodiscard]] RowBuffers<RowIndexT> Buffers() {
+    return {{dh::ToSpan(ridx_[0]), dh::ToSpan(ridx_[1])}};
+  }
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.
@@ -300,13 +441,15 @@ class RowPartitioner {
   common::Span<const RowIndexT> GetRows(bst_node_t nidx);
 
   /**
-   * \brief Gets all training rows in the set.
+   * @brief Gets both row buffers, see @ref RowBuffers.
    */
-  common::Span<const RowIndexT> GetRows() const;
+  [[nodiscard]] RowBuffers<const RowIndexT> GetBuffers() const {
+    return {{dh::ToSpan(ridx_[0]), dh::ToSpan(ridx_[1])}};
+  }
   /**
    * @brief Get the number of rows in this partitioner.
    */
-  std::size_t Size() const { return this->GetRows().size(); }
+  std::size_t Size() const { return ridx_[0].size(); }
 
   [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
@@ -345,8 +488,7 @@ class RowPartitioner {
   void UpdatePositionBatch(Context const* ctx, std::vector<bst_node_t> const& nidx,
                            std::vector<bst_node_t> const& left_nidx,
                            std::vector<bst_node_t> const& right_nidx,
-                           std::vector<OpDataT> const& op_data, common::Span<RowIndexT> ridx_tmp,
-                           UpdatePositionOpT op) {
+                           std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
     if (nidx.empty()) {
       return;
     }
@@ -359,43 +501,24 @@ class RowPartitioner {
         pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
+    std::size_t n_tiles = 0;
     for (std::size_t i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data[i]};
+      auto const& node = ridx_segments_.at(nidx[i]);
+      h_batch_info[i] = {node.segment, op_data[i], static_cast<RowIndexT>(n_tiles), node.buffer};
+      n_tiles += common::DivRoundUp(node.segment.Size(), cuda_impl::kPartitionTileRows);
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                   h_batch_info.size_bytes(), cudaMemcpyDefault,
                                   ctx->CUDACtx()->Stream()));
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
-    // Must initialize with 0 as 0 count is not written in the kernel.
-    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
-    CHECK_EQ(ridx_tmp.size(), this->Size());
+    // Written for every node by the kernel.
+    dh::TemporaryArray<RowIndexT> d_counts(nidx.size());
 
-    // Process a sub-batch
-    auto sub_batch_impl = [&](common::Span<bst_node_t const> nidx,
-                              common::Span<PerNodeData<OpDataT>> d_batch_info,
-                              common::Span<RowIndexT> d_counts) {
-      std::size_t total_rows = 0;
-      for (bst_node_t i : nidx) {
-        total_rows += this->ridx_segments_[i].segment.Size();
-      }
-
-      // Partition the rows according to the operator
-      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(this->ridx_),
-                                                    ridx_tmp, d_counts, total_rows, op,
-                                                    &this->tmp_);
-    };
-
-    // Divide inputs into sub-batches.
-    for (std::size_t batch_begin = 0, n = nidx.size(); batch_begin < n;
-         batch_begin += cuda_impl::kMaxUpdatePositionBatchSize) {
-      auto constexpr kMax = static_cast<decltype(n)>(cuda_impl::kMaxUpdatePositionBatchSize);
-      auto batch_size = std::min(kMax, n - batch_begin);
-      auto nidx_batch = common::Span{nidx}.subspan(batch_begin, batch_size);
-      auto d_info_batch = dh::ToSpan(d_batch_info).subspan(batch_begin, batch_size);
-      auto d_counts_batch = dh::ToSpan(d_counts).subspan(batch_begin, batch_size);
-      sub_batch_impl(nidx_batch, d_info_batch, d_counts_batch);
-    }
+    // Partition the rows of all nodes according to the operator
+    SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), this->Buffers(),
+                                                  dh::ToSpan(d_counts), n_tiles, op,
+                                                  &this->partition_state_);
 
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
@@ -406,15 +529,17 @@ class RowPartitioner {
     // Update segments
     for (std::size_t i = 0; i < nidx.size(); i++) {
       auto segment = ridx_segments_.at(nidx[i]).segment;
+      auto buffer = ridx_segments_.at(nidx[i]).buffer;
       auto left_count = h_counts[i];
       CHECK_LE(left_count, segment.Size());
       ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                      std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
+      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i], buffer};
+      // The children are in the other buffer.
       ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
+          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}, -1, -1, 1 - buffer};
       ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+          NodePositionInfo{Segment{segment.begin + left_count, segment.end}, -1, -1, 1 - buffer};
     }
   }
 
@@ -430,27 +555,44 @@ class RowPartitioner {
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,
                         bst_idx_t base_ridx, FinalisePositionOpT op) const {
-    dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
-    dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
-                                  sizeof(NodePositionInfo) * ridx_segments_.size(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+    CHECK_GE(d_out_position.size(), this->Size());
+    // The leaves with rows, ordered by their segments, which cover all rows.
+    std::vector<LeafStart> h_leaves;
+    for (bst_node_t nidx = 0, n = ridx_segments_.size(); nidx < n; ++nidx) {
+      auto const& node = ridx_segments_[nidx];
+      if (node.IsLeaf() && node.segment.Size() != 0) {
+        h_leaves.push_back({node.segment.begin, nidx, node.buffer});
+      }
+    }
+    if (h_leaves.empty()) {
+      return;
+    }
+    std::sort(h_leaves.begin(), h_leaves.end(),
+              [](LeafStart const& l, LeafStart const& r) { return l.begin < r.begin; });
+    dh::TemporaryArray<LeafStart> d_leaves_storage(h_leaves.size());
+    dh::safe_cuda(cudaMemcpyAsync(d_leaves_storage.data().get(), h_leaves.data(),
+                                  sizeof(LeafStart) * h_leaves.size(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
 
-    constexpr std::uint32_t kBlockSize = 512;
-    const int kItemsThread = 8;
-    const std::uint32_t grid_size =
-        xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
-    common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
-        FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
-        base_ridx, d_ridx, d_out_position, op);
+    // Scatter the leaf of each row into the output, searching the leaf of each row.
+    auto d_leaves = dh::ToSpan(d_leaves_storage);
+    auto ridx = this->GetBuffers();
+    dh::LaunchN<1>(this->Size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+      auto begin = dh::MakeTransformIterator<cuda_impl::RowIndexT>(
+          d_leaves.data(), [] XGBOOST_DEVICE(LeafStart const& leaf) { return leaf.begin; });
+      auto leaf = d_leaves[dh::SegmentId(begin, begin + d_leaves.size(), i)];
+      d_out_position[ridx[leaf.buffer][i] - base_ridx] = leaf.nidx;
+    });
+    // Then finalise the positions in row order, so the reads by `op` are contiguous.
+    dh::LaunchN<1>(this->Size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+      d_out_position[i] = op(i + base_ridx, d_out_position[i]);
+    });
   }
 };
 
 // Partitioner for all batches, used for external memory training.
 class RowPartitionerBatches {
  private:
-  // Temporary buffer for sorting the samples.
-  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp_;
   // Partitioners for each batch.
   std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
@@ -462,7 +604,6 @@ class RowPartitionerBatches {
       partitioners_.clear();
     }
 
-    bst_idx_t n_max_samples = 0;
     for (std::size_t k = 0; k < n_batches; ++k) {
       if (partitioners_.size() != n_batches) {
         // First run.
@@ -472,9 +613,7 @@ class RowPartitionerBatches {
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx, n_samples, base_ridx);
       CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
-      n_max_samples = std::max(n_samples, n_max_samples);
     }
-    this->ridx_tmp_.resize(n_max_samples);
   }
 
   // Accessors
@@ -495,9 +634,7 @@ class RowPartitionerBatches {
                            std::vector<bst_node_t> const& left_nidx,
                            std::vector<bst_node_t> const& right_nidx,
                            std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
-    auto& part = this->At(batch_idx);
-    auto ridx_tmp = dh::ToSpan(this->ridx_tmp_).subspan(0, part->Size());
-    part->UpdatePositionBatch(ctx, nidx, left_nidx, right_nidx, op_data, ridx_tmp, op);
+    this->At(batch_idx)->UpdatePositionBatch(ctx, nidx, left_nidx, right_nidx, op_data, op);
   }
 };
 };  // namespace xgboost::tree

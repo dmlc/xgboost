@@ -1,6 +1,7 @@
 /**
  * Copyright 2019-2026, XGBoost contributors
  */
+#include <dmlc/omp.h>  // for omp_get_max_threads, omp_set_num_threads
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
@@ -341,6 +342,24 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_NE(err.find("foo"), std::string::npos);
     ASSERT_EQ(err.find("verbosity"), std::string::npos);
   }
+  {
+    auto n_threads = omp_get_max_threads();
+    auto restore = common::MakeCleanup([n_threads] { omp_set_num_threads(n_threads); });
+    auto const old_config = *GlobalConfigThreadLocalStore::Get();
+
+    Json config{Object{}};
+    config["nthread"] = Integer{static_cast<Integer::Int>(n_threads + 1)};
+    config["verbosity"] = Integer{static_cast<Integer::Int>(4)};
+    std::string config_str;
+    Json::Dump(config, &config_str);
+    ret = XGBSetGlobalConfig(config_str.c_str());
+    ASSERT_EQ(ret, -1);
+
+    auto const *new_config = GlobalConfigThreadLocalStore::Get();
+    ASSERT_EQ(new_config->nthread, old_config.nthread);
+    ASSERT_EQ(new_config->verbosity, old_config.verbosity);
+    ASSERT_EQ(omp_get_max_threads(), n_threads);
+  }
 }
 
 TEST(CAPI, BuildInfo) {
@@ -675,6 +694,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_0(n_samples_ret);
     ASSERT_EQ(vec_0.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_0.size(), vec_0.begin());
 
     // In-place predict
@@ -685,6 +706,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_1(n_samples_ret);
     ASSERT_EQ(vec_1.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_1.size(), vec_1.begin());
 
     // Same result
@@ -707,6 +730,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_0(n_samples_ret);
     ASSERT_EQ(vec_0.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_0.size(), vec_0.begin());
 
     // In-place predict, same proxy as before
@@ -717,6 +742,8 @@ TEST(CAPI, PredictReuseProxy) {
     std::vector<float> vec_1(n_samples_ret);
     ASSERT_EQ(vec_1.size(), n_samples);
     ASSERT_EQ(outdim, 2);
+    ASSERT_EQ(outshape[0], n_samples);
+    ASSERT_EQ(outshape[1], 1);
     std::copy_n(result, vec_1.size(), vec_1.begin());
 
     // Same result

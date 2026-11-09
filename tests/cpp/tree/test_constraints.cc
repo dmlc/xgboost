@@ -84,9 +84,10 @@ TEST(CPUMonoConstraint, Basic) {
   HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
   evalutor.InitRoot(GradStats{2.0, 2.0});
 
-  SplitEntry split;
-  split.Update(1.0f, 0, 3.0, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
-  CPUExpandEntry entry{0, 0, split};
+  CPUExpandEntry entry{0, 0};
+  GradientPairPrecise sum{1.0, 1.0};
+  entry.split.Update(1.0f, 0, 3.0, false, false, linalg::MakeVec(&sum, 1),
+                     linalg::MakeVec(&sum, 1));
   RegTree tree{1, static_cast<bst_feature_t>(kCols)};
   evalutor.ApplyTreeSplit(entry, &tree);
 

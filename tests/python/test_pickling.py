@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -10,14 +11,14 @@ kRows = 100
 kCols = 10
 
 
-def generate_data():
+def generate_data() -> Tuple[np.ndarray, np.ndarray]:
     X = np.random.randn(kRows, kCols)
     y = np.random.randn(kRows)
     return X, y
 
 
 class TestPickling:
-    def run_model_pickling(self, xgb_params) -> str:
+    def run_model_pickling(self, xgb_params: Dict[str, Any]) -> Dict[str, Any]:
         X, y = generate_data()
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(xgb_params, dtrain)
@@ -49,8 +50,8 @@ class TestPickling:
         assert config_0 == config_1
         return json.loads(config_0)
 
-    def test_model_pickling_json(self):
-        def check(config):
+    def test_model_pickling_json(self) -> None:
+        def check(config: Dict[str, Any]) -> None:
             tree_param = config["learner"]["gradient_booster"]["tree_train_param"]
             subsample = tree_param["subsample"]
             assert float(subsample) == 0.5

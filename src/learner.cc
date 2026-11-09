@@ -10,31 +10,29 @@
 #include <dmlc/parameter.h>     // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
 #include <dmlc/thread_local.h>  // for ThreadLocalStore
 
-#include <algorithm>      // for equal, max, transform, sort, find_if, all_of
-#include <atomic>         // for atomic
-#include <cctype>         // for isalpha, isspace
-#include <cmath>          // for isnan, isinf
-#include <cstdint>        // for int32_t, uint32_t, int64_t, uint64_t
-#include <cstdlib>        // for atoi
-#include <cstring>        // for memcpy, size_t, memset
-#include <iomanip>        // for operator<<, setiosflags
-#include <iterator>       // for back_insert_iterator, distance, back_inserter
-#include <limits>         // for numeric_limits
-#include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
-#include <mutex>          // for mutex, lock_guard
-#include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <string>         // for basic_string, char_traits, operator<, string
-#include <system_error>   // for errc
-#include <unordered_map>  // for operator!=, unordered_map
-#include <utility>        // for pair, as_const, move, swap
-#include <vector>         // for vector
+#include <algorithm>   // for equal, max, transform, sort, find_if, all_of
+#include <atomic>      // for atomic
+#include <cctype>      // for isalpha, isspace
+#include <cmath>       // for isnan, isinf
+#include <cstdint>     // for int32_t, uint32_t, int64_t, uint64_t
+#include <cstdlib>     // for atoi
+#include <cstring>     // for memcpy, size_t, memset
+#include <functional>  // for multiplies
+#include <iomanip>     // for operator<<, setiosflags
+#include <iterator>    // for back_insert_iterator, distance, back_inserter
+#include <limits>      // for numeric_limits
+#include <memory>      // for allocator, unique_ptr, shared_ptr, operator==
+#include <mutex>       // for mutex, lock_guard
+#include <numeric>     // for accumulate
+#include <sstream>     // for operator<<, basic_ostream, basic_ostream::opera...
+#include <string>      // for basic_string, char_traits, operator<, string
+#include <utility>     // for pair, as_const, move, swap
+#include <vector>      // for vector
 
 #include "collective/aggregator.h"        // for GlobalMax
-#include "collective/allreduce.h"         // for Allreduce, SafeColl
 #include "collective/broadcast.h"         // for Broadcast
 #include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
-#include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
@@ -45,7 +43,6 @@
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
-#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
 #include "xgboost/linalg.h"               // for Vector, VectorView
@@ -614,6 +611,7 @@ class LearnerConfiguration : public LearnerModelStateContainer {
     }
     obj_->LoadConfig(objective_fn);
     model_state_.task = obj_->Task();
+    model_state_.multi_strategy = tparam_.multi_strategy;
 
     tparam_.booster = CanonicalizeBoosterName(get<String>(gradient_booster["name"]));
     if (!gbm_) {
@@ -1097,14 +1095,10 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
-    if (in_gpair->HasValueGrad()) {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumTargets())
-          << "Value gradient should have the same number of targets as the overall model.";
-    } else {
-      CHECK_EQ(this->model_state_.OutputLength(), in_gpair->NumSplitTargets())
-          << "The number of columns in gradient should be equal to the number of "
-             "targets/classes in the model.";
-    }
+    CHECK(!in_gpair->HasValueGrad()) << "Custom objectives must supply full-dimensional gradients.";
+    CHECK_EQ(this->model_state_.OutputLength(), in_gpair->Grad()->Shape(1))
+        << "The number of columns in gradient should be equal to the number of "
+           "targets/classes in the model.";
     this->gbm_->DoBoost(train, in_gpair, obj_.get());
     this->monitor_.Stop(__func__);
   }
@@ -1131,9 +1125,9 @@ class LearnerImpl : public LearnerIO {
       std::shared_ptr<DMatrix> m = data_sets[i];
       this->ValidateDMatrix(m.get(), false);
       HostDeviceVector<float> out;
-      this->PredictRaw(m, &out, false, 0, 0);
+      auto shape = this->PredictRaw(m, &out, false, 0, 0);
 
-      obj_->EvalTransform(&out);
+      obj_->EvalTransform(&out, std::move(shape));
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':' << ev->Evaluate(out, m);
       }
@@ -1143,10 +1137,11 @@ class LearnerImpl : public LearnerIO {
     return os.str();
   }
 
-  void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
-               HostDeviceVector<float>* out_preds, bst_layer_t layer_begin, bst_layer_t layer_end,
-               bool training, bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions, bool strict_shape) override {
+  std::vector<bst_ulong> Predict(std::shared_ptr<DMatrix> data, bool output_margin,
+                                 HostDeviceVector<float>* out_preds, bst_layer_t layer_begin,
+                                 bst_layer_t layer_end, bool training, bool pred_leaf,
+                                 bool pred_contribs, bool approx_contribs, bool pred_interactions,
+                                 bool strict_shape) override {
     int multiple_predictions = static_cast<int>(pred_leaf) + static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
@@ -1157,22 +1152,25 @@ class LearnerImpl : public LearnerIO {
     this->CheckModelInitialized();
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
+    std::vector<bst_ulong> shape;
     if (pred_contribs) {
       this->ValidateDMatrix(data.get(), false);
-      gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
+      shape =
+          gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
     } else if (pred_interactions) {
       this->ValidateDMatrix(data.get(), false);
-      gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
-                                            approx_contribs);
+      shape = gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
+                                                    approx_contribs);
     } else if (pred_leaf) {
       this->ValidateDMatrix(data.get(), false);
-      gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
+      shape = gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
     } else {
-      this->PredictRaw(data, out_preds, training, layer_begin, layer_end);
+      shape = this->PredictRaw(data, out_preds, training, layer_begin, layer_end);
       if (!output_margin) {
-        obj_->PredTransform(out_preds);
+        shape = obj_->PredTransform(out_preds, std::move(shape));
       }
     }
+    return this->FinalizePredictionShape(*out_preds, strict_shape || pred_leaf, std::move(shape));
   }
 
   int32_t BoostedRounds() const override {
@@ -1193,25 +1191,28 @@ class LearnerImpl : public LearnerIO {
     return (*LearnerAPIThreadLocalStore::Get())[this];
   }
 
-  void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
-                      HostDeviceVector<float>** out_preds, bst_layer_t iteration_begin,
-                      bst_layer_t iteration_end) override {
+  std::vector<bst_ulong> InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type,
+                                        float missing, HostDeviceVector<float>** out_preds,
+                                        bst_layer_t iteration_begin, bst_layer_t iteration_end,
+                                        bool strict_shape) override {
     this->Configure();
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().predictions;
     out_predictions.Resize(0);
 
-    this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
+    auto shape =
+        this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
 
     if (type == PredictionType::kValue) {
-      obj_->PredTransform(&out_predictions);
+      shape = obj_->PredTransform(&out_predictions, std::move(shape));
     } else if (type == PredictionType::kMargin) {
       // do nothing
     } else {
       LOG(FATAL) << "Unsupported prediction type:" << static_cast<int>(type);
     }
     *out_preds = &out_predictions;
+    return this->FinalizePredictionShape(out_predictions, strict_shape, std::move(shape));
   }
 
   void CalcFeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
@@ -1230,13 +1231,35 @@ class LearnerImpl : public LearnerIO {
    * \param layer_begin Beginning of the boosting iteration range.
    * \param layer_end End of the boosting iteration range. Zero uses all iterations.
    * \param training allow dropout when the DART booster is being used
+   * @return Shape `(rows, output_groups)` of the row-major buffer in out_preds before
+   *         objective transformation, retaining the group axis even for zero rows.
    */
-  void PredictRaw(std::shared_ptr<DMatrix> data, HostDeviceVector<float>* out_preds, bool training,
-                  unsigned layer_begin, unsigned layer_end) const {
+  std::vector<bst_ulong> PredictRaw(std::shared_ptr<DMatrix> data,
+                                    HostDeviceVector<float>* out_preds, bool training,
+                                    unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->CheckModelInitialized();
     this->ValidateDMatrix(data.get(), false);
-    gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
+    return gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
+  }
+
+  /**
+   * @brief Validate the buffer size and apply the public shape convention.
+   *
+   * Shapes retain the output-group axis internally. Leaf prediction handles its own layout
+   * and calls this with strict_shape set to true to skip singleton-axis removal.
+   * @return Shape with a singleton output-group axis omitted unless strict_shape is true.
+   */
+  static std::vector<bst_ulong> FinalizePredictionShape(HostDeviceVector<float> const& predictions,
+                                                        bool strict_shape,
+                                                        std::vector<bst_ulong> shape) {
+    CHECK_GE(shape.size(), 1);
+    if (!strict_shape && shape.size() > 1 && shape[1] == 1) {
+      shape.erase(shape.begin() + 1);
+    }
+    auto size = std::accumulate(shape.cbegin(), shape.cend(), bst_ulong{1}, std::multiplies<>{});
+    CHECK_EQ(size, predictions.Size());
+    return shape;
   }
 
   void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {

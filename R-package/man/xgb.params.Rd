@@ -37,6 +37,7 @@ xgb.params(
   monotone_constraints = NULL,
   interaction_constraints = NULL,
   multi_strategy = NULL,
+  multi_projection_ratio = NULL,
   base_score = NULL,
   eval_metric = NULL,
   seed_per_iteration = NULL,
@@ -65,7 +66,8 @@ xgb.params(
   lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
   lambdarank_bias_norm = NULL,
-  ndcg_exp_gain = NULL
+  ndcg_exp_gain = NULL,
+  fail_on_invalid_gpu_id = NULL
 )
 }
 \arguments{
@@ -298,6 +300,14 @@ Version added: 2.0.0
 
 Note: This parameter is working-in-progress.}
 
+\item{multi_projection_ratio}{(for Tree Booster) (default = 1.0)
+Fraction of target-gradient dimensions retained by random projection for split search.
+Projection requires \code{multi_strategy = "multi_output_tree"} and \code{tree_method = "hist"}.
+
+range: \eqn{(0, 1]}
+
+Version added: 3.5.0}
+
 \item{base_score}{\itemize{
 \item The initial prediction score of all instances, global bias
 \item The parameter is automatically estimated for selected objectives before training. To
@@ -390,6 +400,8 @@ Version added: 2.0.0
 \itemize{
 \item For most of the cases this parameter should not be set except for growing deep
 trees. After 3.0, this parameter affects GPU algorithms as well.
+\item For vector-leaf models with many targets, consider \code{multi_projection_ratio} to reduce
+histogram memory use.
 }}
 
 \item{max_cat_to_onehot}{(for Non-Exact Tree Methods) (default = \code{2^32 - 1})
@@ -522,6 +534,13 @@ Specify whether do we need to debias input click data.}
 
 \item{ndcg_exp_gain}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{TRUE})
 Whether we should use exponential gain function for \code{NDCG}. There are two forms of gain function for \code{NDCG}, one is using relevance value directly while the other is using\eqn{2^{rel} - 1} to emphasize on retrieving relevant documents. When \code{ndcg_exp_gain} is \code{TRUE} (the default), relevance degree cannot be greater than 31.}
+
+\item{fail_on_invalid_gpu_id}{(default= \code{FALSE})
+Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+to \code{FALSE}, XGBoost replaces a non-negative ordinal that is greater than or equal to the
+number of visible GPUs with its value modulo that number. For example,
+\code{device = "cuda:1"} is changed to \code{device = "cuda:0"} when only one GPU is visible. When
+no GPU is visible, XGBoost falls back to the CPU regardless of this setting.}
 }
 \value{
 A list with the entries that were passed non-NULL values. It is intended to

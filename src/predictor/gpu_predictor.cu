@@ -486,6 +486,12 @@ void DispatchedInplacePredict(Context const* ctx, std::shared_ptr<Adapter> m,
                               float missing, HostDeviceVector<float>* out_preds,
                               bst_tree_t tree_begin, bst_tree_t tree_end,
                               common::OptionalWeights tree_weights) {
+  if (m->NumRows() == 0) {
+    // Empty adapters have no device pointer from which to determine their device.
+    InitOutPredictions(ctx, p_m->Info(), out_preds, model);
+    out_preds->DeviceSpan();
+    return;
+  }
   CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
       << "XGBoost is running on device: " << ctx->Device().Name() << ", "
       << "but data is on: " << m->Device().Name();

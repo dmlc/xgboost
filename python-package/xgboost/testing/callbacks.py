@@ -107,12 +107,20 @@ def run_eta_decay(
 
     assert isinstance(bst, Booster)
 
-    assert eval_errors_3[0] == eval_errors_2[0]
-
-    for i in range(1, len(eval_errors_0)):
+    # The large rates bring the last round back to the error of a constant prediction.
+    for i in range(len(eval_errors_0) - 1):
         assert eval_errors_3[i] != eval_errors_2[i]
 
     cv(param, dtrain, num_round, callbacks=[scheduler(eta_decay)])
+
+    # each learning rate applies to the tree of its own iteration
+    rates = [0.8, 0.1, 0.5, 0.2]
+    bst = train(param, dtrain, num_round, callbacks=[scheduler(rates)])
+    manual = None
+    for rate in rates:
+        manual = train({**param, "learning_rate": rate}, dtrain, 1, xgb_model=manual)
+    assert isinstance(manual, Booster)
+    assert bst.get_dump(dump_format="json") == manual.get_dump(dump_format="json")
 
 
 def tree_methods_objs() -> List[Tuple[str, str]]:
@@ -160,7 +168,7 @@ def run_eta_decay_leaf_output(
     )
 
     def eta_decay_1(i: int) -> float:
-        if i > 1:
+        if i > 2:
             return 5.0
         return num_round / (i + 1)
 
