@@ -321,17 +321,17 @@ TEST(GpuHist, PartitionInterleavedFeatures) {
   // sort as 0, 2, 1. Reading the other node's histogram fails that node. Feature 4 is bins
   // 8-10. Both nodes have weights 4, 1, 1 and sort as 9, 10, 8. Swapping a tie or skipping
   // the scatter leaves a different order.
-  auto tied_partitions = ConvertToInteger(&ctx, {{-4.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-4.0, 1.0},
-                                                 {-1.0, 1.0},
-                                                 {-1.0, 1.0}});
+  auto tied_node_0 = ConvertToInteger(&ctx, {{-4.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-4.0, 1.0},
+                                             {-1.0, 1.0},
+                                             {-1.0, 1.0}});
   auto tied_node_1 = ConvertToInteger(&ctx, {{-1.0, 1.0},
                                              {-4.0, 1.0},
                                              {-1.0, 1.0},
@@ -345,7 +345,7 @@ TEST(GpuHist, PartitionInterleavedFeatures) {
                                              {-1.0, 1.0}});
   thrust::device_vector<EvaluateSplitInputs> tie_inputs(2);
   tie_inputs[0] =
-      EvaluateSplitInputs{0, 0, parent_sum, dh::ToSpan(feature_set), dh::ToSpan(tied_partitions)};
+      EvaluateSplitInputs{0, 0, parent_sum, dh::ToSpan(feature_set), dh::ToSpan(tied_node_0)};
   tie_inputs[1] =
       EvaluateSplitInputs{1, 0, parent_sum, dh::ToSpan(feature_set), dh::ToSpan(tied_node_1)};
   auto sorted = evaluator.SortHistogram(&ctx, dh::ToSpan(tie_inputs), shared_inputs,
