@@ -60,6 +60,19 @@ def test_nested_config() -> None:
     assert verbosity == 1
 
 
+def test_rejected_config_is_not_applied() -> None:
+    config = xgb.get_config()
+
+    with pytest.raises(xgb.core.XGBoostError, match="verbosity"):
+        xgb.set_config(verbosity=4)
+    assert xgb.get_config() == config
+
+    with pytest.raises(xgb.core.XGBoostError, match="foo"):
+        with xgb.config_context(verbosity=0, foo=1):
+            pass
+    assert xgb.get_config() == config
+
+
 def test_thread_safety() -> None:
     n_threads = multiprocessing.cpu_count()
     futures: List[Future[None]] = []

@@ -161,15 +161,18 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
+  // Update a copy and commit it only after validation, so a rejected configuration
+  // leaves the global configuration unchanged.
+  auto new_config = *GlobalConfigThreadLocalStore::Get();
 
   // handle nthread, it's not a dmlc parameter.
   auto &obj = get<Object>(config);
   auto it = obj.find("nthread");
+  Integer::Int nthread{0};
   if (it != obj.cend()) {
-    auto nthread = OptionalArg<Integer>(config, "nthread", Integer::Int{0});
+    nthread = OptionalArg<Integer>(config, "nthread", Integer::Int{0});
     if (nthread > 0) {
-      omp_set_num_threads(nthread);
-      GlobalConfigThreadLocalStore::Get()->nthread = nthread;
+      new_config.nthread = nthread;
     }
     get<Object>(config).erase("nthread");
   }
@@ -200,7 +203,7 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
         break;
     }
   }
-  auto unknown = FromJson(config, GlobalConfigThreadLocalStore::Get());
+  auto unknown = FromJson(config, &new_config);
   if (!unknown.empty()) {
     std::stringstream ss;
     ss << "Unknown global parameters: { ";
@@ -216,11 +219,11 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
   }
 
   // Check configuration is valid.
-  bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+  bool use_async_pool = new_config.use_cuda_async_pool;
 
 #if defined(XGBOOST_USE_RMM)
   CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
-  auto use_rmm = GlobalConfigThreadLocalStore::Get()->use_rmm;
+  auto use_rmm = new_config.use_rmm;
   if (use_rmm) {
     LOG(WARNING) << error::DeprecatedFunc("RMM plugin", "3.5.0", "CUDA async pool.");
   }
@@ -228,6 +231,11 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
   if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
     LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
   }
+
+  if (nthread > 0) {
+    omp_set_num_threads(nthread);
+  }
+  *GlobalConfigThreadLocalStore::Get() = new_config;
 
   API_END();
 }
