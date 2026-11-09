@@ -11,6 +11,7 @@
 #include <cstddef>  // for size_t
 
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
+#include "../common/linalg_op.h"        // for ElementWiseKernel
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "xgboost/json.h"               // for Json
 #include "xgboost/logging.h"            // for CHECK
@@ -62,9 +63,9 @@ void AFTGradientCpu(Context const* ctx, HostDeviceVector<float> const& preds, Me
 }
 
 void AFTPredTransformCpu(Context const* ctx, HostDeviceVector<float>* predictions) {
-  auto values = predictions->HostSpan();
-  common::ParallelFor(values.size(), ctx->Threads(),
-                      [=](std::size_t i) { values[i] = std::exp(values[i]); });
+  auto values = linalg::MakeVec(predictions->HostPointer(), predictions->Size());
+  linalg::cpu_impl::ElementWiseKernel(
+      values, ctx->Threads(), [=](std::size_t i) mutable { values(i) = std::exp(values(i)); });
 }
 
 void AFTProbToMarginCpu(Context const*, linalg::Vector<float>* base_score) {
