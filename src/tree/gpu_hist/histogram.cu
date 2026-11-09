@@ -5,7 +5,7 @@
 #include <cstddef>               // for size_t
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/bit>          // for bit_cast
-#include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
+#include <cuda/std/type_traits>  // for alignment_of_v, true_type, false_type
 #include <memory>                // for unique_ptr
 #include <vector>                // for vector
 
@@ -176,38 +176,91 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 
   auto const d_ridx = d_ridx_iter.data();
 
-  auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
-    if constexpr (Policy::kSharedMem) {
-      smem_hist.Add(bin_idx, adjusted);
-    } else {
-      // gmem_hist is a subspan for the current target.
-      AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
+  // A tile is kItemsPerThread entries for each thread of the block, striped: thread t takes the
+  // entries tile_begin + t + i * kBlockThreads. Only the last tile of the sub-segment can be
+  // partial and need bounds checks. Two entries keep their loads in flight together without
+  // spilling registers under the launch bounds.
+  constexpr std::uint32_t kItemsPerThread = 2;
+  constexpr bst_idx_t kTileEntries = kItemsPerThread * Policy::kBlockThreads;
+
+  // The row and the feature of the thread's next entry, stepped by kBlockThreads entries at a
+  // time instead of dividing for every entry.
+  // ridx_in_set: Index into the row batch
+  // fidx_in_set: Index into the feature group
+  bst_idx_t const first = begin + threadIdx.x;
+  Idx ridx_in_set = first / feature_stride;
+  Idx fidx_in_set = first - static_cast<bst_idx_t>(ridx_in_set) * feature_stride;
+  Idx const step_rows = Policy::kBlockThreads / feature_stride;
+  Idx const step_features = Policy::kBlockThreads % feature_stride;
+  auto step = [&] {
+    ridx_in_set += step_rows;
+    fidx_in_set += step_features;
+    if (fidx_in_set >= feature_stride) {
+      fidx_in_set -= feature_stride;
+      ++ridx_in_set;
     }
   };
 
-  for (bst_idx_t idx = begin + threadIdx.x; idx < end; idx += Policy::kBlockThreads) {
-    // unrolled version unravel to save registers:
-    // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
-    //
-    // ridx_in_set: Index into the row batch
-    // fidx_in_set: Index into the feature group
-    Idx ridx_in_set = idx / feature_stride;
-    Idx fidx_in_set = idx - ridx_in_set * feature_stride;
-
-    Idx ridx = d_ridx[ridx_in_set];
-    auto fidx = fidx_in_set + group.start_feature;
-
-    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
-      auto g = LoadGpair(gpair + ridx);
-      if constexpr (Policy::kCompressed) {
-        compressed_bin += matrix.feature_segments[fidx];
-      }
-      if constexpr (Policy::kSharedMem) {
-        compressed_bin -= group.start_bin;
-      }
-      atomic_add(compressed_bin, g);
+  auto is_entry = [&](bst_bin_t bin) {
+    return Policy::kDense || bin != static_cast<bst_bin_t>(matrix.NullValue());
+  };
+  // Add one entry to the histogram.
+  auto add = [&](bst_feature_t fidx, bst_bin_t compressed_bin, GradientPairInt64 const& g) {
+    if constexpr (Policy::kCompressed) {
+      compressed_bin += matrix.feature_segments[fidx];
     }
+    if constexpr (Policy::kSharedMem) {
+      compressed_bin -= group.start_bin;
+      smem_hist.Add(compressed_bin, g);
+    } else {
+      // gmem_hist is a subspan for the current target.
+      AtomicAddGpairGlobal(gmem_hist + compressed_bin, g);
+    }
+  };
+
+  // Load all the entries of the tile first, then add them, so that the loads are in flight
+  // together. A partial tile has `n_entries` entries.
+  auto consume_tile = [&](auto full, bst_idx_t n_entries) {
+    constexpr bool kFull = decltype(full)::value;
+    bool valid[kItemsPerThread];
+    Idx ridx[kItemsPerThread];
+    bst_feature_t fidx[kItemsPerThread];
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      valid[i] = kFull || threadIdx.x + i * Policy::kBlockThreads < n_entries;
+      ridx[i] = valid[i] ? d_ridx[ridx_in_set] : 0;
+      fidx[i] = fidx_in_set + group.start_feature;
+      step();
+    }
+    bst_bin_t bins[kItemsPerThread];
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      bins[i] = valid[i]
+                    ? static_cast<bst_bin_t>(matrix.gidx_iter[IterIdx(matrix, ridx[i], fidx[i])])
+                    : static_cast<bst_bin_t>(matrix.NullValue());
+      valid[i] = valid[i] && is_entry(bins[i]);
+    }
+    GradientPairInt64 gs[kItemsPerThread];
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      if (valid[i]) {
+        gs[i] = LoadGpair(gpair + ridx[i]);
+      }
+    }
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      if (valid[i]) {
+        add(fidx[i], bins[i], gs[i]);
+      }
+    }
+  };
+
+  bst_idx_t tile_begin = begin;
+  for (; tile_begin + kTileEntries <= end; tile_begin += kTileEntries) {
+    consume_tile(cuda::std::true_type{}, kTileEntries);
+  }
+  if (tile_begin < end) {
+    consume_tile(cuda::std::false_type{}, end - tile_begin);
   }
 }
 
