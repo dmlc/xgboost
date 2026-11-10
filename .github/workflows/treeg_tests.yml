@@ -1,0 +1,39 @@
+name: XGBoost CI (Tree-G)
+
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  gtest-cpu-treeg:
+    name: Test C++ and Python with Tree-G
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: linux_treeg_test
+          environment-file: ops/conda_env/linux_treeg_test.yml
+      - name: Build and run C++ and Python tests
+        run: bash ops/pipeline/build-test-treeg.sh

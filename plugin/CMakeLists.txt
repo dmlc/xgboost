@@ -28,3 +28,14 @@ if(PLUGIN_SYCL)
   # Add all objects of plugin_sycl to objxgboost
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl>)
 endif()
+
+if(PLUGIN_TREEG)
+  # Tree-G (graph-aware decision trees) plugin. The sources are compiled
+  # directly into `objxgboost' so that the self-registering GBM entry survives
+  # static linking without `--whole-archive'.
+  target_sources(objxgboost PRIVATE
+    ${xgboost_SOURCE_DIR}/plugin/treeg/model.cc
+    ${xgboost_SOURCE_DIR}/plugin/treeg/updater.cc
+    ${xgboost_SOURCE_DIR}/plugin/treeg/booster.cc)
+  target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_TREEG=1)
+endif()
