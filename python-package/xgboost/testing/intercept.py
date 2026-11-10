@@ -4,6 +4,7 @@ import json
 from typing import Dict, List, Optional
 
 import numpy as np
+import pytest
 from scipy.special import softmax
 from sklearn.datasets import (
     make_classification,
@@ -268,3 +269,15 @@ def run_logistic_degenerate(device: Device) -> None:
 
     run(0.0)
     run(1.0)
+
+
+def run_empty_labels(device: Device) -> None:
+    """An empty label array for a non-empty dataset raises an error instead of
+    crashing."""
+    rng = np.random.default_rng(2025)
+    X = rng.normal(size=(16, 4))
+    for objective in ("reg:squarederror", "reg:absoluteerror", "reg:pseudohubererror"):
+        for empty in (np.empty(0), np.empty((16, 0))):
+            Xy = DMatrix(X, empty)
+            with pytest.raises(ValueError, match="labels"):
+                train({"objective": objective, "device": device}, Xy, 2)
