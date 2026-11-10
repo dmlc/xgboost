@@ -289,16 +289,15 @@ std::vector<bst_feature_t> CollectActiveFeatures(gbm::GBTreeModel const& model,
   std::vector<bool> used(n_features, false);
   bst_feature_t n_used{0};
   for (bst_tree_t i = 0; i < tree_end && n_used < n_features; ++i) {
-    tree::WalkTree(*model.trees[i], [&](auto const& tree, bst_node_t nidx) {
-      if (!tree.IsLeaf(nidx)) {
-        auto feature = tree.SplitIndex(nidx);
-        if (!used[feature]) {
-          used[feature] = true;
-          ++n_used;
-        }
+    auto const& tree = *model.trees[i];
+    auto split_features = tree.IsMultiTarget() ? detail::MakeSplitFeatures(tree.HostMtView())
+                                               : detail::MakeSplitFeatures(tree.HostScView());
+    for (auto feature : split_features) {
+      if (!used[feature]) {
+        used[feature] = true;
+        ++n_used;
       }
-      return n_used < n_features;
-    });
+    }
   }
   std::vector<bst_feature_t> active;
   for (bst_feature_t i = 0; i < n_features; ++i) {

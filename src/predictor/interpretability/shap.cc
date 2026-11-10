@@ -3,7 +3,7 @@
  */
 #include "shap.h"
 
-#include <algorithm>    // for copy, fill, sort, unique
+#include <algorithm>    // for copy, fill
 #include <array>        // for array
 #include <atomic>       // for atomic
 #include <cmath>        // for abs
@@ -357,19 +357,6 @@ std::vector<float> MakeCoverRatios(Tree const &tree) {
   return out;
 }
 
-template <typename Tree>
-std::vector<bst_feature_t> MakeSplitFeatures(Tree const &tree) {
-  std::vector<bst_feature_t> out;
-  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
-    if (!tree.IsLeaf(nidx)) {
-      out.push_back(tree.SplitIndex(nidx));
-    }
-  }
-  std::sort(out.begin(), out.end());
-  out.erase(std::unique(out.begin(), out.end()), out.end());
-  return out;
-}
-
 struct QuadratureTreeShapModelData {
   struct TreeEntry {
     bst_tree_t tree_idx;
@@ -521,7 +508,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   tree_split_features.reserve(model_data.trees.size());
   for (auto const &tree : model_data.trees) {
     tree_split_features.push_back(
-        std::visit([](auto const &t) { return MakeSplitFeatures(t); }, tree));
+        std::visit([](auto const &t) { return detail::MakeSplitFeatures(t); }, tree));
   }
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
