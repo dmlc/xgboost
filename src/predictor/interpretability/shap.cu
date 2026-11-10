@@ -1194,28 +1194,43 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_matrices = p_fmat->Info().num_row_ * ngroup;
-  // Average the two directional estimates of each pair, one thread per pair.
-  dh::LaunchN(n_matrices * ncolumns * ncolumns, ctx->CUDACtx()->Stream(),
+  auto h_active_features = detail::CollectActiveFeatures(model.trees, tree_end, ncolumns - 1);
+  // Include the bias so a constant model still gets its root mean and base margin.
+  h_active_features.push_back(ncolumns - 1);
+  dh::device_vector<bst_feature_t> d_active_features;
+  auto n_active = h_active_features.size();
+  // Dense models use the original indices without allocating or copying a feature map.
+  if (n_active != ncolumns) {
+    d_active_features.assign(h_active_features.cbegin(), h_active_features.cend());
+  }
+  auto active_features = dh::ToSpan(d_active_features);
+  // Average the two directional estimates of each active pair, one thread per pair.
+  dh::LaunchN(n_matrices * n_active * n_active, ctx->CUDACtx()->Stream(),
               [=] __device__(std::size_t idx) {
-                auto [m, r, c] = linalg::UnravelIndex(idx, n_matrices, ncolumns, ncolumns);
-                if (r < c) {
+                auto [m, i, j] = linalg::UnravelIndex(idx, n_matrices, n_active, n_active);
+                if (i < j) {
+                  auto r = active_features.empty() ? i : active_features[i];
+                  auto c = active_features.empty() ? j : active_features[j];
+                  auto offset = (m * ncolumns + r) * ncolumns + c;
                   auto mirror = (m * ncolumns + c) * ncolumns + r;
-                  auto sym = 0.5f * (phis[idx] + phis[mirror]);
-                  phis[idx] = sym;
+                  auto sym = 0.5f * (phis[offset] + phis[mirror]);
+                  phis[offset] = sym;
                   phis[mirror] = sym;
                 }
               });
   // Each diagonal entry is the SHAP value minus the row's interactions. Since the matrix is
   // symmetric, subtract the column instead: neighbouring threads then read neighbouring addresses.
-  dh::LaunchN(n_matrices * ncolumns, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
-    auto [m, c] = linalg::UnravelIndex(idx, n_matrices, ncolumns);
+  dh::LaunchN(n_matrices * n_active, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
+    auto [m, i] = linalg::UnravelIndex(idx, n_matrices, n_active);
+    auto c = active_features.empty() ? i : active_features[i];
     auto matrix = phis.subspan(m * ncolumns * ncolumns, ncolumns * ncolumns);
     float value = matrix[c * ncolumns + c];
     if (c == ncolumns - 1) {
       auto gid = m % ngroup;
       value += group_root_mean_sums[gid] + (margin.empty() ? base_score(gid) : margin[m]);
     }
-    for (bst_feature_t r = 0; r < ncolumns; ++r) {
+    for (std::size_t j = 0; j < n_active; ++j) {
+      auto r = active_features.empty() ? j : active_features[j];
       if (r != c) {
         value -= matrix[r * ncolumns + c];
       }

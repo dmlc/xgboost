@@ -13,6 +13,11 @@
 
 namespace xgboost {
 
+TEST(GPUPredictor, ShapUnusedFeatures) {
+  auto ctx = MakeCUDACtx(0);
+  CheckShapUnusedFeatures(&ctx);
+}
+
 TEST(GPUPredictor, CompareCPUShap) {
   auto ctx = MakeCUDACtx(0);
   Context cpu_ctx;
