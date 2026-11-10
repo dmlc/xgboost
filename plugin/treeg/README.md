@@ -1,7 +1,7 @@
 # Tree-G: Graph-Aware Decision Trees
 
 This plugin adds a `treeg` booster to XGBoost for **vertex prediction on graphs**. It
-implements Tree-G ([Bechler-Speicher et al., AAAI 2024](https://arxiv.org/abs/2207.02760)).
+implements Tree-G ([Bechler-Speicher, Maya and Globerson, Amir and Gilad-Bachrach, Ran., AAAI 2024](https://arxiv.org/abs/2207.02760)).
 
 Standard gradient-boosted trees split on one feature of one sample, `x[i][k] > θ`. On graph
 data, a vertex's label often depends on its neighbourhood as much as on its own features.
@@ -204,9 +204,6 @@ Accepted but with no effect:
 ```
 
 ## Contributing
-
-Implementation notes (architecture, split search, memory layout, design decisions) are in
-[DESIGN.md](DESIGN.md).
 
 ```bash
 # C++ tests
