@@ -224,3 +224,55 @@ def run_score_normalization(device: str, objective: str) -> None:
         list(e1["validation_0"].values())[-1][-1],
     )
     assert m0 != m1
+
+
+def run_group_weights_without_relevance(device: str) -> None:
+    """Test that a query without relevant documents is weighted like the others."""
+    # Three queries of three documents each. The second one has no relevant document.
+    y = np.array([2, 1, 0, 0, 0, 0, 0, 0, 1], dtype=np.float32)
+    # The first query is ranked perfectly, the last one is ranked in reverse.
+    predt = np.array([3, 2, 1, 3, 2, 1, 3, 2, 1], dtype=np.float32)
+    qid = np.repeat(np.arange(3), 3)
+    weight = np.array([1.0, 5.0, 1.0])
+
+    def evaluate(metric: str, label: np.ndarray) -> float:
+        # Evaluate the margin as the prediction without training any tree.
+        Xy = xgb.DMatrix(
+            np.zeros((label.size, 1)), label, qid=qid, weight=weight, base_margin=predt
+        )
+        booster = xgb.train(
+            {"objective": "rank:ndcg", "eval_metric": metric, "device": device},
+            Xy,
+            num_boost_round=0,
+        )
+        return float(booster.eval(Xy).split(":")[-1])
+
+    # The last query has a single relevant document, ranked third instead of first.
+    ndcg_last = np.log2(2) / np.log2(4)
+    ap_last = 1.0 / 3.0
+    # MAP requires binary relevance.
+    y_binary = (y > 0).astype(np.float32)
+
+    # A query without a relevant document scores 1.0, or 0.0 with the `-` suffix.
+    for suffix, empty in (("", 1.0), ("-", 0.0)):
+        np.testing.assert_allclose(
+            evaluate("ndcg" + suffix, y),
+            np.average([1.0, empty, ndcg_last], weights=weight),
+        )
+        np.testing.assert_allclose(
+            evaluate("map" + suffix, y_binary),
+            np.average([1.0, empty, ap_last], weights=weight),
+        )
+
+    # A constant scale of the weights does not change the metric. Weights below one
+    # used to fail the output score check.
+    Xy = xgb.DMatrix(np.zeros((9, 1)), y, qid=qid, base_margin=predt)
+    booster = xgb.train(
+        {"objective": "rank:ndcg", "eval_metric": "ndcg", "device": device},
+        Xy,
+        num_boost_round=0,
+    )
+    unweighted = float(booster.eval(Xy).split(":")[-1])
+    for scale in (0.5, 2.0):
+        Xy.set_weight(np.full(3, scale))
+        np.testing.assert_allclose(float(booster.eval(Xy).split(":")[-1]), unweighted)
