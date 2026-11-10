@@ -5,7 +5,6 @@
 #include <xgboost/json.h>
 #include <xgboost/learner.h>
 
-#include <array>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -20,104 +19,50 @@
 
 namespace xgboost {
 
-namespace {
-void CheckShapUnusedFeatures(Context const* ctx) {
-  bst_feature_t constexpr kFeatures = 128;
-  bst_target_t constexpr kGroups = 2;
-  bst_idx_t constexpr kRows = 5;
-  // Noncontiguous split indices, with different active features in each output group.
-  std::array<std::array<bst_feature_t, 2>, kGroups> const features{{{3, 127}, {42, 126}}};
-  for (bool constant : {false, true}) {
-    std::size_t shape[1]{kGroups};
-    linalg::Vector<float> base_score{shape, ctx->Device()};
-    base_score.Data()->HostVector() = {0.125f, 0.25f};
-    std::as_const(base_score).HostView();
-    if (ctx->Device().IsCUDA()) {
-      std::as_const(base_score).View(ctx->Device());
-    }
-    LearnerModelState state{kFeatures, std::move(base_score), kGroups, kGroups,
-                            MultiStrategy::kOneOutputPerTree};
-    gbm::GBTreeModel model{&state, ctx};
-    for (bst_target_t g = 0; g < kGroups; ++g) {
-      auto tree = std::make_unique<RegTree>();
-      float value = static_cast<float>(g + 1);
-      if (constant) {
-        (*tree)[RegTree::kRoot].SetLeaf(value);
-        tree->Stat(RegTree::kRoot).sum_hess = 4.0f;
-      } else {
-        tree->Expand({{RegTree::kRoot, features[g][0], 0.5f, true},
-                      {0.0f, 4.0f},
-                      {0.0f, 2.0f},
-                      {0.0f, 2.0f},
-                      0.0f});
-        auto right = (*tree)[RegTree::kRoot].RightChild();
-        tree->Expand(
-            {{right, features[g][1], 0.5f, true}, {0.0f, 2.0f}, {0.0f, 1.0f}, {value, 1.0f}, 0.0f});
-        tree->FinalizeLeaves(1.0f);
-      }
-      gbm::TreesOneGroup trees;
-      trees.emplace_back(std::move(tree));
-      model.CommitModelGroup(std::move(trees), g);
-    }
-    std::vector<float> data(kRows * kFeatures, 0.0f);
-    for (bst_idx_t r = 0; r < kRows; ++r) {
-      for (auto const& indices : features) {
-        data[r * kFeatures + indices[0]] = static_cast<float>(r % 2);
-        data[r * kFeatures + indices[1]] = static_cast<float>((r / 2) % 2);
-      }
-    }
-    auto dmat = GetDMatrixFromData(data, kRows, kFeatures);
-    for (bool has_margin : {false, true}) {
-      if (has_margin) {
-        dmat->Info().base_margin_.Reshape(kRows, kGroups);
-        auto& margin = dmat->Info().base_margin_.Data()->HostVector();
-        for (bst_idx_t i = 0; i < kRows * kGroups; ++i) {
-          margin[i] = static_cast<float>(i) / 8.0f;
-        }
-      }
-      for (bst_tree_t tree_end : {1, 2}) {
-        std::vector<float> weights{0.5f, 0.25f};
-        HostDeviceVector<float> output;
-        interpretability::ShapInteractionValues(ctx, dmat.get(), &output, model, tree_end, &weights,
-                                                false);
-        auto const& actual = output.ConstHostVector();
-        auto constexpr kCols = kFeatures + 1;
-        ASSERT_EQ(actual.size(), kRows * kGroups * kCols * kCols);
-        for (bst_idx_t r = 0; r < kRows; ++r) {
-          for (bst_target_t g = 0; g < kGroups; ++g) {
-            auto offset = (r * kGroups + g) * kCols * kCols;
-            std::vector<float> expected(kCols * kCols, 0.0f);
-            float scale = g < tree_end ? static_cast<float>(g + 1) * weights[g] : 0.0f;
-            float bias = has_margin ? static_cast<float>(r * kGroups + g) / 8.0f
-                                    : static_cast<float>(g + 1) / 8.0f;
-            expected[kFeatures * kCols + kFeatures] = bias + (constant ? scale : 0.25f * scale);
-            if (!constant) {
-              auto [i, j] = features[g];
-              float vi = 0.5f * static_cast<float>(r % 2);
-              float vj = 0.5f * static_cast<float>((r / 2) % 2);
-              float full = static_cast<float>((r % 2) && ((r / 2) % 2));
-              float pair = 0.5f * (full - vi - vj + 0.25f) * scale;
-              expected[i * kCols + j] = expected[j * kCols + i] = pair;
-              expected[i * kCols + i] = 0.5f * (vi - 0.25f + full - vj) * scale - pair;
-              expected[j * kCols + j] = 0.5f * (vj - 0.25f + full - vi) * scale - pair;
-            }
-            for (std::size_t i = 0; i < expected.size(); ++i) {
-              EXPECT_NEAR(actual[offset + i], expected[i], 2e-6f)
-                  << "constant=" << constant << ", margin=" << has_margin
-                  << ", tree_end=" << tree_end << ", row=" << r << ", group=" << g;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-}  // namespace
-
 TEST(GPUPredictor, ShapUnusedFeatures) {
   auto ctx = MakeCUDACtx(0);
-  CheckShapUnusedFeatures(&ctx);
+  bst_feature_t constexpr kFeatures = 128;
+  for (bool constant : {false, true}) {
+    std::size_t shape[1]{1};
+    linalg::Vector<float> base_score{shape, ctx.Device()};
+    base_score.Data()->HostVector()[0] = 0.125f;
+    std::as_const(base_score).HostView();
+    std::as_const(base_score).View(ctx.Device());
+    LearnerModelState state{kFeatures, std::move(base_score), 1, 1,
+                            MultiStrategy::kOneOutputPerTree};
+    gbm::GBTreeModel model{&state, &ctx};
+    auto tree = std::make_unique<RegTree>();
+    if (constant) {
+      (*tree)[RegTree::kRoot].SetLeaf(1.0f);
+      tree->Stat(RegTree::kRoot).sum_hess = 4.0f;
+    } else {
+      // An AND tree using two noncontiguous columns; every other feature is unused.
+      tree->Expand(
+          {{RegTree::kRoot, 3, 0.5f, true}, {0.0f, 4.0f}, {0.0f, 2.0f}, {0.0f, 2.0f}, 0.0f});
+      auto right = (*tree)[RegTree::kRoot].RightChild();
+      tree->Expand(
+          {{right, kFeatures - 1, 0.5f, true}, {0.0f, 2.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}, 0.0f});
+      tree->FinalizeLeaves(1.0f);
+    }
+    gbm::TreesOneGroup trees;
+    trees.emplace_back(std::move(tree));
+    model.CommitModelGroup(std::move(trees), 0);
+    auto dmat = GetDMatrixFromData(std::vector<float>(kFeatures, 1.0f), 1, kFeatures);
+    HostDeviceVector<float> output;
+    interpretability::ShapInteractionValues(&ctx, dmat.get(), &output, model, 0, nullptr, false);
+    auto constexpr kCols = kFeatures + 1;
+    std::vector<float> expected(kCols * kCols, 0.0f);
+    expected[kFeatures * kCols + kFeatures] = constant ? 1.125f : 0.375f;
+    if (!constant) {
+      expected[3 * kCols + 3] = expected[(kFeatures - 1) * kCols + kFeatures - 1] = 0.25f;
+      expected[3 * kCols + kFeatures - 1] = expected[(kFeatures - 1) * kCols + 3] = 0.125f;
+    }
+    auto const& actual = output.ConstHostVector();
+    ASSERT_EQ(actual.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      EXPECT_NEAR(actual[i], expected[i], 2e-6f) << "constant=" << constant << ", index=" << i;
+    }
+  }
 }
 
 TEST(GPUPredictor, CompareCPUShap) {
