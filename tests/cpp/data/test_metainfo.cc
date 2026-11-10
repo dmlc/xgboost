@@ -263,6 +263,37 @@ TEST(MetaInfo, Validate) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+TEST(MetaInfo, ValidateFeatureWeights) {
+  // The fields that come after the labels and the sample weights are still validated.
+  Context ctx;
+  xgboost::MetaInfo info;
+  info.num_row_ = 10;
+  info.num_nonzero_ = 12;
+  info.num_col_ = 3;
+
+  std::vector<float> labels(info.num_row_);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), labels.size()));
+  std::vector<float> feature_weights(info.num_col_, 1.0f);
+  info.SetInfo(ctx, "feature_weights",
+               Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+  EXPECT_NO_THROW(info.Validate(FstCU()));
+
+  for (auto n_weights : {info.num_col_ - 1, info.num_col_ + 1}) {
+    feature_weights.assign(n_weights, 1.0f);
+    info.SetInfo(ctx, "feature_weights",
+                 Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+    // With labels.
+    ASSERT_THAT([&] { info.Validate(FstCU()); },
+                GMockThrow("Size of feature_weights must equal to number of columns"));
+    // With labels and sample weights.
+    std::vector<float> weights(info.num_row_, 1.0f);
+    info.SetInfo(ctx, "weight", Make1dInterfaceTest(weights.data(), weights.size()));
+    ASSERT_THAT([&] { info.Validate(FstCU()); },
+                GMockThrow("Size of feature_weights must equal to number of columns"));
+    info.weights_.Resize(0);
+  }
+}
+
 TEST(MetaInfo, HostExtend) {
   xgboost::MetaInfo lhs, rhs;
   xgboost::Context ctx;

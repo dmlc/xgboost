@@ -810,30 +810,26 @@ void CheckDevice(DeviceOrd device, linalg::Tensor<T, D> const& v) {
 }  // anonymous namespace
 
 void MetaInfo::Validate(DeviceOrd device) const {
-  if (group_ptr_.size() != 0 && weights_.Size() != 0) {
-    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
-    return;
-  }
+  // Each field is validated independently.
   if (group_ptr_.size() != 0) {
     CHECK_EQ(group_ptr_.back(), num_row_)
         << error::GroupSize() << "the actual number of rows given by data.";
   }
-
-  if (weights_.Size() != 0) {
+  if (group_ptr_.size() != 0 && weights_.Size() != 0) {
+    // Group weights, one for each query group.
+    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
+  } else if (weights_.Size() != 0) {
     CHECK_EQ(weights_.Size(), num_row_) << "Size of weights must equal to number of rows.";
     CheckDevice(device, weights_);
-    return;
   }
   if (labels.Size() != 0) {
     CHECK_EQ(labels.Shape(0), num_row_) << "Size of labels must equal to number of rows.";
     CheckDevice(device, labels);
-    return;
   }
   if (labels_lower_bound_.Size() != 0) {
     CHECK_EQ(labels_lower_bound_.Size(), num_row_)
         << "Size of label_lower_bound must equal to number of rows.";
     CheckDevice(device, labels_lower_bound_);
-    return;
   }
   if (feature_weights.Size() != 0) {
     CHECK_EQ(feature_weights.Size(), num_col_)
@@ -844,7 +840,6 @@ void MetaInfo::Validate(DeviceOrd device) const {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)
         << "Size of label_upper_bound must equal to number of rows.";
     CheckDevice(device, labels_upper_bound_);
-    return;
   }
   CHECK_LE(num_nonzero_, num_col_ * num_row_);
   if (base_margin_.Size() != 0) {

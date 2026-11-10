@@ -930,6 +930,24 @@ def run_base_margin_info(DType: Callable, DMatrixT: Type[DMatrix], device: str) 
             Xy.set_base_margin(base_margin)
 
 
+def run_feature_weights_size(
+    DType: Callable, DMatrixT: Type[DMatrix], device: str
+) -> None:
+    """The size of the feature weights is validated even if other meta info like
+    labels and sample weights is set."""
+    n_samples, n_features = 32, 6
+    rng = np.random.default_rng(1994)
+    X = DType(rng.normal(size=(n_samples, n_features)))
+    y = DType(rng.normal(size=n_samples))
+    w = DType(rng.uniform(size=n_samples))
+    for weight in (None, w):
+        for size in (n_features - 1, n_features + 1):
+            Xy = DMatrixT(X, y, weight=weight)
+            Xy.set_info(feature_weights=DType(rng.uniform(size=size)))
+            with pytest.raises(ValueError, match="feature_weights"):
+                train_fn({"colsample_bynode": 0.5, "device": device}, Xy, 2)
+
+
 # pylint: disable=too-many-locals
 @memory.cache
 def make_sparse_regression(
