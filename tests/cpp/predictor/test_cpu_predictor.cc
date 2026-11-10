@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <numeric>
 
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/common/kernel.h"
@@ -62,6 +63,33 @@ TEST(CpuPredictor, PredictLeafKernel) {
   dmat = GetDMatrixFromData(data, kRows, 1);
   common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
   ASSERT_EQ(leaves.ConstHostVector(), expected);
+}
+
+TEST(CpuPredictor, PredictLeafDuplicateCsrIndex) {
+  // Feature 1 stored twice: HasMissing() is false while feature 0 is NaN.
+  Context ctx;
+  LearnerModelState mparam{MakeMP(2, 0.0f, 1, ctx.Device())};
+  auto model = CreateTestModel(&mparam, &ctx, 1);
+  model->trees.front()->Expand(
+      {{0, 0, 0.5f, true}, {0.0f, 2.0f}, {1.0f, 1.0f}, {2.0f, 1.0f}, 0.0f});
+
+  std::size_t constexpr kRows = 130;
+  HostDeviceVector<float> values(kRows * 2, 0.0f);
+  HostDeviceVector<std::uint32_t> indices(kRows * 2, 1);
+  HostDeviceVector<std::size_t> indptr(kRows + 1);
+  std::iota(indptr.HostVector().begin(), indptr.HostVector().end(), 0);
+  for (auto& ptr : indptr.HostVector()) {
+    ptr *= 2;
+  }
+  data::CSRArrayAdapter adapter{Json::Dump(GetArrayInterface(&indptr, kRows + 1, 1)),
+                                Json::Dump(GetArrayInterface(&indices, kRows * 2, 1)),
+                                Json::Dump(GetArrayInterface(&values, kRows * 2, 1)), 2};
+  std::shared_ptr<DMatrix> dmat{
+      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), ctx.Threads())};
+
+  HostDeviceVector<float> leaves;
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
+  ASSERT_EQ(leaves.ConstHostVector(), std::vector<float>(kRows, 1));
 }
 
 TEST(CpuPredictor, BatchPredictionWithWeights) {
