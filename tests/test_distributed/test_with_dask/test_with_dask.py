@@ -592,6 +592,22 @@ def test_dask_regressor(model: str, client: "Client") -> None:
         assert forest == 2
 
 
+def test_dask_rf_default_n_estimators(client: "Client") -> None:
+    """A default random forest must use as many trees as the single-node estimator."""
+    X, y, _ = generate_array(with_weights=True)
+
+    regressor = dxgb.DaskXGBRFRegressor(tree_method="hist")
+    regressor.client = client
+    regressor.fit(X, y)
+
+    forest = int(
+        json.loads(regressor.get_booster().save_config())["learner"][
+            "gradient_booster"
+        ]["gbtree_model_param"]["num_parallel_tree"]
+    )
+    assert forest == xgb.XGBRFRegressor().get_xgb_params()["num_parallel_tree"]
+
+
 def run_dask_classifier(
     X: dxgb._DataT,
     y: dxgb._DaskCollection,

@@ -2129,7 +2129,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
-        params["num_parallel_tree"] = self.n_estimators
+        params["num_parallel_tree"] = super().get_num_boosting_rounds()
         return params
 
     def get_num_boosting_rounds(self) -> int:
@@ -2196,7 +2196,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
-        params["num_parallel_tree"] = self.n_estimators
+        params["num_parallel_tree"] = super().get_num_boosting_rounds()
         return params
 
     def get_num_boosting_rounds(self) -> int:
