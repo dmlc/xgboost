@@ -47,6 +47,21 @@ TEST(CpuPredictor, PredictLeafKernel) {
   // Reusing the output with a tree limit must resize it and preserve row-major order.
   common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 1);
   ASSERT_EQ(leaves.ConstHostVector(), (std::vector<float>{1, 2, 1}));
+
+  // Two full blocks of 64 rows and a partial one, with missing values spread across them.
+  std::size_t constexpr kRows = 130;
+  std::vector<float> const values{0.0f, 1.0f, std::numeric_limits<float>::quiet_NaN()};
+  std::vector<float> const tree0_leaves{1, 2, 1};
+  std::vector<float> data(kRows);
+  std::vector<float> expected(kRows * 2);
+  for (std::size_t i = 0; i < kRows; ++i) {
+    data[i] = values[i % values.size()];
+    expected[i * 2] = tree0_leaves[i % values.size()];
+    expected[i * 2 + 1] = 0;
+  }
+  dmat = GetDMatrixFromData(data, kRows, 1);
+  common::DispatchKernel<predictor::PredictLeafKernel>(&ctx, dmat.get(), &leaves, *model, 0);
+  ASSERT_EQ(leaves.ConstHostVector(), expected);
 }
 
 TEST(CpuPredictor, BatchPredictionWithWeights) {
