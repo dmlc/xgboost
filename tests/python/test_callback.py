@@ -225,6 +225,36 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def test_early_stopping_reuse(self, breast_cancer: BreastCancer) -> None:
+        """A callback object used for two training sessions must not leak state."""
+        X, y = breast_cancer.tr
+        Xv, yv = breast_cancer.va
+        dtrain = xgb.DMatrix(X, y)
+        dvalid = xgb.DMatrix(Xv, yv)
+
+        def train(cb: xgb.callback.EarlyStopping, metric: str, depth: int):
+            params = {"eval_metric": metric, "max_depth": depth, "eta": 0.5}
+            return xgb.train(
+                params,
+                dtrain,
+                num_boost_round=100,
+                evals=[(dvalid, "valid")],
+                callbacks=[cb],
+                verbose_eval=False,
+            )
+
+        reused = xgb.callback.EarlyStopping(rounds=3)
+        train(reused, "logloss", 6)
+        # Different metric on the second run: both direction and history must be reset.
+        second = train(reused, "auc", 2)
+        fresh_cb = xgb.callback.EarlyStopping(rounds=3)
+        fresh = train(fresh_cb, "auc", 2)
+
+        assert second.best_iteration == fresh.best_iteration
+        assert second.num_boosted_rounds() == fresh.num_boosted_rounds()
+        assert reused.stopping_history == fresh_cb.stopping_history
+        assert reused.maximize is True
+
     def test_early_stopping_save_best_model(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
         n_estimators = 100
