@@ -414,6 +414,17 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
       }));
 }
 
+template <bool has_missing, bool has_categorical, typename TreeView>
+void LeafIndexByOneTree(TreeView const &tree, common::Span<RegTree::FVec> fvec_tloc,
+                        bst_tree_t tree_idx, bst_tree_t n_trees, float *block_preds) {
+  auto const &cats = tree.GetCategoriesMatrix();
+  for (std::size_t i = 0; i < fvec_tloc.size(); ++i) {
+    auto nidx =
+        GetLeafIndex<has_missing, has_categorical>(tree, fvec_tloc[i], cats, RegTree::kRoot);
+    block_preds[i * n_trees + tree_idx] = static_cast<float>(nidx);
+  }
+}
+
 void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_preds,
                     gbm::GBTreeModel const &model, bst_tree_t ntree_limit) {
   auto const n_threads = ctx->Threads();
@@ -424,25 +435,52 @@ void PredictLeafCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float>
   preds.resize(info.num_row_ * ntree_limit);
 
   auto n_features = model.learner_model_state->num_feature;
-  ThreadTmp<1> feat_vecs{n_threads};
 
   auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
   LaunchPredict(ctx, p_fmat, model, [&](auto &&policy) {
+    using Policy = common::GetValueT<decltype(policy)>;
+    ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
     policy.ForEachBatch([&](auto &&batch) {
-      common::ParallelFor1d<1>(
+      common::ParallelFor1d<Policy::kBlockOfRowsSize>(
           batch.Size(), n_threads, common::WithWorker([&](auto &&block, common::Worker worker) {
             auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
             auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size(), worker);
             batch.FVecFill(block, n_features, fvec_tloc);
 
+            if constexpr (Policy::kBlockOfRowsSize == 1) {
+              for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+                bst_node_t nidx = std::visit(
+                    [&](auto &&tree) {
+                      return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
+                                                      tree.GetCategoriesMatrix(), RegTree::kRoot);
+                    },
+                    h_model.Trees()[j]);
+                preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
+              }
+              batch.FVecDrop(fvec_tloc);
+              return;
+            }
+            bool const any_missing =
+                std::any_of(fvec_tloc.cbegin(), fvec_tloc.cend(),
+                            [](auto const &feat) { return feat.HasMissing(); });
+            auto *block_preds = preds.data() + ridx * ntree_limit;
             for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-              bst_node_t nidx = std::visit(
+              std::visit(
                   [&](auto &&tree) {
-                    return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
-                                                    tree.GetCategoriesMatrix(), RegTree::kRoot);
+                    bool const has_categorical = tree.HasCategoricalSplit();
+                    if (any_missing) {
+                      has_categorical ? LeafIndexByOneTree<true, true>(tree, fvec_tloc, j,
+                                                                       ntree_limit, block_preds)
+                                      : LeafIndexByOneTree<true, false>(tree, fvec_tloc, j,
+                                                                        ntree_limit, block_preds);
+                    } else {
+                      has_categorical ? LeafIndexByOneTree<false, true>(tree, fvec_tloc, j,
+                                                                        ntree_limit, block_preds)
+                                      : LeafIndexByOneTree<false, false>(tree, fvec_tloc, j,
+                                                                         ntree_limit, block_preds);
+                    }
                   },
                   h_model.Trees()[j]);
-              preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
             }
             batch.FVecDrop(fvec_tloc);
           }));
