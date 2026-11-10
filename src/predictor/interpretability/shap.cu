@@ -281,6 +281,34 @@ CompressedModel CompressTreeBucket(gbm::GBTreeModel const& model,
   return out;
 }
 
+// Features absent from the selected trees have zero interactions. Keep the list sorted so
+// skipping their zero entries preserves the order of floating-point diagonal subtraction.
+std::vector<bst_feature_t> CollectActiveFeatures(gbm::GBTreeModel const& model,
+                                                 bst_tree_t tree_end) {
+  auto n_features = model.learner_model_state->num_feature;
+  std::vector<bool> used(n_features, false);
+  bst_feature_t n_used{0};
+  for (bst_tree_t i = 0; i < tree_end && n_used < n_features; ++i) {
+    tree::WalkTree(*model.trees[i], [&](auto const& tree, bst_node_t nidx) {
+      if (!tree.IsLeaf(nidx)) {
+        auto feature = tree.SplitIndex(nidx);
+        if (!used[feature]) {
+          used[feature] = true;
+          ++n_used;
+        }
+      }
+      return n_used < n_features;
+    });
+  }
+  std::vector<bst_feature_t> active;
+  for (bst_feature_t i = 0; i < n_features; ++i) {
+    if (used[i]) {
+      active.push_back(i);
+    }
+  }
+  return active;
+}
+
 GpuQuadratureModelData PrepareGpuQuadratureModel(gbm::GBTreeModel const& model, bst_tree_t tree_end,
                                                  bst_target_t n_groups,
                                                  std::vector<float> const* tree_weights,
@@ -1194,7 +1222,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto base_score = model.learner_model_state->BaseScore(ctx);
   auto phis = out_contribs->DeviceSpan();
   auto n_matrices = p_fmat->Info().num_row_ * ngroup;
-  auto h_active_features = detail::CollectActiveFeatures(model.trees, tree_end, ncolumns - 1);
+  auto h_active_features = CollectActiveFeatures(model, tree_end);
   // Include the bias so a constant model still gets its root mean and base margin.
   h_active_features.push_back(ncolumns - 1);
   dh::device_vector<bst_feature_t> d_active_features;

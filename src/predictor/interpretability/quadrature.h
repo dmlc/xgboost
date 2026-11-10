@@ -9,40 +9,11 @@
 #include <cstddef>
 #include <vector>
 
-#include "../../tree/tree_view.h"
 #include "xgboost/base.h"
 #include "xgboost/logging.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost::interpretability::detail {
-
-// Features absent from the selected trees have zero interactions. Keep the list sorted so
-// skipping their zero entries preserves the order of floating-point diagonal subtraction.
-template <typename Trees>
-std::vector<bst_feature_t> CollectActiveFeatures(Trees const& trees, bst_tree_t tree_end,
-                                                 bst_feature_t n_features) {
-  std::vector<bool> used(n_features, false);
-  bst_feature_t n_used{0};
-  for (bst_tree_t i = 0; i < tree_end && n_used < n_features; ++i) {
-    tree::WalkTree(*trees[i], [&](auto const& tree, bst_node_t nidx) {
-      if (!tree.IsLeaf(nidx)) {
-        auto feature = tree.SplitIndex(nidx);
-        if (!used[feature]) {
-          used[feature] = true;
-          ++n_used;
-        }
-      }
-      return n_used < n_features;
-    });
-  }
-  std::vector<bst_feature_t> active;
-  for (bst_feature_t i = 0; i < n_features; ++i) {
-    if (used[i]) {
-      active.push_back(i);
-    }
-  }
-  return active;
-}
 
 constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr std::size_t kQuadratureTreeShapPoints = 8;

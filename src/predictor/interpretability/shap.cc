@@ -611,7 +611,6 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_state->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
-  auto const active_features = detail::CollectActiveFeatures(model.trees, tree_end, n_features);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<QuadraturePathFeature>> path_features_tloc(
       n_threads, std::vector<QuadraturePathFeature>(n_features));
@@ -669,10 +668,8 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
             // The path-local return updates populate row-wise off-diagonal effects. Average the two
             // directional estimates so the final matrix is explicitly symmetric.
-            for (std::size_t i = 0; i < active_features.size(); ++i) {
-              auto r = active_features[i];
-              for (std::size_t j = i + 1; j < active_features.size(); ++j) {
-                auto c = active_features[j];
+            for (size_t r = 0; r < ncolumns; ++r) {
+              for (size_t c = r + 1; c < ncolumns; ++c) {
                 auto const sym = 0.5f * (matrix(r, c) + matrix(c, r));
                 matrix(r, c) = sym;
                 matrix(c, r) = sym;
@@ -681,16 +678,15 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
             // Match the incumbent interaction semantics: each diagonal entry is the additive SHAP
             // value minus the off-diagonal interactions in that row.
-            for (auto r : active_features) {
+            for (size_t r = 0; r < ncolumns; ++r) {
               float value = diag[r];
-              for (auto c : active_features) {
+              for (size_t c = 0; c < ncolumns; ++c) {
                 if (c != r) {
                   value -= matrix(r, c);
                 }
               }
               matrix(r, r) = value;
             }
-            matrix(n_features, n_features) = diag[n_features];
           }
 
           feats.Drop();
