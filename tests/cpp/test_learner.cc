@@ -724,12 +724,24 @@ class InitBaseScore : public ::testing::Test {
     learner->SaveConfig(&config);
     ASSERT_EQ(base_score, GetBaseScore(config));
 
+    // Populate the prediction cache before changing the intercept.
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy1, true, &predt, 0, 0);
+    auto before = predt.ConstHostVector();
+
     // Explicit model input updates are applied to initialized state.
     learner->Configure({{"base_score", "1.3"}});
     learner->SaveConfig(&config);
     auto updated_base_score = GetBaseScore(config);
     ASSERT_EQ(updated_base_score.size(), 1);
     ASSERT_FLOAT_EQ(updated_base_score[0], 1.3);
+
+    learner->Predict(Xy1, true, &predt, 0, 0);
+    auto const& after = predt.ConstHostVector();
+    ASSERT_EQ(before.size(), after.size());
+    for (std::size_t i = 0; i < before.size(); ++i) {
+      EXPECT_NEAR(after[i], before[i] + updated_base_score[0] - base_score[0], kRtEps);
+    }
   }
 
   void TestBoostFromAvgParam() {
