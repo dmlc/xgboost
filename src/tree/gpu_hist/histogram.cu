@@ -5,7 +5,7 @@
 #include <cstddef>               // for size_t
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/std/bit>          // for bit_cast
-#include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
+#include <cuda/std/type_traits>  // for alignment_of_v, true_type, false_type
 #include <memory>                // for unique_ptr
 #include <vector>                // for vector
 
@@ -88,24 +88,14 @@ namespace {
 // Max resident warps/SM    32   | 64   | 48      | 48   | 64            | 48
 // Max resident threads/SM  1024 | 2048 | 1536    | 1536 | 2048          | 1536
 
+// Both tunings give 64 registers per thread, which the histogram kernel needs to keep three
+// entries per thread in flight without spilling.
 using HistSm75 = HistTuning<1024, 1>;
 
-using HistSm80 = HistTuning<1024, 2>;
-
-using HistSm86 = HistTuning<768, 2>;
-
-using HistSm90 = HistTuning<1024, 2>;
-
-using HistSm110 = HistTuning<768, 2>;
+using HistSm80 = HistTuning<512, 2>;
 
 // Resolve launch bounds in the device compilation pass, not through template arguments.
-#if __CUDA_ARCH__ >= 1100
-using HistLaunchBounds = HistSm110;
-#elif __CUDA_ARCH__ >= 900
-using HistLaunchBounds = HistSm90;
-#elif __CUDA_ARCH__ >= 860
-using HistLaunchBounds = HistSm86;
-#elif __CUDA_ARCH__ >= 800
+#if __CUDA_ARCH__ >= 800
 using HistLaunchBounds = HistSm80;
 #else
 using HistLaunchBounds = HistSm75;
@@ -123,13 +113,7 @@ template <typename Fn>
 decltype(auto) DispatchCudaSm(std::int32_t device, Fn&& fn) {
   std::int32_t version = 0;
   dh::safe_cuda(cub::SmVersion(version, device));
-  if (version >= 1100) {
-    return fn(HistSm110{});
-  } else if (version >= 900) {
-    return fn(HistSm90{});
-  } else if (version >= 860) {
-    return fn(HistSm86{});
-  } else if (version >= 800) {
+  if (version >= 800) {
     return fn(HistSm80{});
   }
   return fn(HistSm75{});
@@ -176,38 +160,88 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
 
   auto const d_ridx = d_ridx_iter.data();
 
-  auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
-    if constexpr (Policy::kSharedMem) {
-      smem_hist.Add(bin_idx, adjusted);
-    } else {
-      // gmem_hist is a subspan for the current target.
-      AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
+  // Thread t takes the entries begin + t + i * kBlockThreads, i = 0, 1, .... The row and the
+  // feature of its next entry are unravelled once, then stepped by kBlockThreads entries at a time
+  // instead of dividing for every entry. The feature step is less than the stride, so one carry
+  // keeps the feature in range.
+  // ridx_in_set: Index into the row batch
+  // fidx_in_set: Index into the feature group
+  bst_idx_t const first = begin + threadIdx.x;
+  Idx ridx_in_set = first / feature_stride;
+  Idx fidx_in_set = first - static_cast<bst_idx_t>(ridx_in_set) * feature_stride;
+  Idx const step_rows = Policy::kBlockThreads / feature_stride;
+  Idx const step_features = Policy::kBlockThreads % feature_stride;
+  auto step = [&] {
+    ridx_in_set += step_rows;
+    fidx_in_set += step_features;
+    if (fidx_in_set >= feature_stride) {
+      fidx_in_set -= feature_stride;
+      ++ridx_in_set;
     }
   };
 
-  for (bst_idx_t idx = begin + threadIdx.x; idx < end; idx += Policy::kBlockThreads) {
-    // unrolled version unravel to save registers:
-    // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
-    //
-    // ridx_in_set: Index into the row batch
-    // fidx_in_set: Index into the feature group
-    Idx ridx_in_set = idx / feature_stride;
-    Idx fidx_in_set = idx - ridx_in_set * feature_stride;
-
-    Idx ridx = d_ridx[ridx_in_set];
-    auto fidx = fidx_in_set + group.start_feature;
-
-    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
-      auto g = LoadGpair(gpair + ridx);
-      if constexpr (Policy::kCompressed) {
-        compressed_bin += matrix.feature_segments[fidx];
-      }
-      if constexpr (Policy::kSharedMem) {
-        compressed_bin -= group.start_bin;
-      }
-      atomic_add(compressed_bin, g);
+  // Add one entry to the histogram, unless it is missing.
+  auto const null_bin = static_cast<bst_bin_t>(matrix.NullValue());
+  auto add = [&](bst_feature_t fidx, bst_bin_t compressed_bin, GradientPairInt64 const& g) {
+    if (!Policy::kDense && compressed_bin == null_bin) {
+      return;
     }
+    if constexpr (Policy::kCompressed) {
+      compressed_bin += matrix.feature_segments[fidx];
+    }
+    if constexpr (Policy::kSharedMem) {
+      compressed_bin -= group.start_bin;
+      smem_hist.Add(compressed_bin, g);
+    } else {
+      // gmem_hist is a subspan for the current target.
+      AtomicAddGpairGlobal(gmem_hist + compressed_bin, g);
+    }
+  };
+
+  // The thread takes its entries kItemsPerThread at a time and loads all of them before adding
+  // them, so that their loads are in flight together. Three entries fit the 64 registers per
+  // thread of the launch bounds without spilling. Only the last tile can be partial, with
+  // `n_valid` entries.
+  constexpr std::uint32_t kItemsPerThread = 3;
+  auto consume_tile = [&](auto full, std::uint32_t n_valid) {
+    constexpr bool kFull = decltype(full)::value;
+    Idx ridx[kItemsPerThread];
+    bst_feature_t fidx[kItemsPerThread];
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      if (kFull || i < n_valid) {
+        ridx[i] = d_ridx[ridx_in_set];
+        fidx[i] = fidx_in_set + group.start_feature;
+        step();
+      }
+    }
+    bst_bin_t bins[kItemsPerThread];
+    GradientPairInt64 gs[kItemsPerThread];
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      if (kFull || i < n_valid) {
+        bins[i] = matrix.gidx_iter[IterIdx(matrix, ridx[i], fidx[i])];
+        // Loaded even for a missing entry, so that it does not wait for the bin.
+        gs[i] = LoadGpair(gpair + ridx[i]);
+      }
+    }
+#pragma unroll
+    for (std::uint32_t i = 0; i < kItemsPerThread; ++i) {
+      if (kFull || i < n_valid) {
+        add(fidx[i], bins[i], gs[i]);
+      }
+    }
+  };
+
+  // The number of entries of this thread.
+  auto const n_items = static_cast<std::uint32_t>(
+      first < end ? (end - first + Policy::kBlockThreads - 1) / Policy::kBlockThreads : 0);
+  std::uint32_t const n_full_tiles = n_items / kItemsPerThread;
+  for (std::uint32_t t = 0; t < n_full_tiles; ++t) {
+    consume_tile(cuda::std::true_type{}, kItemsPerThread);
+  }
+  if (n_items % kItemsPerThread != 0) {
+    consume_tile(cuda::std::false_type{}, n_items % kItemsPerThread);
   }
 }
 
