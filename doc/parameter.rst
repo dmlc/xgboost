@@ -149,9 +149,9 @@ Parameters for Tree Booster
     ``subsample`` >= 0.5 for good results.
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
-    ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``hist``; other tree
-    methods only support ``uniform`` sampling.
+    ``subsample`` may be set to as low as 0.1 without loss of model accuracy. This sampling
+    method supports ``exact``, ``approx``, and ``hist``. Each parallel tree receives an
+    independent sample.
 
   .. note::
 
