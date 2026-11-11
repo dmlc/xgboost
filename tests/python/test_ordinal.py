@@ -1,3 +1,4 @@
+import json
 from typing import Literal, cast
 
 import numpy as np
@@ -43,6 +44,52 @@ def test_cat_container_model_slice() -> None:
     expected = booster.get_categories(export_to_arrow=True).to_arrow()
     actual = booster[:1].get_categories(export_to_arrow=True).to_arrow()
     assert actual == expected
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.parametrize("export_to_arrow", [False, True])
+def test_training_continuation_empty_categories(
+    tree_method: str, export_to_arrow: bool
+) -> None:
+    import pandas as pd
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "cat": rng.integers(0, 6, 32).astype(np.float32),
+            "num": rng.normal(size=32).astype(np.float32),
+        }
+    )
+    y = (X["cat"] < 3).astype(np.float32)
+    feature_types = ["c", "q"]
+    model = xgb.XGBRegressor(
+        tree_method=tree_method,
+        n_estimators=2,
+        enable_categorical=True,
+        feature_types=feature_types,
+    )
+    model.fit(X, y)
+    booster = model.get_booster()
+    saved = json.loads(booster.save_raw(raw_format="json"))
+    # A saved model can contain numerical encoding columns with no category values.
+    saved["learner"]["gradient_booster"]["model"]["cats"] = {
+        "enc": [{"offsets": [], "values": []} for _ in X.columns],
+        "feature_segments": [0] * (X.shape[1] + 1),
+        "sorted_idx": [],
+    }
+    booster.load_model(bytearray(json.dumps(saved), "utf-8"))
+
+    categories = booster.get_categories(export_to_arrow=export_to_arrow)
+    assert categories.empty()
+    if export_to_arrow:
+        assert categories.to_arrow() == [(name, None) for name in X.columns]
+
+    model.fit(X, y, xgb_model=booster)
+    assert model.get_booster().feature_types == feature_types
+    assert model.get_booster().num_boosted_rounds() == 4
+    continued = json.loads(model.get_booster().save_raw(raw_format="json"))
+    trees = continued["learner"]["gradient_booster"]["model"]["trees"]
+    assert all(1 in tree["split_type"] for tree in trees[2:])
 
 
 @pytest.mark.parametrize(
