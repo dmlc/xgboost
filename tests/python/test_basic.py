@@ -288,6 +288,52 @@ class TestBasic:
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.parametrize(
+        "fold_type", ["list", "tuple", "iterator", "generator", "splitter"]
+    )
+    def test_cv_fold_iterables(self, fold_type: str) -> None:
+        from sklearn.model_selection import KFold
+
+        X = np.arange(24, dtype=np.float32).reshape(-1, 1)
+        y = np.arange(24, dtype=np.float32)
+        dm = xgb.DMatrix(X, label=y)
+        splitter = KFold(n_splits=3, shuffle=True, random_state=17)
+        expected = list(splitter.split(X, y))
+        folds = {
+            "list": expected,
+            "tuple": tuple(expected),
+            "iterator": iter(expected),
+            "generator": splitter.split(X, y),
+            "splitter": splitter,
+        }[fold_type]
+        params = {"objective": "reg:squarederror", "nthread": 1}
+        baseline = xgb.cv(
+            params, dm, num_boost_round=2, folds=expected, as_pandas=False
+        )
+        actual = []
+
+        def fpreproc(dtrain, dtest, params):
+            actual.append((dtrain.get_label(), dtest.get_label()))
+            return dtrain, dtest, params
+
+        result = xgb.cv(
+            params,
+            dm,
+            num_boost_round=2,
+            folds=folds,
+            fpreproc=fpreproc,
+            as_pandas=False,
+        )
+        for (train, test), (expected_train, expected_test) in zip(
+            actual, expected, strict=True
+        ):
+            np.testing.assert_array_equal(train, y[expected_train])
+            np.testing.assert_array_equal(test, y[expected_test])
+        assert result.keys() == baseline.keys()
+        for metric in baseline:
+            np.testing.assert_allclose(result[metric], baseline[metric])
+
     def test_cv_explicit_fold_indices_labels(self):
         params = {"max_depth": 2, "eta": 1, "objective": "reg:squarederror"}
         N = 100
