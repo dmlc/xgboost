@@ -20,6 +20,9 @@ class FitInterceptGlmLike : public FitIntercept {
 
 inline void CheckInitInputs(MetaInfo const& info) {
   CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+  // An empty label array for a non-empty dataset is stored as a (n_samples, 0) matrix.
+  CHECK(info.num_row_ == 0 || info.labels.Shape(1) != 0)
+      << "Invalid shape of labels. The labels are empty.";
   if (!info.weights_.Empty()) {
     CHECK_EQ(info.weights_.Size(), info.num_row_)
         << "Number of weights should be equal to number of data points.";

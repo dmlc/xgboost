@@ -4,6 +4,7 @@ import pytest
 
 from xgboost.testing.intercept import (
     run_adaptive,
+    run_empty_labels,
     run_exp_family,
     run_init_estimation,
     run_logistic_degenerate,
@@ -27,3 +28,7 @@ def test_exp_family() -> None:
 
 def test_logistic_degenerate() -> None:
     run_logistic_degenerate("cuda")
+
+
+def test_empty_labels() -> None:
+    run_empty_labels("cuda")
