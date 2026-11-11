@@ -1,4 +1,5 @@
 import math
+import os
 from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import Path
@@ -365,6 +366,61 @@ class TestCallbacks:
         )
         for i in range(1, 10):
             assert (tmp_path / f"model_{i}.pkl").exists()
+
+    @pytest.mark.parametrize("as_pickle", [False, True])
+    def test_check_point_missing_directory(
+        self, as_pickle: bool, tmp_path: Path
+    ) -> None:
+        X, y, _ = tm.make_regression(64, 4, False)
+        directory = tmp_path / "missing"
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=directory, interval=1, as_pickle=as_pickle
+        )
+        rounds = []
+
+        class Count(xgb.callback.TrainingCallback):
+            def after_iteration(
+                self, model: xgb.Booster, epoch: int, evals_log: dict
+            ) -> bool:
+                rounds.append(epoch)
+                return False
+
+        with pytest.raises(FileNotFoundError, match="Checkpoint directory"):
+            xgb.train(
+                {},
+                xgb.DMatrix(X, y),
+                num_boost_round=3,
+                callbacks=[check_point, Count()],
+            )
+        assert rounds == []
+        assert not directory.exists()
+
+    def test_check_point_directory_not_checked(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        X, y, _ = tm.make_regression(64, 4, False)
+        Xy = xgb.DMatrix(X, y)
+        ext = xgb.callback.TrainingCheckPoint.default_format
+        monkeypatch.chdir(tmp_path)
+        # An empty directory writes to the current directory.
+        check_point = xgb.callback.TrainingCheckPoint(directory="", interval=1)
+        xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
+        assert (tmp_path / f"model_1.{ext}").exists()
+
+        # `~` is expanded, as in `save_model`.
+        home = tmp_path / "home"
+        (home / "ckpt").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("USERPROFILE", str(home))
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=os.path.join("~", "ckpt"), interval=1
+        )
+        xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
+        assert (home / "ckpt" / f"model_1.{ext}").exists()
+
+        # Remote paths can't be checked with `os.path`.
+        check_point = xgb.callback.TrainingCheckPoint(directory="s3://bucket/ckpt")
+        check_point.before_training(xgb.Booster())
 
     def test_callback_list(self) -> None:
         @dataclass
