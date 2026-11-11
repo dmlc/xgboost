@@ -6,7 +6,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import run_base_margin_info
+from xgboost.testing.data import run_base_margin_info, run_feature_weights_size
 from xgboost.testing.utils import assert_allclose
 
 cp = pytest.importorskip("cupy")
@@ -123,6 +123,7 @@ def _test_cupy_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     )
 
     run_base_margin_info(cp.asarray, DMatrixT, "cuda")
+    run_feature_weights_size(cp.asarray, DMatrixT, "cuda")
 
     dmat_cupy = DMatrixT(cp.array(X))
     y = dmat_cupy.get_label()
