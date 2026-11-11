@@ -16,32 +16,6 @@
 #include "expand_entry.cuh"
 
 namespace xgboost::tree {
-// With constraints
-XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
-                                       const GradientPairInt64 &missing,
-                                       const GradientPairInt64 &parent_sum, const EvalParam &param,
-                                       bst_node_t nidx, bst_feature_t fidx,
-                                       TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
-                                       bool &missing_left_out,  // NOLINT
-                                       GradientQuantiser const &quantiser) {
-  float missing_right_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan),
-                              quantiser.ToFloatingPoint(parent_sum - scan));
-  if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
-    // Without missing values both directions have the same gain, and a tie goes right. Skip the
-    // second gain, the floating point evaluation is expensive.
-    missing_left_out = false;
-    return missing_right_gain;
-  }
-  const auto left_sum = scan + missing;
-  float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
-                              quantiser.ToFloatingPoint(parent_sum - left_sum));
-
-  missing_left_out = missing_left_gain > missing_right_gain;
-  return missing_left_out ? missing_left_gain : missing_right_gain;
-}
-
 // This kernel uses block_size == warp_size. This is an unusually small block size for a cuda kernel
 // - normally a larger block size is preferred to increase the number of resident warps on each SM
 // (occupancy). In the below case each thread has a very large amount of work per thread relative to
@@ -71,8 +45,8 @@ class EvaluateSplitAgent {
   const GradientQuantiser &rounding;
   const GradientPairInt64 parent_sum;
   const GradientPairInt64 missing;
-  const EvalParam &param;
-  const TreeEvaluator::SplitEvaluator<EvalParam> &evaluator;
+  const NodeLossChange node_loss;
+  const int constraint;
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
@@ -91,8 +65,9 @@ class EvaluateSplitAgent {
         parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
         // A dense matrix has no missing value, skip the reduction over the feature.
         missing(shared_inputs.is_dense ? GradientPairInt64{} : parent_sum - ReduceFeature()),
-        param(shared_inputs.param),
-        evaluator(evaluator) {
+        node_loss{
+            evaluator.NodeLoss(shared_inputs.param, nidx, 0, rounding.ToFloatingPoint(parent_sum))},
+        constraint{evaluator.Constraint(fidx)} {
     static_assert(kBlockSize == 32, "This kernel relies on the assumption block_size == warp_size");
   }
   __device__ GradientPairInt64 ReduceFeature() {
@@ -101,6 +76,26 @@ class EvaluateSplitAgent {
       local_sum += LoadGpair(node_histogram + idx);
     }
     return WarpSum(local_sum);
+  }
+
+  [[nodiscard]] __device__ float LossChange(GradientPairInt64 const &left,
+                                            GradientPairInt64 const &right) const {
+    return node_loss.LossChange(rounding.ToFloatingPoint(left), rounding.ToFloatingPoint(right),
+                                constraint);
+  }
+  // Loss change of the best missing direction for the split with `scan` on the left.
+  __device__ float LossChangeMissing(GradientPairInt64 const &scan, bool *missing_left_out) const {
+    float missing_right_gain = this->LossChange(scan, parent_sum - scan);
+    if (missing.GetQuantisedGrad() == 0 && missing.GetQuantisedHess() == 0) {
+      // Without missing values both directions have the same gain, and a tie goes right. Skip the
+      // second gain, the floating point evaluation is expensive.
+      *missing_left_out = false;
+      return missing_right_gain;
+    }
+    auto const left_sum = scan + missing;
+    float missing_left_gain = this->LossChange(left_sum, parent_sum - left_sum);
+    *missing_left_out = missing_left_gain > missing_right_gain;
+    return *missing_left_out ? missing_left_gain : missing_right_gain;
   }
 
   // Load using efficient 128 vector load instruction
@@ -124,9 +119,7 @@ class EvaluateSplitAgent {
 #endif
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left, rounding)
-                                 : kNullGain;
+      float gain = thread_active ? this->LossChangeMissing(bin, &missing_left) : kNullGain;
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
       // This reduce result is only valid in thread 0
@@ -159,9 +152,7 @@ class EvaluateSplitAgent {
       GradientPairInt64 bin = parent_sum - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left, rounding)
-                                 : kNullGain;
+      float gain = thread_active ? this->LossChangeMissing(bin, &missing_left) : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -189,10 +180,7 @@ class EvaluateSplitAgent {
                                                   GradientPairInt64 const &left_sum,
                                                   GradientPairInt64 const &right_sum,
                                                   DeviceSplitCandidate *best_split) {
-    auto gain = thread_active
-                    ? evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left_sum),
-                                              rounding.ToFloatingPoint(right_sum))
-                    : kNullGain;
+    float gain = thread_active ? this->LossChange(left_sum, right_sum) : kNullGain;
 
     // Find thread with best gain
     auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -424,12 +412,6 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
   dh::LaunchN(d_inputs.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t i) mutable {
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
-    // Subtract parent gain here
-    // As it is constant, this is more efficient than doing it during every
-    // split evaluation
-    float parent_gain = evaluator.CalcGain(
-        input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
-    split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {

@@ -19,7 +19,7 @@
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "param.h"       // for TrainParam
-#include "split_gain.h"  // for CalcWeight, CalcGain, CalcGainGivenWeight, IsValidSplit
+#include "split_gain.h"  // for CalcWeight, CalcGain, NodeLossChange, ClampWeight
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 
@@ -133,13 +133,26 @@ class TreeEvaluator {
       }
       std::size_t strides[2]{n_targets, 1};
       auto idx = linalg::detail::Offset<0>(strides, 0, nidx, target);
-      if (w < lower[idx]) {
-        return lower[idx];
-      } else if (w > upper[idx]) {
-        return upper[idx];
-      } else {
-        return w;
+      return ClampWeight(w, lower[idx], upper[idx]);
+    }
+
+    // The monotone constraint of a feature, 0 without constraint.
+    [[nodiscard]] XGBOOST_DEVICE int Constraint(bst_feature_t fidx) const {
+      return has_constraint ? constraints[fidx] : 0;
+    }
+
+    /**
+     * @brief Loss change of the splits of a node, with the weight bounds of the node.
+     */
+    [[nodiscard]] XGBOOST_DEVICE NodeLossChange NodeLoss(ParamT const& param, bst_node_t nidx,
+                                                         bst_target_t target,
+                                                         GradientPairPrecise const& sum) const {
+      if (!has_constraint) {
+        return NodeLossChange{param, sum};
       }
+      std::size_t strides[2]{n_targets, 1};
+      auto idx = linalg::detail::Offset<0>(strides, 0, nidx, target);
+      return NodeLossChange{param, sum, lower[idx], upper[idx]};
     }
 
     // See the sphinx document about monotone constraint for how this works.
