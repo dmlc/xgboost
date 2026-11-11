@@ -54,6 +54,12 @@ TEST(Algorithm, BlockedStableSort) {
         auto expected = inputs;
         std::stable_sort(expected.begin(), expected.end(), by_key);
 
+        // StableSort reaches BlockedStableSort only on compilers without a parallel stable sort.
+        auto via_stable_sort = inputs;
+        StableSort(&ctx, via_stable_sort.begin(), via_stable_sort.end(), by_key);
+        ASSERT_EQ(via_stable_sort, expected) << "StableSort threads:" << ctx.Threads() << " n:" << n
+                                             << " n_keys:" << n_keys;
+
         detail::BlockedStableSort(&ctx, inputs.begin(), inputs.end(), by_key);
         // Threads() is capped at the number of cores, so it can be lower than n_threads.
         ASSERT_EQ(inputs, expected) << "threads:" << ctx.Threads() << " n:" << n
