@@ -5,7 +5,11 @@ import pytest
 
 import xgboost
 from xgboost import testing as tm
-from xgboost.testing.ranking import run_normalization, run_score_normalization
+from xgboost.testing.ranking import (
+    run_group_weights_without_relevance,
+    run_normalization,
+    run_score_normalization,
+)
 
 pytestmark = tm.timeout(30)
 
@@ -135,3 +139,7 @@ def test_normalization() -> None:
 @pytest.mark.parametrize("objective", ["rank:pairwise", "rank:ndcg", "rank:map"])
 def test_score_normalization(objective: str) -> None:
     run_score_normalization("cuda", objective)
+
+
+def test_group_weights_without_relevance() -> None:
+    run_group_weights_without_relevance("cuda")
