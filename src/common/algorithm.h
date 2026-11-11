@@ -3,13 +3,15 @@
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_H_
 #define XGBOOST_COMMON_ALGORITHM_H_
-#include <algorithm>          // upper_bound, stable_sort, sort, max
+#include <algorithm>          // upper_bound, stable_sort, sort, min, max, inplace_merge
 #include <cstddef>            // size_t
 #include <functional>         // less
 #include <iterator>           // iterator_traits, distance
 #include <vector>             // vector
 
+#include "common.h"           // DivRoundUp
 #include "numeric.h"          // Iota
+#include "threading_utils.h"  // ParallelFor
 #include "xgboost/context.h"  // Context
 
 // clang with libstdc++ works as well
@@ -39,6 +41,34 @@ auto SegmentId(It first, It last, Idx idx) {
   return segment_id;
 }
 
+namespace detail {
+template <typename Iter, typename Comp>
+void BlockedStableSort(Context const *ctx, Iter begin, Iter end, Comp &&comp) {
+  auto n = static_cast<std::size_t>(std::distance(begin, end));
+  // Starting a thread costs more than sorting a smaller block.
+  constexpr std::size_t kMinBlockSize = 8192;
+  auto n_blocks = std::min(static_cast<std::size_t>(ctx->Threads()), n / kMinBlockSize);
+  if (n_blocks < 2) {
+    std::stable_sort(begin, end, comp);
+    return;
+  }
+  auto block_size = n / n_blocks;
+  auto block_begin = [&](std::size_t i) { return i >= n_blocks ? end : begin + i * block_size; };
+
+  ParallelFor(n_blocks, ctx->Threads(), [&](std::size_t i) {
+    std::stable_sort(block_begin(i), block_begin(i + 1), comp);
+  });
+  for (std::size_t width = 1; width < n_blocks; width *= 2) {
+    auto n_pairs = DivRoundUp(n_blocks, 2 * width);
+    ParallelFor(n_pairs, ctx->Threads(), [&](std::size_t i) {
+      auto first = i * 2 * width;
+      std::inplace_merge(block_begin(first), block_begin(first + width),
+                         block_begin(first + 2 * width), comp);
+    });
+  }
+}
+}  // namespace detail
+
 template <typename Iter, typename Comp>
 void StableSort(Context const *ctx, Iter begin, Iter end, Comp &&comp) {
   if (ctx->Threads() > 1) {
@@ -46,8 +76,8 @@ void StableSort(Context const *ctx, Iter begin, Iter end, Comp &&comp) {
     __gnu_parallel::stable_sort(begin, end, comp,
                                 __gnu_parallel::default_parallel_tag(ctx->Threads()));
 #else
-    // the only stable sort is radix sort for msvc ppl.
-    std::stable_sort(begin, end, comp);
+    // Apple clang has no parallel stable sort, and the only one in msvc ppl is a radix sort.
+    detail::BlockedStableSort(ctx, begin, end, comp);
 #endif  // GLIBC VERSION
   } else {
     std::stable_sort(begin, end, comp);
