@@ -379,6 +379,7 @@ class EarlyStopping(TrainingCallback):
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
+        self._maximize = maximize  # as specified by the user, ``None`` means auto
         self.stopping_history: EvalsLog = {}
         self._min_delta = min_delta
         if self._min_delta < 0:
@@ -390,6 +391,12 @@ class EarlyStopping(TrainingCallback):
         super().__init__()
 
     def before_training(self, model: _Model) -> _Model:
+        # Clear the state of a previous run so that a callback object can be reused,
+        # including the optimization direction inferred from the previous metric.
+        self.stopping_history = {}
+        self.best_scores = {}
+        self.current_rounds = 0
+        self.maximize = self._maximize
         self.starting_round = model.num_boosted_rounds()
         if not isinstance(model, Booster) and self.save_best:
             raise ValueError(
