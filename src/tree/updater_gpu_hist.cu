@@ -36,7 +36,6 @@
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
-#include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
 #include "split_gain.h"                  // for CalcWeight
@@ -137,8 +136,6 @@ struct GPUHistMakerDevice {
 
   FeatureInteractionConstraintDevice interaction_constraints;
 
-  std::unique_ptr<cuda_impl::Sampler> sampler;
-
   common::Monitor monitor;
 
   GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
@@ -154,9 +151,7 @@ struct GPUHistMakerDevice {
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         HistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
-        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
-        sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
-                                                     param.sampling_method)} {
+        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)) {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -181,11 +176,6 @@ struct GPUHistMakerDevice {
         linalg::MakeTensorView(this->ctx_, dh_gpair->ConstDeviceSpan(), dh_gpair->Size(), 1);
     CalcQuantizedGpairs(this->ctx_, gpair, this->quantiser->DeviceSpan(), &this->d_gpair);
 
-    /**
-     * Sampling
-     */
-    auto gpairs = this->d_gpair.View(this->ctx_->Device());
-    this->sampler->Sample(ctx_, gpairs, this->quantiser->DeviceSpan());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
@@ -470,8 +460,6 @@ struct GPUHistMakerDevice {
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
 
-    auto gpair = this->d_gpair.View(this->ctx_->Device());
-
     if (!p_fmat->SingleColBlock()) {
       for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
         auto& part = partitioners_.At(k);
@@ -479,7 +467,7 @@ struct GPUHistMakerDevice {
         auto base_ridx = batch_ptr_[k];
         auto n_samples = batch_ptr_.at(k + 1) - base_ridx;
         part->FinalisePosition(ctx_, d_out_position.subspan(base_ridx, n_samples), base_ridx,
-                               cuda_impl::EncodeOp{gpair});
+                               cuda_impl::EncodeOp{});
       }
       return;
     }
@@ -510,7 +498,7 @@ struct GPUHistMakerDevice {
         partitioners_.Front()->FinalisePosition(
             ctx_, d_out_position, page.BaseRowId(),
             FinalizeOp<std::remove_reference_t<decltype(d_matrix)>>{s_split_data, go_left_op,
-                                                                    cuda_impl::EncodeOp{gpair}});
+                                                                    cuda_impl::EncodeOp{}});
       });
     }
   }

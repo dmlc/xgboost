@@ -21,8 +21,8 @@
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
 #include "gpu_hist/leaf_sum.cuh"               // for LeafGradSum
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
+#include "gpu_hist/quantiser.cuh"              // for GradientQuantiserGroup
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
-#include "gpu_hist/sampler.cuh"                // for GradientBasedSampler
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
 #include "sample_position.h"                   // for SamplePosition
 #include "tree_view.h"                         // for MultiTargetTreeView
@@ -47,14 +47,9 @@ struct GoLeftWrapperOp {
   }
 };
 
-/** @brief Encode sampling information in the position. */
+/** @brief Retain the final leaf position for every row. */
 struct EncodeOp {
-  linalg::MatrixView<GradientPairInt64 const> d_gpair;
-  [[nodiscard]] __device__ bst_node_t operator()(RowIndexT ridx, bst_node_t nidx) const {
-    // Scalar tree sampling has one target.
-    bool is_sampled = d_gpair(ridx, 0).GetQuantisedHess() != 0;
-    return SamplePosition::Encode(nidx, is_sampled);
-  }
+  [[nodiscard]] __device__ bst_node_t operator()(RowIndexT, bst_node_t nidx) const { return nidx; }
 };
 
 // Some nodes we will manually compute histograms, others we will do by subtraction
@@ -112,7 +107,6 @@ class MultiTargetHistMaker {
 
   TrainParam const param_;
   std::vector<bst_idx_t> const batch_ptr_;
-  Sampler sampler_;
 
   RowPartitionerBatches partitioners_;
 
@@ -219,13 +213,9 @@ class MultiTargetHistMaker {
     CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->DeviceSpan(),
                         &this->split_gpair_);
 
-    // Sampling
-    this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
-                          this->split_quantizer_->DeviceSpan());
     if (GradientContainer::HasValueGrad(this->value_gpair_)) {
       this->value_quantizer_ =
           std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_->Device()));
-      this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
     }
 
     /**
@@ -607,17 +597,15 @@ class MultiTargetHistMaker {
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
-    auto sampling = this->sampler_.GetSamplingInfo();
 
     for (std::size_t k = 0, n = partitioners_.Size(); k < n; ++k) {
       auto& part = partitioners_.At(k);
       CHECK_EQ(part->GetNumNodes(), p_tree->NumNodes());
       auto base_rowid = batch_ptr_[k];
       auto n_samples = batch_ptr_.at(k + 1) - base_rowid;
-      part->FinalisePosition(ctx_, d_out_position.subspan(base_rowid, n_samples), base_rowid,
-                             [=] XGBOOST_DEVICE(RowIndexT ridx, bst_node_t nidx) -> bst_node_t {
-                               return SamplePosition::Encode(nidx, sampling.IsSampled(ridx));
-                             });
+      part->FinalisePosition(
+          ctx_, d_out_position.subspan(base_rowid, n_samples), base_rowid,
+          [=] XGBOOST_DEVICE(RowIndexT ridx, bst_node_t nidx) -> bst_node_t { return nidx; });
     }
   }
 
@@ -689,7 +677,6 @@ class MultiTargetHistMaker {
       : ctx_{ctx},
         param_{std::move(param)},
         batch_ptr_{std::move(batch_ptr)},
-        sampler_{batch_ptr_.back(), param_.subsample, param_.sampling_method},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,

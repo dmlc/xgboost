@@ -60,15 +60,13 @@ class TreeUpdater : public Configurable {
    * @brief perform update to the tree models
    *
    * @param param  Hyper-parameter for constructing trees.
-   * @param gpair  The gradient pair statistics of the data
+   * @param gpair  Already-sampled gradient pair statistics for this tree.
    * @param p_fmat The data matrix passed to the updater.
-   * @param out_position The leaf index for each row.  The index is negated if that row is
-   *                     removed during sampling. So the 3th node is ~3.
+   * @param out_position The final leaf index for every row, including sampled-out rows.
    * @param out_trees references the trees to be updated, updater will change the content of trees
    *
-   * @note All the trees in the vector are updated, with the same statistics, but maybe
-   *       different random seeds, usually one tree is passed in at a time, there can be
-   *       multiple trees when we train a random forest style model.
+   * @note GBTree invokes the updater chain with one tree at a time and owns row sampling.
+   *       Updaters must not perform an additional random row selection.
    */
   virtual void Update(tree::TrainParam const* param, GradientContainer* gpair, DMatrix* p_fmat,
                       common::Span<HostDeviceVector<bst_node_t>> out_position,

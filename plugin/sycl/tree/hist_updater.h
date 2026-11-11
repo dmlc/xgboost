@@ -95,9 +95,6 @@ class HistUpdater {
     const GradientPairT* hist;
   };
 
-  void InitSampling(const HostDeviceVector<GradientPair>& gpair,
-                    USMVector<size_t, MemoryType::on_device>* row_indices);
-
   void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                       const common::GHistIndexMatrix& gmat, const RegTree& tree);
 
@@ -228,8 +225,6 @@ class HistUpdater {
   /*! \brief feature with least # of bins. to be used for dense specialization
               of InitNewNode() */
   uint32_t fid_least_bins_;
-
-  uint64_t seed_ = 0;
 
   common::PartitionBuilder partition_builder_;
 

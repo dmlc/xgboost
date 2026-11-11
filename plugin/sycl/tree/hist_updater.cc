@@ -6,7 +6,6 @@
 #include "hist_updater.h"
 
 #include <functional>
-#include <oneapi/dpl/random>
 
 #include "../../src/collective/allreduce.h"
 #include "../../src/tree/common_row_partitioner.h"
@@ -218,6 +217,9 @@ void HistUpdater<GradientSumT>::ExpandWithDepthWise(const common::GHistIndexMatr
     SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
                   &nodes_for_subtraction_trick_, p_tree);
     hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
+    // Row allocation can enqueue zero fills on the out-of-order queue.
+    // Finish them before histogram kernels write to the same memory.
+    qu_->wait_and_throw();
     BuildLocalHistograms(gmat, p_tree, gpair);
     hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
     BuildNodeStats(gmat, p_tree, gpair);
@@ -338,7 +340,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::FinalizePosition(std::size_t n_samples, RegTree const& tree,
                                                  HostDeviceVector<bst_node_t>* p_out_position) {
   CHECK(p_out_position);
-  if (param_.subsample < 1.0f || row_set_collection_.Data().Size() != n_samples) {
+  if (row_set_collection_.Data().Size() != n_samples) {
     p_out_position->Resize(0);
     return;
   }
@@ -365,69 +367,6 @@ void HistUpdater<GradientSumT>::FinalizePosition(std::size_t n_samples, RegTree 
        })
         .wait_and_throw();
   }
-}
-
-template <typename GradientSumT>
-void HistUpdater<GradientSumT>::InitSampling(
-    const HostDeviceVector<GradientPair>& gpair,
-    USMVector<size_t, MemoryType::on_device>* row_indices) {
-  const size_t num_rows = row_indices->Size();
-  auto* row_idx = row_indices->Data();
-  const auto* gpair_ptr = gpair.ConstDevicePointer();
-  uint64_t num_samples = 0;
-  const auto subsample = param_.subsample;
-  ::sycl::event event;
-
-  {
-    ::sycl::buffer<uint64_t, 1> flag_buf(&num_samples, 1);
-    uint64_t seed = seed_;
-    seed_ += num_rows;
-
-    /*
-    * oneDLP bernoulli_distribution implicitly uses double.
-    * In this case the device doesn't have fp64 support,
-    * we generate bernoulli distributed random values from uniform distribution
-    */
-    if (has_fp64_support_) {
-      // Use oneDPL bernoulli_distribution for better perf
-      event = qu_->submit([&](::sycl::handler& cgh) {
-        auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)), [=](::sycl::item<1> pid) {
-          uint64_t i = pid.get_id(0);
-          // Create minstd_rand engine
-          oneapi::dpl::minstd_rand engine(seed, i);
-          oneapi::dpl::bernoulli_distribution coin_flip(subsample);
-          auto bernoulli_rnd = coin_flip(engine);
-
-          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
-            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
-            row_idx[num_samples_ref++] = i;
-          }
-        });
-      });
-    } else {
-      // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
-      event = qu_->submit([&](::sycl::handler& cgh) {
-        auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)), [=](::sycl::item<1> pid) {
-          uint64_t i = pid.get_id(0);
-          oneapi::dpl::minstd_rand engine(seed, i);
-          oneapi::dpl::uniform_real_distribution<float> distr;
-          const float rnd = distr(engine);
-          const bool bernoulli_rnd = rnd < subsample ? 1 : 0;
-
-          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
-            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
-            row_idx[num_samples_ref++] = i;
-          }
-        });
-      });
-    }
-    /* After calling a destructor for flag_buf,  content will be copyed to num_samples */
-  }
-
-  row_indices->Resize(qu_, num_samples, 0, &event);
-  qu_->wait();
 }
 
 template <typename GradientSumT>
@@ -459,13 +398,8 @@ void HistUpdater<GradientSumT>::InitData(const common::GHistIndexMatrix& gmat,
     USMVector<size_t, MemoryType::on_device>* row_indices = &(row_set_collection_.Data());
     row_indices->Resize(qu_, info.num_row_);
     size_t* p_row_indices = row_indices->Data();
-    // mark subsample and build list of member rows
-    if (param_.subsample < 1.0f) {
-      CHECK_EQ(param_.sampling_method, xgboost::tree::TrainParam::kUniform)
-          << "Only uniform sampling is supported, "
-          << "gradient-based sampling is only support by GPU Hist.";
-      InitSampling(gpair, row_indices);
-    } else {
+    // All rows are routed; GBTree has already zeroed sampled-out gradients.
+    {
       int has_neg_hess = 0;
       const GradientPair* gpair_ptr = gpair.ConstDevicePointer();
       ::sycl::event event;

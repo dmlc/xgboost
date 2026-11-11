@@ -204,30 +204,18 @@ class CommonRowPartitioner {
   auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
   auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
 
-  // The row indices supplied to the `invalidp` callback are global.
-  void LeafPartition(Context const* ctx, ScalarTreeView const& tree, common::Span<float const> hess,
+  void LeafPartition(Context const* ctx, ScalarTreeView const& tree, common::Span<float const>,
                      common::Span<bst_node_t> out_position) const {
     partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
-                                     [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
+                                     [](std::size_t) { return false; });
   }
 
   template <typename TreeView>
   void LeafPartition(Context const* ctx, TreeView const& tree,
-                     linalg::MatrixView<GradientPair const> gpair,
+                     linalg::MatrixView<GradientPair const>,
                      common::Span<bst_node_t> out_position) const {
-    if (gpair.Shape(1) > 1) {
-      partition_builder_.LeafPartition(
-          ctx, tree, this->Partitions(), out_position, [&](std::size_t idx) -> bool {
-            auto sample = gpair.Slice(idx, linalg::All());
-            return std::all_of(linalg::cbegin(sample), linalg::cend(sample),
-                               [](GradientPair const& g) { return g.GetHess() - .0f == .0f; });
-          });
-    } else {
-      auto s = gpair.Slice(linalg::All(), 0);
-      partition_builder_.LeafPartition(
-          ctx, tree, this->Partitions(), out_position,
-          [&](std::size_t idx) -> bool { return s(idx).GetHess() - .0f == .0f; });
-    }
+    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
+                                     [](std::size_t) { return false; });
   }
 
  private:

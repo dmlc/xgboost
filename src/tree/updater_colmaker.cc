@@ -233,23 +233,6 @@ class ColMaker : public TreeUpdater {
             row_is_valid_[ridx] = false;
           }
         }
-        // mark subsample
-        if (param_.subsample < 1.0f) {
-          CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
-              << "Only uniform sampling is supported, "
-              << "gradient-based sampling is only support by the `hist` tree method.";
-          std::bernoulli_distribution coin_flip(param_.subsample);
-          auto &rnd = ctx_->Rng();
-          for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
-            if (!row_is_valid_[ridx]) {
-              continue;
-            }
-            if (!coin_flip(rnd)) {
-              position_[ridx] = ~position_[ridx];
-              row_is_valid_[ridx] = false;
-            }
-          }
-        }
       }
       {
         column_sampler_->Init(ctx_, fmat.Info().num_col_, fmat.Info().feature_weights,

@@ -7,6 +7,8 @@
 
 #include "../../../plugin/sycl/device_manager.h"
 #include "../../../plugin/sycl/tree/hist_updater.h"
+#include "../../../src/common/kernel.h"
+#include "../../../src/gbm/row_sampler.h"
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../helpers.h"
 
@@ -19,11 +21,6 @@ class TestHistUpdater : public HistUpdater<GradientSumT> {
   TestHistUpdater(const Context* ctx, ::sycl::queue* qu, const xgboost::tree::TrainParam& param,
                   FeatureInteractionConstraintHost int_constraints_, DMatrix const* fmat)
       : HistUpdater<GradientSumT>(ctx, qu, param, int_constraints_, fmat) {}
-
-  void TestInitSampling(const HostDeviceVector<GradientPair>& gpair,
-                        USMVector<size_t, MemoryType::on_device>* row_indices) {
-    HistUpdater<GradientSumT>::InitSampling(gpair, row_indices);
-  }
 
   auto* TestInitData(const common::GHistIndexMatrix& gmat,
                      const HostDeviceVector<GradientPair>& gpair, const DMatrix& fmat,
@@ -84,54 +81,39 @@ void GenerateRandomGPairs(::sycl::queue* qu, GradientPair* gpair_ptr, size_t num
 }
 
 template <typename GradientSumT>
-void TestHistUpdaterSampling(const xgboost::tree::TrainParam& param) {
-  const size_t num_rows = 1u << 12;
-  const size_t num_columns = 1;
-
+void TestHistUpdaterSampledRows(const xgboost::tree::TrainParam& param) {
+  size_t const num_rows = 1u << 12;
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-
   DeviceManager device_manager;
-  auto qu = device_manager.GetQueue(ctx.Device());
-
-  auto p_fmat = RandomDataGenerator{num_rows, num_columns, 0.0}.GenerateDMatrix();
-
+  auto* qu = device_manager.GetQueue(ctx.Device());
+  auto p_fmat = RandomDataGenerator{num_rows, 1, 0.0}.GenerateDMatrix();
   FeatureInteractionConstraintHost int_constraints;
-
   TestHistUpdater<GradientSumT> updater(&ctx, qu, param, int_constraints, p_fmat.get());
 
-  USMVector<size_t, MemoryType::on_device> row_indices_0(qu, num_rows);
-  USMVector<size_t, MemoryType::on_device> row_indices_1(qu, num_rows);
-  HostDeviceVector<GradientPair> gpair(num_rows, {0, 0}, ctx.Device());
-  GenerateRandomGPairs(qu, gpair.DevicePointer(), num_rows, true);
+  GradientContainer input, sampled;
+  input.gpair.SetDevice(ctx.Device());
+  input.gpair.Reshape(num_rows, 1);
+  GenerateRandomGPairs(qu, input.gpair.Data()->DevicePointer(), num_rows, false);
+  auto sampler = xgboost::common::DispatchKernel<gbm::MakeRowSamplerKernel>(&ctx, param, input);
+  sampler->Sample(&ctx, &sampled);
+  auto before = sampled.gpair.Data()->ConstHostVector();
+  auto excluded =
+      std::count_if(before.cbegin(), before.cend(), [](auto g) { return g.GetHess() == 0.0f; });
+  ASSERT_GT(excluded, 0);
+  ASSERT_LT(excluded, num_rows);
 
-  updater.TestInitSampling(gpair, &row_indices_0);
-
-  size_t n_samples = row_indices_0.Size();
-  // Half of gpairs have neg hess
-  ASSERT_LT(n_samples, num_rows * 0.5 * param.subsample * 1.2);
-  ASSERT_GT(n_samples, num_rows * 0.5 * param.subsample / 1.2);
-
-  // Check if two lanunches generate different realisations:
-  updater.TestInitSampling(gpair, &row_indices_1);
-  if (row_indices_1.Size() == n_samples) {
-    std::vector<size_t> row_indices_0_host(n_samples);
-    std::vector<size_t> row_indices_1_host(n_samples);
-    qu->memcpy(row_indices_0_host.data(), row_indices_0.Data(), n_samples * sizeof(size_t)).wait();
-    qu->memcpy(row_indices_1_host.data(), row_indices_1.Data(), n_samples * sizeof(size_t)).wait();
-
-    // The order in row_indices_0 and row_indices_1 can be different
-    std::set<size_t> rows;
-    for (auto row : row_indices_0_host) {
-      rows.insert(row);
-    }
-
-    size_t num_diffs = 0;
-    for (auto row : row_indices_1_host) {
-      if (rows.count(row) == 0) num_diffs++;
-    }
-
-    ASSERT_NE(num_diffs, 0);
+  common::GHistIndexMatrix gmat;
+  gmat.Init(qu, &ctx, p_fmat.get(), 32);
+  RegTree tree;
+  auto* rows = updater.TestInitData(gmat, *sampled.gpair.Data(), *p_fmat, tree);
+  // The updater must route sampled-out rows and leave sampling to the booster.
+  ASSERT_EQ(rows->Data().Size(), num_rows);
+  EXPECT_EQ(before, sampled.gpair.Data()->ConstHostVector());
+  std::vector<size_t> row_indices(num_rows);
+  qu->memcpy(row_indices.data(), rows->Data().DataConst(), num_rows * sizeof(size_t)).wait();
+  for (size_t i = 0; i < num_rows; ++i) {
+    ASSERT_EQ(row_indices[i], i);
   }
 }
 
@@ -561,12 +543,12 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
   ASSERT_NEAR(ans[2], -0.15, 1e-6);
 }
 
-TEST(SyclHistUpdater, Sampling) {
+TEST(SyclHistUpdater, SampledRowsRetained) {
   xgboost::tree::TrainParam param;
   param.UpdateAllowUnknown(Args{{"subsample", "0.7"}});
 
-  TestHistUpdaterSampling<float>(param);
-  TestHistUpdaterSampling<double>(param);
+  TestHistUpdaterSampledRows<float>(param);
+  TestHistUpdaterSampledRows<double>(param);
 }
 
 TEST(SyclHistUpdater, InitData) {

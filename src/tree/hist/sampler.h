@@ -94,7 +94,13 @@ class Sampler {
   explicit Sampler(TrainParam const& param)
       : sampling_method_{param.sampling_method}, subsample_{param.subsample} {}
 
-  void Sample(Context const* ctx, linalg::MatrixView<GradientPair> out);
+  /** @brief Prepare sampling probabilities once for unchanged gradients. */
+  void Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in);
+  /** @brief Draw a fresh sample using the prepared probabilities. */
+  void SamplePrepared(Context const* ctx, linalg::MatrixView<GradientPair> out,
+                      common::Span<float> weights = {});
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair> out,
+              common::Span<float> weights = {});
   /** Replay sampling on the value gradient using the original, unsampled split gradient. */
   void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> split_gpair,
                      linalg::Matrix<GradientPair>* value_gpair) const;
@@ -103,6 +109,9 @@ class Sampler {
   int sampling_method_{TrainParam::kUniform};
   float subsample_{1.0f};
   bool is_sampling_{false};
+  bst_idx_t n_samples_{0};
+  std::vector<float> reg_abs_grad_;
+  float threshold_{0.0f};
   // Scalar state used to replay sampling without caching per-row probabilities or masks.
   std::uint64_t initial_seed_{0};
 };

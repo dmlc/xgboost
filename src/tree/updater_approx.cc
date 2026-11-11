@@ -23,7 +23,6 @@
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/sampler.h"                    // for Sampler
 #include "param.h"                           // for GradStats, TrainParam
 #include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t
 #include "xgboost/context.h"                 // for Context
@@ -77,7 +76,6 @@ class GlobalApproxBuilder {
 
     n_batches_ = 0;
     bst_bin_t n_total_bins = 0;
-    partitioner_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
     for (auto const &page :
          p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess, *task_))) {
@@ -87,9 +85,14 @@ class GlobalApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
+      if (n_batches_ == partitioner_.size()) {
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
+      } else {
+        partitioner_[n_batches_].Reset(this->ctx_, page.Size(), page.base_rowid);
+      }
       n_batches_++;
     }
+    partitioner_.resize(n_batches_);
 
     histogram_builder_.Reset(ctx_, n_total_bins, p_tree->NumTargets(), BatchSpec(*param_, hess),
                              collective::IsDistributed(), hist_param_);
@@ -159,6 +162,12 @@ class GlobalApproxBuilder {
         ctx_{ctx},
         task_{task},
         monitor_{monitor} {}
+
+  // Reset per-tree decisions while retaining histogram and row-partition storage.
+  void Reset(TrainParam const *param, MetaInfo const &info) {
+    param_ = param;
+    evaluator_ = HistEvaluator{ctx_, param_, info, col_sampler_};
+  }
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
                   RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
@@ -263,30 +272,23 @@ class GlobalApproxUpdater : public TreeUpdater {
     out["hist_train_param"] = ToJson(hist_param_);
   }
 
-  void InitData(TrainParam const &param, linalg::Matrix<GradientPair> const *gpair,
-                linalg::Matrix<GradientPair> *sampled) {
-    *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
-    auto in = gpair->HostView().Values();
-    std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-    cpu_impl::Sampler sampler{param};
-    sampler.Sample(ctx_, sampled->HostView());
-  }
-
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
 
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
-    pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
-                                                   column_sampler_, task_, &monitor_);
+    if (!pimpl_ || cached_ != m) {
+      pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
+                                                     column_sampler_, task_, &monitor_);
+    } else {
+      pimpl_->Reset(param, m->Info());
+    }
     auto gpair = in_gpair->Grad();
 
-    linalg::Matrix<GradientPair> h_gpair;
-    // Obtain the hessian values for weighted sketching
-    InitData(*param, gpair, &h_gpair);
-    std::vector<float> hess(h_gpair.Size());
-    auto const &s_gpair = h_gpair.Data()->ConstHostVector();
+    // Use the already-sampled Hessians for weighted sketching.
+    std::vector<float> hess(gpair->Size());
+    auto const &s_gpair = gpair->Data()->ConstHostVector();
     std::transform(s_gpair.begin(), s_gpair.end(), hess.begin(),
                    [](auto g) { return g.GetHess(); });
 

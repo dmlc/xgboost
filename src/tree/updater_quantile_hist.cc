@@ -28,7 +28,6 @@
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/sampler.h"                    // for Sampler
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
 #include "xgboost/context.h"                 // for Context
@@ -631,53 +630,29 @@ class QuantileHistMaker : public TreeUpdater {
       }
     }
 
-    bst_target_t n_targets = trees.front()->NumTargets();
-    // Use split gradient for tree building
-    auto h_gpair = in_gpair->Grad()->HostView();
-
-    linalg::Matrix<GradientPair> sample_out;
-    auto h_sample_out = h_gpair;
-    auto need_copy = [&] {
-      return trees.size() > 1 || n_targets > 1 || in_gpair->HasValueGrad();
-    };
-    if (need_copy()) {
-      // allocate buffer
-      sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->Device(), linalg::Order::kF};
-      h_sample_out = sample_out.HostView();
+    CHECK_EQ(trees.size(), 1);
+    auto *tree = trees.front();
+    auto h_gpair = in_gpair->gpair.HostView();
+    linalg::Matrix<GradientPair> column_major;
+    if (!h_gpair.FContiguous()) {
+      column_major =
+          linalg::Matrix<GradientPair>{h_gpair.Shape(), ctx_->Device(), linalg::Order::kF};
+      auto out = column_major.HostView();
+      std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(out));
+      h_gpair = out;
     }
-
-    cpu_impl::Sampler sampler{*param};
-    for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
-      if (need_copy()) {
-        // Copy gradient into buffer for sampling. This converts C-order to F-order.
-        std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
-      }
-      sampler.Sample(ctx_, h_sample_out);
-      auto *h_out_position = &out_position[tree_it - trees.begin()];
-      if ((*tree_it)->IsMultiTarget()) {
-        UpdateTree(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param, h_out_position,
-                   *tree_it);
-      } else {
-        UpdateTree(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param, h_out_position, *tree_it);
-      }
-
-      if (in_gpair->HasValueGrad()) {
-        CHECK((*tree_it)->IsMultiTarget());
-        // Copy the value gradient and replay sampling from the original split gradient.
-        auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
-                                                      in_gpair->value_gpair.Shape(1));
-        auto h_value_grad = value_grad.HostView();
-        auto h_value_grad_in = in_gpair->value_gpair.HostView();
-        std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
-                  linalg::begin(h_value_grad));
-        sampler.ApplySampling(ctx_, h_gpair, &value_grad);
-        p_mtimpl_->FinalizeLeafWeights(value_grad, *tree_it);
-      } else {
-        (*tree_it)->FinalizeLeaves(param->learning_rate);
-      }
-
-      hist_param_.CheckTreesSynchronized(ctx_, *tree_it);
+    if (tree->IsMultiTarget()) {
+      UpdateTree(&monitor_, h_gpair, p_mtimpl_.get(), p_fmat, param, &out_position.front(), tree);
+    } else {
+      UpdateTree(&monitor_, h_gpair, p_impl_.get(), p_fmat, param, &out_position.front(), tree);
     }
+    if (in_gpair->HasValueGrad()) {
+      CHECK(tree->IsMultiTarget());
+      p_mtimpl_->FinalizeLeafWeights(in_gpair->value_gpair, tree);
+    } else {
+      tree->FinalizeLeaves(param->learning_rate);
+    }
+    hist_param_.CheckTreesSynchronized(ctx_, tree);
   }
 };
 

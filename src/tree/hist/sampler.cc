@@ -77,10 +77,13 @@ void ForEachGradientSample(Context const* ctx, bst_idx_t n_samples,
 
 void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
                            common::Span<float const> reg_abs_grad, float threshold,
-                           std::uint64_t initial_seed) {
+                           std::uint64_t initial_seed, common::Span<float> weights) {
   auto n_samples = gpairs.Shape(0);
   auto n_targets = gpairs.Shape(1);
   auto apply = [&](std::size_t i, float p, bool is_sampled) {
+    if (!weights.empty()) {
+      weights[i] = is_sampled ? 1.0f / std::min(p, 1.0f) : 0.0f;
+    }
     for (std::size_t t = 0; t < n_targets; ++t) {
       gpairs(i, t) = is_sampled ? RescaleGrad(p, gpairs(i, t)) : GradientPair{};
     }
@@ -103,7 +106,7 @@ void ApplyMvsWeights(Context const* ctx, linalg::Matrix<GradientPair>* value_gpa
 }
 
 void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample,
-                   std::uint64_t initial_seed) {
+                   std::uint64_t initial_seed, common::Span<float> weights = {}) {
   auto n_samples = out.Shape(0);
   auto n_targets = out.Shape(1);
   CHECK_GE(n_targets, 1);
@@ -112,7 +115,11 @@ void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, flo
                    [&](std::size_t ibegin, std::size_t iend, auto& eng) {
                      std::bernoulli_distribution coin_flip{subsample};
                      for (std::size_t i = ibegin; i < iend; ++i) {
-                       if (!coin_flip(eng)) {
+                       bool selected = coin_flip(eng);
+                       if (!weights.empty()) {
+                         weights[i] = selected ? 1.0f : 0.0f;
+                       }
+                       if (!selected) {
                          for (std::size_t t = 0; t < n_targets; ++t) {
                            out(i, t) = GradientPair{};
                          }
@@ -189,29 +196,45 @@ float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<floa
   return grad_csum.back() / sample_rows;
 }
 
-void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair> out) {
+void Sampler::Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in) {
+  n_samples_ = in.Shape(0);
+  auto sample_rows = static_cast<std::size_t>(n_samples_ * subsample_);
+  is_sampling_ = sample_rows < n_samples_;
+  reg_abs_grad_.clear();
+  if (is_sampling_ && sampling_method_ == TrainParam::kGradientBased && sample_rows != 0) {
+    threshold_ = CalcSamplingInfo(ctx, in, subsample_, &reg_abs_grad_);
+  }
+}
+
+void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair> out,
+                     common::Span<float> weights) {
+  this->Prepare(ctx, out);
+  this->SamplePrepared(ctx, out, weights);
+}
+
+void Sampler::SamplePrepared(Context const* ctx, linalg::MatrixView<GradientPair> out,
+                             common::Span<float> weights) {
+  CHECK_EQ(out.Shape(0), n_samples_);
+  CHECK(weights.empty() || weights.size() == n_samples_);
+  std::fill(weights.begin(), weights.end(), 1.0f);
   CHECK(out.Contiguous());
-  std::size_t n_samples = out.Shape(0);
-  std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample_);
-  if (sample_rows >= n_samples || n_samples == 0) {
-    is_sampling_ = false;
+  auto sample_rows = static_cast<std::size_t>(n_samples_ * subsample_);
+  if (!is_sampling_) {
     return;
   }
-  is_sampling_ = true;
   initial_seed_ = ctx->Rng()();
-
   switch (sampling_method_) {
     case TrainParam::kUniform:
-      UniformSample(ctx, out, subsample_, initial_seed_);
+      UniformSample(ctx, out, subsample_, initial_seed_, weights);
       break;
     case TrainParam::kGradientBased: {
       if (sample_rows == 0) {
         ZeroGradientPairs(out);
+        std::fill(weights.begin(), weights.end(), 0.0f);
         break;
       }
-      std::vector<float> reg_abs_grad;
-      auto threshold = CalcSamplingInfo(ctx, out, subsample_, &reg_abs_grad);
-      GradientBasedSampling(ctx, out, common::Span{reg_abs_grad}, threshold, initial_seed_);
+      GradientBasedSampling(ctx, out, common::Span{reg_abs_grad_}, threshold_, initial_seed_,
+                            weights);
       break;
     }
     default:

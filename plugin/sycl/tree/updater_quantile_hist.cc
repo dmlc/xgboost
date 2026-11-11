@@ -80,9 +80,9 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
     updater_monitor_.Stop("GmatInitialization");
     is_gmat_initialized_ = true;
   }
-  // rescale learning rate according to size of trees
-  float lr = param_.learning_rate;
-  param_.learning_rate = lr / trees.size();
+  CHECK_EQ(trees.size(), 1);
+  // GBTree supplies the per-tree learning rate.
+  param_ = *param;
   int_constraint_.Configure(param_, dmat->Info().num_col_);
   // build tree
   if (hist_precision_ == HistPrecision::fp32) {
@@ -96,8 +96,6 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
     }
     CallUpdate(pimpl_fp64, param, gpair, dmat, out_position, trees);
   }
-
-  param_.learning_rate = lr;
 
   p_last_dmat_ = dmat;
 }

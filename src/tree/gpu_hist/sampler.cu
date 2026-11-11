@@ -132,6 +132,24 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
       GradientPairInt64{});
 }
 
+void SamplingStrategy::Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+                              linalg::MatrixView<GradientPair> out) {
+  thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(in), linalg::tcend(in), linalg::tbegin(out));
+}
+
+void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+                             linalg::MatrixView<GradientPair> out) {
+  CHECK_EQ(in.Shape(0), n_samples_);
+  seed_ = ctx->Rng()();
+  auto sampling = this->GetSamplingInfo();
+  auto n_targets = in.Shape(1);
+  thrust::transform(ctx->CUDACtx()->CTP(), linalg::tcbegin(in), linalg::tcend(in),
+                    dh::make_counting_iterator(0ul), linalg::tbegin(out),
+                    [=] XGBOOST_DEVICE(GradientPair g, std::size_t i) {
+                      return sampling.IsSampled(i / n_targets) ? g : GradientPair{};
+                    });
+}
+
 void UniformSampling::ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(value_gpair->Shape(0), n_samples_);
   auto d_value = value_gpair->View(ctx->Device());
@@ -158,8 +176,8 @@ SamplingInfo GradientBasedSampling::GetSamplingInfo() const {
   info.method = SamplingMethod::kGradientBased;
   info.subsample = subsample_;
   info.seed = seed_;
-  info.thresholds = dh::ToSpan(thresholds_);
-  info.reg_abs_grad = dh::ToSpan(reg_abs_grad_);
+  info.thresholds = {thrust::raw_pointer_cast(thresholds_.data()), thresholds_.size()};
+  info.reg_abs_grad = {thrust::raw_pointer_cast(reg_abs_grad_.data()), reg_abs_grad_.size()};
   info.threshold_index = threshold_index_;
   return info;
 }
@@ -283,6 +301,37 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
                     PoissonSampling{roundings, sampling});
 }
 
+void GradientBasedSampling::Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in) {
+  auto cuctx = ctx->CUDACtx();
+  auto n_samples = in.Shape(0);
+  CHECK_EQ(n_samples, reg_abs_grad_.size());
+  if (n_samples == 0) {
+    return;
+  }
+  ReduceGradImpl(
+      ctx, in, [] XGBOOST_DEVICE(std::size_t, GradientPair g) { return g; },
+      dh::ToSpan(reg_abs_grad_));
+  thrust::transform(cuctx->CTP(), reg_abs_grad_.begin(), reg_abs_grad_.end(), reg_abs_grad_.begin(),
+                    [] XGBOOST_DEVICE(float g) { return ::sqrtf(g); });
+  threshold_index_ = CalcThresholdIndex(ctx, dh::ToSpan(reg_abs_grad_), dh::ToSpan(thresholds_),
+                                        dh::ToSpan(grad_csum_), n_samples * subsample_);
+}
+
+void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+                                   linalg::MatrixView<GradientPair> out) {
+  auto cuctx = ctx->CUDACtx();
+  seed_ = ctx->Rng()();
+  auto sampling = this->GetSamplingInfo();
+  auto n_targets = in.Shape(1);
+  thrust::transform(cuctx->CTP(), linalg::tcbegin(in), linalg::tcend(in),
+                    dh::make_counting_iterator(0ul), linalg::tbegin(out),
+                    [=] XGBOOST_DEVICE(GradientPair g, std::size_t i) {
+                      auto ridx = i / n_targets;
+                      auto p = sampling.Probability(ridx);
+                      return sampling.IsSampled(ridx, p) ? RescaleGrad(p, g) : GradientPair{};
+                    });
+}
+
 void GradientBasedSampling::ApplySampling(Context const* ctx,
                                           linalg::Matrix<GradientPair>* value_gpair) {
   auto d_value = value_gpair->View(ctx->Device());
@@ -327,10 +376,21 @@ Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
   }
 }
 
+void Sampler::Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in) {
+  strategy_->Prepare(ctx, in);
+}
+
 void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
                      common::Span<GradientQuantiser const> roundings) {
   xgboost_NVTX_FN_RANGE();
   strategy_->Sample(ctx, gpair, roundings);
+}
+
+void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+                     linalg::MatrixView<GradientPair> out) {
+  CHECK_EQ(in.Shape(0), out.Shape(0));
+  CHECK_EQ(in.Shape(1), out.Shape(1));
+  strategy_->Sample(ctx, in, out);
 }
 
 void Sampler::ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair) {

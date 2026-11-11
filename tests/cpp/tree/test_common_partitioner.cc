@@ -5,7 +5,7 @@
 #include <xgboost/base.h>     // for bst_node_t
 #include <xgboost/context.h>  // for Context
 
-#include <algorithm>  // for transform
+#include <algorithm>  // for sort, unique
 #include <iterator>   // for distance
 #include <vector>     // for vector
 
@@ -30,13 +30,13 @@ void TestLeafPartition(size_t n_samples) {
   candidates.front().split.loss_chg = 0.4;
   RegTree tree;
   std::vector<float> hess(n_samples, 0);
-  // emulate sampling
-  auto not_sampled = [](size_t i) {
+  // Zero Hessians must not prevent rows from receiving a final leaf position.
+  auto has_nonzero_hessian = [](size_t i) {
     size_t const kSampleFactor{3};
     return i % kSampleFactor != 0;
   };
   for (size_t i = 0; i < hess.size(); ++i) {
-    if (not_sampled(i)) {
+    if (has_nonzero_hessian(i)) {
       hess[i] = 1.0f;
     }
   }
@@ -52,16 +52,16 @@ void TestLeafPartition(size_t n_samples) {
     partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
     std::vector<bst_node_t> position(page.Size());
     partitioner.LeafPartition(&ctx, tree.HostScView(), hess, position);
+    for (auto nidx : position) {
+      ASSERT_GE(nidx, 0);
+      ASSERT_TRUE(tree[nidx].IsLeaf());
+    }
     std::sort(position.begin(), position.end());
-    size_t beg = std::distance(
-        position.begin(),
-        std::find_if(position.begin(), position.end(), [&](bst_node_t nidx) { return nidx >= 0; }));
     std::vector<size_t> nptr;
-    common::RunLengthEncode(position.cbegin() + beg, position.cend(), &nptr);
-    std::transform(nptr.begin(), nptr.end(), nptr.begin(), [&](size_t x) { return x + beg; });
-    auto n_uniques = std::unique(position.begin() + beg, position.end()) - (position.begin() + beg);
+    common::RunLengthEncode(position.cbegin(), position.cend(), &nptr);
+    auto n_uniques = std::unique(position.begin(), position.end()) - position.begin();
     ASSERT_EQ(nptr.size(), n_uniques + 1);
-    ASSERT_EQ(nptr[0], beg);
+    ASSERT_EQ(nptr[0], 0);
     ASSERT_EQ(nptr.back(), n_samples);
 
     h_nptr = nptr;
@@ -77,11 +77,12 @@ void TestLeafPartition(size_t n_samples) {
     auto batch = page.GetView();
     size_t left{0};
     for (size_t i = 0; i < batch.Size(); ++i) {
-      if (not_sampled(i) && batch[i][split_ind].fvalue < split_value) {
+      if (batch[i][split_ind].fvalue < split_value) {
         left++;
       }
     }
-    ASSERT_EQ(left, h_nptr[1] - h_nptr[0]);  // equal to number of sampled assigned to left
+    // Count all rows assigned to the left, including those with zero Hessians.
+    ASSERT_EQ(left, h_nptr[1] - h_nptr[0]);
   }
 }
 

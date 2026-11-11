@@ -16,6 +16,7 @@
 #include <vector>  // for vector
 
 #include "../../../src/common/kernel.h"
+#include "../../../src/gbm/row_sampler.h"
 #include "../../../src/predictor/prediction_kernel.h"
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
@@ -42,7 +43,10 @@ void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, Reg
   hist_maker->Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
-  hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+  GradientContainer sampled;
+  auto sampler = common::DispatchKernel<gbm::MakeRowSamplerKernel>(ctx, param, *gpair);
+  sampler->Sample(ctx, &sampled);
+  hist_maker->Update(&param, &sampled, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
   std::vector<RegTree const*> tree_ptrs{tree};

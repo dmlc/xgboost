@@ -73,8 +73,11 @@ struct SamplingInfo {
 // no-op base class.
 class SamplingStrategy {
  public:
+  virtual void Prepare(Context const*, linalg::MatrixView<GradientPair const>) {}
   virtual void Sample(Context const*, linalg::MatrixView<GradientPairInt64>,
                       common::Span<GradientQuantiser const>) {}
+  virtual void Sample(Context const*, linalg::MatrixView<GradientPair const>,
+                      linalg::MatrixView<GradientPair>);
   virtual void ApplySampling(Context const*, linalg::Matrix<GradientPair>*) {};
   [[nodiscard]] virtual SamplingInfo GetSamplingInfo() const { return {}; }
   virtual ~SamplingStrategy() = default;
@@ -87,6 +90,8 @@ class UniformSampling : public SamplingStrategy {
       : n_samples_{n_samples}, subsample_{subsample} {}
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings) override;
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+              linalg::MatrixView<GradientPair> out) override;
   void ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair) override;
   [[nodiscard]] SamplingInfo GetSamplingInfo() const override {
     SamplingInfo info;
@@ -106,8 +111,11 @@ class UniformSampling : public SamplingStrategy {
 class GradientBasedSampling : public SamplingStrategy {
  public:
   GradientBasedSampling(std::size_t n_samples, float subsample);
+  void Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in) override;
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings) override;
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+              linalg::MatrixView<GradientPair> out) override;
   void ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair) override;
   [[nodiscard]] SamplingInfo GetSamplingInfo() const override;
 
@@ -116,11 +124,11 @@ class GradientBasedSampling : public SamplingStrategy {
   std::uint32_t seed_{0};
   std::size_t threshold_index_{0};
   // abs gradient
-  dh::device_vector<float> reg_abs_grad_;
+  dh::caching_device_vector<float> reg_abs_grad_;
   // sorted abs gradient
-  dh::device_vector<float> thresholds_;
+  dh::caching_device_vector<float> thresholds_;
   // csum of sorted abs gradient
-  dh::device_vector<float> grad_csum_;
+  dh::caching_device_vector<float> grad_csum_;
 };
 
 /**
@@ -138,9 +146,14 @@ class Sampler {
  public:
   Sampler(bst_idx_t n_samples, float subsample, int sampling_method);
 
+  /** @brief Prepare floating-point probabilities once for parallel trees. */
+  void Prepare(Context const* ctx, linalg::MatrixView<GradientPair const> in);
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings);
+  /** @brief Sample floating-point split gradients before tree-specific quantization. */
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair const> in,
+              linalg::MatrixView<GradientPair> out);
   /** @brief Apply sampling weights to value gradient. */
   void ApplySampling(Context const* ctx, linalg::Matrix<GradientPair>* value_gpair);
   /** @brief Get the state required to replay sampling for any row. */

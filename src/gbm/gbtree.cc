@@ -28,6 +28,7 @@
 #include "../predictor/prediction_kernel.h"
 #include "gbtree_model.h"
 #include "random_projection.h"  // for MakeRandomProjection, ProjectGradientKernel
+#include "row_sampler.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"
@@ -357,8 +358,24 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
                                                   gpair->gpair.View(ctx_->Device()));
     monitor_.Stop("ProjectGradient");
   }
-  for (auto& up : updaters_) {
-    up->Update(&tree_param_, gpair, p_fmat, common::Span{*out_position}, new_trees);
+  GradientContainer sampled;
+  bool sample_rows =
+      tree_param_.subsample < 1.0f && tparam_.process_type == TreeProcessType::kDefault;
+  std::unique_ptr<RowSampler> sampler;
+  if (sample_rows) {
+    sampler =
+        common::DispatchKernel<MakeRowSamplerKernel>(ctx_, tree_param_, std::as_const(*gpair));
+  }
+  for (std::size_t i = 0; i < new_trees.size(); ++i) {
+    auto* tree_grad = gpair;
+    if (sample_rows) {
+      sampler->Sample(ctx_, &sampled);
+      tree_grad = &sampled;
+    }
+    for (auto& up : updaters_) {
+      up->Update(&tree_param_, tree_grad, p_fmat, common::Span{out_position->data() + i, 1},
+                 {new_trees[i]});
+    }
   }
   if (n_components < n_targets) {
     gpair->gpair = std::exchange(gpair->value_gpair, {});
