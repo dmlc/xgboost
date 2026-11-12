@@ -1,3 +1,5 @@
+from typing import List, cast
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -121,7 +123,7 @@ class TestModin:
         assert dm.num_row() == 2
         assert dm.num_col() == 6
 
-    def test_modin_label(self):
+    def test_modin_label(self) -> None:
         # label must be a single column
         df = md.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         with pytest.raises(ValueError):
@@ -135,14 +137,14 @@ class TestModin:
         df = md.DataFrame({"A": np.array([1, 2, 3], dtype=int)})
         result, _, _ = xgb.data._transform_pandas_df(df, False, None, None, "label")
         np.testing.assert_array_equal(
-            np.stack(result.columns, axis=1),
+            np.stack(cast(List[np.ndarray], result.columns), axis=1),
             np.array([[1.0], [2.0], [3.0]], dtype=float),
         )
         dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
         assert dm.num_row() == 3
         assert dm.num_col() == 2
 
-    def test_modin_weight(self):
+    def test_modin_weight(self) -> None:
         kRows = 32
         kCols = 8
 
@@ -157,5 +159,5 @@ class TestModin:
 
         np.testing.assert_array_equal(data.get_weight(), w)
 
-    def test_base_margin(self):
+    def test_base_margin(self) -> None:
         run_base_margin_info(md.DataFrame, xgb.DMatrix, "cpu")
