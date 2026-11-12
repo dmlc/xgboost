@@ -304,7 +304,13 @@ def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
     :param boundaries: rows index limits of each group
     :return: row in group
     """
-    return np.concatenate([np.arange(boundaries[g], boundaries[g + 1]) for g in groups])
+    if groups.size == 0:
+        raise ValueError("need at least one array to concatenate")
+    starts = boundaries[groups].astype(np.int64)
+    sizes = boundaries[groups + 1] - starts
+    offsets = np.cumsum(sizes) - sizes
+    # Shift each group's start into the concatenated row index space.
+    return np.arange(sizes.sum()) + np.repeat(starts - offsets, sizes)
 
 
 def mkgroupfold(
