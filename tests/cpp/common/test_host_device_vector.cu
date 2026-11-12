@@ -212,4 +212,20 @@ TEST(HostDeviceVector, Resize) {
     check(vec);
   }
 }
+
+TEST(HostDeviceVector, ResizeEmptyAfterHostShrink) {
+  // Cover regrowth smaller than, equal to, and larger than the stale device size.
+  for (std::size_t size : {1, 2, 4}) {
+    HostDeviceVector<int> values(2, 777, DeviceOrd::CUDA(0));
+    values.HostVector();
+    values.Resize(0);
+    ASSERT_TRUE(values.HostCanWrite());
+    ASSERT_EQ(values.Size(), 0);
+
+    values.Resize(size, 42);
+    ASSERT_TRUE(values.DeviceCanWrite());
+    ASSERT_EQ(values.Size(), size);
+    ASSERT_EQ(values.ConstHostVector(), std::vector<int>(size, 42));
+  }
+}
 }  // namespace xgboost::common

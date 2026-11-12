@@ -174,13 +174,19 @@ class HostDeviceVectorImpl {
 
   template <typename... U>
   auto Resize(std::size_t new_size, U&&... args) {
-    if (new_size == Size()) {
+    auto const old_size = Size();
+    if (new_size == old_size) {
       return;
     }
-    if ((Size() == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
+    if ((old_size == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
+      if (old_size == 0) {
+        // A host-side shrink can leave a stale, nonempty device buffer. Discard
+        // its logical contents so resize initializes every newly added element.
+        data_d_->resize(0);
+      }
       data_d_->resize(new_size, std::forward<U>(args)...);
     } else {
       // resize on host
