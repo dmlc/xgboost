@@ -211,9 +211,6 @@ TEST(HostDeviceVector, Resize) {
     ASSERT_TRUE(vec.HostCanWrite());
     check(vec);
   }
-}
-
-TEST(HostDeviceVector, ResizeEmptyAfterHostShrink) {
   // Cover regrowth smaller than, equal to, and larger than the stale device size.
   for (std::size_t size : {1, 2, 4}) {
     HostDeviceVector<int> values(2, 777, DeviceOrd::CUDA(0));
