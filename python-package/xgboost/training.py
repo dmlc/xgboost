@@ -444,6 +444,32 @@ def mknfold(
     return ret
 
 
+def _check_nfold(
+    dall: DMatrix,
+    nfold: int,
+    stratified: Optional[bool],
+    folds: Optional[XGBStratifiedKFold],
+) -> None:
+    """Check the number of folds when XGBoost creates the folds."""
+    if folds is not None:
+        # The folds are given by the user and nfold is ignored.
+        return
+    if nfold < 2:
+        raise ValueError(f"`nfold` must be at least 2, got {nfold}.")
+
+    # Ranking data is split by query group, other data is split by row.
+    group_ptr = dall.get_uint_info("group_ptr")
+    if stratified is False and len(group_ptr) > 1:
+        n_samples, unit = len(group_ptr) - 1, "query groups"
+    else:
+        n_samples, unit = dall.num_row(), "rows"
+    if nfold > n_samples:
+        raise ValueError(
+            f"`nfold` ({nfold}) cannot be greater than the number of {unit} "
+            f"({n_samples})."
+        )
+
+
 @_deprecate_positional_args
 def cv(
     params: BoosterParam,
@@ -478,7 +504,9 @@ def cv(
     num_boost_round :
         Number of boosting iterations.
     nfold : int
-        Number of folds in CV.
+        Number of folds in CV. It must be at least 2 and cannot be greater than the
+        number of rows, or the number of query groups for ranking data. Ignored when
+        **folds** is specified.
     stratified : bool
         Perform stratified sampling.
     folds : a KFold or StratifiedKFold instance or list of fold indices
@@ -560,6 +588,7 @@ def cv(
         metrics = [metrics]
     if isinstance(dtrain, _RefMixIn):
         raise ValueError("`QuantileDMatrix` is not yet supported.")
+    _check_nfold(dtrain, nfold, stratified, folds)
 
     params = params.copy()
     if isinstance(params, list):
