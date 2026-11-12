@@ -173,7 +173,8 @@ def test_ranking_with_weighted_data():
         assert all(p <= q for p, q in zip(is_sorted, is_sorted[1:]))
 
 
-def test_cv_with_query_weights() -> None:
+@pytest.mark.parametrize("shuffle", [False, True])
+def test_cv_with_query_weights(shuffle: bool) -> None:
     X, y, qid, w = make_ltr(n_samples=512, n_features=4, n_query_groups=8, max_rel=3)
     Xy = xgboost.DMatrix(X, y, qid=qid, weight=w)
     params = {"objective": "rank:ndcg", "tree_method": "hist", "eval_metric": "ndcg"}
@@ -183,19 +184,23 @@ def test_cv_with_query_weights() -> None:
         Xy,
         num_boost_round=n_rounds,
         nfold=nfold,
-        shuffle=False,
+        shuffle=shuffle,
         as_pandas=False,
     )
 
-    # Without shuffling, the folds are contiguous blocks of query groups. Each fold
-    # must use the weights of its own groups.
+    # Each fold must use the weights of its own groups, in the same order.
     def make_fold(groups: np.ndarray) -> xgboost.DMatrix:
-        rows = np.isin(qid, groups)
-        return xgboost.DMatrix(X[rows], y[rows], qid=qid[rows], weight=w[groups])
+        rows = np.concatenate([np.flatnonzero(qid == g) for g in groups])
+        sizes = np.bincount(qid)[groups]
+        return xgboost.DMatrix(X[rows], y[rows], group=sizes, weight=w[groups])
 
     test_scores = []
-    for test_groups in np.array_split(np.arange(w.size), nfold):
-        train_groups = np.setdiff1d(np.arange(w.size), test_groups)
+    groups = (
+        np.random.RandomState(0).permutation(w.size) if shuffle else np.arange(w.size)
+    )
+    folds = np.array_split(groups, nfold)
+    for k, test_groups in enumerate(folds):
+        train_groups = np.concatenate([fold for i, fold in enumerate(folds) if i != k])
         evals_result: dict = {}
         xgboost.train(
             params,
@@ -207,6 +212,29 @@ def test_cv_with_query_weights() -> None:
         test_scores.append(evals_result["test"]["ndcg"])
 
     np.testing.assert_allclose(cv["test-ndcg-mean"], np.mean(test_scores, axis=0))
+
+
+def test_groups_to_rows() -> None:
+    from xgboost.training import groups_to_rows
+
+    for dtype in [np.uint32, np.int64]:
+        boundaries = np.array([0, 3, 3, 5, 9], dtype=dtype)
+        for groups in [[0], [1], [3, 0, 2], [2, 2, 1, 0]]:
+            groups = np.array(groups)
+            expected = np.concatenate(
+                [np.arange(boundaries[g], boundaries[g + 1]) for g in groups]
+            )
+            actual = groups_to_rows(groups, boundaries)
+            np.testing.assert_array_equal(actual, expected, strict=True)
+
+    boundaries = np.array([2**32 - 4, 2**32 - 2, 2**32 - 1], dtype=np.uint32)
+    np.testing.assert_array_equal(
+        groups_to_rows(np.array([1, 0]), boundaries),
+        np.array([2**32 - 2, 2**32 - 4, 2**32 - 3]),
+        strict=True,
+    )
+    with pytest.raises(ValueError):
+        groups_to_rows(np.array([], dtype=np.int64), boundaries)
 
 
 def test_error_msg() -> None:
