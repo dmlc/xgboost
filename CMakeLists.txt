@@ -113,6 +113,7 @@ address, leak, undefined and thread.")
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
 option(PLUGIN_SYCL "SYCL plugin" OFF)
+option(PLUGIN_TREEG "Tree-G graph-aware tree plugin" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
