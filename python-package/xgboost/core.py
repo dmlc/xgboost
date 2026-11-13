@@ -2674,6 +2674,8 @@ class Booster:
             _transform_arrow_table,
             _transform_pandas_df,
             _transform_polars_df,
+            is_scipy_csr,
+            transform_scipy_sparse,
         )
 
         if _is_cudf_pandas(data):
@@ -2741,9 +2743,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if isinstance(data, scipy.sparse.csr_matrix):
-            from .data import transform_scipy_sparse
-
+        if is_scipy_csr(data):
             data = transform_scipy_sparse(data, True)
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(

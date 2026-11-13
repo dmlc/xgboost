@@ -260,13 +260,11 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if isinstance(value[0], np.ndarray):
         value_arr = cast(Sequence[np.ndarray], value)
         return cast(_T, np.concatenate(value_arr, axis=0))
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
-        return scipy_sparse.vstack(value, format="csr")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csc_matrix):
-        return scipy_sparse.vstack(value, format="csc")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
-        # other sparse format will be converted to CSR.
-        return scipy_sparse.vstack(value, format="csr")
+    # Both the sparse matrices and the sparse arrays.
+    if scipy_sparse and scipy_sparse.issparse(value[0]):
+        # Formats other than CSC are converted to CSR.
+        fmt = "csc" if getattr(value[0], "format", None) == "csc" else "csr"
+        return scipy_sparse.vstack(value, format=fmt)
     if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
         import pandas as pd
         from pandas import concat as pd_concat

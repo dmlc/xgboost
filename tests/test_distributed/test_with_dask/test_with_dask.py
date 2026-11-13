@@ -203,6 +203,25 @@ def test_dask_sparse(client: "Client") -> None:
     )
 
 
+@pytest.mark.parametrize("CSR", [scipy.sparse.csr_matrix, scipy.sparse.csr_array])
+def test_dask_dmatrix_csr(client: "Client", CSR: Type) -> None:
+    X_, y_ = make_regression(n_samples=256, n_features=8, random_state=2026)
+    X_[X_ < 0.5] = 0.0
+    # Several chunks per worker, so the partitions are concatenated.
+    X = da.from_array(X_, chunks=(32, 8)).map_blocks(CSR)
+    y = da.from_array(y_, chunks=32)
+
+    Xy = DaskDMatrix(client, X, y)
+    booster = dxgb.train(client, {"tree_method": "hist"}, Xy, num_boost_round=4)[
+        "booster"
+    ]
+    np.testing.assert_allclose(
+        dxgb.predict(client, booster, Xy).compute(),
+        booster.predict(xgb.DMatrix(CSR(X_))),
+        rtol=1e-6,
+    )
+
+
 def run_categorical(
     client: "Client",
     tree_method: str,
