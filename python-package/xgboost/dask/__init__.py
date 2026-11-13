@@ -947,6 +947,10 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
             base_margin_array: Optional[da.Array] = base_margin.to_dask_array()
         else:
             base_margin_array = base_margin
+        if base_margin_array is not None and base_margin_array.ndim == 1:
+            # `map_blocks` aligns the arrays by their trailing dimensions, a 1-dim margin
+            # would be matched with the features of `data` instead of the rows.
+            base_margin_array = base_margin_array[:, None]
         # Input data is 2-dim array, output can be 1(reg, binary)/2(multi-class,
         # contrib)/3(contrib, interaction)/4(interaction) dims.
         if len(output_shape) == 1:
