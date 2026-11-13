@@ -44,9 +44,6 @@ Debug
 *dump
 *save
 *csv
-!demo/guide-python/train_template.csv
-!demo/guide-python/test_template.csv
-!demo/guide-python/example_results/shap_results.example.csv
 .Rproj.user
 *.cpage.col
 *.cpage

@@ -1,68 +1,75 @@
-"""Run the classification or regression CSV example selected by JSON."""
+"""
+Getting started with XGBoost
+============================
 
-import json
-from pathlib import Path
-
-import pandas as pd
-
-HERE = Path(__file__).resolve().parent
-CONFIG_PATH = HERE / "basic_walkthrough_config.json"
+This is a simple example of using the native XGBoost interface, there are other
+interfaces in the Python package like scikit-learn interface and Dask interface.
 
 
-def load_config():
-    try:
-        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"Could not read {CONFIG_PATH}: {exc}") from exc
-    if not isinstance(config, dict) or config.get("active_task") not in ("classification", "regression"):
-        raise SystemExit("active_task must be classification or regression")
-    task = config["active_task"]
-    section = config.get(task)
-    if not isinstance(section, dict) or not {"target_column", "num_boost_round", "params"}.issubset(section):
-        raise SystemExit(f"{task} needs target_column, num_boost_round, and params")
-    features = config.get("feature_columns")
-    if not isinstance(features, list) or not features or not all(isinstance(x, str) and x for x in features) or len(features) != len(set(features)):
-        raise SystemExit("feature_columns must be a nonempty list of unique column names")
-    if section["target_column"] in features:
-        raise SystemExit("target_column cannot appear in feature_columns")
-    if not isinstance(section["params"], dict) or not isinstance(section["num_boost_round"], int) or section["num_boost_round"] < 1:
-        raise SystemExit(f"{task} needs params as an object and a positive num_boost_round")
-    for key in ("train_csv", "test_csv"):
-        if not isinstance(config.get(key), str) or not config[key]:
-            raise SystemExit(f"{key} must be a CSV path")
-    return config, task, section
+See :doc:`/python/python_intro` and :doc:`/tutorials/index` for other references.
 
+"""
 
-def read_samples(path, features, target):
-    try:
-        frame = pd.read_csv(path)
-    except (OSError, pd.errors.ParserError) as exc:
-        raise SystemExit(f"Could not read CSV {path}: {exc}") from exc
-    needed = features + [target]
-    if frame.empty or not frame.columns.is_unique or not set(needed).issubset(frame.columns):
-        raise SystemExit(f"CSV {path} must contain rows and columns: {', '.join(needed)}")
-    if frame[needed].isna().any().any():
-        raise SystemExit(f"CSV {path} has missing values in selected columns")
-    try:
-        frame[features] = frame[features].apply(pd.to_numeric, errors="raise")
-    except (TypeError, ValueError) as exc:
-        raise SystemExit(f"CSV {path} has nonnumeric features: {exc}") from exc
-    return frame
+import os
+import pickle
 
+import numpy as np
+from sklearn.datasets import load_svmlight_file
 
-def main():
-    config, task, section = load_config()
-    features = config["feature_columns"]
-    target = section["target_column"]
-    train = read_samples(HERE / config["train_csv"], features, target)
-    test = read_samples(HERE / config["test_csv"], features, target)
-    if task == "classification":
-        from classification_template import run
-    else:
-        from regression_template import run
-    metrics = run(train, test, features, target, section, HERE)
-    print(json.dumps(metrics, ensure_ascii=False, indent=2))
+import xgboost as xgb
 
+# Make sure the demo knows where to load the data.
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+XGBOOST_ROOT_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))
+DEMO_DIR = os.path.join(XGBOOST_ROOT_DIR, "demo")
 
-if __name__ == "__main__":
-    main()
+# X is a scipy csr matrix, XGBoost supports many other input types,
+X, y = load_svmlight_file(os.path.join(DEMO_DIR, "data", "agaricus.txt.train"))
+dtrain = xgb.DMatrix(X, y)
+# validation set
+X_test, y_test = load_svmlight_file(os.path.join(DEMO_DIR, "data", "agaricus.txt.test"))
+dtest = xgb.DMatrix(X_test, y_test)
+
+# specify parameters via map, definition are same as c++ version
+param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
+
+# specify validations set to watch performance
+watchlist = [(dtest, "eval"), (dtrain, "train")]
+# number of boosting rounds
+num_round = 2
+bst = xgb.train(param, dtrain, num_boost_round=num_round, evals=watchlist)
+
+# run prediction
+preds = bst.predict(dtest)
+labels = dtest.get_label()
+print(
+    "error=%f"
+    % (
+        sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i])
+        / float(len(preds))
+    )
+)
+bst.save_model("model-0.json")
+# dump model
+bst.dump_model("dump.raw.txt")
+# dump model with feature map
+bst.dump_model("dump.nice.txt", os.path.join(DEMO_DIR, "data/featmap.txt"))
+
+# save dmatrix into binary buffer
+dtest.save_binary("dtest.dmatrix")
+# save model
+bst.save_model("model-1.json")
+# load model and data in
+bst2 = xgb.Booster(model_file="model-1.json")
+dtest2 = xgb.DMatrix("dtest.dmatrix")
+preds2 = bst2.predict(dtest2)
+# assert they are the same
+assert np.sum(np.abs(preds2 - preds)) == 0
+
+# alternatively, you can pickle the booster
+pks = pickle.dumps(bst2)
+# load model and data in
+bst3 = pickle.loads(pks)
+preds3 = bst3.predict(dtest2)
+# assert they are the same
+assert np.sum(np.abs(preds3 - preds)) == 0
