@@ -506,6 +506,50 @@ def test_inplace_predict(client: "Client") -> None:
     np.testing.assert_allclose(inplace, copied)
 
 
+@pytest.mark.parametrize("margin_type", ["array", "series"])
+@pytest.mark.parametrize("n_classes", [1, 3])
+def test_inplace_predict_array_base_margin(
+    client: "Client", margin_type: str, n_classes: int
+) -> None:
+    rng = np.random.default_rng(2026)
+    X_ = rng.normal(size=(256, 4))
+    params: Dict[str, Any] = {}
+    if n_classes > 1:
+        y_ = rng.integers(0, n_classes, size=256).astype(np.float64)
+        margin_ = rng.normal(size=(256, n_classes))
+        params = {"objective": "multi:softprob", "num_class": n_classes}
+    else:
+        y_ = X_[:, 0]
+        margin_ = rng.normal(size=256)
+    booster = xgb.train(params, xgb.DMatrix(X_, y_), num_boost_round=4)
+    expected = booster.predict(xgb.DMatrix(X_, base_margin=margin_))
+
+    # Several row blocks, each block needs its own rows of the margin.
+    X = da.from_array(X_, chunks=(64, 4))
+    if margin_type == "array":
+        margin = da.from_array(margin_, chunks=64)
+    else:
+        margin = dd.from_array(margin_, chunksize=64)
+
+    predt = dxgb.inplace_predict(client, booster, X, base_margin=margin).compute()
+    np.testing.assert_allclose(predt, expected, rtol=1e-6)
+
+
+def test_predict_array_base_margin(client: "Client") -> None:
+    rng = np.random.default_rng(2026)
+    X_ = rng.normal(size=(256, 4))
+    y_ = X_[:, 0]
+    margin_ = rng.normal(size=256)
+    X = da.from_array(X_, chunks=(64, 4))
+    reg = dxgb.DaskXGBRegressor(n_estimators=4)
+    reg.client = client
+    reg.fit(X, da.from_array(y_, chunks=64))
+
+    predt = reg.predict(X, base_margin=da.from_array(margin_, chunks=64)).compute()
+    expected = reg.get_booster().predict(xgb.DMatrix(X_, base_margin=margin_))
+    np.testing.assert_allclose(predt, expected, rtol=1e-6)
+
+
 def test_dask_missing_value_reg(client: "Client") -> None:
     X_0 = np.ones((20 // 2, kCols))
     X_1 = np.zeros((20 // 2, kCols))
