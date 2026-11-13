@@ -1,0 +1,6 @@
+{
+  "task": "regression",
+  "mae": null,
+  "rmse": null,
+  "说明": "占位示例，指标由训练后的测试集评估生成"
+}

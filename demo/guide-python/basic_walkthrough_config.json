@@ -1,0 +1,47 @@
+{
+  "active_task": "classification",
+  "train_csv": "train_template.csv",
+  "test_csv": "test_template.csv",
+  "waterfall": {"grid_ids": ["test_001", "test_002"]},
+  "feature_columns": [
+    "PRE_mean", "TEM_mean", "SRAD_mean", "DEM", "Slope",
+    "PRE_sen_slope", "TEM_sen_slope", "SRAD_sen_slope",
+    "forest_change", "builtup_change", "burned_frac",
+    "NTL_sen_slope", "port_distance",
+    "government_effectiveness", "political_stability"
+  ],
+  "classification": {
+    "target_column": "npp_trend_class",
+    "num_boost_round": 250,
+    "params": {
+      "max_depth": 8,
+      "min_child_weight": 8,
+      "learning_rate": 0.03,
+      "subsample": 0.85,
+      "colsample_bytree": 0.75,
+      "gamma": 0.3,
+      "reg_alpha": 0.5,
+      "reg_lambda": 2.5,
+      "seed": 42,
+      "tree_method": "hist",
+      "max_bin": 256
+    }
+  },
+  "regression": {
+    "target_column": "target_sen_slope_kg_C_m2_yr2",
+    "num_boost_round": 200,
+    "params": {
+      "max_depth": 4,
+      "min_child_weight": 8,
+      "learning_rate": 0.05,
+      "subsample": 0.85,
+      "colsample_bytree": 0.80,
+      "gamma": 0,
+      "reg_alpha": 0,
+      "reg_lambda": 7.5,
+      "seed": 42,
+      "tree_method": "hist",
+      "max_bin": 256
+    }
+  }
+}
