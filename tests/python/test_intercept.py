@@ -7,6 +7,7 @@ from xgboost.testing.intercept import (
     run_exp_family,
     run_init_estimation,
     run_logistic_degenerate,
+    run_tweedie_degenerate,
 )
 
 
@@ -27,3 +28,7 @@ def test_exp_family() -> None:
 
 def test_logistic_degenerate() -> None:
     run_logistic_degenerate("cpu")
+
+
+def test_tweedie_degenerate() -> None:
+    run_tweedie_degenerate("cpu")
