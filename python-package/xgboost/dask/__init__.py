@@ -463,8 +463,10 @@ class DaskDMatrix:
 
         self.worker_map = worker_map
 
-        if feature_weights is None:
-            self.feature_weights = None
+        if feature_weights is None or not dask.is_dask_collection(feature_weights):
+            # The sklearn estimators take the feature weights as an array-like
+            # parameter, there's nothing to compute.
+            self.feature_weights = feature_weights
         else:
             self.feature_weights = await client.compute(feature_weights).result()
 
