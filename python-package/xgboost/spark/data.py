@@ -181,7 +181,11 @@ def make_qdm(
 ) -> DMatrix:
     """Handle empty partition for QuantileDMatrix."""
     if not data:
-        return QuantileDMatrix(np.empty((0, 0)), ref=ref)
+        # Forward ``params`` (notably ``max_bin``) so the empty-partition
+        # QuantileDMatrix agrees with the populated ones. Without it ``max_bin``
+        # defaults to 256 and trips the ``param.max_bin == init.max_bin``
+        # consistency check whenever training configures a different value.
+        return QuantileDMatrix(np.empty((0, 0)), **params, ref=ref)
     it = PartIter(data, dev_ordinal, **meta)
     m = QuantileDMatrix(it, **params, ref=ref)
     return m
@@ -258,6 +262,14 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     def append_m_sparse(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
+
+        # Guard against empty partition: an empty slice (e.g. the validation
+        # side of an Arrow chunk that lands entirely in training) would reach
+        # ``_read_csr_matrix_from_unwrapped_spark_vec`` with zero rows and raise
+        # ``ValueError: need at least one array to concatenate``. The dense
+        # ``append_m`` already skips empty inputs; mirror that here.
+        if part.shape[0] == 0:
+            return
 
         if name == alias.data or name in part.columns:
             if name == alias.data:
