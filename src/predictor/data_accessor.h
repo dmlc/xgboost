@@ -3,22 +3,22 @@
  */
 #pragma once
 
+#include <algorithm>  // for fill_n
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <utility>
 #include <vector>
 
-#include "../common/categorical.h"    // for IsCat
-#include "../common/column_matrix.h"  // for ColumnMatrix
-#include "../common/common.h"         // for Range1d
-#include "../common/hist_util.h"      // for DispatchBinType, HistogramCuts
-#include "../common/math.h"           // for CheckNAN
-#include "../data/cat_container.h"    // for NoOpAccessor
-#include "../data/gradient_index.h"   // for GHistIndexMatrix
-#include "xgboost/data.h"             // for HostSparsePageView
-#include "xgboost/span.h"             // for Span
-#include "xgboost/tree_model.h"       // for RegTree::FVec
+#include "../common/categorical.h"   // for IsCat
+#include "../common/common.h"        // for Range1d
+#include "../common/hist_util.h"     // for DispatchBinType, HistogramCuts
+#include "../common/math.h"          // for CheckNAN
+#include "../data/cat_container.h"   // for NoOpAccessor
+#include "../data/gradient_index.h"  // for GHistIndexMatrix
+#include "xgboost/data.h"            // for HostSparsePageView
+#include "xgboost/span.h"            // for Span
+#include "xgboost/tree_model.h"      // for RegTree::FVec
 
 namespace xgboost::predictor {
 // Convert a single sample in batch view to FVec.
@@ -85,7 +85,6 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
 
   std::vector<std::uint32_t> const& ptrs_;
   std::vector<float> const& values_;
-  common::ColumnMatrix const& columns_;
 
  public:
   bst_idx_t const base_rowid;
@@ -98,7 +97,6 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
         ft_{ft},
         ptrs_{page.cut.Ptrs()},
         values_{page.cut.Values()},
-        columns_{page.Transpose()},
         base_rowid{page.base_rowid} {}
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float* out) const {
@@ -129,33 +127,45 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
       });
       n_non_missings += n_features;
     } else {
-      for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-        float fvalue = std::numeric_limits<float>::quiet_NaN();
-        bool is_cat = common::IsCat(ft_, fidx);
-        if (columns_.GetColumnType(fidx) == common::kSparseColumn) {
-          // Special handling for extremely sparse data. Just binary search.
-          auto bin_idx = page_.GetGindex(gridx, fidx);
-          if (bin_idx != -1) {
-            if (is_cat) {
-              fvalue = values_[bin_idx];
-            } else {
-              fvalue =
-                  common::HistogramCuts::NumericBinLowerBound(this->ptrs_, values_, fidx, bin_idx);
-            }
-          }
-        } else {
-          if (is_cat) {
-            fvalue = page_.GetFvalue(ptrs_, values_, gridx, fidx, is_cat);
-          } else {
-            auto bin_idx = page_.GetGindex(gridx, fidx);
-            if (bin_idx != -1) {
-              fvalue = common::HistogramCuts::NumericBinLowerBound(ptrs_, values_, fidx, bin_idx);
-            }
-          }
-        }
+      auto fill_feature = [&](bst_feature_t fidx, bst_bin_t bin_idx) {
+        float fvalue = common::IsCat(ft_, fidx) ? values_[bin_idx]
+                                                : common::HistogramCuts::NumericBinLowerBound(
+                                                      ptrs_, values_, fidx, bin_idx);
         if (!common::CheckNAN(fvalue)) {
           out[fidx] = acc_(fvalue, fidx);
           n_non_missings++;
+        }
+      };
+      // The bins of a row are sorted, so one pass over the row finds every feature.
+      bool ordered_by_feature = true;
+      common::DispatchBinType(page_.index.GetBinTypeSize(), [&](auto t) {
+        using T = decltype(t);
+        auto bins = page_.index.template data<T>();
+        auto row_begin = page_.RowIdx(gridx);
+        auto row_end = page_.RowIdx(gridx + 1);
+        bst_feature_t fidx = 0;
+        for (auto k = row_begin; k < row_end; ++k) {
+          std::uint32_t bin_idx = bins[k];
+          bool same_or_earlier_feature = k != row_begin && bin_idx < ptrs_[fidx + 1];
+          if (same_or_earlier_feature) {
+            ordered_by_feature = false;
+            return;
+          }
+          while (bin_idx >= ptrs_[fidx + 1]) {
+            ++fidx;
+          }
+          fill_feature(fidx, static_cast<bst_bin_t>(bin_idx));
+        }
+      });
+      if (!ordered_by_feature) {
+        // A feature repeated in the row keeps the previous per-feature lookup.
+        std::fill_n(out, n_features, std::numeric_limits<float>::quiet_NaN());
+        n_non_missings = 0;
+        for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
+          auto bin_idx = page_.GetGindex(gridx, fidx);
+          if (bin_idx != -1) {
+            fill_feature(fidx, bin_idx);
+          }
         }
       }
     }
