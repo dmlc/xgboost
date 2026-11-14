@@ -1736,6 +1736,35 @@ class TestWithDask:
         assert poly_decreasing[0] < -0.08
 
     @pytest.mark.skipif(**tm.no_dask())
+    def test_feature_weights_array_like(self, client: "Client") -> None:
+        # The sklearn estimators take the feature weights as a constructor
+        # parameter, which is array-like rather than a dask collection.
+        rng = np.random.default_rng(2026)
+        X = da.from_array(rng.normal(size=(256, 8)), chunks=(64, -1))
+        y = da.from_array(rng.normal(size=256), chunks=64)
+        fw = np.arange(1, 9, dtype=np.float64)
+
+        predts = []
+        with deterministic_dmatrix(client):
+            for weights in (da.from_array(fw), fw, fw.tolist()):
+                reg = dxgb.DaskXGBRegressor(
+                    n_estimators=4,
+                    colsample_bynode=0.5,
+                    feature_weights=weights,
+                    random_state=1,
+                )
+                reg.client = client
+                reg.fit(X, y)
+                predts.append(reg.predict(X).compute())
+
+                Xy = DaskDMatrix(client, X, y, feature_weights=weights)
+                assert Xy.feature_weights is not None
+                np.testing.assert_allclose(np.asarray(Xy.feature_weights), fw)
+
+        np.testing.assert_allclose(predts[1], predts[0])
+        np.testing.assert_allclose(predts[2], predts[0])
+
+    @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_objective(self, client: "Client", tmp_path: Path) -> None:
         X, y = get_california_housing()
