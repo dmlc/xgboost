@@ -389,3 +389,25 @@ def test_attributes(tmp_path: Path) -> None:
     assert clf.best_iteration == clf.get_booster().best_iteration
 
     assert clf.get_booster().attributes()["foo"] == "bar"
+
+
+def test_attributes_empty_string(tmp_path: Path) -> None:
+    # An attribute value may legally be an empty string. attr(), attributes()
+    # and a save/load round-trip must all preserve it instead of raising
+    # (regression test for Booster.attr()).
+    rng = np.random.default_rng(1994)
+    X = rng.normal(size=(10, 2))
+    y = rng.normal(size=10)
+    bst = xgb.train({}, xgb.DMatrix(X, y), num_boost_round=1)
+
+    bst.set_attr(empty="", non_empty="value")
+    assert bst.attr("empty") == ""
+    assert bst.attributes() == {"empty": "", "non_empty": "value"}
+
+    path = tmp_path / "model.json"
+    bst.save_model(str(path))
+
+    loaded = xgb.Booster()
+    loaded.load_model(str(path))
+    assert loaded.attr("empty") == ""
+    assert loaded.attributes() == {"empty": "", "non_empty": "value"}

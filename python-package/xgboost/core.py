@@ -2113,7 +2113,9 @@ class Booster:
         )
         if success.value != 0:
             value = ret.value
-            assert value
+            # An empty string is a legal attribute value; only a missing
+            # attribute (a null pointer on the C side) is unexpected here.
+            assert value is not None
             return py_str(value)
         return None
 
