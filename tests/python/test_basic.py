@@ -178,6 +178,21 @@ class TestBasic:
         scores = json.loads(json.dumps(booster.get_fscore()))
         np.testing.assert_allclose(scores["f0"], 6.0)
 
+        # The names are validated like the ones of a DMatrix.
+        booster.feature_names = ("F0", "F1")
+        assert booster.feature_names == ["F0", "F1"]
+        booster.feature_types = ("q", "q")
+        assert booster.feature_types == ["q", "q"]
+        with pytest.raises(ValueError, match="must be unique"):
+            booster.feature_names = ["F0", "F0"]
+        with pytest.raises(ValueError, match=r"may not contain \[, \] or <"):
+            booster.feature_names = ["F0", "F1<"]
+        with pytest.raises(ValueError, match="must be string"):
+            booster.feature_names = ["F0", 1]  # type: ignore[list-item]
+        with pytest.raises(TypeError, match="Expecting a sequence of strings"):
+            booster.feature_names = 1  # type: ignore[assignment]
+        assert booster.feature_names == ["F0", "F1"]
+
     def test_load_file_invalid(self):
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file="incorrect_path")
