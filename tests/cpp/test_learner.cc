@@ -10,6 +10,7 @@
 
 #include <algorithm>    // for equal, transform
 #include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
 #include <iosfwd>       // for ofstream
 #include <limits>       // for numeric_limits
 #include <map>          // for map
@@ -404,6 +405,51 @@ TEST(Learner, ConfigIO) {
     Json loaded{Object{}};
     learner->SaveConfig(&loaded);
     ASSERT_EQ(get<Array const>(loaded["learner"]["metrics"]).size(), 2);
+  }
+}
+
+TEST(Learner, CachedOutputMatchesFreshLearner) {
+  // Training and evaluation prediction buffers are cached per DMatrix and reused across
+  // iterations. Check that evaluation matches a freshly loaded learner every round, with
+  // datasets of different sizes. Training shares its buffer with evaluation of the training set,
+  // so the model must also match one trained without evaluation. Dropout (rate_drop) covers the
+  // weighted prediction path that bypasses the booster's prediction cache.
+  bst_feature_t n_features = 8;
+  bst_target_t n_classes = 3;
+  auto p_train = RandomDataGenerator{256, n_features, 0}.Classes(n_classes).GenerateDMatrix(true);
+  auto p_valid =
+      RandomDataGenerator{100, n_features, 0}.Seed(3).Classes(n_classes).GenerateDMatrix(true);
+
+  auto save = [](Learner* learner) {
+    std::string serialised;
+    common::MemoryBufferStream fo(&serialised);
+    learner->Save(&fo);
+    return serialised;
+  };
+
+  for (auto const* rate_drop : {"0", "0.5"}) {
+    Args args{{"rate_drop", rate_drop},
+              {"objective", "multi:softprob"},
+              {"num_class", std::to_string(n_classes)},
+              {"eval_metric", "mlogloss"},
+              {"eval_metric", "merror"}};
+    std::unique_ptr<Learner> learner{Learner::Create({p_train, p_valid})};
+    learner->Configure(args);
+    std::unique_ptr<Learner> no_eval{Learner::Create({p_train})};
+    no_eval->Configure(args);
+    for (std::int32_t iter = 0; iter < 3; ++iter) {
+      learner->UpdateOneIter(iter, p_train);
+      no_eval->UpdateOneIter(iter, p_train);
+      auto eval_res = learner->EvalOneIter(iter, {p_train, p_valid}, {"train", "valid"});
+
+      auto serialised = save(learner.get());
+      ASSERT_EQ(serialised, save(no_eval.get())) << rate_drop;
+      common::MemoryBufferStream fi(&serialised);
+      std::unique_ptr<Learner> fresh{Learner::Create({})};
+      fresh->Load(&fi);
+      ASSERT_EQ(eval_res, fresh->EvalOneIter(iter, {p_train, p_valid}, {"train", "valid"}))
+          << rate_drop;
+    }
   }
 }
 
