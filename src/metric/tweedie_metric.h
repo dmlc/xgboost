@@ -30,6 +30,9 @@ struct EvalTweedieNLogLik {
   }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float operator()(bst_float y, bst_float p) const {
+    if (rho_ == 1.0f) {
+      return p - y * std::log(p);
+    }
     bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;

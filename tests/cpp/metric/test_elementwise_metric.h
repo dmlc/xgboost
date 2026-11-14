@@ -301,6 +301,12 @@ inline void VerifyTweedieNLogLik(DeviceOrd device) {
   metric.reset(Metric::Create("tweedie-nloglik@1.2", &ctx));
   metric->Configure({});
   EXPECT_NEAR(GetMetricEval(metric.get(), {1}, {1}, {}, {}), 6.25, 1e-5);
+  metric.reset(Metric::Create("tweedie-nloglik@1", &ctx));
+  metric->Configure({});
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 4}, {0, 2}, {}, {}),
+              (5.0 - 2.0 * std::log(4.0)) / 2.0, 1e-6);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 4}, {0, 2}, {1, 3}, {}),
+              (13.0 - 6.0 * std::log(4.0)) / 4.0, 1e-6);
   CheckDeterministicMetricElementWise(StringView{"tweedie-nloglik@1.5"}, device.ordinal);
 }
 

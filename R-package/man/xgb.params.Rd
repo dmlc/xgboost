@@ -475,7 +475,7 @@ The number of top features to select in \code{greedy} and \code{thrifty} feature
 \item{tweedie_variance_power}{(for Tweedie Regression (\code{"objective=reg:tweedie"})) (default=1.5)
 \itemize{
 \item Parameter that controls the variance of the Tweedie distribution \code{var(y) ~ E(y)^tweedie_variance_power}
-\item range: \eqn{(1,2)}
+\item range: \eqn{[1,2)}
 \item Set closer to 2 to shift towards a gamma distribution
 \item Set closer to 1 to shift towards a Poisson distribution.
 }}
