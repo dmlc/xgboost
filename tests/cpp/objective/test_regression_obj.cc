@@ -355,6 +355,9 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   CheckProbaToMargin(obj, 0.1f, -2.30f);
   CheckProbaToMargin(obj, 0.5f, -0.69f);
   CheckProbaToMargin(obj, 0.9f, -0.10f);
+  // A zero intercept, estimated from all-zero labels, is bounded away from zero.
+  CheckProbaToMargin(obj, 0.0f, std::log(kRtEps));
+  ASSERT_THAT([&] { CheckProbaToMargin(obj, -1.0f, 0); }, GMockThrow("must be non-negative"));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};

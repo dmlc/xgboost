@@ -7,7 +7,7 @@
 
 #include <dmlc/registry.h>
 
-#include <algorithm>  // for max
+#include <algorithm>  // for all_of, max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 #include <sstream>    // for ostringstream
@@ -71,6 +71,10 @@ class TweedieRegression : public FitInterceptGlmLike {
     return shape;
   }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    auto intercept = base_score->HostView();
+    auto valid = std::all_of(linalg::cbegin(intercept), linalg::cend(intercept),
+                             [](float value) { return value >= 0.0f; });
+    CHECK(valid) << "`base_score` must be non-negative for tweedie regression";
     common::DispatchKernel<TweedieProbToMarginKernel>(ctx_, base_score->Data(),
                                                       TweedieProbToMargin{});
   }

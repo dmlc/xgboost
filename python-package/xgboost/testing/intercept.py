@@ -4,6 +4,7 @@ import json
 from typing import Dict, List, Optional
 
 import numpy as np
+import pytest
 from scipy.special import softmax
 from sklearn.datasets import (
     make_classification,
@@ -268,3 +269,21 @@ def run_logistic_degenerate(device: Device) -> None:
 
     run(0.0)
     run(1.0)
+
+
+def run_tweedie_degenerate(device: Device) -> None:
+    """Tweedie regression with all-zero labels, which gives a zero intercept."""
+    X = np.random.default_rng(2026).normal(size=(64, 2))
+    dtrain = DMatrix(X, label=np.zeros(X.shape[0]))
+    bst = train({"objective": "reg:tweedie", "device": device}, dtrain, 4)
+    assert get_basescore(bst)[0] == 0.0
+    predt = bst.predict(dtrain)
+    assert np.isfinite(predt).all()
+    np.testing.assert_allclose(predt, 0.0, atol=1e-3)
+
+    with pytest.raises(ValueError, match="must be non-negative"):
+        train(
+            {"objective": "reg:tweedie", "base_score": -1.0, "device": device},
+            dtrain,
+            1,
+        )
