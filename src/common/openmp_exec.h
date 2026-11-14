@@ -22,6 +22,23 @@
 namespace xgboost::common {
 // Without OpenMP, the pragmas are ignored and dmlc's OpenMP stubs run loops serially.
 struct OpenMPExecutor {
+  /**
+   * @brief Whether a parallel region always uses the requested number of threads.
+   *
+   * Regions smaller than the thread count normally get a smaller team, which saves waking idle
+   * threads. GCC's libgomp, however, retires the extra threads when a team shrinks and starts
+   * new ones when it grows again, so team sizes that vary from region to region (as in a
+   * lossguide tree, with many tiny regions per node) are many times slower than a fixed team.
+   * With libgomp the team therefore stays at the requested size and threads without work skip
+   * the loop. The check keys on libgomp's omp.h, a compile-time proxy for the runtime that is
+   * loaded at run time; it is false without OpenMP.
+   */
+#if defined(_LIBGOMP_OMP_LOCK_DEFINED)
+  static constexpr bool kFixedTeam = true;
+#else
+  static constexpr bool kFixedTeam = false;
+#endif
+
   [[nodiscard]] static std::int32_t MaxNumWorkers() noexcept {
 #if !defined(_OPENMP)
     return 1;
@@ -53,7 +70,9 @@ struct OpenMPExecutor {
     if (size <= 0) {
       return;
     }
-    n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, size));
+    if (!kFixedTeam) {
+      n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, size));
+    }
 
     auto&& callback = detail::BindWorker(fn, [] { return Worker{omp_get_thread_num()}; });
     dmlc::OMPException exc;
@@ -115,7 +134,15 @@ struct OpenMPExecutor {
     if (n_blocks_in_space == 0) {
       return;
     }
-    n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, n_blocks_in_space));
+    if (n_blocks_in_space == 1) {
+      // Run a single block on the calling thread without starting a parallel region.
+      auto&& callback = detail::BindWorker(fn, [] { return Worker{0}; });
+      callback(space.GetFirstDimension(0), space.GetRange(0));
+      return;
+    }
+    if (!kFixedTeam) {
+      n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, n_blocks_in_space));
+    }
 
     dmlc::OMPException exc;
 #pragma omp parallel num_threads(n_threads)

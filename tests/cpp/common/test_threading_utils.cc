@@ -17,6 +17,24 @@
 #include "xgboost/global_config.h"                // for GlobalConfigThreadLocalStore
 
 namespace xgboost::common {
+#if defined(_OPENMP)
+namespace {
+// Whether the runtime grants a team of n threads, so team sizes and static assignments can be
+// checked exactly. OMP_DYNAMIC or a lower OMP_THREAD_LIMIT may shrink the team.
+bool FullTeam(int n) {
+  if (omp_get_dynamic()) {
+    return false;
+  }
+#if !defined(_MSC_VER)
+  // MSVC doesn't implement omp_get_thread_limit.
+  if (omp_get_thread_limit() < n) {
+    return false;
+  }
+#endif
+  return true;
+}
+}  // namespace
+#endif
 TEST(ParallelFor2d, CreateBlockedSpace2d) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kDim2 = 3;
@@ -67,16 +85,31 @@ TEST(ParallelFor2d, Coverage) {
   }
 }
 
-TEST(ParallelFor2d, ThreadsCappedByBlocks) {
-  // A 2d loop never uses more workers than it has blocks.
+TEST(ParallelFor2d, TeamSize) {
+  // A single block runs on the calling thread. Otherwise the OpenMP team keeps all n_threads
+  // with libgomp, or as many threads as blocks with other runtimes; block i goes to worker i.
   for (std::size_t n_blocks : {1, 2, 3}) {
     BlockedSpace2d space(n_blocks, [](std::size_t) { return std::size_t{1}; }, 1);
-    ParallelFor2d(space, 4, WithWorker([&](std::size_t, Range1d, Worker worker) {
-                    EXPECT_LT(worker.Id(), n_blocks);
+    std::array<std::atomic<int>, 3> visits{};
+    ParallelFor2d(space, 4, WithWorker([&](std::size_t i, Range1d, Worker worker) {
+                    ++visits[i];
+                    EXPECT_LT(worker.Id(), 4);
+                    if (n_blocks == 1) {
+                      EXPECT_EQ(worker.Id(), 0);
+                    }
 #if defined(_OPENMP)
-                    EXPECT_LE(omp_get_num_threads(), n_blocks);
+                    if (n_blocks == 1) {
+                      EXPECT_FALSE(omp_in_parallel());
+                    } else if (FullTeam(4)) {
+                      EXPECT_EQ(worker.Id(), static_cast<std::int32_t>(i));
+                      EXPECT_EQ(omp_get_num_threads(),
+                                OpenMPExecutor::kFixedTeam ? 4 : static_cast<int>(n_blocks));
+                    }
 #endif
                   }));
+    for (std::size_t i = 0; i < visits.size(); ++i) {
+      EXPECT_EQ(visits[i].load(), i < n_blocks ? 1 : 0);
+    }
   }
 }
 
@@ -105,7 +138,7 @@ TEST(ParallelFor, WithWorker) {
 TEST(ParallelFor, Schedules) {
   for (auto sched : {Sched::Auto(), Sched::Static(), Sched::Static(2), Sched::Dyn(), Sched::Dyn(2),
                      Sched::Guided()}) {
-    for (int size : {0, 1, 19}) {
+    for (int size : {0, 1, 2, 3, 19}) {
       std::array<std::atomic<int>, 19> visits{};
       ParallelFor(size, 4, sched, [&](auto i) { ++visits[i]; });
       for (std::size_t i = 0; i < visits.size(); ++i) {
@@ -115,18 +148,42 @@ TEST(ParallelFor, Schedules) {
   }
 }
 
-TEST(ParallelFor, ThreadsCappedBySize) {
-  // A loop never uses more workers than it has iterations.
+TEST(ParallelFor, TeamSize) {
+  // A single iteration runs on the calling thread. Otherwise the OpenMP team keeps all
+  // n_threads with libgomp, or is capped at the loop size with other runtimes.
   for (auto sched : {Sched::Auto(), Sched::Static(), Sched::Dyn(), Sched::Guided()}) {
     for (int size : {1, 2, 3}) {
-      ParallelFor(size, 4, sched, WithWorker([&](auto, Worker worker) {
-                    EXPECT_LT(worker.Id(), size);
+      ParallelFor(size, 4, sched, WithWorker([&](auto i, Worker worker) {
+                    EXPECT_LT(worker.Id(), 4);
+                    if (size == 1) {
+                      EXPECT_EQ(worker.Id(), 0);
+                    }
 #if defined(_OPENMP)
-                    EXPECT_LE(omp_get_num_threads(), size);
+                    if (size == 1) {
+                      EXPECT_FALSE(omp_in_parallel());
+                    } else if (FullTeam(4)) {
+                      auto team = OpenMPExecutor::kFixedTeam ? 4 : size;
+                      EXPECT_LT(worker.Id(), team);
+                      EXPECT_EQ(omp_get_num_threads(), team);
+                      if (sched.sched == Sched::kStatic) {
+                        // A static schedule still gives iteration i to worker i.
+                        EXPECT_EQ(worker.Id(), i);
+                      }
+                    }
 #endif
                   }));
     }
   }
+}
+
+TEST(ParallelFor, FixedTeamWithLibgomp) {
+#if defined(_OPENMP) && defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER) && \
+    !defined(__NVCOMPILER)
+  // GCC builds use libgomp, which needs a fixed team.
+  EXPECT_TRUE(OpenMPExecutor::kFixedTeam);
+#else
+  GTEST_SKIP() << "Not a GCC OpenMP build.";
+#endif
 }
 
 TEST(ParallelFor, ExceptionDrainsTasks) {
@@ -141,6 +198,16 @@ TEST(ParallelFor, ExceptionDrainsTasks) {
                            }),
                std::runtime_error);
   EXPECT_TRUE(finished);
+}
+
+TEST(ParallelFor, SingleIterationException) {
+  // A single iteration or block runs on the calling thread and still propagates exceptions.
+  EXPECT_THROW(ParallelFor(1, 4, [](auto) { throw std::runtime_error{"task failed"}; }),
+               std::runtime_error);
+  BlockedSpace2d space(1, [](std::size_t) { return std::size_t{1}; }, 1);
+  EXPECT_THROW(ParallelFor2d(space, 4,
+                             [](std::size_t, Range1d) { throw std::runtime_error{"task failed"}; }),
+               std::runtime_error);
 }
 
 TEST(GetNumThreads, ConfiguredLimit) {

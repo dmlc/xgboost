@@ -144,8 +144,8 @@ void ParallelFor2d(BlockedSpace2d const& space, std::int32_t n_threads, WithWork
 
 template <typename Index, typename Func>
 void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
-  if (n_threads == 1) {
-    // early exit
+  if (n_threads == 1 || size == 1) {
+    // Run serially on the calling thread without starting a parallel region.
     auto&& callback = detail::BindWorker(fn, [] { return Worker{0}; });
     for (Index i = 0; i < size; ++i) {
       callback(i);
