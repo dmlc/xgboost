@@ -315,6 +315,21 @@ test_that("early stopping using a specific metric works", {
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 
+test_that("early stopping treats NaN evaluation scores as no improvement", {
+  set.seed(1)
+  x <- matrix(rnorm(2000), ncol = 2)
+  y <- pmax(1, 100 + 80 * x[, 1] + rnorm(1000, sd = 50))
+  dtrain <- xgb.DMatrix(x, label = y, nthread = 1)
+  params <- list(eta = 1, max_depth = 8, subsample = 0.1, lambda = 0.001,
+                 eval_metric = "rmsle", nthread = 1)
+  expect_no_error(
+    bst <- xgb.train(params, dtrain, nrounds = 20, evals = list(train = dtrain),
+                     early_stopping_rounds = 5, verbose = 0)
+  )
+  expect_equal(xgb.attr(bst, "best_iteration"), 0)
+  expect_lt(xgb.get.num.boosted.rounds(bst), 20)
+})
+
 test_that("early stopping works with titanic", {
   if (!requireNamespace("titanic")) {
     testthat::skip("Optional testing dependency 'titanic' not found.")
