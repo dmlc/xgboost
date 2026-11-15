@@ -3,7 +3,7 @@
  */
 #pragma once
 #include <dmlc/common.h>  // for OMPException
-#include <dmlc/omp.h>     // for omp_get_thread_num, omp_get_max_threads, omp_in_parallel
+#include <dmlc/omp.h>     // for omp_get_thread_num, omp_in_parallel, kmp_get_blocktime
 
 #include <algorithm>  // for min
 #include <cstddef>    // for size_t
@@ -19,25 +19,57 @@
 #include "xgboost/base.h"  // for omp_ulong
 #endif
 
+// LLVM's libomp and Intel's OpenMP runtime provide kmp_get_blocktime. GCC always links libgomp,
+// even when another runtime's omp.h is on the include path, so it is excluded.
+#if defined(_OPENMP) && defined(KMP_VERSION_MAJOR) && !defined(_LIBGOMP_OMP_LOCK_DEFINED) && \
+    (defined(__clang__) || defined(__INTEL_COMPILER))
+#define XGBOOST_KMP_BLOCKTIME_API 1
+#endif
+
 namespace xgboost::common {
 // Without OpenMP, the pragmas are ignored and dmlc's OpenMP stubs run loops serially.
 struct OpenMPExecutor {
   /**
-   * @brief Whether a parallel region always uses the requested number of threads.
+   * @brief Whether the OpenMP runtime is GCC's libgomp, which always needs a fixed team.
    *
    * Regions smaller than the thread count normally get a smaller team, which saves waking idle
    * threads. GCC's libgomp, however, retires the extra threads when a team shrinks and starts
    * new ones when it grows again, so team sizes that vary from region to region (as in a
    * lossguide tree, with many tiny regions per node) are many times slower than a fixed team.
-   * With libgomp the team therefore stays at the requested size and threads without work skip
-   * the loop. The check keys on libgomp's omp.h, a compile-time proxy for the runtime that is
-   * loaded at run time; it is false without OpenMP.
+   * The check keys on libgomp's omp.h, a compile-time proxy for the runtime that is loaded at run
+   * time; it is false without OpenMP. FixedTeam() gives the decision the executor uses.
    */
 #if defined(_LIBGOMP_OMP_LOCK_DEFINED)
   static constexpr bool kFixedTeam = true;
 #else
   static constexpr bool kFixedTeam = false;
 #endif
+
+  /**
+   * @brief Whether parallel regions run with the requested number of threads, threads without
+   *        work skipping the loop, rather than a team capped at the region size.
+   *
+   * Always true with libgomp (see kFixedTeam). With LLVM's libomp, or Intel's OpenMP runtime,
+   * which shares its API, it depends on the blocktime, how long an idle thread waits before it
+   * sleeps (KMP_BLOCKTIME). With a blocktime of 0, threads sleep as soon as a region ends, so
+   * every thread in a team must be woken again, and capping the team at the region size saves
+   * those wake-ups. With any positive blocktime, including an infinite one, threads wait for the
+   * next region, and changing the team size from region to region costs more than it saves.
+   *
+   * The blocktime is read on the calling thread at each call, so the result follows changes made
+   * at run time. libomp's default is 0 on some platforms, such as Apple Silicon, and libomp also
+   * switches to 0 when threads outnumber processors and no blocktime was set.
+   */
+  [[nodiscard]] static bool FixedTeam() {
+    if constexpr (kFixedTeam) {
+      return true;
+    }
+#if defined(XGBOOST_KMP_BLOCKTIME_API)
+    return kmp_get_blocktime() > 0;
+#else
+    return false;
+#endif
+  }
 
   [[nodiscard]] static std::int32_t MaxNumWorkers() noexcept {
 #if !defined(_OPENMP)
@@ -70,7 +102,7 @@ struct OpenMPExecutor {
     if (size <= 0) {
       return;
     }
-    if (!kFixedTeam) {
+    if (!FixedTeam()) {
       n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, size));
     }
 
@@ -140,7 +172,7 @@ struct OpenMPExecutor {
       callback(space.GetFirstDimension(0), space.GetRange(0));
       return;
     }
-    if (!kFixedTeam) {
+    if (!FixedTeam()) {
       n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, n_blocks_in_space));
     }
 

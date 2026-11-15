@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2026, XGBoost Contributors
  */
-#include <dmlc/omp.h>  // for omp_get_thread_num, omp_get_max_threads, omp_set_num_threads
+#include <dmlc/omp.h>  // for omp_get_thread_num, omp_set_num_threads, kmp_set_blocktime
 #include <gtest/gtest.h>
 
 #include <array>      // for array
@@ -87,10 +87,16 @@ TEST(ParallelFor2d, Coverage) {
 
 TEST(ParallelFor2d, TeamSize) {
   // A single block runs on the calling thread. Otherwise the OpenMP team keeps all n_threads
-  // with libgomp, or as many threads as blocks with other runtimes; block i goes to worker i.
+  // when OpenMPExecutor::FixedTeam(), or as many threads as blocks if not; block i goes to
+  // worker i.
   for (std::size_t n_blocks : {1, 2, 3}) {
     BlockedSpace2d space(n_blocks, [](std::size_t) { return std::size_t{1}; }, 1);
     std::array<std::atomic<int>, 3> visits{};
+#if defined(_OPENMP)
+    // Read right before the call, as the executor does: with libomp the answer can change at run
+    // time (see OpenMPExecutor::FixedTeam).
+    bool const fixed = OpenMPExecutor::FixedTeam();
+#endif
     ParallelFor2d(space, 4, WithWorker([&](std::size_t i, Range1d, Worker worker) {
                     ++visits[i];
                     EXPECT_LT(worker.Id(), 4);
@@ -102,8 +108,7 @@ TEST(ParallelFor2d, TeamSize) {
                       EXPECT_FALSE(omp_in_parallel());
                     } else if (FullTeam(4)) {
                       EXPECT_EQ(worker.Id(), static_cast<std::int32_t>(i));
-                      EXPECT_EQ(omp_get_num_threads(),
-                                OpenMPExecutor::kFixedTeam ? 4 : static_cast<int>(n_blocks));
+                      EXPECT_EQ(omp_get_num_threads(), fixed ? 4 : static_cast<int>(n_blocks));
                     }
 #endif
                   }));
@@ -150,9 +155,12 @@ TEST(ParallelFor, Schedules) {
 
 TEST(ParallelFor, TeamSize) {
   // A single iteration runs on the calling thread. Otherwise the OpenMP team keeps all
-  // n_threads with libgomp, or is capped at the loop size with other runtimes.
+  // n_threads when OpenMPExecutor::FixedTeam(), or is capped at the loop size if not.
   for (auto sched : {Sched::Auto(), Sched::Static(), Sched::Dyn(), Sched::Guided()}) {
     for (int size : {1, 2, 3}) {
+#if defined(_OPENMP)
+      bool const fixed = OpenMPExecutor::FixedTeam();
+#endif
       ParallelFor(size, 4, sched, WithWorker([&](auto i, Worker worker) {
                     EXPECT_LT(worker.Id(), 4);
                     if (size == 1) {
@@ -162,7 +170,7 @@ TEST(ParallelFor, TeamSize) {
                     if (size == 1) {
                       EXPECT_FALSE(omp_in_parallel());
                     } else if (FullTeam(4)) {
-                      auto team = OpenMPExecutor::kFixedTeam ? 4 : size;
+                      auto team = fixed ? 4 : size;
                       EXPECT_LT(worker.Id(), team);
                       EXPECT_EQ(omp_get_num_threads(), team);
                       if (sched.sched == Sched::kStatic) {
@@ -181,8 +189,44 @@ TEST(ParallelFor, FixedTeamWithLibgomp) {
     !defined(__NVCOMPILER)
   // GCC builds use libgomp, which needs a fixed team.
   EXPECT_TRUE(OpenMPExecutor::kFixedTeam);
+  EXPECT_TRUE(OpenMPExecutor::FixedTeam());
 #else
   GTEST_SKIP() << "Not a GCC OpenMP build.";
+#endif
+}
+
+TEST(ParallelFor, FixedTeamFollowsBlocktime) {
+#if defined(XGBOOST_KMP_BLOCKTIME_API)
+  // With libomp, the team stays at the requested size unless idle threads sleep at once. The
+  // checks run on a new thread, a separate OpenMP root whose settings are discarded when it ends,
+  // so the blocktime set here does not leak into other tests.
+  bool ignored{false};
+  std::thread{[&] {
+    for (int blocktime : {0, 1}) {
+      kmp_set_blocktime(blocktime);
+      if (kmp_get_blocktime() != blocktime) {
+        // An infinite blocktime (KMP_BLOCKTIME=infinite, OMP_WAIT_POLICY=active) can't be changed.
+        ignored = true;
+        return;
+      }
+      bool const fixed = blocktime > 0;
+      EXPECT_EQ(OpenMPExecutor::FixedTeam(), fixed);
+      if (!FullTeam(4)) {
+        continue;
+      }
+      std::atomic<int> team{0};
+      ParallelFor(3, 4, [&](int) { team = omp_get_num_threads(); });
+      EXPECT_EQ(team.load(), fixed ? 4 : 3);
+      BlockedSpace2d space(3, [](std::size_t) { return std::size_t{1}; }, 1);
+      ParallelFor2d(space, 4, [&](std::size_t, Range1d) { team = omp_get_num_threads(); });
+      EXPECT_EQ(team.load(), fixed ? 4 : 3);
+    }
+  }}.join();
+  if (ignored) {
+    GTEST_SKIP() << "The OpenMP runtime ignored kmp_set_blocktime.";
+  }
+#else
+  GTEST_SKIP() << "Requires an OpenMP runtime with kmp_get_blocktime.";
 #endif
 }
 
