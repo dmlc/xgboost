@@ -25,6 +25,22 @@
 #include "xgboost/span.h"                // for Span
 
 namespace xgboost::obj {
+TEST(LambdaRank, InitEstimation) {
+  Context ctx;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("rank:pairwise", &ctx)};
+  obj->Configure({});
+
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels = linalg::Tensor<float, 2>{{3.0f, 0.0f, 1.0f, 2.0f}, {4, 1}, ctx.Device()};
+  info.group_ptr_ = {0, 4};
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score.Size(), 1);
+  ASSERT_FLOAT_EQ(base_score(0), 0.0f);
+}
+
 TEST(LambdaRank, NDCGJsonIO) {
   Context ctx;
   TestNDCGJsonIO(&ctx);
@@ -37,25 +53,15 @@ void TestNDCGGPair(Context const* ctx) {
     CheckConfigReload(obj, "rank:ndcg");
 
     // No gain in swapping 2 documents.
-    CheckRankingObjFunction(obj,
-                            {1, 1, 1, 1},
-                            {1, 1, 1, 1},
-                            {1.0f, 1.0f},
-                            {0, 2, 4},
-                            {0.0f, -0.0f, 0.0f, 0.0f},
-                            {0.0f, 0.0f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {1, 1, 1, 1}, {1, 1, 1, 1}, {1.0f, 1.0f}, {0, 2, 4},
+                            {0.0f, -0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
   }
   {
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
     obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
     // Test with setting sample weight to second query group
-    CheckRankingObjFunction(obj,
-                            {0, 0.1f, 0, 0.1f},
-                            {0,   1, 0, 1},
-                            {2.0f, 0.0f},
-                            {0, 2, 4},
-                            {2.06611f, -2.06611f, 0.0f, 0.0f},
-                            {2.169331f, 2.169331f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 0.0f}, {0, 2, 4},
+                            {2.06611f, -2.06611f, 0.0f, 0.0f}, {2.169331f, 2.169331f, 0.0f, 0.0f});
   }
   {
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
@@ -63,7 +69,9 @@ void TestNDCGGPair(Context const* ctx) {
     float weight_norm = 0.5;  // n_groups / sum_weights
     std::vector<float> out_grad{2.06611f, -2.06611f, 2.06611f, -2.06611f};
     std::vector<float> out_hess{2.169331f, 2.169331f, 2.169331f, 2.169331f};
-    auto norm = [=](auto v) { return v * weight_norm; };
+    auto norm = [=](auto v) {
+      return v * weight_norm;
+    };
     std::transform(out_grad.begin(), out_grad.end(), out_grad.begin(), norm);
     std::transform(out_hess.begin(), out_hess.end(), out_hess.begin(), norm);
     CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 2.0f}, {0, 2, 4},

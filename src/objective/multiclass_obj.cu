@@ -40,7 +40,7 @@ void MulticlassGradientCuda(Context const* ctx, HostDeviceVector<float> const& p
   dh::LaunchN(info.num_row_, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t row) mutable {
     auto point = predt.Slice(row, linalg::All());
     assert(point.Size() == static_cast<std::size_t>(n_classes));
-    float wmax = std::numeric_limits<float>::min();
+    float wmax = std::numeric_limits<float>::lowest();
     for (std::size_t k{0}; k < point.Size(); ++k) {
       wmax = fmaxf(point(k), wmax);
     }
@@ -52,8 +52,9 @@ void MulticlassGradientCuda(Context const* ctx, HostDeviceVector<float> const& p
     auto weight = weights[row];
     for (std::int64_t k{0}; k < n_classes; ++k) {
       auto probability = expf(point(k) - wmax) / static_cast<float>(wsum);
-      auto hess = fmaxf(2.0f * probability * (1.0f - probability) * weight, 1e-16f);
       auto grad = label == k ? probability - 1.0f : probability;
+      // Absolute-residual pseudo-Hessian |p - y|; see the CPU kernel for the rationale.
+      auto hess = fmaxf(fabsf(grad) * weight, 1e-16f);
       gpair(row, k) = {grad * weight, hess};
     }
   });

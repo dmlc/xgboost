@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include "quantile_dmatrix.h"
 
@@ -97,15 +97,16 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
       linalg::Tensor<bst_idx_t, 2> column_sizes_tloc({n_threads, n_features}, DeviceOrd::CPU());
       column_sizes_tloc.Data()->Fill(0ul);
       auto view = column_sizes_tloc.HostView();
-      common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256), [&](auto i) {
-        auto const& line = value.GetLine(i);
-        for (bst_idx_t j = 0; j < line.Size(); ++j) {
-          data::COOTuple const& elem = line.GetElement(j);
-          if (is_valid(elem)) {
-            view(omp_get_thread_num(), elem.column_idx)++;
-          }
-        }
-      });
+      common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256),
+                          common::WithWorker([&](auto i, common::Worker worker) {
+                            auto const& line = value.GetLine(i);
+                            for (bst_idx_t j = 0; j < line.Size(); ++j) {
+                              data::COOTuple const& elem = line.GetElement(j);
+                              if (is_valid(elem)) {
+                                view(worker.Id(), elem.column_idx)++;
+                              }
+                            }
+                          }));
       auto ptr = column_sizes_tloc.Data()->HostPointer();
       auto result = std::accumulate(ptr, ptr + column_sizes_tloc.Size(), static_cast<bst_idx_t>(0));
       for (bst_idx_t tidx = 0; tidx < n_threads; ++tidx) {

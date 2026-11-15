@@ -47,6 +47,7 @@ DMLC_REGISTRY_LINK_TAG(expectile_obj);
 DMLC_REGISTRY_LINK_TAG(gamma_obj);
 DMLC_REGISTRY_LINK_TAG(hinge_obj);
 DMLC_REGISTRY_LINK_TAG(logistic_obj);
+DMLC_REGISTRY_LINK_TAG(normal_obj);
 DMLC_REGISTRY_LINK_TAG(poisson_obj);
 DMLC_REGISTRY_LINK_TAG(pseudohuber_obj);
 DMLC_REGISTRY_LINK_TAG(quantile_obj);
@@ -58,10 +59,12 @@ DMLC_REGISTRY_LINK_TAG(multiclass_obj);
 DMLC_REGISTRY_LINK_TAG(aft_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(expectile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
+DMLC_REGISTRY_LINK_TAG(radix_select_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(quantile_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(gamma_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(hinge_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(logistic_kernel_cuda);
+DMLC_REGISTRY_LINK_TAG(normal_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(poisson_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(pseudohuber_kernel_cuda);
 DMLC_REGISTRY_LINK_TAG(squared_error_kernel_cuda);
@@ -77,3 +80,10 @@ DMLC_REGISTRY_LINK_TAG(lambdarank_obj);
 #endif  // XGBOOST_USE_CUDA
 }  // namespace obj
 }  // namespace xgboost
+
+#if defined(XGBOOST_USE_SYCL)
+namespace xgboost::sycl::obj {
+DMLC_REGISTRY_LINK_TAG(hinge_kernel_sycl);
+DMLC_REGISTRY_LINK_TAG(multiclass_kernel_sycl);
+}  // namespace xgboost::sycl::obj
+#endif  // defined(XGBOOST_USE_SYCL)

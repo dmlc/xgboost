@@ -11,12 +11,7 @@
 
 namespace xgboost::obj {
 struct SquaredErrorGradient {
-  float scale_pos_weight;
-
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    if (label == 1.0f) {
-      weight *= scale_pos_weight;
-    }
     return {(predt - label) * weight, weight};
   }
 };

@@ -6,10 +6,10 @@
 #include <variant>  // for visit
 #include <vector>   // for vector
 
-#include "../../../src/encoder/types.h"        // for Overloaded
-#include "../../src/common/device_vector.cuh"  // for device_vector
-#include "../../src/data/cat_container.cuh"    // for CatIndexTypes
-#include "df_mock.h"                           // for MakeStrArrayImpl
+#include "../../../src/common/device_vector.cuh"  // for device_vector
+#include "../../../src/data/cat_container.cuh"    // for CatIndexTypes
+#include "../../../src/encoder/types.h"           // for Overloaded
+#include "df_mock.h"                              // for MakeStrArrayImpl
 
 namespace enc::cuda_impl {
 using CatIndexTypes = ::xgboost::cuda_impl::CatIndexTypes;

@@ -43,6 +43,7 @@ xgboost(
   grow_policy = NULL,
   num_parallel_tree = NULL,
   multi_strategy = NULL,
+  multi_projection_ratio = NULL,
   base_score = NULL,
   seed_per_iteration = NULL,
   device = NULL,
@@ -471,6 +472,14 @@ Version added: 2.0.0
 
 Note: This parameter is working-in-progress.}
 
+\item{multi_projection_ratio}{(for Tree Booster) (default = 1.0)
+Fraction of target-gradient dimensions retained by random projection for split search.
+Projection requires \code{multi_strategy = "multi_output_tree"} and \code{tree_method = "hist"}.
+
+range: \eqn{(0, 1]}
+
+Version added: 3.5.0}
+
 \item{base_score}{\itemize{
 \item The initial prediction score of all instances, global bias
 \item The parameter is automatically estimated for selected objectives before training. To
@@ -511,12 +520,15 @@ Version added: 2.0.0
 \itemize{
 \item For most of the cases this parameter should not be set except for growing deep
 trees. After 3.0, this parameter affects GPU algorithms as well.
+\item For vector-leaf models with many targets, consider \code{multi_projection_ratio} to reduce
+histogram memory use.
 }}
 
-\item{max_cat_to_onehot}{(for Non-Exact Tree Methods)
-A threshold for deciding whether XGBoost should use one-hot encoding based split for
-categorical data.  When number of categories is lesser than the threshold then one-hot
-encoding is chosen, otherwise the categories will be partitioned into children nodes.
+\item{max_cat_to_onehot}{(for Non-Exact Tree Methods) (default = \code{2^32 - 1})
+Features with fewer categories than this threshold use one-hot encoding based splits;
+otherwise, partition-based splits are used.
+Since 3.5.0, all categorical features use one-hot encoding based splits by default. Set this
+parameter to \code{1} to use partitioning, or \code{4} to restore the previous default behavior.
 
 Version added: 1.6.0}
 

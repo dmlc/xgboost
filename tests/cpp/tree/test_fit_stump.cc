@@ -4,8 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/linalg.h>
 
-#include "../../src/common/linalg_op.h"
-#include "../../src/tree/fit_stump.h"
+#include "../../../src/common/linalg_op.h"
+#include "../../../src/tree/fit_stump.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 

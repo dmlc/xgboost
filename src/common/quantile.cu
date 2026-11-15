@@ -3,25 +3,24 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
-#include <thrust/tuple.h>  // for make_tuple
+#include <thrust/scan.h>  // for inclusive_scan_by_key
 #include <thrust/unique.h>
 
 #include <algorithm>
-#include <cstdint>          // for uintptr_t
-#include <cuda/functional>  // for proclaim_return_type
-#include <limits>           // for numeric_limits
-#include <numeric>          // for partial_sum
-#include <type_traits>      // for is_same_v
-#include <utility>
+#include <cstdint>              // for uintptr_t
+#include <cuda/functional>      // for proclaim_return_type
+#include <cuda/std/functional>  // for equal_to, greater
+#include <cuda/std/iterator>    // for make_reverse_iterator
+#include <cuda/std/tuple>       // for make_tuple, tie, tuple
+#include <type_traits>          // for is_same_v
 #include <vector>
 
-#include "../collective/allgather.h"
 #include "../collective/allreduce.h"
 #include "../collective/comm.cuh"
-#include "../collective/comm_group.h"
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
+#include "cuda_compat.cuh"   // for CUDA compatibility
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
@@ -92,7 +91,7 @@ void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     float w = back.rmin - front.rmax;
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(in_begin),
+        dh::make_counting_iterator(in_begin),
         [=] __device__(size_t abs_idx) { return entry_from_index(abs_idx); });
     selected_idx[cuts_ptr[column_id] + idx] =
         in_begin + BinarySearchQueryIndex(it, it + in_size, q);
@@ -170,7 +169,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     assert(!d_out.empty());
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+        dh::make_counting_iterator(0ul), [=] __device__(size_t idx) {
           auto e = to_sketch_entry(idx, in_column, column_id);
           return e;
         });
@@ -225,7 +224,7 @@ XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEn
   // j = k - i always stays within [0, n].
   auto low = k > n ? k - n : 0ul;
   auto high = std::min(k, m);
-  auto candidate_it = thrust::make_counting_iterator<uint64_t>(low);
+  auto candidate_it = dh::make_counting_iterator<uint64_t>(low);
   auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] XGBOOST_DEVICE(uint64_t i) {
     // j is the number of elements taken from y when the partition takes i from x.
     auto j = k - i;
@@ -236,7 +235,7 @@ XGBOOST_DEVICE cuda::std::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEn
     return j > 0 && i < m && y[j - 1].value >= x[i].value;
   });
   auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
-                                          false, thrust::greater<bool>{});
+                                          false, cuda::std::greater<bool>{});
   auto a_ind = low + (partition_it - need_more_x);
   return cuda::std::make_tuple(a_ind, k - a_ind);
 }
@@ -412,13 +411,13 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
 
   auto key_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_reverse_iterator(thrust::make_counting_iterator(entries.size())),
+      cuda::std::make_reverse_iterator(dh::make_counting_iterator(entries.size())),
       [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
-  auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
+  auto val_it = dh::trbegin(entries);
   thrust::inclusive_scan_by_key(
       ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it, val_it,
-      thrust::equal_to<size_t>{},
+      cuda::std::equal_to<size_t>{},
       cuda::proclaim_return_type<SketchEntry>(
           [] __device__(SketchEntry const &r, SketchEntry const &l) -> SketchEntry {
             // Only accumulate for the first type of duplication.
@@ -534,7 +533,7 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
         columns_ptr_tmp.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
     columns_ptr.Copy(columns_ptr_tmp);
     entries.resize(n_uniques);
-    this->FixError();
+    this->FixError(ctx);
   };
   if (entries.empty()) {
     CHECK_EQ(columns_ptr.HostVector().back(), 0);
@@ -571,27 +570,43 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
   timer_.Stop(__func__);
 }
 
-void SketchContainer::FixError() {
+void SketchContainer::FixError(Context const *ctx) {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->entries_);
-  dh::LaunchN(in.size(), [=] __device__(size_t idx) {
-    auto column_id = dh::SegmentId(d_columns_ptr, idx);
-    auto in_column = in.subspan(d_columns_ptr[column_id],
-                                d_columns_ptr[column_id + 1] - d_columns_ptr[column_id]);
-    idx -= d_columns_ptr[column_id];
-    float prev_rmin = idx == 0 ? 0.0f : in_column[idx - 1].rmin;
-    if (in_column[idx].rmin < prev_rmin) {
-      in_column[idx].rmin = prev_rmin;
-    }
-    float prev_rmax = idx == 0 ? 0.0f : in_column[idx - 1].rmax;
-    if (in_column[idx].rmax < prev_rmax) {
-      in_column[idx].rmax = prev_rmax;
-    }
-    float rmin_next = in_column[idx].RMinNext();
-    if (in_column[idx].rmax < rmin_next) {
-      in_column[idx].rmax = rmin_next;
-    }
-  });
+  this->entries_tmp_.resize(in.size());
+  auto scratch = dh::ToSpan(this->entries_tmp_);
+  auto key_it = dh::MakeTransformIterator<size_t>(
+      dh::make_counting_iterator(0ul),
+      [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr, idx); });
+
+  // Propagate corrections across the entire column. Reading a predecessor while it is
+  // being updated in place races and can leave decreasing ranks across thread blocks.
+  auto rmin_it =
+      dh::MakeTransformIterator<SketchEntry>(in.data(), [] __device__(SketchEntry entry) {
+        entry.rmin = fmaxf(0.0f, entry.rmin);
+        return entry;
+      });
+  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + in.size(), rmin_it,
+                                scratch.data(), cuda::std::equal_to<size_t>{},
+                                cuda::proclaim_return_type<SketchEntry>(
+                                    [] __device__(SketchEntry const &left, SketchEntry right) {
+                                      right.rmin = fmaxf(left.rmin, right.rmin);
+                                      return right;
+                                    }));
+
+  // Use the corrected rmin before propagating rmax, matching the serial repair.
+  auto rmax_it =
+      dh::MakeTransformIterator<SketchEntry>(scratch.data(), [] __device__(SketchEntry entry) {
+        entry.rmax = fmaxf(0.0f, fmaxf(entry.rmax, entry.RMinNext()));
+        return entry;
+      });
+  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + in.size(), rmax_it,
+                                in.data(), cuda::std::equal_to<size_t>{},
+                                cuda::proclaim_return_type<SketchEntry>(
+                                    [] __device__(SketchEntry const &left, SketchEntry right) {
+                                      right.rmax = fmaxf(left.rmax, right.rmax);
+                                      return right;
+                                    }));
 }
 
 void SketchContainer::AllReduce(Context const *ctx) {

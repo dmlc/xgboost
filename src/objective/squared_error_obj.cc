@@ -8,20 +8,17 @@
 #include <dmlc/registry.h>
 
 #include <algorithm>  // for max
-#include <cmath>      // for abs
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 
 #include "../common/kernel.h"   // for DispatchKernel
-#include "init_estimation.h"    // for CheckInitInputs, FitIntercept, FitInterceptGlmLike
-#include "regression_param.h"   // for RegLossParam
-#include "xgboost/json.h"       // for FromJson, Json, Object, String, ToJson
+#include "init_estimation.h"    // for CheckInitInputs, FitInterceptGlmLike
+#include "xgboost/json.h"       // for Json, Object, String
 #include "xgboost/logging.h"    // for CHECK, LOG
 #include "xgboost/objective.h"  // for ObjFunction
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(squared_error_obj);
-DMLC_REGISTER_PARAMETER(RegLossParam);
 
 namespace {
 auto const kRegisterSquaredErrorGradientCpu =
@@ -30,9 +27,7 @@ auto const kRegisterSquaredErrorGradientCpu =
 
 class SquaredErrorRegression : public FitInterceptGlmLike {
  public:
-  std::set<std::string> Configure(Args const& args) override {
-    return UpdateAndGetUsedParameters(&param_, args);
-  }
+  std::set<std::string> Configure(Args const&) override { return {}; }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true}; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -46,17 +41,8 @@ class SquaredErrorRegression : public FitInterceptGlmLike {
       CHECK_EQ(info.weights_.Size(), info.num_row_)
           << "Number of weights should be equal to the number of data points.";
     }
-    common::DispatchKernel<SquaredErrorGradientKernel>(
-        ctx_, preds, info, this->Targets(info), SquaredErrorGradient{param_.scale_pos_weight},
-        out_gpair);
-  }
-
-  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    if (std::abs(param_.scale_pos_weight - 1.0f) > kRtEps) {
-      FitIntercept::InitEstimation(info, base_score);
-    } else {
-      FitInterceptGlmLike::InitEstimation(info, base_score);
-    }
+    common::DispatchKernel<SquaredErrorGradientKernel>(ctx_, preds, info, this->Targets(info),
+                                                       SquaredErrorGradient{}, out_gpair);
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "rmse"; }
@@ -64,18 +50,8 @@ class SquaredErrorRegression : public FitInterceptGlmLike {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("reg:squarederror");
-    out["reg_loss_param"] = ToJson(param_);
   }
-  void LoadConfig(Json const& in) override {
-    auto obj = get<Object const>(in);
-    auto it = obj.find("reg_loss_param");
-    if (it != obj.cend()) {
-      FromJson(it->second, &param_);
-    }
-  }
-
- private:
-  RegLossParam param_;
+  void LoadConfig(Json const&) override {}
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredErrorRegression, "reg:squarederror")

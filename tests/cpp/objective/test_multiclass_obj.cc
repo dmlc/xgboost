@@ -1,35 +1,43 @@
 /**
  * Copyright 2018-2025, XGBoost contributors
  */
-#include <xgboost/objective.h>
-#include <xgboost/context.h>
-#include "../helpers.h"
 #include "test_multiclass_obj.h"
+
+#include <xgboost/context.h>
+#include <xgboost/objective.h>
+
+#include "../helpers.h"
 
 namespace xgboost {
 
 void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
-  std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softmax", ctx)
-  };
+  std::vector<std::pair<std::string, std::string>> args{{"num_class", "3"}};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", ctx)};
 
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
-  CheckObjFunction(obj,
-		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
-		   {1.0f, 0.0f},	       // labels
-		   {1.0f, 1.0f},	       // weights
-		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
-		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
+  // Non-unit, distinct weights so that the test detects the weight scaling of both the
+  // gradient and the pseudo-Hessian.
+  CheckObjFunction(obj, {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f},     // preds
+                   {1.0f, 0.0f},                                  // labels
+                   {0.5f, 2.0f},                                  // weights
+                   {0.12f, -0.45f, 0.33f, -0.67f, 0.18f, 0.49f},  // grad = w (p - y)
+                   {0.12f, 0.45f, 0.33f, 0.67f, 0.18f, 0.49f});   // hess = w |p - y|
 
-  CheckObjFunction(obj,
-		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
-		   {1.0f, 0.0f},	       // labels
-                   {},                         // weights
-		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
-		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
+  CheckObjFunction(obj, {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f},     // preds
+                   {1.0f, 0.0f},                                  // labels
+                   {},                                            // weights
+                   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f},  // grad
+                   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});   // hess = |grad|
+
+  // Softmax is invariant to adding a constant to every class of a row, so the gradient must
+  // not change when all predictions of a row are large and negative.
+  CheckObjFunction(obj, {-109.0f, -110.0f, -108.0f, -108.0f, -110.0f, -109.0f},  // preds - 110
+                   {1.0f, 0.0f},                                                 // labels
+                   {},                                                           // weights
+                   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f},                 // grad
+                   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});                  // hess = |grad|
 
   ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
@@ -42,37 +50,48 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
-  HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
-                                           1.0f, 0.0f, 2.0f};
+  HostDeviceVector<bst_float> io_preds = {2.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f};
   std::vector<bst_float> out_preds = {0.0f, 2.0f};
-  obj->PredTransform(&io_preds);
+  std::vector<bst_ulong> shape{2, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{2, 1}));
 
   auto& preds = io_preds.HostVector();
 
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+  io_preds.Resize(0);
+  shape = {0, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 1}));
+  ASSERT_EQ(io_preds.Size(), 0);
 }
 
 void TestSoftprobMultiClassBasic(const Context* ctx) {
-  std::vector<std::pair<std::string, std::string>> args {
-    std::pair<std::string, std::string>("num_class", "3")};
+  std::vector<std::pair<std::string, std::string>> args{
+      std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softprob", ctx)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softprob", ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softprob");
 
-  HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f};
+  HostDeviceVector<bst_float> io_preds = {2.0f, 0.0f, 1.0f};
   std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
 
-  obj->PredTransform(&io_preds);
+  std::vector<bst_ulong> shape{1, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{1, 3}));
   auto& preds = io_preds.HostVector();
 
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+  io_preds.Resize(0);
+  shape = {0, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 3}));
+  ASSERT_EQ(io_preds.Size(), 0);
 }
 
 }  // namespace xgboost

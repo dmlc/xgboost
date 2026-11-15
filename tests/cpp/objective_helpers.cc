@@ -18,7 +18,7 @@ void MakeLabelForObjTest(std::shared_ptr<DMatrix> p_fmat, std::string const& obj
     h_upper[i] = 10;
   }
 
-  if (obj.find("rank:") != std::string::npos) {
+  if (obj.find("rank:") != std::string::npos || obj == "binary:hinge") {
     auto h_label = p_fmat->Info().labels.HostView();
     std::size_t k = 0;
     for (auto& v : h_label) {

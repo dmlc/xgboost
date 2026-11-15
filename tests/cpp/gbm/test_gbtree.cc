@@ -18,7 +18,6 @@
 #include "../filesystem.h"  // TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/predictor.h"
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
@@ -70,31 +69,40 @@ TEST(GBTree, PredictionCache) {
   HostDeviceVector<float> out_predictions;
   gbtree.DoBoost(p_m, &gpair, nullptr);
 
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
+  ASSERT_EQ(out_predictions.Size(), kRows);
   std::vector<float> first_iter = out_predictions.HostVector();
   // Add 1 more boosted round
   gbtree.DoBoost(p_m, &gpair, nullptr);
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // Update the cache for all rounds
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 0),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
 
   gbtree.DoBoost(p_m, &gpair, nullptr);
   // drop the cache.
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // half open set [1, 3)
-  gbtree.PredictBatch(p_m, &out_predictions, false, 1, 3);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 1, 3),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(0, gbtree.PredictionCache(p_m.get()).version);
   // iteration end
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 2);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 2),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(2, gbtree.PredictionCache(p_m.get()).version);
   // restart the cache when end iteration is smaller than cache version
-  gbtree.PredictBatch(p_m, &out_predictions, false, 0, 1);
+  ASSERT_EQ(gbtree.PredictBatch(p_m, &out_predictions, false, 0, 1),
+            (std::vector<bst_ulong>{kRows, 1}));
   ASSERT_EQ(1, gbtree.PredictionCache(p_m.get()).version);
   ASSERT_EQ(out_predictions.HostVector(), first_iter);
 }
@@ -145,9 +153,9 @@ TEST(GBTree, WrongUpdater) {
 }
 
 #ifdef XGBOOST_USE_CUDA
-TEST(GBTree, ChoosePredictor) {
-  // The test ensures data don't get pulled into device.
-  // XGBoost chooses predictor based on the data placement when input is a SparsePage.
+TEST(GBTree, TrainingPredictionDevice) {
+  // Ordinary training updates predictions from leaf positions without copying raw data.
+  // Resuming training uses the configured device to predict the existing model.
   std::size_t constexpr kRows = 17, kCols = 15;
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -178,15 +186,8 @@ TEST(GBTree, ChoosePredictor) {
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
-  ASSERT_TRUE(data.HostCanWrite());
-  ASSERT_FALSE(data.DeviceCanWrite());
-  ASSERT_FALSE(data.DeviceCanRead());
-
-  // pull data into device.
-  data.HostVector();
-  data.SetDevice(DeviceOrd::CUDA(0));
-  data.DeviceSpan();
   ASSERT_FALSE(data.HostCanWrite());
+  ASSERT_TRUE(data.DeviceCanRead());
 
   // another new learner
   learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));

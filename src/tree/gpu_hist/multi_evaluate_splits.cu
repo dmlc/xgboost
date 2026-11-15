@@ -1,12 +1,12 @@
 /**
  * Copyright 2025-2026, XGBoost contributors
  */
-#include <thrust/iterator/counting_iterator.h>   // for make_counting_iterator
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 #include <thrust/logical.h>                      // for any_of
-#include <thrust/reduce.h>                       // for reduce_by_key, reduce
+#include <thrust/reduce.h>                       // for reduce_by_key
 #include <thrust/sort.h>                         // for stable_sort_by_key
 
+#include <algorithm>                 // for copy, max
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
@@ -17,6 +17,7 @@
 #include <memory>                    // for make_unique
 #include <type_traits>               // for is_trivially_copyable_v
 
+#include "../../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../common/cuda_context.cuh"
 #include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -457,7 +458,7 @@ void MultiHistEvaluator::Reset(Context const *ctx,
     return;
   }
 
-  auto feature_it = thrust::make_counting_iterator<bst_feature_t>(0);
+  auto feature_it = dh::make_counting_iterator<bst_feature_t>(0);
   auto max_cat_to_onehot = param.max_cat_to_onehot;
   this->need_sort_histogram_ =
       thrust::any_of(ctx->CUDACtx()->CTP(), feature_it, feature_it + n_features,
@@ -500,7 +501,7 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
   using SortKey = cuda::std::tuple<std::size_t, bst_feature_t, double>;
   dh::device_vector<SortKey> keys(total_bins);
 
-  auto cnt_it = thrust::make_counting_iterator(0ul);
+  auto cnt_it = dh::make_counting_iterator(0ul);
   thrust::transform(
       ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, keys.begin(),
       [=] XGBOOST_DEVICE(std::size_t i) {
@@ -524,8 +525,8 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
           auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
           auto child_sum = quantizer.ToFloatingPoint(target_hist[bin_idx]);
           auto parent_sum = quantizer.ToFloatingPoint(node.parent_sum[t]);
-          auto child_weight = evaluator.CalcWeightCat(shared_inputs.param, child_sum);
-          auto parent_weight = evaluator.CalcWeightCat(shared_inputs.param, parent_sum);
+          auto child_weight = evaluator.CalcWeightCat(child_sum);
+          auto parent_weight = evaluator.CalcWeightCat(parent_sum);
           sc += child_weight * parent_weight;
         }
         return cuda::std::make_tuple(nidx_in_set, fidx, sc);
@@ -584,7 +585,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto in_scans = dh::ToSpan(this->scan_buffer_);
   auto d_scans = common::IterSpan{
       thrust::make_transform_iterator(
-          thrust::make_counting_iterator(0ul),
+          dh::make_counting_iterator(0ul),
           [=] XGBOOST_DEVICE(std::size_t nidx_in_set) -> common::Span<GradientPairInt64> {
             return in_scans.subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
           }),
@@ -754,35 +755,44 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   });
 }
 
+void MultiHistEvaluator::PrepareTreeSplit(Context const *ctx,
+                                          common::Span<MultiExpandEntry const> candidates) {
+  auto staged = h_split_candidates_.GetSpan<MultiExpandEntry>(candidates.size());
+  std::copy(candidates.begin(), candidates.end(), staged.begin());
+  dh::CopyTo(staged, &d_split_candidates_, ctx->CUDACtx()->Stream());
+}
+
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
                                         common::Span<MultiExpandEntry const> h_candidates,
-                                        common::Span<MultiExpandEntry const> d_candidates,
                                         bst_target_t n_targets) {
   xgboost_NVTX_FN_RANGE();
+  auto d_candidates = dh::ToSpan(d_split_candidates_);
   CHECK_EQ(h_candidates.size(), d_candidates.size());
   CHECK(!h_candidates.empty());
   CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
 
   auto weights = this->GetNodeWeights(n_targets);
+  auto mt_tree = MultiTargetTreeView{ctx->Device(), false, p_tree};
+  bst_node_t max_node{-1};
   for (auto const &candidate : h_candidates) {
-    auto left = p_tree->LeftChild(candidate.nidx);
-    auto right = p_tree->RightChild(candidate.nidx);
-    common::Span<float const> left_weight = weights.Left(candidate.nidx);
-    common::Span<float const> right_weight = weights.Right(candidate.nidx);
-    this->tree_evaluator_->AddSplit(candidate.nidx, left, right, candidate.split.findex,
-                                    linalg::MakeVec(ctx->Device(), left_weight),
-                                    linalg::MakeVec(ctx->Device(), right_weight));
+    max_node =
+        std::max({max_node, p_tree->LeftChild(candidate.nidx), p_tree->RightChild(candidate.nidx)});
   }
+  CHECK_NE(max_node, -1);
+  this->tree_evaluator_->AddSplits(
+      d_candidates.size(), max_node, [=] XGBOOST_DEVICE(std::size_t i, bst_target_t t) {
+        auto const &candidate = d_candidates[i];
+        auto left_weight = weights.Left(candidate.nidx)[t];
+        auto right_weight = weights.Right(candidate.nidx)[t];
+        return TreeEvaluator::SplitBounds{candidate.nidx,
+                                          mt_tree.LeftChild(candidate.nidx),
+                                          mt_tree.RightChild(candidate.nidx),
+                                          static_cast<bst_feature_t>(candidate.split.findex),
+                                          left_weight,
+                                          right_weight};
+      });
 
   // Assign the node sums here, for the next evaluate split call.
-  auto mt_tree = MultiTargetTreeView{ctx->Device(), false, p_tree};
-  auto max_in_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> bst_node_t {
-    return std::max(mt_tree.LeftChild(d_candidates[i].nidx),
-                    mt_tree.RightChild(d_candidates[i].nidx));
-  });
-  auto max_node = thrust::reduce(
-      ctx->CUDACtx()->CTP(), max_in_it, max_in_it + d_candidates.size(), 0,
-      [=] XGBOOST_DEVICE(bst_node_t l, bst_node_t r) { return cuda::std::max(l, r); });
   this->AllocNodeSum(max_node, n_targets);
 
   auto node_sums = this->node_sums_.View();

@@ -7,7 +7,6 @@
 #include <thrust/device_vector.h>                       // for device_vector
 #include <thrust/execution_policy.h>                    // thrust::seq
 #include <thrust/iterator/discard_iterator.h>           // for discard_iterator
-#include <thrust/iterator/reverse_iterator.h>           // for make_reverse_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
@@ -15,8 +14,8 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <cub/cub.cuh>
-#include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <cub/device/device_reduce.cuh>  // for DeviceReduce
+#include <cub/util_type.cuh>  // for UnitWord
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
@@ -25,6 +24,7 @@
 #include <vector>             // for vector
 
 #include "common.h"
+#include "cuda_compat.cuh"  // for CUDA compatibility
 #include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
 #include "cuda_stream.h"    // for Stream
 #include "device_vector.cuh"
@@ -279,36 +279,6 @@ class TemporaryArray {
   size_t size_;
 };
 
-/**
- * \brief A double buffer, useful for algorithms like sort.
- */
-template <typename T>
-class DoubleBuffer {
- public:
-  cub::DoubleBuffer<T> buff;
-  xgboost::common::Span<T> a, b;
-  DoubleBuffer() = default;
-  template <typename VectorT>
-  DoubleBuffer(VectorT *v1, VectorT *v2) {
-    a = xgboost::common::Span<T>(v1->data().get(), v1->size());
-    b = xgboost::common::Span<T>(v2->data().get(), v2->size());
-    buff = cub::DoubleBuffer<T>(a.data(), b.data());
-  }
-
-  size_t Size() const {
-    CHECK_EQ(a.size(), b.size());
-    return a.size();
-  }
-  cub::DoubleBuffer<T> &CubBuffer() { return buff; }
-
-  T *Current() { return buff.Current(); }
-  xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{buff.Current(), Size()};
-  }
-
-  T *Other() { return buff.Alternate(); }
-};
-
 template <typename T>
 xgboost::common::Span<T> LazyResize(xgboost::Context const *ctx,
                                     xgboost::HostDeviceVector<T> *buffer, std::size_t n) {
@@ -502,7 +472,7 @@ XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> const &span) 
 
 template <typename T>
 XGBOOST_DEVICE auto trbegin(xgboost::common::Span<T> &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.data() + span.size());
+  return cuda::std::make_reverse_iterator(span.data() + span.size());
 }
 
 template <typename T>
@@ -523,7 +493,7 @@ XGBOOST_DEVICE thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const 
 
 template <typename T>
 XGBOOST_DEVICE auto tcrbegin(xgboost::common::Span<T> const &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.data() + span.size());
+  return cuda::std::make_reverse_iterator(span.data() + span.size());
 }
 
 template <typename T>
@@ -549,7 +519,7 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
 
 template <typename Fn>
 XGBOOST_DEVICE auto MakeIndexTransformIter(Fn &&fn) {
-  return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul), std::forward<Fn>(fn));
+  return thrust::make_transform_iterator(dh::make_counting_iterator(0ul), std::forward<Fn>(fn));
 }
 
 template <typename It>
@@ -597,7 +567,7 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
                        CompValue comp, CompKey comp_key = std::equal_to<size_t>{}) {
   using Key = cuda::std::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
+      dh::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
         return cuda::std::make_pair(seg, *(val_first + i));
       });
@@ -649,7 +619,7 @@ size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedP
       cuda::std::pair<std::size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
+      dh::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
         return cuda::std::make_pair(seg, *(key_first + i));
       });
@@ -708,6 +678,16 @@ void CopyTo(Src const &src, Dst *dst,
   static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
+
+// The temporary array can't be resized, it must have the same size as the source.
+template <class Src, typename T>
+void CopyTo(Src const &src, TemporaryArray<T> *dst, ::xgboost::curt::StreamRef stream) {
+  CHECK_EQ(src.size(), dst->size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  static_assert(std::is_same_v<SVT, T>, "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(dst->data().get(), src.data(), src.size() * sizeof(T),
+                                cudaMemcpyDefault, stream));
 }
 
 /**

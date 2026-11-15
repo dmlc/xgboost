@@ -4,6 +4,7 @@
 #include <thrust/transform.h>  // for transform
 
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
+#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../data/array_interface.h"   // for DispatchDType, ArrayInterface
 #include "../data/device_adapter.cuh"
@@ -17,9 +18,6 @@
 #if defined(XGBOOST_USE_NCCL)
 #include <nccl.h>
 #endif  // defined(XGBOOST_USE_NCCL)
-#if defined(XGBOOST_USE_NVCOMP)
-#include <nvcomp/version.h>
-#endif  // defined(XGBOOST_USE_NVCOMP)
 #if defined(XGBOOST_USE_RMM)
 #include <rmm/version_config.hpp>
 #endif  // defined(XGBOOST_USE_RMM)
@@ -61,15 +59,6 @@ void XGBBuildInfoDevice(Json *p_info) {
 #else
   info["USE_RMM"] = Boolean{false};
 #endif
-
-#if defined(XGBOOST_USE_NVCOMP)
-  info["USE_NVCOMP"] = Boolean{true};
-  v = {Json{Integer{NVCOMP_VER_MAJOR}}, Json{Integer{NVCOMP_VER_MINOR}},
-       Json{Integer{NVCOMP_VER_PATCH}}};
-  info["NVCOMP_VERSION"] = v;
-#else
-  info["USE_NVCOMP"] = Boolean{false};
-#endif
 }
 
 void XGBoostAPIGuard::SetGPUAttribute() {
@@ -99,17 +88,16 @@ void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> con
   DispatchDType(grad, DeviceOrd::CUDA(grad_dev), [&](auto &&t_grad) {
     DispatchDType(hess, DeviceOrd::CUDA(hess_dev), [&](auto &&t_hess) {
       CHECK_EQ(t_grad.Size(), t_hess.Size());
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), t_grad.Size(),
+      thrust::for_each_n(cuctx->CTP(), dh::make_counting_iterator(0ul), t_grad.Size(),
                          detail::CustomGradHessOp{t_grad, t_hess, d_gpair});
     });
   });
 }
-}                        // namespace xgboost
+}  // namespace xgboost
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *c_json_config,
                                             DMatrixHandle *out) {
   API_BEGIN();
 
@@ -122,13 +110,11 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CudfAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* c_json_config,
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *c_json_config,
                                                   DMatrixHandle *out) {
   API_BEGIN();
   std::string json_str{data};
@@ -136,8 +122,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   float missing = GetMissing(config);
   auto n_threads = OptionalArg<Integer, std::int64_t>(config, "nthread", 0);
   data::CupyAdapter adapter(json_str);
-  *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -166,27 +151,23 @@ int InplacePreidctCUDA(BoosterHandle handle, char const *data, char const *c_jso
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
+  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
+  auto &shape = learner->GetThreadLocal().prediction_shape;
 
-  learner->InplacePredict(p_m, type, missing, &p_predt,
-                          RequiredArg<Integer>(config, "iteration_begin", __func__),
-                          RequiredArg<Integer>(config, "iteration_end", __func__));
+  shape = learner->InplacePredict(
+      p_m, type, missing, &p_predt, RequiredArg<Integer>(config, "iteration_begin", __func__),
+      RequiredArg<Integer>(config, "iteration_end", __func__), strict_shape);
   CHECK(p_predt);
   if (learner->Ctx()->IsCUDA()) {
     CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
   }
   p_predt->SetDevice(proxy->Device());
 
-  auto &shape = learner->GetThreadLocal().prediction_shape;
-  size_t n_samples = p_m->Info().num_row_;
-  auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
-  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-
   xgboost_CHECK_C_ARG_PTR(out_result);
   xgboost_CHECK_C_ARG_PTR(out_shape);
   xgboost_CHECK_C_ARG_PTR(out_dim);
 
-  CalcPredictShape(strict_shape, type, n_samples, p_m->Info().num_col_, chunksize,
-                   learner->Groups(), learner->BoostedRounds(), &shape, out_dim);
+  *out_dim = shape.size();
   *out_shape = dmlc::BeginPtr(shape);
   *out_result = p_predt->ConstDevicePointer();
   API_END();

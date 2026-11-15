@@ -7,7 +7,8 @@
 #include <utility>  // std::pair
 #include <vector>   // std::vector
 
-#include "../../../src/common/linalg_op.cuh"  // ElementWiseTransformKernel
+#include "../../../src/common/cuda_compat.cuh"  // for CUDA compatibility
+#include "../../../src/common/linalg_op.cuh"    // ElementWiseTransformKernel
 #include "../../../src/common/stats.cuh"
 #include "../helpers.h"
 #include "xgboost/base.h"                // XGBOOST_DEVICE
@@ -34,7 +35,7 @@ class StatsGPU : public ::testing::Test {
   }
 
  public:
-  void SetUp() override { ctx_  = MakeCUDACtx(0); }
+  void SetUp() override { ctx_ = MakeCUDACtx(0); }
 
   void WeightedMulti() {
     // data for one segment
@@ -50,17 +51,16 @@ class StatsGPU : public ::testing::Test {
     auto d_arr = arr.View(DeviceOrd::CUDA(0));
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
-        thrust::make_counting_iterator(0ul),
+        dh::make_counting_iterator(0ul),
         [=] XGBOOST_DEVICE(std::size_t i) { return i * seg_size; });
-    auto val_it =
-        dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                         [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
+    auto val_it = dh::MakeTransformIterator<float>(
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
 
     // one alpha for each segment
     HostDeviceVector<float> alphas{0.0f, 0.5f, 1.0f};
     alphas.SetDevice(FstCU());
     auto d_alphas = alphas.ConstDeviceSpan();
-    auto w_it = thrust::make_constant_iterator(0.1f);
+    auto w_it = dh::make_constant_iterator(0.1f);
     SegmentedWeightedQuantile(&ctx_, d_alphas.data(), key_it, key_it + d_alphas.size() + 1, val_it,
                               val_it + d_arr.Size(), w_it, w_it + d_arr.Size(), &results_);
 
@@ -75,15 +75,12 @@ class StatsGPU : public ::testing::Test {
     auto d_key = indptr_.View(DeviceOrd::CUDA(0));
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
-        thrust::make_counting_iterator(0ul),
-        [=] XGBOOST_DEVICE(std::size_t i) { return d_key(i); });
-    auto val_it =
-        dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                         [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_key(i); });
+    auto val_it = dh::MakeTransformIterator<float>(
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
     linalg::Tensor<float, 1> weights{{10}, FstCU()};
-    linalg::cuda_impl::TransformIdxKernel(
-        &ctx_, weights.View(DeviceOrd::CUDA(0)),
-        [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
+    linalg::cuda_impl::TransformIdxKernel(&ctx_, weights.View(DeviceOrd::CUDA(0)),
+                                          [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
     auto w_it = weights.Data()->ConstDevicePointer();
     for (auto const& pair : TestSet{{0.0f, 1.0f}, {0.5f, 3.0f}, {1.0f, 5.0f}}) {
       SegmentedWeightedQuantile(&ctx_, pair.first, key_it, key_it + indptr_.Size(), val_it,
@@ -106,11 +103,10 @@ class StatsGPU : public ::testing::Test {
     auto d_arr = arr.View(DeviceOrd::CUDA(0));
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
-        thrust::make_counting_iterator(0ul),
+        dh::make_counting_iterator(0ul),
         [=] XGBOOST_DEVICE(std::size_t i) { return i * seg_size; });
-    auto val_it =
-        dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                         [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
+    auto val_it = dh::MakeTransformIterator<float>(
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
 
     // one alpha for each segment
     HostDeviceVector<float> alphas{0.1f, 0.2f, 0.4f};
@@ -130,10 +126,9 @@ class StatsGPU : public ::testing::Test {
     auto d_key = indptr_.View(DeviceOrd::CUDA(0));
 
     auto key_it = dh::MakeTransformIterator<std::size_t>(
-        thrust::make_counting_iterator(0ul), [=] __device__(std::size_t i) { return d_key(i); });
-    auto val_it =
-        dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                         [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
+        dh::make_counting_iterator(0ul), [=] __device__(std::size_t i) { return d_key(i); });
+    auto val_it = dh::MakeTransformIterator<float>(
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
 
     for (auto const& pair : TestSet{{0.0f, 1.0f}, {0.5f, 3.0f}, {1.0f, 5.0f}}) {
       SegmentedQuantile(&ctx_, pair.first, key_it, key_it + indptr_.Size(), val_it,

@@ -2,7 +2,7 @@
  * Copyright 2025-2026, XGBoost contributors
  */
 #include <thrust/scan.h>     // for inclusive_scan
-#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
+#include <thrust/version.h>  // for THRUST_VERSION
 
 #include <cstddef>                                 // for size_t
 #include <cstdint>                                 // for int32_t
@@ -12,33 +12,35 @@
 #include "../split_evaluator.h"  // for GPUTrainingParam
 #include "leaf_sum.cuh"
 #include "quantiser.cuh"        // for GradientQuantiser
-#include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
+#include "row_partitioner.cuh"  // for RowIndexT, LeafInfo, RowBuffers
 #include "xgboost/base.h"       // for GradientPairInt64
 #include "xgboost/context.h"    // for Context
 #include "xgboost/linalg.h"     // for MatrixView
 #include "xgboost/span.h"       // for Span
 
-#if THRUST_MAJOR_VERSION >= 3
-
-#if THRUST_MINOR_VERSION >= 3
-// thrust 3.3
+#if THRUST_VERSION >= 300100
 #include <cuda/iterator>  // for make_tabulate_output_iterator
-#else
-// thrust 3.2/3.1
+#elif THRUST_VERSION >= 300000
 #include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
-
-#endif  // THRUST_MINOR_VERSION >= 3
-
 #else
-
 #include "../../common/linalg_op.cuh"  // for tbegin
-
-#endif  // THRUST_MAJOR_VERSION >= 3
+#endif
 
 namespace xgboost::tree::cuda_impl {
+#if THRUST_VERSION >= 300000
+namespace {
+// Avoid nvcc's extended-lambda wrapper in the tabulate output iterator, which can
+// trigger host compiler warnings about uninitialized captures when copied by CUB.
+struct AccumulateLeafSum {
+  linalg::VectorView<GradientPairInt64> out;
+
+  XGBOOST_DEVICE void operator()(std::int32_t idx, GradientPairInt64 value) { out(idx) += value; }
+};
+}  // namespace
+#endif  // THRUST_VERSION >= 300000
+
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
-                 common::Span<GradientQuantiser const> roundings,
-                 common::Span<RowIndexT const> sorted_ridx,
+                 common::Span<GradientQuantiser const> roundings, RowBuffers<RowIndexT const> ridx,
                  linalg::MatrixView<GradientPair const> grad,
                  linalg::MatrixView<GradientPairInt64> out_sum) {
   CHECK_EQ(h_leaves.size(), out_sum.Shape(0));
@@ -65,24 +67,19 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       auto nidx_in_set = dh::SegmentId(d_indptr, i);
       // Index within segment
       auto k = i - d_indptr[nidx_in_set];
+      auto const& node = d_leaves[nidx_in_set].node;
       // Global index (within a batch).
-      auto j = d_leaves[nidx_in_set].node.segment.begin + k;
+      auto j = node.segment.begin + k;
       // gradient
-      auto g = grad(sorted_ridx[j], t);
+      auto g = grad(ridx[node.buffer][j], t);
       return roundings[t].ToFixedPoint(g);
     });
     // Use an output iterator to implement running sum. Old thrust versions either don't
     // have this iterator, or unusable with segmented sum.
-#if THRUST_MAJOR_VERSION >= 3
-
-#if THRUST_MINOR_VERSION >= 2
-    auto out_it = cuda::make_tabulate_output_iterator(
-        [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
-#else
-    auto out_it = thrust::make_tabulate_output_iterator(
-        [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
-#endif
-
+#if THRUST_VERSION >= 300100
+    auto out_it = cuda::make_tabulate_output_iterator(AccumulateLeafSum{out_t});
+#elif THRUST_VERSION >= 300000
+    auto out_it = thrust::make_tabulate_output_iterator(AccumulateLeafSum{out_t});
 #else
     // Doesn't work with external memory.
     auto out_it = linalg::tbegin(out_t);
@@ -114,7 +111,7 @@ void LeafWeight(Context const* ctx, EvalParam const& param,
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
     auto weight = evaluator.CalcWeight(nidx[nidx_in_set], t, param, g);
-    out_weights(nidx_in_set, t) = weight * param.learning_rate;
+    out_weights(nidx_in_set, t) = weight;
   });
 }
 }  // namespace xgboost::tree::cuda_impl

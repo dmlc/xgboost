@@ -124,7 +124,8 @@ softprob <- function(predt, dtrain) {
       } else {
         p[c]
       }
-      h <- max((2.0 * p[c] * (1.0 - p[c])), 1e-6)
+      # absolute-residual pseudo-Hessian, matching the native objective
+      h <- max(abs(g), 1e-6)
       grad[i, c] <- g
       hess[i, c] <- h
     }

@@ -22,7 +22,6 @@
 #include "../common/optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
 #include "../common/ranking_utils.h"     // for RankingCache, LambdaRankParam, MAPCache, NDCGC...
 #include "../common/threading_utils.h"   // for ParallelFor, Sched
-#include "init_estimation.h"             // for FitIntercept
 #include "xgboost/base.h"                // for bst_group_t, GradientPair, kRtEps, GradientPai...
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -96,7 +95,7 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
  *   Pairwise Learning-to-Rank Algorithm`.
  */
 template <typename Loss, typename Cache>
-class LambdaRankObj : public FitIntercept {
+class LambdaRankObj : public ObjFunction {
   MetaInfo const* p_info_{nullptr};
 
   // Update position biased for unbiased click data
@@ -250,6 +249,10 @@ class LambdaRankObj : public FitIntercept {
   }
 
  public:
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    *base_score = linalg::Zeros<float>(this->ctx_, this->Targets(info));
+  }
+
   std::set<std::string> Configure(Args const& args) override {
     return UpdateAndGetUsedParameters(&param_, args);
   }

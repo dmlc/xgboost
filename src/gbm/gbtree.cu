@@ -1,8 +1,8 @@
 /**
  * Copyright 2021-2025, XGBoost Contributors
  */
-#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                // for GradientPair
@@ -17,13 +17,12 @@ void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_
   auto d_out = out_gpair->View(ctx->Device());
   auto cuctx = ctx->CUDACtx();
   auto it = dh::MakeTransformIterator<GradientPair>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v_in(i); });
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v_in(i); });
   thrust::copy(cuctx->CTP(), it, it + v_in.Size(), d_out.Values().data());
 }
 
-void GPUDartPredictInc(common::Span<float> out_predts,
-                       common::Span<float> predts, float tree_w, size_t n_rows,
-                       bst_group_t n_groups, bst_group_t group) {
+void GPUDartPredictInc(common::Span<float> out_predts, common::Span<float> predts, float tree_w,
+                       size_t n_rows, bst_group_t n_groups, bst_group_t group) {
   dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
     const size_t offset = ridx * n_groups + group;
     out_predts[offset] += (predts[offset] * tree_w);

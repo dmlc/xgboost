@@ -22,10 +22,17 @@ struct HingeLoss {
   }
 
   XGBOOST_DEVICE float operator()(float margin) const { return margin > 0.0f ? 1.0f : 0.0f; }
+
+  static char const* LabelErrorMsg() { return "label must be either 0 or 1 for hinge loss."; }
+};
+
+struct HingeLabelCheck {
+  XGBOOST_DEVICE bool operator()(float label) const { return label == 0.0f || label == 1.0f; }
 };
 
 using HingeGradientKernel = elementwise::GradientKernel<HingeLoss>;
 using HingePredTransformKernel = elementwise::TransformKernel<HingeLoss>;
+using HingeValidationKernel = elementwise::ValidationKernel<HingeLabelCheck>;
 
 }  // namespace xgboost::obj
 

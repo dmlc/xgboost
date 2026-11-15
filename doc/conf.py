@@ -257,6 +257,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_gallery.gen_gallery",
     "sphinx_issues",
+    "sphinx_llm.txt",
     "sphinx_tabs.tabs",
     "breathe",
     "myst_parser",

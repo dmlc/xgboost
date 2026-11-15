@@ -58,12 +58,14 @@ class MyLogistic : public ObjFunction {
     }
   }
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "logloss"; }
-  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* io_preds,
+                                       std::vector<bst_ulong> shape) const override {
     // transform margin value to probability.
     std::vector<float>& preds = io_preds->HostVector();
     for (auto& pred : preds) {
       pred = 1.0f / (1.0f + std::exp(-pred));
     }
+    return shape;
   }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
     // transform probability to margin value

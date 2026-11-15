@@ -89,6 +89,17 @@ def is_cudf_available() -> bool:
 
 
 @functools.cache
+def import_cudf() -> types.ModuleType:
+    """Import cuDF with memory cache."""
+    if not is_cudf_available():
+        raise ImportError("`cudf` is required for handling CUDA dataframes.")
+
+    import cudf
+
+    return cudf
+
+
+@functools.cache
 def is_cupy_available() -> bool:
     """Check cupy package available or not"""
     if importlib.util.find_spec("cupy") is None:
@@ -265,9 +276,9 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
-        from cudf import concat as CUDF_concat
+        cudf = import_cudf()
 
-        return CUDF_concat(value, axis=0)
+        return cudf.concat(value, axis=0)
     if _is_cupy_alike(value[0]):
         import cupy
 

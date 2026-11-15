@@ -50,6 +50,7 @@ include(CMakeDependentOption)
 ## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
+option(USE_THREADPOOL "Use the thread pool for parallel execution." OFF)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
@@ -79,7 +80,6 @@ option(__XGBOOST_FOR_PYTHON_WHEEL
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
-option(USE_NVCOMP "Build with nvcomp to enable sparse data compression. (experimental)" OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
@@ -130,9 +130,6 @@ if(USE_NVTX)
 endif()
 if(USE_NCCL AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
-endif()
-if(USE_NVCOMP AND (NOT USE_CUDA))
-  message(SEND_ERROR "`USE_NVCOMP` must be enabled with `USE_CUDA` flag.")
 endif()
 if(USE_DEVICE_DEBUG AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
@@ -220,8 +217,11 @@ if(USE_SANITIZER)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif()
 
+if(USE_THREADPOOL AND USE_OPENMP)
+  message(FATAL_ERROR "USE_OPENMP and USE_THREADPOOL cannot both be enabled.")
+endif()
+
 if(USE_CUDA)
-  set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   if(NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
     set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} CACHE FILEPATH
@@ -249,11 +249,6 @@ if(USE_CUDA)
 
   find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
-
-if(USE_NVCOMP)
-  find_package(nvcomp REQUIRED)
-endif()
-
 
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR

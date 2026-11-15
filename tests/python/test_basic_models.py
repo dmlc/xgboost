@@ -71,7 +71,7 @@ class TestModels:
 
         def my_logloss(preds, dtrain):
             labels = dtrain.get_label()
-            return "logloss", np.sum(np.log(np.where(labels, preds, 1 - preds)))
+            return "custom_logloss", np.sum(np.log(np.where(labels, preds, 1 - preds)))
 
         # check whether custom evaluation metrics work
         bst = xgb.train(

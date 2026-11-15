@@ -41,6 +41,12 @@ struct SquaredLogLabelCheck {
   XGBOOST_DEVICE bool operator()(float value) const { return SquaredLogError::CheckLabel(value); }
 };
 
+struct SquaredLogLabelTransform {
+  XGBOOST_DEVICE float operator()(float value) const { return std::log1p(value); }
+};
+
+using SquaredLogLabelTransformKernel = elementwise::TransformKernel<SquaredLogLabelTransform>;
+
 using SquaredLogGradientKernel = elementwise::GradientKernel<SquaredLogGradient>;
 using SquaredLogValidationKernel = elementwise::ValidationKernel<SquaredLogLabelCheck>;
 }  // namespace xgboost::obj

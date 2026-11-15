@@ -2,6 +2,7 @@
  * Copyright 2020-2024 by XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include <vector>
 
 #pragma GCC diagnostic push
@@ -15,7 +16,7 @@
 
 namespace xgboost::sycl::tree {
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void BasicTestSplitEvaluator(const std::string& monotone_constraints, bool has_constrains) {
   const size_t n_columns = 2;
 
@@ -43,7 +44,7 @@ void BasicTestSplitEvaluator(const std::string& monotone_constraints, bool has_c
   }
 }
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void TestSplitEvaluator(const std::string& monotone_constraints) {
   const size_t n_columns = 2;
 
@@ -62,19 +63,19 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
     const GradientSumT alpha = 0.5;
     {
       const GradientSumT val = 0.0;
-      const auto trh = split_evaluator.ThresholdL1(val, alpha);
+      const auto trh = xgboost::tree::ThresholdL1(val, alpha);
       ASSERT_EQ(trh, 0.0);
     }
 
     {
       const GradientSumT val = 1.0;
-      const auto trh = split_evaluator.ThresholdL1(val, alpha);
+      const auto trh = xgboost::tree::ThresholdL1(val, alpha);
       ASSERT_EQ(trh, val - alpha);
     }
 
     {
       const GradientSumT val = -1.0;
-      const auto trh = split_evaluator.ThresholdL1(val, alpha);
+      const auto trh = xgboost::tree::ThresholdL1(val, alpha);
       ASSERT_EQ(trh, val + alpha);
     }
   }
@@ -88,7 +89,7 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
     bst_node_t nidx = 0;
     bst_feature_t fidx = 0;
 
-    GradientSumT wleft  = split_evaluator.CalcWeight(nidx, left);
+    GradientSumT wleft = split_evaluator.CalcWeight(nidx, left);
     // wleft = -grad/hess = -0.1/0.2
     EXPECT_NEAR(wleft, -0.5, eps);
     GradientSumT wright = split_evaluator.CalcWeight(nidx, right);
@@ -111,6 +112,27 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
     }
   }
 }
+
+template <typename GradientSumT>
+void TestL1WithMaxDeltaStep() {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(
+      Args{{"reg_alpha", "1"}, {"reg_lambda", "1"}, {"max_delta_step", "0.5"}});
+
+  DeviceManager device_manager;
+  auto qu = device_manager.GetQueue(DeviceOrd::SyclDefault());
+  TreeEvaluator<GradientSumT> tree_evaluator(qu, param, 1);
+  auto split_evaluator = tree_evaluator.GetEvaluator();
+
+  // The weight -(4 - 1) / (1 + 1) is clipped to -0.5, and the gain at the clipped weight
+  // includes the L1 penalty: -(2 * 4 * -0.5 + (1 + 1) * 0.25 + 2 * 1 * 0.5) = 2.5.
+  GradStats<GradientSumT> stats(4.0, 1.0);
+  bst_node_t nidx = 0;
+  EXPECT_NEAR(split_evaluator.CalcWeight(nidx, stats), -0.5, 1e-6);
+  EXPECT_NEAR(split_evaluator.CalcGain(nidx, stats), 2.5, 1e-6);
+}
+
+TEST(SyclSplitEvaluator, L1WithMaxDeltaStep) { TestL1WithMaxDeltaStep<float>(); }
 
 TEST(SyclSplitEvaluator, BasicTest) {
   BasicTestSplitEvaluator<float>("( 0,  0)", false);

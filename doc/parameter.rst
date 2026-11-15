@@ -74,6 +74,16 @@ General Parameters
 
     For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
+* ``fail_on_invalid_gpu_id`` [default= ``false``]
+
+  .. versionadded:: 1.3.0
+
+  - Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+    to ``false``, XGBoost replaces a non-negative ordinal that is greater than or equal to
+    the number of visible GPUs with its value modulo that number. For example,
+    ``device=cuda:1`` is changed to ``device=cuda:0`` when only one GPU is visible. When no
+    GPU is visible, XGBoost falls back to the CPU regardless of this setting.
+
 * ``verbosity`` [default=1]
 
   - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
@@ -145,7 +155,7 @@ Parameters for Tree Booster
 
   .. note::
 
-     When working with reduced gradient for multi-target models, the accuracy of
+     When using ``multi_projection_ratio`` for multi-target models, the accuracy of
      gradient-based sampling might be sub-optimal. The sampling is performed using the
      split gradient, which may not be optimal with the full gradient. Use uniform sampling
      as an alternative.
@@ -191,7 +201,7 @@ Parameters for Tree Booster
 
 * ``scale_pos_weight`` [default=1]
 
-  - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
+  - Control the balance of positive and negative weights in logistic objectives, useful for unbalanced classes. Labels equal to 1 are treated as positive examples. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
 
 * ``updater``
 
@@ -263,6 +273,15 @@ Parameters for Tree Booster
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
 
+* ``multi_projection_ratio`` [default = 1.0]
+
+  .. versionadded:: 3.5.0
+
+  Fraction of target-gradient dimensions retained by random projection for split search.
+  Projection requires ``multi_strategy=multi_output_tree`` and ``tree_method=hist``.
+
+  - range: (0, 1]
+
 
 Parameters for Non-Exact Tree Methods
 =====================================
@@ -274,7 +293,7 @@ Parameters for Non-Exact Tree Methods
   .. versionadded:: 2.0.0
 
   - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
-  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in memory, consider using ``multi_projection_ratio`` (see :doc:`/tutorials/multioutput`) instead of setting this parameter.
   - After 3.0, this parameter affects GPU algorithms as well.
 
 
@@ -289,13 +308,18 @@ These parameters are only used for training with categorical data. See
 .. note:: The ``exact`` tree method is not supported for categorical features.
 
 
-* ``max_cat_to_onehot``
+* ``max_cat_to_onehot`` [default = ``UINT32_MAX``]
 
   .. versionadded:: 1.6.0
 
-  - A threshold for deciding whether XGBoost should use one-hot encoding based split for
-    categorical data.  When number of categories is lesser than the threshold then one-hot
-    encoding is chosen, otherwise the categories will be partitioned into children nodes.
+  .. versionchanged:: 3.5.0
+
+    XGBoost uses one hot encoding as the default.
+
+  - Features with fewer categories than this threshold use one-hot encoding based splits;
+    otherwise, partition-based splits are used.
+  - By default, all categorical features use one-hot encoding based splits. Set this
+    parameter to ``1`` to use partitioning, or ``4`` to restore the previous default behavior.
 
 * ``max_cat_threshold``
 
@@ -407,6 +431,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter and properties.
 
+  - ``reg:normal``: Normal-distribution negative log-likelihood. The two outputs are the
+    conditional mean and log variance. See :ref:`normal-distribution-objective` for details.
+
+    .. versionadded:: 3.5.0
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
 
@@ -470,7 +499,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
       - When used with multi-label classification, AUC is calculated independently for each target and averaged with the macro method.
       - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
       - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
-      - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.
+      - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` raises a ``ValueError`` before version 1.6 and returns ``NaN`` with a warning since then.
 
     - ``aucpr``: `Area under the PR curve <https://en.wikipedia.org/wiki/Precision_and_recall>`_.
       Available for classification and learning-to-rank tasks.
@@ -493,6 +522,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression
+    - ``normal-nloglik``: negative log-likelihood for normal-distribution regression
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
     - ``gamma-deviance``: residual deviance for gamma regression
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
@@ -507,7 +537,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed_per_iteration`` [default= ``false``]
 
-  - Seed PRNG determnisticly via iterator number.
+  - Seed PRNG deterministically via iterator number.
 
 Parameters for Tweedie Regression (``objective=reg:tweedie``)
 =============================================================
@@ -517,6 +547,25 @@ Parameters for Tweedie Regression (``objective=reg:tweedie``)
   - range: (1,2)
   - Set closer to 2 to shift towards a gamma distribution
   - Set closer to 1 to shift towards a Poisson distribution.
+
+.. _normal-distribution-objective:
+
+Normal Distribution Regression (``objective=reg:normal``)
+==========================================================
+
+This objective estimates a conditional normal distribution from a scalar response. It produces
+two outputs for every row: the mean :math:`\mu` and log variance
+:math:`s=\log(\sigma^2)`. Predictions have shape ``(n_rows, 2)`` with columns ``[mean,
+log_variance]``.
+
+The vector-valued intercept is estimated as the weighted response mean and log weighted residual
+variance. The default evaluation metric is ``normal-nloglik``. By default, XGBoost builds one
+tree for each output. Set ``multi_strategy`` to ``multi_output_tree`` to use shared-topology vector
+leaves.
+
+For numerical stability, the objective adds float epsilon to squared residuals when estimating
+variance. This small fixed noise floor prevents training from driving the variance toward zero when
+the mean model interpolates observations.
 
 Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================

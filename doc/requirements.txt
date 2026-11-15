@@ -1,4 +1,5 @@
 sphinx
+sphinx-llm>=1.1.0
 mock
 sphinx_rtd_theme>=1.0.0
 breathe

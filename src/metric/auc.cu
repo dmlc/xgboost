@@ -15,7 +15,9 @@
 #include <utility>
 
 #include "../collective/allreduce.h"
-#include "../common/algorithm.cuh"        // SegmentedArgSort, InclusiveScan
+#include "../common/algorithm.cuh"    // SegmentedArgSort, InclusiveScan
+#include "../common/cuda_compat.cuh"  // for CUDA compatibility
+#include "../common/kernel.h"
 #include "../common/optional_weight.h"    // OptionalWeights
 #include "../common/threading_utils.cuh"  // UnravelTrapeziodIdx,SegmentedTrapezoidThreads
 #include "auc.h"
@@ -121,7 +123,7 @@ std::tuple<double, double, double> BinaryAUC(Context const *ctx, common::Span<fl
   dh::Iota(d_unique_idx, ctx->CUDACtx()->Stream());
 
   auto uni_key = dh::MakeTransformIterator<float>(
-      thrust::make_counting_iterator(0),
+      dh::make_counting_iterator(0),
       [=] XGBOOST_DEVICE(size_t i) { return predts[d_sorted_idx[i]]; });
   auto end_unique = thrust::unique_by_key_copy(
       ctx->CUDACtx()->TP(), uni_key, uni_key + d_sorted_idx.size(), dh::tbegin(d_unique_idx),
@@ -150,7 +152,7 @@ std::tuple<double, double, double> BinaryAUC(Context const *ctx, common::Span<fl
   });
 
   auto in = dh::MakeTransformIterator<double>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         double fp, tp;
         double fp_prev, tp_prev;
         if (i == 0) {
@@ -211,8 +213,8 @@ double ScaleOutputs(Context const *ctx, bool, common::Span<double> results,
         ctx, linalg::MakeVec(results.data(), results.size(), ctx->Device()), collective::Op::kSum);
     collective::SafeColl(rc);
   }
-  auto reduce_in = dh::MakeTransformIterator<Pair>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+  auto reduce_in =
+      dh::MakeTransformIterator<Pair>(dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         if (local_area[i] > 0) {
           return cuda::std::make_pair(auc[i] / local_area[i] * output_weights[i],
                                       output_weights[i]);
@@ -242,7 +244,7 @@ void SegmentedFPTP(Context const *ctx, common::Span<Pair> d_fptp, Fn segment_id)
   using Triple = cuda::std::tuple<uint32_t, double, double>;
   // expand to tuple to include idx
   auto fptp_it_in = dh::MakeTransformIterator<Triple>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         return cuda::std::make_tuple(i, d_fptp[i].first, d_fptp[i].second);
       });
   // shrink down to pair
@@ -279,13 +281,13 @@ void SegmentedReduceAUC(Context const *ctx, common::Span<size_t const> d_unique_
                         common::Span<double> d_auc) {
   auto d_fptp = dh::ToSpan(cache->fptp);
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
-  auto key_in = dh::MakeTransformIterator<uint32_t>(thrust::make_counting_iterator(0),
+  auto key_in = dh::MakeTransformIterator<uint32_t>(dh::make_counting_iterator(0),
                                                     [=] XGBOOST_DEVICE(size_t i) {
                                                       size_t class_id = segment_id(d_unique_idx[i]);
                                                       return class_id;
                                                     });
   auto val_in = dh::MakeTransformIterator<double>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         size_t class_id = segment_id(d_unique_idx[i]);
 
         double fp, tp, fp_prev, tp_prev;
@@ -362,7 +364,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
   auto d_unique_idx = dh::ToSpan(cache->unique_idx);
   dh::Iota(d_unique_idx, ctx->CUDACtx()->Stream());
   auto uni_key = dh::MakeTransformIterator<cuda::std::pair<std::uint32_t, float>>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         uint32_t output_id = i / n_samples;
         float predt = d_predts_t[d_sorted_idx[i]];
         return cuda::std::make_pair(output_id, predt);
@@ -490,7 +492,7 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
    * Validate the dataset
    */
   auto check_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(0),
+      dh::make_counting_iterator(0),
       [=] XGBOOST_DEVICE(size_t i) { return d_group_ptr[i + 1] - d_group_ptr[i]; });
   size_t n_valid =
       thrust::count_if(ctx->CUDACtx()->CTP(), check_it, check_it + group_ptr.size() - 1,
@@ -534,7 +536,7 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
     return cuda::std::make_pair(i, j);
   };  // NOLINT
   auto in = dh::MakeTransformIterator<RankScanItem>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t idx) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t idx) {
         bst_group_t query_group_idx = dh::SegmentId(d_threads_group_ptr, idx);
         auto data_group_begin = d_group_ptr[query_group_idx];
         size_t n_samples = d_group_ptr[query_group_idx + 1] - data_group_begin;
@@ -608,8 +610,8 @@ std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<
   auto labels = info.labels.View(ctx->Device());
   auto d_weights = info.weights_.ConstDeviceSpan();
   auto get_weight = common::OptionalWeights{d_weights};
-  auto it = dh::MakeTransformIterator<Pair>(thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(
-                                                                                     size_t i) {
+  auto it = dh::MakeTransformIterator<Pair>(dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(
+                                                                                 size_t i) {
     auto w = get_weight[d_sorted_idx[i]];
     return cuda::std::make_pair(labels(d_sorted_idx[i]) * w, (1.0f - labels(d_sorted_idx[i])) * w);
   });
@@ -651,13 +653,13 @@ double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo
   auto labels = info.labels.View(ctx->Device());
   auto n_samples = info.num_row_;
   dh::caching_device_vector<Pair> totals(n_targets);
-  auto key_it = dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
+  auto key_it = dh::MakeTransformIterator<size_t>(dh::make_counting_iterator(0ul),
                                                   [n_samples] XGBOOST_DEVICE(size_t i) {
                                                     return i / n_samples;  // output id
                                                   });
   auto get_weight = common::OptionalWeights{d_weights};
   auto val_it = dh::MakeTransformIterator<cuda::std::pair<double, double>>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
         auto ridx = d_sorted_idx[i] % n_samples;
         auto w = get_weight[ridx];
         auto output_id = i / n_samples;
@@ -725,7 +727,7 @@ std::pair<double, uint32_t> RankingPRAUCImpl(Context const *ctx, common::Span<fl
   auto d_unique_idx = dh::ToSpan(cache->unique_idx);
   dh::Iota(d_unique_idx, ctx->CUDACtx()->Stream());
   auto uni_key = dh::MakeTransformIterator<cuda::std::pair<uint32_t, float>>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
+      dh::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         auto idx = d_sorted_idx[i];
         bst_group_t group_id = dh::SegmentId(d_group_ptr, idx);
         float predt = predts[idx];
@@ -778,7 +780,7 @@ std::pair<double, uint32_t> RankingPRAUCImpl(Context const *ctx, common::Span<fl
   uint32_t invalid_groups;
   {
     auto it = dh::MakeTransformIterator<cuda::std::pair<double, uint32_t>>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t g) {
+        dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t g) {
           double fp, tp;
           cuda::std::tie(fp, tp) = d_fptp[common::LastOf(g, d_group_ptr)];
           double area = fp * tp;
@@ -829,9 +831,9 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
   auto d_weights = info.weights_.ConstDeviceSpan();
   dh::caching_device_vector<cuda::std::pair<double, double>> totals(n_groups);
   auto key_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(0ul),
+      dh::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_group_ptr, i); });
-  auto val_it = dh::MakeTransformIterator<Pair>(thrust::make_counting_iterator(0ul),
+  auto val_it = dh::MakeTransformIterator<Pair>(dh::make_counting_iterator(0ul),
                                                 [=] XGBOOST_DEVICE(size_t i) {
                                                   float w = 1.0f;
                                                   // Avoid a binary search if the groups
@@ -857,4 +859,63 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
   };
   return RankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);
 }
+
+namespace {
+void PrepareInputs(Context const *ctx, HostDeviceVector<float> const &preds, MetaInfo const &info) {
+  preds.SetDevice(ctx->Device());
+  info.labels.SetDevice(ctx->Device());
+  info.weights_.SetDevice(ctx->Device());
+}
+
+template <AUCCurve curve>
+std::tuple<double, double, double> BinaryAUCCuda(Context const *ctx,
+                                                 HostDeviceVector<float> const &preds,
+                                                 MetaInfo const &info,
+                                                 std::shared_ptr<DeviceAUCCache> *cache) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return BinaryROCAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  } else {
+    return BinaryPRAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  }
+}
+
+template <AUCCurve curve>
+double MultiAUCCuda(Context const *ctx, HostDeviceVector<float> const &preds, MetaInfo const &info,
+                    std::shared_ptr<DeviceAUCCache> *cache, std::size_t n_outputs,
+                    MultiAUCType type) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return MultiROCAUC(ctx, preds.ConstDeviceSpan(), info, cache, n_outputs, type);
+  } else {
+    return MultiPRAUC(ctx, preds.ConstDeviceSpan(), info, cache, n_outputs, type);
+  }
+}
+
+template <AUCCurve curve>
+std::pair<double, std::uint32_t> RankingAUCCuda(Context const *ctx,
+                                                HostDeviceVector<float> const &preds,
+                                                MetaInfo const &info,
+                                                std::shared_ptr<DeviceAUCCache> *cache) {
+  PrepareInputs(ctx, preds, info);
+  if constexpr (curve == AUCCurve::kROC) {
+    return RankingAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  } else {
+    return RankingPRAUC(ctx, preds.ConstDeviceSpan(), info, cache);
+  }
+}
+
+auto const kRegisterBinaryROCCuda = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &BinaryAUCCuda<AUCCurve::kROC>};
+auto const kRegisterMultiROCCuda = common::KernelRegistration<MultiAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &MultiAUCCuda<AUCCurve::kROC>};
+auto const kRegisterRankingROCCuda = common::KernelRegistration<RankingAUCKernel<AUCCurve::kROC>>{
+    DeviceOrd::kCUDA, &RankingAUCCuda<AUCCurve::kROC>};
+auto const kRegisterBinaryPRCuda = common::KernelRegistration<BinaryAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &BinaryAUCCuda<AUCCurve::kPR>};
+auto const kRegisterMultiPRCuda = common::KernelRegistration<MultiAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &MultiAUCCuda<AUCCurve::kPR>};
+auto const kRegisterRankingPRCuda = common::KernelRegistration<RankingAUCKernel<AUCCurve::kPR>>{
+    DeviceOrd::kCUDA, &RankingAUCCuda<AUCCurve::kPR>};
+}  // namespace
 }  // namespace xgboost::metric::cuda_impl

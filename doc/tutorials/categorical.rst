@@ -12,7 +12,7 @@ Since version 1.5, XGBoost has support for categorical data.  For numerical data
 split condition is defined as :math:`value < threshold`, while for categorical data the
 split is defined depending on whether partitioning or onehot encoding is used. For
 partition-based splits, the splits are specified as :math:`value \in categories`, where
-``categories`` is the set of categories in one feature.  If onehot encoding is used
+``categories`` is the set of categories in one feature.  If onehot encoding (the default) is used
 instead, then the split is defined as :math:`value == category`. More advanced categorical
 split strategy is planned for future releases and this tutorial details how to inform
 XGBoost about the data type.
@@ -91,7 +91,8 @@ group the categories that output similar leaf values. During split finding, we f
 the gradient histogram to prepare the contiguous partitions then enumerate the splits
 according to these sorted values. One of the related parameters for XGBoost is
 ``max_cat_to_onehot``, which controls whether one-hot encoding or partitioning should be
-used for each feature, see :ref:`cat-param` for details.
+used for each feature. Set ``max_cat_to_onehot=1`` to use partitioning for all categorical
+features. See :ref:`cat-param` for details.
 
 ===========
 Vector Leaf
@@ -143,7 +144,7 @@ dataframe input:
 
   # X is a dataframe we created in previous snippet
   Xy = xgb.DMatrix(X, y, enable_categorical=True)
-  booster = xgb.train({"tree_method": "hist", "max_cat_to_onehot": 5}, Xy)
+  booster = xgb.train({"tree_method": "hist"}, Xy)
   # Must use JSON for serialization, otherwise the information is lost
   booster.save_model("categorical-model.json")
 

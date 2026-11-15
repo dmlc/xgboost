@@ -4,11 +4,14 @@
  * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
-#include <thrust/logical.h>  // for any_of
-#include <thrust/sort.h>     // for stable_sort_by_key
+#include <thrust/copy.h>      // for copy_if
+#include <thrust/for_each.h>  // for for_each
+#include <thrust/logical.h>   // for any_of
+#include <thrust/sort.h>      // for stable_sort
 
 #include <cuda/std/tuple>  // for make_tuple, get
 
+#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
@@ -24,8 +27,8 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
-    auto beg = thrust::make_counting_iterator<size_t>(1ul);
-    auto end = thrust::make_counting_iterator<size_t>(ptrs.size());
+    auto beg = dh::make_counting_iterator<size_t>(1ul);
+    auto end = dh::make_counting_iterator<size_t>(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;
     // This condition avoids sort-based split function calls if the users want
     // onehot-encoding-based splits.
@@ -56,7 +59,7 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
      * cache feature index binary search result
      */
     feature_idx_.resize(cat_sorted_idx_.size());
-    auto it = thrust::make_counting_iterator(0ul);
+    auto it = dh::make_counting_iterator(0ul);
     thrust::transform(ctx->CUDACtx()->CTP(), it, it + feature_idx_.size(), feature_idx_.begin(),
                       [=] XGBOOST_DEVICE(size_t i) {
                         auto fidx = dh::SegmentId(ptrs, i);
@@ -72,56 +75,68 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
-  auto it = thrust::make_counting_iterator(0u);
+  auto it = dh::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   auto total_bins = shared_inputs.feature_values.size();
-  thrust::transform(ctx->CUDACtx()->CTP(), it, it + data.size(), dh::tbegin(data),
-                    [=] XGBOOST_DEVICE(uint32_t i) {
-                      auto const &input = d_inputs[i / total_bins];
-                      auto j = i % total_bins;
-                      auto fidx = d_feature_idx[j];
-                      if (common::IsCat(shared_inputs.feature_types, fidx)) {
-                        auto grad =
-                            shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[j]);
-                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
-                        return cuda::std::make_tuple(i, lw);
-                      }
-                      return cuda::std::make_tuple(i, 0.0f);
-                    });
+  dh::TemporaryArray<bst_feature_t> partition_bins(data.size());
+  auto d_partition_bins = dh::ToSpan(partition_bins);
+  auto to_onehot = shared_inputs.param.max_cat_to_onehot;
+  auto partition_end = thrust::copy_if(ctx->CUDACtx()->CTP(), it, it + data.size(),
+                                       partition_bins.data(), [=] XGBOOST_DEVICE(std::uint32_t i) {
+                                         auto bin = i % total_bins;
+                                         auto fidx = d_feature_idx[bin];
+                                         auto feature_bins =
+                                             shared_inputs.feature_segments[fidx + 1] -
+                                             shared_inputs.feature_segments[fidx];
+                                         return common::IsCat(shared_inputs.feature_types, fidx) &&
+                                                !common::UseOneHot(feature_bins, to_onehot);
+                                       });
+  auto partition_n = partition_end - partition_bins.data();
+  auto partition_key = data.subspan(0, partition_n);
+  thrust::for_each(
+      ctx->CUDACtx()->CTP(), it, it + partition_n, [=] XGBOOST_DEVICE(std::uint32_t k) {
+        auto global_idx = d_partition_bins[k];
+        auto node = global_idx / total_bins;
+        auto bin = global_idx % total_bins;
+        auto const &input = d_inputs[node];
+        auto grad = shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[bin]);
+        auto lw = evaluator.CalcWeightCat(grad);
+        partition_key[k] = cuda::std::make_tuple(global_idx, lw);
+      });
   // Sort an array segmented according to
   // - nodes
   // - features within each node
   // - gradients within each feature
-  thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(data), dh::tend(data),
-                             dh::tbegin(sorted_idx),
-                             [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
-                               auto li = cuda::std::get<0>(l);
-                               auto ri = cuda::std::get<0>(r);
+  thrust::stable_sort(ctx->CUDACtx()->CTP(), dh::tbegin(partition_key), dh::tend(partition_key),
+                      [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
+                        auto li = cuda::std::get<0>(l);
+                        auto ri = cuda::std::get<0>(r);
 
-                               auto l_node = li / total_bins;
-                               auto r_node = ri / total_bins;
+                        auto l_node = li / total_bins;
+                        auto r_node = ri / total_bins;
 
-                               if (l_node != r_node) {
-                                 return l_node < r_node;  // not the same node
-                               }
+                        if (l_node != r_node) {
+                          return l_node < r_node;  // not the same node
+                        }
 
-                               li = li % total_bins;
-                               ri = ri % total_bins;
+                        li = li % total_bins;
+                        ri = ri % total_bins;
 
-                               auto lfidx = d_feature_idx[li];
-                               auto rfidx = d_feature_idx[ri];
+                        auto lfidx = d_feature_idx[li];
+                        auto rfidx = d_feature_idx[ri];
 
-                               if (lfidx != rfidx) {
-                                 return lfidx < rfidx;  // not the same feature
-                               }
+                        if (lfidx != rfidx) {
+                          return lfidx < rfidx;  // not the same feature
+                        }
 
-                               if (common::IsCat(shared_inputs.feature_types, lfidx)) {
-                                 auto lw = cuda::std::get<1>(l);
-                                 auto rw = cuda::std::get<1>(r);
-                                 return lw < rw;
-                               }
-                               return li < ri;
-                             });
+                        auto lw = cuda::std::get<1>(l);
+                        auto rw = cuda::std::get<1>(r);
+                        return lw < rw;
+                      });
+  thrust::for_each(ctx->CUDACtx()->CTP(), it, it + partition_n,
+                   [=] XGBOOST_DEVICE(std::uint32_t k) {
+                     sorted_idx[d_partition_bins[k]] = cuda::std::get<0>(partition_key[k]);
+                   });
 
   return dh::ToSpan(cat_sorted_idx_);
 }
