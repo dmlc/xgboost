@@ -8,6 +8,7 @@
 #include <atomic>     // for atomic
 #include <chrono>     // for milliseconds
 #include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
 #include <memory>     // for make_shared, make_unique, shared_ptr
 #include <stdexcept>  // for runtime_error
 #include <thread>     // for sleep_for, thread
@@ -78,6 +79,43 @@ TEST(ParallelFor2d, ThreadsCappedByBlocks) {
 #endif
                   }));
   }
+}
+
+TEST(ParallelFor2d, FewerThreadsThanRequested) {
+#if defined(_OPENMP) && !defined(_MSC_VER)
+  // Without nested parallelism, a region inside another one starts a single thread although four
+  // are requested. Every block must still run once, with the worker ID it gets in a full team.
+  auto const max_levels = omp_get_max_active_levels();
+  omp_set_max_active_levels(1);
+  constexpr std::size_t kBlocks = 7;
+  constexpr std::int32_t kThreads = 4;
+  constexpr std::size_t kChunk = (kBlocks + kThreads - 1) / kThreads;
+  BlockedSpace2d space(kBlocks, [](std::size_t) { return std::size_t{1}; }, 1);
+  std::array<std::array<std::atomic<int>, kBlocks>, 2> visits{};
+  std::atomic<int> n_outer{0};
+#pragma omp parallel num_threads(2)
+  {
+    n_outer = omp_get_num_threads();
+    // With a single outer thread the outer region is inactive and the inner one gets its team.
+    bool const nested = omp_get_num_threads() > 1;
+    auto& outer_visits = visits[omp_get_thread_num()];
+    ParallelFor2d(space, kThreads, WithWorker([&](std::size_t i, Range1d, Worker worker) {
+                    if (nested) {
+                      EXPECT_EQ(omp_get_num_threads(), 1);
+                    }
+                    EXPECT_EQ(worker.Id(), static_cast<std::int32_t>(i / kChunk));
+                    ++outer_visits[i];
+                  }));
+  }
+  omp_set_max_active_levels(max_levels);
+  for (int t = 0; t < n_outer; ++t) {
+    for (auto const& count : visits[t]) {
+      EXPECT_EQ(count.load(), 1);
+    }
+  }
+#else
+  GTEST_SKIP() << "Needs OpenMP 3.0 nesting control.";
+#endif
 }
 
 TEST(ParallelFor, WithWorker) {

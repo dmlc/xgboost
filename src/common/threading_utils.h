@@ -130,6 +130,14 @@ class BlockedSpace2d {
   std::vector<std::size_t> first_dimension_;
 };
 
+/**
+ * @brief Run fn on every block of the space in parallel.
+ *
+ * Blocks are split into n = min(n_threads, space.Size()) contiguous chunks of
+ * ceil(space.Size() / n) blocks, and block i gets worker ID i / chunk size, even when the OpenMP
+ * runtime starts fewer threads than requested. ParallelGHistBuilder::MatchThreadsToNodes relies on
+ * this mapping.
+ */
 template <typename Func>
 void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& fn) {
   static_assert(std::is_void_v<std::invoke_result_t<Func, std::size_t, Range1d>>);

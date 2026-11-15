@@ -117,17 +117,18 @@ struct OpenMPExecutor {
     }
     n_threads = static_cast<std::int32_t>(std::min<std::size_t>(n_threads, n_blocks_in_space));
 
+    std::size_t const chunk_size =
+        n_blocks_in_space / n_threads + !!(n_blocks_in_space % n_threads);
     dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-    {
-      exc.Run([&]() {
-        std::size_t tid = omp_get_thread_num();
-        auto&& callback =
-            detail::BindWorker(fn, [tid] { return Worker{static_cast<std::int32_t>(tid)}; });
-        std::size_t chunck_size = n_blocks_in_space / n_threads + !!(n_blocks_in_space % n_threads);
-
-        std::size_t begin = chunck_size * tid;
-        std::size_t end = std::min(begin + chunck_size, n_blocks_in_space);
+    // One iteration per requested thread, so every chunk runs even when the runtime starts fewer
+    // threads (for example with OMP_DYNAMIC). Chunk tid reports worker ID tid, as in a full team;
+    // ParallelGHistBuilder::MatchThreadsToNodes relies on that mapping.
+#pragma omp parallel for num_threads(n_threads) schedule(static, 1)
+    for (std::int32_t tid = 0; tid < n_threads; ++tid) {
+      exc.Run([&, tid]() {
+        auto&& callback = detail::BindWorker(fn, [tid] { return Worker{tid}; });
+        std::size_t begin = chunk_size * tid;
+        std::size_t end = std::min(begin + chunk_size, n_blocks_in_space);
         for (auto i = begin; i < end; i++) {
           callback(space.GetFirstDimension(i), space.GetRange(i));
         }

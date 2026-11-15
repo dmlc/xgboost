@@ -10,9 +10,10 @@ namespace xgboost::common {
 /**
  * @brief Execution metadata for one invocation of a parallel loop.
  *
- * IDs satisfy 0 <= Id() < requested threads. Serial calls supply ID 0,
- * including nested serial calls. IDs do not guarantee a work assignment
- * across separate loops.
+ * IDs satisfy 0 <= Id() < requested threads. Calls with one requested thread supply ID 0,
+ * including nested ones. A 2-D loop gives each block the ID of its chunk in a full team of the
+ * requested threads, even when fewer threads run it (see ParallelFor2d). Otherwise IDs do not
+ * guarantee a work assignment across separate loops.
  */
 class Worker {
   std::int32_t id_;
