@@ -15,6 +15,20 @@
 
 namespace xgboost::interpretability::detail {
 
+// Split features used by a tree, in increasing order with duplicates removed.
+template <typename Tree>
+std::vector<bst_feature_t> MakeSplitFeatures(Tree const& tree) {
+  std::vector<bst_feature_t> out;
+  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
+    if (!tree.IsLeaf(nidx)) {
+      out.push_back(tree.SplitIndex(nidx));
+    }
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+  return out;
+}
+
 constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr std::size_t kQuadratureTreeShapPoints = 8;
 constexpr float kQuadratureTreeShapUnseen = -999.0f;
