@@ -2169,11 +2169,15 @@ class Booster:
 
     def _set_feature_info(self, features: Optional[FeatureInfo], field: str) -> None:
         if features is not None:
+            name = field.replace("_", " ") + "s"
+            # A bare string is a sequence too, but it would be split into characters.
+            if isinstance(features, str):
+                raise TypeError(
+                    f"Expecting a sequence of strings for {name}, got: {type(features)}"
+                )
             # The number of features is not checked, the names might be assigned
             # before the booster sees any data.
-            features = _validate_feature_info(
-                features, 0, field.replace("_", " ") + "s"
-            )
+            features = _validate_feature_info(features, 0, name)
             if field == "feature_name":
                 _validate_feature_names(features)
             feature_info_bytes = [bytes(f, encoding="utf-8") for f in features]

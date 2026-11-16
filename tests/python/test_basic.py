@@ -191,6 +191,10 @@ class TestBasic:
             booster.feature_names = ["F0", 1]  # type: ignore[list-item]
         with pytest.raises(TypeError, match="Expecting a sequence of strings"):
             booster.feature_names = 1  # type: ignore[assignment]
+        with pytest.raises(TypeError, match="Expecting a sequence of strings"):
+            booster.feature_names = "F0"  # type: ignore[assignment]
+        with pytest.raises(TypeError, match="Expecting a sequence of strings"):
+            booster.feature_types = "q"  # type: ignore[assignment]
         assert booster.feature_names == ["F0", "F1"]
 
     def test_load_file_invalid(self):
