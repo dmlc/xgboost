@@ -6,12 +6,64 @@
 #include <xgboost/learner.h>
 
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/predictor/interpretability/shap.h"
 #include "../helpers.h"
 #include "test_predictor.h"
 #include "test_shap.h"
+#include "xgboost/linalg.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
+
+TEST(GPUPredictor, ShapUnusedFeatures) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t constexpr kFeatures = 128;
+  for (bool constant : {false, true}) {
+    std::size_t shape[1]{1};
+    linalg::Vector<float> base_score{shape, ctx.Device()};
+    base_score.Data()->HostVector()[0] = 0.125f;
+    std::as_const(base_score).HostView();
+    std::as_const(base_score).View(ctx.Device());
+    LearnerModelState state{kFeatures, std::move(base_score), 1, 1,
+                            MultiStrategy::kOneOutputPerTree};
+    gbm::GBTreeModel model{&state, &ctx};
+    auto tree = std::make_unique<RegTree>();
+    if (constant) {
+      (*tree)[RegTree::kRoot].SetLeaf(1.0f);
+      tree->Stat(RegTree::kRoot).sum_hess = 4.0f;
+    } else {
+      // An AND tree using two noncontiguous columns; every other feature is unused.
+      tree->Expand(
+          {{RegTree::kRoot, 3, 0.5f, true}, {0.0f, 4.0f}, {0.0f, 2.0f}, {0.0f, 2.0f}, 0.0f});
+      auto right = (*tree)[RegTree::kRoot].RightChild();
+      tree->Expand(
+          {{right, kFeatures - 1, 0.5f, true}, {0.0f, 2.0f}, {0.0f, 1.0f}, {1.0f, 1.0f}, 0.0f});
+      tree->FinalizeLeaves(1.0f);
+    }
+    gbm::TreesOneGroup trees;
+    trees.emplace_back(std::move(tree));
+    model.CommitModelGroup(std::move(trees), 0);
+    auto dmat = GetDMatrixFromData(std::vector<float>(kFeatures, 1.0f), 1, kFeatures);
+    HostDeviceVector<float> output;
+    interpretability::ShapInteractionValues(&ctx, dmat.get(), &output, model, 0, nullptr, false);
+    auto constexpr kCols = kFeatures + 1;
+    std::vector<float> expected(kCols * kCols, 0.0f);
+    expected[kFeatures * kCols + kFeatures] = constant ? 1.125f : 0.375f;
+    if (!constant) {
+      expected[3 * kCols + 3] = expected[(kFeatures - 1) * kCols + kFeatures - 1] = 0.25f;
+      expected[3 * kCols + kFeatures - 1] = expected[(kFeatures - 1) * kCols + 3] = 0.125f;
+    }
+    auto const& actual = output.ConstHostVector();
+    ASSERT_EQ(actual.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      EXPECT_NEAR(actual[i], expected[i], 2e-6f) << "constant=" << constant << ", index=" << i;
+    }
+  }
+}
 
 TEST(GPUPredictor, CompareCPUShap) {
   auto ctx = MakeCUDACtx(0);

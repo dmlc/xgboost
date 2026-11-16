@@ -504,6 +504,12 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_state->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
+  std::vector<std::vector<bst_feature_t>> tree_split_features;
+  tree_split_features.reserve(model_data.trees.size());
+  for (auto const &tree : model_data.trees) {
+    tree_split_features.push_back(
+        std::visit([](auto const &t) { return detail::MakeSplitFeatures(t); }, tree));
+  }
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
   std::vector<std::vector<float>> path_prob_tloc(
@@ -529,7 +535,10 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
             float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
             for (auto entry_idx : model_data.entries_by_group[gid]) {
               auto const &entry = model_data.entries[entry_idx];
-              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
+              auto const &split_features = tree_split_features[entry.tree_idx];
+              for (auto fidx : split_features) {
+                this_tree_contribs[fidx] = 0.0f;
+              }
               auto formulation =
                   AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
               auto const *cover_ratios = model_data.cover_ratios[entry.tree_idx].data();
@@ -542,8 +551,8 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
                   },
                   model_data.trees[entry.tree_idx]);
               auto const weight = entry.weight;
-              for (size_t ci = 0; ci + 1 < ncolumns; ++ci) {
-                p_contribs[ci] += this_tree_contribs[ci] * weight;
+              for (auto fidx : split_features) {
+                p_contribs[fidx] += this_tree_contribs[fidx] * weight;
               }
             }
             p_contribs[ncolumns - 1] += model_data.group_root_mean_sums[gid];
