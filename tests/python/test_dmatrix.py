@@ -171,6 +171,15 @@ class TestDMatrix:
         sliced = d.slice(ridxs_arr)
         np.testing.assert_equal(sliced.get_label(), y[2:7])
 
+    @pytest.mark.parametrize("ridx", [-1, 100, 101, 2**31 - 1])
+    def test_slice_out_of_bounds(self, ridx: int) -> None:
+        X = rng.randn(100, 4)
+        d = xgb.DMatrix(X, X[:, 0])
+        with pytest.raises(ValueError, match=f"out of bounds: {ridx}, .* 100 rows"):
+            d.slice([0, ridx])
+        assert d.slice([0, 99]).num_row() == 2
+        assert d.slice([]).num_row() == 0
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 
