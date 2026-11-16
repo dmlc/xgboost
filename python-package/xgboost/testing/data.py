@@ -1088,10 +1088,17 @@ def make_categorical(
                 categories = np.array(unique_random_strings(n_categories, i))
                 c = row_rng.choice(categories, size=n_samples, replace=True)
             else:
-                categories = np.arange(0, n_categories)
-                c = row_rng.randint(low=0, high=n_categories, size=n_samples)
+                if not np.issubdtype(cat_dtype, np.integer):
+                    raise ValueError("cat_dtype must be an integer type")
+                categories = np.arange(0, n_categories, dtype=cat_dtype)
+                c = row_rng.randint(
+                    low=0,
+                    high=n_categories,
+                    size=n_samples,
+                    dtype=cat_dtype,  # type: ignore[arg-type]
+                )
 
-            df[str(i)] = pd.Series(c, dtype="category")
+            df[str(i)] = pd.Series(c, dtype=cat_dtype).astype("category")
             df[str(i)] = df[str(i)].cat.set_categories(categories)
         else:
             num = row_rng.randint(low=0, high=n_categories, size=n_samples)
@@ -1150,12 +1157,14 @@ class IteratorForTest(DataIter):
         cache: Optional[str],
         on_host: bool = False,
         min_cache_page_bytes: Optional[int] = None,
+        force_gc: bool = False,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
+        self.force_gc = force_gc
         super().__init__(
             cache_prefix=cache,
             on_host=on_host,
@@ -1175,7 +1184,10 @@ class IteratorForTest(DataIter):
             label=self.y[self.it].copy(),
             weight=self.w[self.it].copy() if self.w else None,
         )
-        gc.collect()  # clear up the copy, see if XGBoost access freed memory.
+        # Full heap scans per batch dominate small matrix tests. Dedicated lifetime
+        # tests force collection; other tests still pass temporary copies above.
+        if self.force_gc:
+            gc.collect()
         self.it += 1
         return True
 

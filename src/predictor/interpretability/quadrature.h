@@ -15,6 +15,20 @@
 
 namespace xgboost::interpretability::detail {
 
+// Split features used by a tree, in increasing order with duplicates removed.
+template <typename Tree>
+std::vector<bst_feature_t> MakeSplitFeatures(Tree const& tree) {
+  std::vector<bst_feature_t> out;
+  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
+    if (!tree.IsLeaf(nidx)) {
+      out.push_back(tree.SplitIndex(nidx));
+    }
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+  return out;
+}
+
 constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr std::size_t kQuadratureTreeShapPoints = 8;
 constexpr float kQuadratureTreeShapUnseen = -999.0f;
@@ -67,7 +81,10 @@ inline double LegendreDerivative(std::size_t n, double x, double pn) {
   return n_d * (x * pn - LegendrePolynomial(n - 1, x)) / (x * x - 1.0);
 }
 
-inline QuadratureRule MakeEndpointQuadrature() {
+// Gauss-Legendre rule on [0, 1]. For one feature, the path integrand is a polynomial in t whose
+// degree is the number of other distinct features on the path. An n-point rule integrates degree
+// <= 2n - 1 exactly, so the 8-point rule is exact up to 16 distinct features per path.
+inline QuadratureRule MakeGaussLegendreQuadrature() {
   constexpr std::size_t kN = kQuadratureTreeShapPoints;
   constexpr double kConvergenceEps = 1e-15;
   QuadratureRule rule;
@@ -88,17 +105,15 @@ inline QuadratureRule MakeEndpointQuadrature() {
     auto pn = LegendrePolynomial(kN, x);
     auto dpn = LegendreDerivative(kN, x, pn);
     auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
-    double s = 0.5 * (x + 1.0);
-    double ws = 0.5 * w;
     auto out_idx = kN - 1 - i;
-    rule.nodes[out_idx] = static_cast<float>(s * s);
-    rule.weights[out_idx] = static_cast<float>(2.0 * s * ws);
+    rule.nodes[out_idx] = static_cast<float>(0.5 * (x + 1.0));
+    rule.weights[out_idx] = static_cast<float>(0.5 * w);
   }
   return rule;
 }
 
 inline QuadratureRule const& GetQuadratureRule() {
-  static QuadratureRule const kRule = MakeEndpointQuadrature();
+  static QuadratureRule const kRule = MakeGaussLegendreQuadrature();
   return kRule;
 }
 

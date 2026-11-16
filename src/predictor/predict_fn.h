@@ -8,6 +8,7 @@
 #include <vector>  // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
+#include "../common/math.h"         // for CheckNAN
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -23,15 +24,26 @@ XGBOOST_DEVICE bool GetDecision(TreeView const &tree, bst_node_t nid, float fval
   }
 }
 
+/**
+ * @brief Select the next node using a feature value, with NaN representing missing data.
+ *
+ * @tparam has_missing Whether feature values may be NaN. When false, callers must
+ *                     provide non-NaN values and the missing-value check is omitted.
+ * @tparam has_categorical Whether the tree may contain categorical splits.
+ * @param fvalue Feature value for the split. With has_missing enabled, NaN selects
+ *               the default child before numerical or categorical split evaluation.
+ *               Any user-defined missing-value sentinel must already be converted
+ *               to NaN by the input loader.
+ */
 template <bool has_missing, bool has_categorical, typename TreeView>
 XGBOOST_DEVICE bst_node_t GetNextNode(TreeView const &tree, const bst_node_t nid, float fvalue,
-                                      bool is_missing,
                                       RegTree::CategoricalSplitMatrix const &cats) {
-  if (has_missing && is_missing) {
-    return tree.DefaultChild(nid);
-  } else {
-    return tree.LeftChild(nid) + !GetDecision<has_categorical>(tree, nid, fvalue, cats);
+  if constexpr (has_missing) {
+    if (common::CheckNAN(fvalue)) {
+      return tree.DefaultChild(nid);
+    }
   }
+  return tree.LeftChild(nid) + !GetDecision<has_categorical>(tree, nid, fvalue, cats);
 }
 
 /**

@@ -13,13 +13,20 @@
 #include "./param.h"  // for TrainParam
 
 namespace xgboost::tree {
+/** @brief Calibrate the split threshold to the dimension of the projected gains. */
+inline TrainParam ScaleMinSplitLoss(TrainParam param, bst_target_t n_split_targets,
+                                    bst_target_t n_targets) {
+  param.min_split_loss *= static_cast<float>(n_split_targets) / n_targets;
+  return param;
+}
+
 template <typename ExpandEntryT>
-bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool DepthWise(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
-bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool LossGuide(ExpandEntryT const& lhs, ExpandEntryT const& rhs) {
   if (lhs.GetLossChange() == rhs.GetLossChange()) {
     return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
   } else {
@@ -49,15 +56,18 @@ template <typename ExpandEntryT>
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
-  using ExpandQueue = std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
-                                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
+  using ExpandQueue =
+      std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
+                          std::function<bool(ExpandEntryT const&, ExpandEntryT const&)>>;
 
  public:
   explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
       : param_(param),
         max_node_batch_size_(max_node_batch_size),
         queue_(param.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT>
-                                                           : LossGuide<ExpandEntryT>) {}
+                                                           : LossGuide<ExpandEntryT>) {
+    CHECK_GT(max_node_batch_size, 0);
+  }
   template <typename EntryIterT>
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
@@ -82,6 +92,12 @@ class Driver {
     return true;
   }
 
+  // Keep both siblings for histogram subtraction if either can be split again.
+  bool IsChildValid(ExpandEntryT const& parent_entry, double left_hess, double right_hess) {
+    auto min_hess = 2.0 * param_.min_child_weight;
+    return this->IsChildValid(parent_entry) && (left_hess >= min_hess || right_hess >= min_hess);
+  }
+
   // Return the set of nodes to be expanded
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously
@@ -100,21 +116,26 @@ class Driver {
       }
     }
     // Return nodes on same level for depth wise
-    std::vector<ExpandEntryT> result;
-    ExpandEntryT e = queue_.top();
-    int level = e.depth;
-    while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
-      queue_.pop();
-      if (IsValidExpandEntry(e, param_, num_leaves_)) {
-        num_leaves_++;
-        result.emplace_back(e);
-      }
+    while (!queue_.empty()) {
+      std::vector<ExpandEntryT> result;
+      ExpandEntryT e = queue_.top();
+      int level = e.depth;
+      while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
+        queue_.pop();
+        if (IsValidExpandEntry(e, param_, num_leaves_)) {
+          num_leaves_++;
+          result.emplace_back(e);
+        }
 
-      if (!queue_.empty()) {
-        e = queue_.top();
+        if (!queue_.empty()) {
+          e = queue_.top();
+        }
+      }
+      if (!result.empty()) {
+        return result;
       }
     }
-    return result;
+    return {};
   }
 
  private:

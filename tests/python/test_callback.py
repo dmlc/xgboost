@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -100,6 +101,12 @@ class TestCallbacks:
         )
         assert len(evals_result["Train"]["error"]) == rounds
         assert len(evals_result["Valid"]["error"]) == rounds
+
+        for name in ["my train", "my\ttrain"]:
+            with pytest.raises(
+                ValueError, match="Dataset name should not contain whitespace"
+            ):
+                xgb.train({}, D_train, 2, evals=[(D_train, name)])
 
         self.run_evaluation_monitor(D_train, D_valid, rounds, True)
         self.run_evaluation_monitor(D_train, D_valid, rounds, 2)
@@ -292,21 +299,31 @@ class TestCallbacks:
             == booster.best_iteration + early_stopping_rounds + 1
         )
 
-    def test_early_stopping_multiple_metrics(self):
+    @pytest.mark.parametrize("custom", [False, True])
+    def test_early_stopping_multiple_metrics(self, custom: bool) -> None:
         from sklearn.datasets import make_classification
+        from sklearn.metrics import log_loss, roc_auc_score
+
+        def auc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+            return float(roc_auc_score(y_true, y_pred))
 
         X, y = make_classification(random_state=1994)
-        # AUC approaches 1.0 real quick.
-        clf = xgb.XGBClassifier(eval_metric=["logloss", "auc"], early_stopping_rounds=2)
-        clf.fit(X, y, eval_set=[(X, y)])
+        metrics = [log_loss, auc] if custom else ["logloss", "auc"]
+        # AUC plateaus early, while log loss continues to improve.
+        clf = xgb.XGBClassifier(eval_metric=metrics, early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)], verbose=False)
         assert clf.best_iteration < 8
-        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+        assert clf.get_booster().num_boosted_rounds() == clf.best_iteration + 3
+        results = clf.evals_result()["validation_0"]
+        assert results["auc"][-1] > 0.99
+        assert clf.best_score == max(results["auc"])
 
-        clf = xgb.XGBClassifier(eval_metric=["auc", "logloss"], early_stopping_rounds=2)
-        clf.fit(X, y, eval_set=[(X, y)])
-
+        clf = xgb.XGBClassifier(eval_metric=metrics[::-1], early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)], verbose=False)
         assert clf.best_iteration > 50
-        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+        results = clf.evals_result()["validation_0"]
+        assert results["auc"][-1] > 0.99
+        assert clf.best_score == min(results["log_loss" if custom else "logloss"])
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_eta_decay(self, tree_method: str) -> None:
@@ -350,9 +367,20 @@ class TestCallbacks:
             assert (tmp_path / f"model_{i}.pkl").exists()
 
     def test_callback_list(self) -> None:
+        @dataclass
+        class Counter(xgb.callback.TrainingCallback):
+            calls: int = 0
+
+            def after_iteration(self, model, epoch, evals_log) -> bool:
+                self.calls += 1
+                return False
+
         X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
-        callbacks = [xgb.callback.EarlyStopping(rounds=10)]
+        first, second = Counter(), Counter()
+        assert first is not second and first == second
+        callbacks = [first, second, first, xgb.callback.EarlyStopping(rounds=10)]
+        callback_ids = [id(cb) for cb in callbacks]
         for i in range(4):
             xgb.train(
                 {"objective": "reg:squarederror", "eval_metric": "rmse"},
@@ -362,7 +390,35 @@ class TestCallbacks:
                 verbose_eval=True,
                 callbacks=callbacks,
             )
-        assert len(callbacks) == 1
+            # Distinct equal callbacks both run; repeated references run only once.
+            assert first.calls == second.calls == i + 1
+            assert [id(cb) for cb in callbacks] == callback_ids
+
+        # A non-callback gets the callback type error even when it is unhashable.
+        with pytest.raises(TypeError, match="must be an instance"):
+            xgb.train({}, m, 1, callbacks=[{}])
+
+    def test_cv_stopped_by_custom_callback(self) -> None:
+        """A callback other than early stopping can stop `cv`."""
+        X, y, _ = tm.make_regression(256, 8, False)
+        Xy = xgb.DMatrix(X, y)
+        n_rounds = 4
+
+        class StopAfter(xgb.callback.TrainingCallback):
+            def after_iteration(self, model, epoch: int, evals_log) -> bool:
+                return epoch + 1 >= n_rounds
+
+        results = xgb.cv(
+            {"objective": "reg:squarederror"},
+            Xy,
+            num_boost_round=16,
+            nfold=3,
+            callbacks=[StopAfter()],
+            as_pandas=False,
+        )
+        assert results
+        for history in results.values():
+            assert len(history) == n_rounds
 
     def test_attribute_error(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
@@ -406,13 +462,22 @@ class TestCallbacks:
         xgb.train({}, dtrain=xgb.QuantileDMatrix(X, y, weight=w), callbacks=callbacks)
 
 
-def test_aggcv_nonfinite() -> None:
+def test_aggcv() -> None:
     # MSVC builds print an indeterminate NaN as `-nan(ind)`, see #6885
     rlist = [
-        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-cox-nloglik:0.5",
-        "[0]\ttrain-cox-nloglik:nan(ind)\teval-cox-nloglik:0.7",
+        "[0]\ttrain-cox-nloglik:-nan(ind)\teval-rmse:0.5\teval-mae:0.2",
+        "[0]\ttrain-cox-nloglik:nan(ind)\teval-rmse:0.7\teval-mae:0.6",
     ]
     results = _aggcv(rlist)
+    assert [name for name, _, _ in results] == [
+        "train-cox-nloglik",
+        "eval-rmse",
+        "eval-mae",
+    ]
     by_name = {name: (mean, std) for name, mean, std in results}
     assert math.isnan(by_name["train-cox-nloglik"][0])
-    assert by_name["eval-cox-nloglik"][0] == pytest.approx(0.6)
+    assert math.isnan(by_name["train-cox-nloglik"][1])
+    assert by_name["eval-rmse"] == pytest.approx((0.6, 0.1))
+    assert by_name["eval-mae"] == pytest.approx((0.4, 0.2))
+    with pytest.raises(AssertionError):
+        _aggcv(["[0]\ttrain-rmse:0.5", "[1]\ttrain-rmse:0.7"])

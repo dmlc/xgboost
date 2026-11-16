@@ -3,14 +3,6 @@
 
 set -euox pipefail
 
-if [[ "$#" -lt 1 ]]
-then
-  echo "Usage: $0 {gtest,pytest}"
-  exit 1
-fi
-
-suite="$1"
-
 mkdir build
 pushd build
 cmake .. -DGOOGLE_TEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ \
@@ -19,15 +11,13 @@ cmake .. -DGOOGLE_TEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ \
 ninja
 popd
 
-case "$suite" in
-  gtest)
-    ./build/testxgboost
-    ;;
-  pytest)
-    cd python-package
-    python --version
-    pip install -v .
-    cd ..
-    pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
-    ;;
-esac
+# Both suites use the same SYCL library; build once and package it for Python.
+echo "--- Run C++ tests with SYCL"
+./build/testxgboost
+
+echo "--- Run Python tests with SYCL"
+cd python-package
+python --version
+pip install -v .
+cd ..
+pytest -s -v -rxXs --durations=0 ./tests/python-sycl/

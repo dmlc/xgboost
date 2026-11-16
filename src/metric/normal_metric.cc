@@ -9,15 +9,13 @@
 
 #include <array>    // for array
 #include <cstddef>  // for size_t
-#include <numeric>  // for accumulate
 #include <set>      // for set
 #include <string>   // for string
-#include <vector>   // for vector
 
 #include "../collective/aggregator.h"   // for GlobalSum
 #include "../common/kernel.h"           // for DispatchKernel, KernelRegistration
+#include "../common/numeric.h"          // for TransformReduce
 #include "../common/optional_weight.h"  // for OptionalWeights
-#include "../common/threading_utils.h"  // for ParallelFor1d
 #include "xgboost/collective/result.h"  // for SafeColl
 #include "xgboost/linalg.h"             // for UnravelIndex
 #include "xgboost/metric.h"             // for Metric
@@ -33,31 +31,15 @@ PackedReduceResult EvalCpu(Context const* ctx, HostDeviceVector<float> const& pr
   auto predts = preds.ConstHostSpan();
   common::OptionalWeights weights{info.weights_.ConstHostSpan()};
 
-  auto n_threads = ctx->Threads();
-  std::vector<double> score_tloc(n_threads, 0.0);
-  std::vector<double> weight_tloc(n_threads, 0.0);
-  std::size_t constexpr kBlockSize = 2048;
-  common::ParallelFor1d<kBlockSize>(labels.Size(), n_threads, [&](auto&& block) {
-    double sum_score = 0.0;
-    double sum_weight = 0.0;
-    for (std::size_t i = block.begin(), n = block.end(); i < n; ++i) {
-      auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
-      float weight = weights[sample_id];
-      float residue =
-          eval(labels(sample_id, target_id), predts[sample_id * 2], predts[sample_id * 2 + 1]) *
-          weight;
-      sum_score += residue;
-      sum_weight += weight;
-    }
-
-    auto t_idx = omp_get_thread_num();
-    score_tloc[t_idx] += sum_score;
-    weight_tloc[t_idx] += sum_weight;
-  });
-
-  auto residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
-  auto weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
-  return PackedReduceResult{residue_sum, weights_sum};
+  return common::TransformReduce(
+      labels.Size(), ctx->Threads(), PackedReduceResult{}, [&](std::size_t i) {
+        auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
+        float weight = weights[sample_id];
+        float residue =
+            eval(labels(sample_id, target_id), predts[sample_id * 2], predts[sample_id * 2 + 1]) *
+            weight;
+        return PackedReduceResult{residue, weight};
+      });
 }
 
 auto const kRegisterNormalCpu =

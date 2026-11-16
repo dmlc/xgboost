@@ -74,6 +74,16 @@ General Parameters
 
     For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
+* ``fail_on_invalid_gpu_id`` [default= ``false``]
+
+  .. versionadded:: 1.3.0
+
+  - Whether to raise an error when the specified CUDA device ordinal is invalid. When set
+    to ``false``, XGBoost replaces a non-negative ordinal that is greater than or equal to
+    the number of visible GPUs with its value modulo that number. For example,
+    ``device=cuda:1`` is changed to ``device=cuda:0`` when only one GPU is visible. When no
+    GPU is visible, XGBoost falls back to the CPU regardless of this setting.
+
 * ``verbosity`` [default=1]
 
   - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
@@ -145,7 +155,7 @@ Parameters for Tree Booster
 
   .. note::
 
-     When working with reduced gradient for multi-target models, the accuracy of
+     When using ``multi_projection_ratio`` for multi-target models, the accuracy of
      gradient-based sampling might be sub-optimal. The sampling is performed using the
      split gradient, which may not be optimal with the full gradient. Use uniform sampling
      as an alternative.
@@ -263,6 +273,15 @@ Parameters for Tree Booster
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
 
+* ``multi_projection_ratio`` [default = 1.0]
+
+  .. versionadded:: 3.5.0
+
+  Fraction of target-gradient dimensions retained by random projection for split search.
+  Projection requires ``multi_strategy=multi_output_tree`` and ``tree_method=hist``.
+
+  - range: (0, 1]
+
 
 Parameters for Non-Exact Tree Methods
 =====================================
@@ -274,7 +293,7 @@ Parameters for Non-Exact Tree Methods
   .. versionadded:: 2.0.0
 
   - Do not set this parameter unless you are getting an out-of-memory (OOM) error when training deep trees. Reducing the cache can significantly degrade performance.
-  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in main memory, consider using reduced gradient (via a custom objective's ``split_grad``; see :doc:`/tutorials/multioutput`) instead of setting this parameter.
+  - If you are training vector leaf models with a large number of targets and cannot fit the histogram in memory, consider using ``multi_projection_ratio`` (see :doc:`/tutorials/multioutput`) instead of setting this parameter.
   - After 3.0, this parameter affects GPU algorithms as well.
 
 
@@ -480,7 +499,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
       - When used with multi-label classification, AUC is calculated independently for each target and averaged with the macro method.
       - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
       - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
-      - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.
+      - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` raises a ``ValueError`` before version 1.6 and returns ``NaN`` with a warning since then.
 
     - ``aucpr``: `Area under the PR curve <https://en.wikipedia.org/wiki/Precision_and_recall>`_.
       Available for classification and learning-to-rank tasks.
@@ -518,7 +537,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed_per_iteration`` [default= ``false``]
 
-  - Seed PRNG determnisticly via iterator number.
+  - Seed PRNG deterministically via iterator number.
 
 Parameters for Tweedie Regression (``objective=reg:tweedie``)
 =============================================================

@@ -8,6 +8,8 @@
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
+#include <array>   // for array
+#include <cmath>   // for nextafter
 #include <memory>  // for unique_ptr
 
 #include "../../../src/tree/io_utils.h"         // for DftBadValue
@@ -111,12 +113,13 @@ TEST_F(UpdaterTreeStatTest, Approx) {
 
 namespace {
 void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
-               std::string const& name, Args const& args, RegTree* p_tree) {
+               std::string const& name, Args const& args, RegTree* p_tree,
+               Args const& updater_args = {}) {
   tree::TrainParam param;
   param.Init(args);
   ObjInfo task{ObjInfo::kRegression};
   auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(name, ctx, &task)};
-  up->Configure({});
+  up->Configure(updater_args);
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   up->Update(&param, grad, p_fmat, common::Span{position}, {p_tree});
 }
@@ -137,6 +140,67 @@ class TestMinChildWeight : public ::testing::Test {
               {"reg_lambda", "0"},
               {"learning_rate", "1"}};
     BuildTree(ctx, p_fmat, grad, updater, args, tree);
+  }
+
+  void RunChildSplits(Context const* ctx, std::string const& updater, bst_target_t n_targets) {
+    auto local_ctx = *ctx;
+    local_ctx.nthread = 2;
+    Context cpu_ctx;
+    auto p_fmat = GetDMatrixFromData({0, 0, 0, 1, 1, 0, 1, 1}, 4, 2);
+    std::array<float, 4> labels{-3, -1, 1, 3};
+    auto below = std::nextafter(2.0f, 0.0f);
+    for (auto hess : {std::array<float, 2>{1.5f, 1.5f},
+                      {below, below},
+                      {2.0f, 2.0f},
+                      {1.5f, 2.0f},
+                      {2.0f, 1.5f}}) {
+      SCOPED_TRACE(hess[0]);
+      SCOPED_TRACE(hess[1]);
+      auto grad = GenerateRandomGradients(&cpu_ctx, 4, n_targets);
+      auto h_grad = grad.gpair.HostView();
+      for (bst_idx_t i = 0; i < 4; ++i) {
+        for (bst_target_t t = 0; t < n_targets; ++t) {
+          // Target scales average to one, preserving the normalized child Hessian.
+          auto scale = n_targets == 1 ? 1.0f : 0.25f + 1.5f * t / (n_targets - 1);
+          auto h = hess[i / 2] / 2 * scale;
+          h_grad(i, t) = {-labels[i] * h, h};
+        }
+      }
+      for (auto policy : {"depthwise", "lossguide"}) {
+        for (auto cache : {"1", "256"}) {
+          SCOPED_TRACE(policy);
+          SCOPED_TRACE(cache);
+          SCOPED_TRACE(n_targets);
+          Args args{{"max_depth", "3"},  {"min_child_weight", "1"}, {"reg_alpha", "0"},
+                    {"reg_lambda", "0"}, {"learning_rate", "1"},    {"grow_policy", policy}};
+          RegTree tree{n_targets, 2u};
+          BuildTree(&local_ctx, p_fmat.get(), &grad, updater, args, &tree,
+                    {{"max_cached_hist_node", cache}});
+          // Equality permits another split; a terminal sibling must not stop the other.
+          ASSERT_EQ(tree.Size(), 3 + 2 * (hess[0] >= 2) + 2 * (hess[1] >= 2));
+          auto left = tree.LeftChild(RegTree::kRoot);
+          auto right = tree.RightChild(RegTree::kRoot);
+          for (bst_idx_t i = 0; i < 4; ++i) {
+            auto leaf = i < 2 ? left : right;
+            auto expected = i < 2 ? -2.0f : 2.0f;
+            if (hess[i / 2] >= 2) {
+              leaf = i % 2 == 0 ? tree.LeftChild(leaf) : tree.RightChild(leaf);
+              expected = labels[i];
+            }
+            if (tree.IsMultiTarget()) {
+              auto view = tree.HostMtView();
+              ASSERT_TRUE(view.IsLeaf(leaf));
+              for (bst_target_t t = 0; t < n_targets; ++t) {
+                EXPECT_NEAR(view.LeafValue(leaf)(t), expected, kRtEps);
+              }
+            } else {
+              ASSERT_TRUE(tree[leaf].IsLeaf());
+              EXPECT_NEAR(tree[leaf].LeafValue(), expected, kRtEps);
+            }
+          }
+        }
+      }
+    }
   }
 
   void RunScalarTree(Context const* ctx, std::string const& updater) {
@@ -164,6 +228,7 @@ class TestMinChildWeight : public ::testing::Test {
     EXPECT_NEAR(tree.Stat(RegTree::kRoot).sum_hess, 3.0f, kRtEps);
     EXPECT_NEAR(tree.Stat(left).sum_hess, 1.0f, kRtEps);
     EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
+    RunChildSplits(ctx, updater, 1);
   }
 
   GradientContainer MakeVectorGradients() {
@@ -220,6 +285,9 @@ class TestMinChildWeight : public ::testing::Test {
     auto root_weight = rejected_view.LeafValue(RegTree::kRoot);
     EXPECT_FLOAT_EQ(root_weight(0), -1.5f);
     EXPECT_FLOAT_EQ(root_weight(1), -1.5f);
+    for (auto n_targets : {kTargets, bst_target_t{5}}) {
+      RunChildSplits(ctx, updater, n_targets);
+    }
   }
 };
 

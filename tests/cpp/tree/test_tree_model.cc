@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 
-#include <stack>  // for stack
+#include <cmath>   // for nextafter
+#include <limits>  // for numeric_limits
+#include <stack>   // for stack
+#include <string>  // for string
 
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
@@ -45,13 +48,11 @@ TEST(Tree, ModelShape) {
 
 TEST(Tree, AllocateNode) {
   RegTree tree;
-  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.Expand({{0, 0, 0.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
   tree.CollapseToLeaf(0, 0);
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
-  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.Expand({{0, 0, 0.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   auto nodes = tree.GetNodes(DeviceOrd::CPU());
@@ -62,47 +63,40 @@ TEST(Tree, AllocateNode) {
 
 TEST(Tree, ExpandCategoricalFeature) {
   Context ctx;
-  {
-    RegTree tree;
-    tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
-    ASSERT_EQ(tree.Size(), 3ul);
-    ASSERT_EQ(tree.GetNumLeaves(), 2);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[1], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[2], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitCategories(ctx.Device()).size(), 0ul);
-    ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
-  }
-  {
-    RegTree tree;
-    bst_cat_t cat = 33;
-    std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
-    LBitField32 bitset{split_cats};
-    bitset.Set(cat);
-    tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
-    auto categories = tree.GetSplitCategories(ctx.Device());
-    auto segments = tree.GetSplitCategoriesPtr();
-    auto got = categories.subspan(segments[0].beg, segments[0].size);
-    ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
+  RegTree tree;
+  bst_cat_t cat = 33;
+  std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
+  LBitField32 bitset{split_cats};
+  bitset.Set(cat);
+  tree.Expand({{0, 0, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
+  ASSERT_EQ(tree.Size(), 3ul);
+  ASSERT_EQ(tree.GetNumLeaves(), 2);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[1], FeatureType::kNumerical);
+  ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[2], FeatureType::kNumerical);
+  ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
+  auto categories = tree.GetSplitCategories(ctx.Device());
+  ASSERT_EQ(categories.size(), split_cats.size());
+  auto segments = tree.GetSplitCategoriesPtr();
+  auto got = categories.subspan(segments[0].beg, segments[0].size);
+  ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
 
-    Json out{Object()};
-    tree.SaveModel(&out);
+  tree.FinalizeLeaves(1.0f);
+  Json out{Object()};
+  tree.SaveModel(&out);
 
-    RegTree loaded_tree;
-    loaded_tree.LoadModel(out);
+  RegTree loaded_tree;
+  loaded_tree.LoadModel(out);
 
-    auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();
-    ASSERT_EQ(cat_ptr.size(), 3ul);
-    ASSERT_EQ(cat_ptr[0].beg, 0ul);
-    ASSERT_EQ(cat_ptr[0].size, 2ul);
+  auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();
+  ASSERT_EQ(cat_ptr.size(), 3ul);
+  ASSERT_EQ(cat_ptr[0].beg, 0ul);
+  ASSERT_EQ(cat_ptr[0].size, 2ul);
 
-    auto loaded_categories = loaded_tree.GetSplitCategories(ctx.Device());
-    auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
-    ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
-  }
+  auto loaded_categories = loaded_tree.GetSplitCategories(ctx.Device());
+  auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
+  ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
 }
 
 void GrowTree(RegTree* p_tree) {
@@ -129,17 +123,16 @@ void GrowTree(RegTree* p_tree) {
       std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
       LBitField32 bitset{split_cats};
       bitset.Set(cat);
-      tree.ExpandCategorical(node, f, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                             /*left_sum=*/3.0, /*right_sum=*/4.0);
+      tree.Expand({{node, f, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
     } else {
-      auto split = split_value(&lcg);
-      tree.ExpandNode(node, f, split, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                      /*left_sum=*/3.0, /*right_sum=*/4.0);
+      auto split = static_cast<float>(split_value(&lcg));
+      tree.Expand({{node, f, split, true}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
     }
 
     stack.push(tree[node].LeftChild());
     stack.push(tree[node].RightChild());
   }
+  tree.FinalizeLeaves(1.0f);
 }
 
 void CheckReload(RegTree const& tree) {
@@ -161,9 +154,9 @@ TEST(Tree, CategoricalIO) {
     std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
     LBitField32 bitset{split_cats};
     bitset.Set(cat);
-    tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
-                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+    tree.Expand({{0, 0, 0.0f, true, split_cats}, {1.0, 2.0}, {2.0, 3.0}, {3.0, 4.0}, 11.0});
 
+    tree.FinalizeLeaves(1.0f);
     CheckReload(tree);
   }
 
@@ -177,20 +170,12 @@ TEST(Tree, CategoricalIO) {
 namespace {
 RegTree ConstructTree() {
   RegTree tree;
-  tree.ExpandNode(
-      /*nid=*/0, /*split_index=*/0, /*split_value=*/0.0f,
-      /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+  tree.Expand({{0, 0, 0.0f, true}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
-  tree.ExpandNode(
-      /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
-      /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
-  tree.ExpandNode(
-      /*nid=*/right, /*split_index=*/2, /*split_value=*/2.0f,
-      /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
+  tree.Expand({{left, 1, 1.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.Expand({{right, 2, 2.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.FinalizeLeaves(1.0f);
   return tree;
 }
 
@@ -206,16 +191,12 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
   cond->push_back(14);
   cond->push_back(32);
 
-  tree.ExpandCategorical(0, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0, 3.0,
-                         4.0);
+  tree.Expand({{0, 0, 0.0f, true, cats_storage}, {0.0f, 2.0}, {2.0, 3.0}, {3.00, 4.0}, 11.0});
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
-  tree.ExpandNode(
-      /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
-      /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
-  tree.ExpandCategorical(right, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0,
-                         3.0, 4.0);
+  tree.Expand({{left, 1, 1.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.Expand({{right, 0, 0.0f, true, cats_storage}, {0.0f, 2.0}, {2.0, 3.0}, {3.00, 4.0}, 11.0});
+  tree.FinalizeLeaves(1.0f);
   return tree;
 }
 
@@ -289,6 +270,39 @@ TEST(Tree, DumpJson) {
   ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2ul);
 }
 
+TEST(Tree, DumpIntegerSplit) {
+  FeatureMap fmap;
+  fmap.PushBack(0, "feat_0", "int");
+  constexpr bst_float kTwoTo63 = 0x1p63f;
+  struct TestCase {
+    bst_float cond;
+    char const* expected;
+  };
+  for (auto const& test : {
+           TestCase{3.0e10f, "30000001024"},
+           TestCase{-3.0e10f, "-30000001024"},
+           TestCase{1.5f, "2"},
+           TestCase{-1.5f, "-1"},
+           TestCase{std::nextafter(kTwoTo63, 0.0f), "9223371487098961920"},
+           TestCase{-kTwoTo63, "-9223372036854775808"},
+           TestCase{kTwoTo63, "9.22337204e+18"},
+           TestCase{std::nextafter(-kTwoTo63, -std::numeric_limits<bst_float>::infinity()),
+                    "-9.22337314e+18"},
+           TestCase{9.3e18f, "9.3000003e+18"},
+       }) {
+    SCOPED_TRACE(test.cond);
+    RegTree tree;
+    tree.Expand({{0, 0, test.cond, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+    auto text = tree.DumpModel(fmap, false, "text");
+    ASSERT_NE(text.find(std::string("[feat_0<") + test.expected + "]"), std::string::npos) << text;
+    auto json = tree.DumpModel(fmap, false, "json");
+    ASSERT_NE(json.find(std::string(R"("split_condition": )") + test.expected + ","),
+              std::string::npos)
+        << json;
+    Json::Load(StringView{json});
+  }
+}
+
 TEST(Tree, DumpJsonCategorical) { TestCategoricalTreeDump("json", ", "); }
 
 TEST(Tree, DumpText) {
@@ -327,6 +341,24 @@ TEST(Tree, DumpText) {
 }
 
 TEST(Tree, DumpTextCategorical) { TestCategoricalTreeDump("text", ","); }
+
+TEST(Tree, DumpNonFiniteSplit) {
+  // GPU hist splits at the `-inf` lower bound of the first bin, sending every value right.
+  auto constexpr kNegInf = -std::numeric_limits<float>::infinity();
+  RegTree tree;
+  tree.Expand({{0, 0, kNegInf, true}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.FinalizeLeaves(1.0f);
+
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, false, "json");
+  auto j_tree = Json::Load({str.c_str(), str.size()});
+  ASSERT_EQ(get<Number const>(j_tree["split_condition"]), kNegInf);
+
+  fmap.PushBack(0, "feat_0", "int");
+  str = tree.DumpModel(fmap, false, "json");
+  j_tree = Json::Load({str.c_str(), str.size()});
+  ASSERT_EQ(get<Number const>(j_tree["split_condition"]), kNegInf);
+}
 
 TEST(Tree, DumpDot) {
   auto tree = ConstructTree();
@@ -370,8 +402,7 @@ TEST(Tree, DumpDotCategorical) { TestCategoricalTreeDump("dot", ","); }
 
 TEST(Tree, JsonIO) {
   RegTree tree;
-  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.Expand({{0, 0, 0.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
   Json j_tree{Object()};
   tree.SaveModel(&j_tree);
 
@@ -394,10 +425,8 @@ TEST(Tree, JsonIO) {
 
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
-  tree.ExpandNode(left, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  tree.ExpandNode(right, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.Expand({{left, 0, 0.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
+  tree.Expand({{right, 0, 0.0f, false}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});
   tree.SaveModel(&j_tree);
 
   tree.ChangeToLeaf(1, 1.0f);

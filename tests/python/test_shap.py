@@ -75,9 +75,8 @@ class TestSHAP:
         param = {"max_depth": 2, "base_score": 0.0, "eta": 1.0, "lambda": 0}
         bst = xgb.train(param, xgb.DMatrix(X, label=y), 1)
         out = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True)
-        assert out[0, 0] == 0.375
-        assert out[0, 1] == 0.375
-        assert out[0, 2] == 0.25
+        # The quadrature is exact for this tree, up to float32 rounding of its nodes and weights.
+        np.testing.assert_allclose(out[0, :3], [0.375, 0.375, 0.25], rtol=1e-6)
 
         def parse_model(model: xgb.Booster) -> list:
             trees = []

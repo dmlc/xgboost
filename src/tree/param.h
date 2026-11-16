@@ -64,6 +64,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
+  // Fraction of output dimensions used for random-projected vector-leaf split search.
+  float multi_projection_ratio;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
 
@@ -155,6 +157,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
+    DMLC_DECLARE_FIELD(multi_projection_ratio)
+        .set_range(0.0f, 1.0f)
+        .set_default(1.0f)
+        .describe("Fraction of gradient dimensions retained by random projection.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");
@@ -212,84 +218,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                        [](auto v) { return v != 0; });
   }
 };
-
-/**
- * @brief Whether both children satisfy the Hessian requirement for a split.
- *
- * Vector-leaf callers pass the normalized Hessian trace for each child.
- */
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_hess) {
-  return left_hess > 0.0 && right_hess > 0.0 && left_hess >= p.min_child_weight &&
-         right_hess >= p.min_child_weight;
-}
-
-/**
- * @brief Function for L1 cost
- *
- *  @f$ L1(G, a) = sign(G) max(|G| - a, 0) @f$
- */
-template <typename T0, typename T1>
-XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T0> && std::is_floating_point_v<T1>, T0>
-ThresholdL1(T0 sum_grad, T1 alpha) {
-  if (sum_grad > +alpha) {
-    return sum_grad - alpha;
-  }
-  if (sum_grad < -alpha) {
-    return sum_grad + alpha;
-  }
-  return 0.0;
-}
-
-// calculate the cost of loss function
-template <typename TrainingParams, typename T0, typename T1>
-XGBOOST_DEVICE T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess, T1 w) {
-  return -(static_cast<T0>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w) +
-           (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
-}
-
-// calculate weight given the statistics
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(TrainingParams const &p,
-                                                                           T sum_grad, T sum_hess) {
-  if (sum_hess <= 0.0) {
-    return 0.0;
-  }
-  T dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
-  if (p.max_delta_step != 0.0f && ::fabs(dw) > p.max_delta_step) {
-    dw = ::copysign(p.max_delta_step, dw);
-  }
-  return dw;
-}
-
-// calculate the cost of loss function
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
-  if (sum_hess <= 0.0) {
-    return static_cast<T>(0.0);
-  }
-  if (p.max_delta_step == 0.0f) {
-    if (p.reg_alpha == 0.0f) {
-      return common::Sqr(sum_grad) / (sum_hess + p.reg_lambda);
-    } else {
-      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) / (sum_hess + p.reg_lambda);
-    }
-  } else {
-    T w = CalcWeight(p, sum_grad, sum_hess);
-    return CalcGainGivenWeight(p, sum_grad, sum_hess, w);
-  }
-}
-
-template <typename TrainingParams, typename StatT, typename T = decltype(StatT().GetHess())>
-XGBOOST_DEVICE T CalcGain(const TrainingParams &p, StatT stat) {
-  return CalcGain(p, stat.GetGrad(), stat.GetHess());
-}
-
-// Used in GPU code where GradientPair is used for gradient sum, not GradStats.
-template <typename TrainingParams, typename GpairT>
-XGBOOST_DEVICE float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
-  return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
-}
 
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
@@ -351,6 +279,12 @@ std::vector<T> &CopyStats(linalg::VectorView<U> const &src, std::vector<T> *dst)
 
 inline GradStats &CopyStats(GradStats const &src, GradStats *dst) {  // NOLINT
   *dst = src;
+  return *dst;
+}
+
+template <typename T>
+GradStats &CopyStats(linalg::VectorView<T> const &src, GradStats *dst) {  // NOLINT
+  *dst = GradStats{src(0)};
   return *dst;
 }
 

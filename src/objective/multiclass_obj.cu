@@ -40,7 +40,7 @@ void MulticlassGradientCuda(Context const* ctx, HostDeviceVector<float> const& p
   dh::LaunchN(info.num_row_, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t row) mutable {
     auto point = predt.Slice(row, linalg::All());
     assert(point.Size() == static_cast<std::size_t>(n_classes));
-    float wmax = std::numeric_limits<float>::min();
+    float wmax = std::numeric_limits<float>::lowest();
     for (std::size_t k{0}; k < point.Size(); ++k) {
       wmax = fmaxf(point(k), wmax);
     }

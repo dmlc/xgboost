@@ -7,7 +7,7 @@ train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 
 
 class TestTreeRegularization:
-    def test_alpha(self):
+    def test_alpha(self) -> None:
         params = {
             "tree_method": "exact",
             "verbosity": 0,
@@ -27,7 +27,7 @@ class TestTreeRegularization:
         # 0.9 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / sum_hess
         assert_approx_equal(preds[0], 0.9)
 
-    def test_lambda(self):
+    def test_lambda(self) -> None:
         params = {
             "tree_method": "exact",
             "verbosity": 0,
@@ -47,7 +47,7 @@ class TestTreeRegularization:
         # 0.75 = 0.5 - sum_grad / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.75)
 
-    def test_alpha_and_lambda(self):
+    def test_alpha_and_lambda(self) -> None:
         params = {
             "tree_method": "exact",
             "verbosity": 1,
@@ -67,7 +67,7 @@ class TestTreeRegularization:
         # 0.7 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.7)
 
-    def test_absolute_error_lambda(self):
+    def test_absolute_error_lambda(self) -> None:
         params = {
             "tree_method": "exact",
             "verbosity": 0,
@@ -91,7 +91,7 @@ class TestTreeRegularization:
         expected = 0.5 + (0.5 * curvature) / (curvature + 1.0)
         assert_approx_equal(regularized_pred[0], expected)
 
-    def test_quantile_error_lambda(self):
+    def test_quantile_error_lambda(self) -> None:
         params = {
             "tree_method": "exact",
             "verbosity": 0,
@@ -117,7 +117,7 @@ class TestTreeRegularization:
         assert_approx_equal(unregularized_pred[0], 0.5 - grad / curvature)
         assert_approx_equal(regularized_pred[0], 0.5 - grad / (curvature + 1.0))
 
-    def test_unlimited_depth(self):
+    def test_unlimited_depth(self) -> None:
         x = np.array([[0], [1], [2], [3]])
         y = np.array([0, 1, 2, 3])
 

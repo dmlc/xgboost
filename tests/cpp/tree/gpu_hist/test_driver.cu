@@ -1,9 +1,13 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"
+#include "../../../../src/tree/gpu_hist/quantiser.cuh"
+#include "../test_child_hessian.h"
+#include "../test_empty_pop.h"
 
 namespace xgboost {
 namespace tree {
@@ -29,7 +33,7 @@ TEST(GpuHist, DriverDepthWise) {
   // as we limited the driver to pop maximum 2 nodes
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 2);
-  for (auto &e : res) {
+  for (auto& e : res) {
     EXPECT_EQ(e.depth, 1);
   }
 
@@ -56,7 +60,7 @@ TEST(GpuHist, DriverLossGuided) {
 
   Driver<GPUExpandEntry> driver(p);
   EXPECT_TRUE(driver.Pop().empty());
-  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f );
+  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f);
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nidx, 0);
   // Select high gain first
@@ -76,6 +80,38 @@ TEST(GpuHist, DriverLossGuided) {
   EXPECT_EQ(res[0].nidx, 1);
   res = driver.Pop();
   EXPECT_EQ(res[0].nidx, 2);
+}
+
+namespace {
+GPUExpandEntry MakeGPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
+  DeviceSplitCandidate split;
+  split.loss_chg = loss_chg;
+  split.left_sum = {0, 1};
+  split.right_sum = {0, 1};
+  return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
+}
+}  // namespace
+
+TEST(GpuHist, DriverChildHessian) { TestDriverChildHessian<GPUExpandEntry>(MakeGPUExpandEntry); }
+
+TEST(GpuHist, DriverQuantizedChildHessian) {
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{{"min_child_weight", "1"}});
+  Driver<GPUExpandEntry> driver{param};
+  auto entry = MakeGPUExpandEntry(0, 0, 1.0f);
+  GradientQuantiser quantiser{{8.0, 8.0}, {0.125, 0.125}};
+  for (auto left : {15, 16, 17}) {
+    for (auto right : {15, 16, 17}) {
+      auto left_sum = quantiser.ToFloatingPoint(GradientPairInt64{0, left});
+      auto right_sum = quantiser.ToFloatingPoint(GradientPairInt64{0, right});
+      EXPECT_EQ(driver.IsChildValid(entry, left_sum.GetHess(), right_sum.GetHess()),
+                left >= 16 || right >= 16);
+    }
+  }
+}
+
+TEST(GpuHist, DriverEmptyPopSkipsInvalidGroup) {
+  TestDriverEmptyPop<GPUExpandEntry>(MakeGPUExpandEntry);
 }
 }  // namespace tree
 }  // namespace xgboost

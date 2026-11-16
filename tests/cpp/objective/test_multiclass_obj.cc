@@ -31,6 +31,14 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
                    {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f},  // grad
                    {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});   // hess = |grad|
 
+  // Softmax is invariant to adding a constant to every class of a row, so the gradient must
+  // not change when all predictions of a row are large and negative.
+  CheckObjFunction(obj, {-109.0f, -110.0f, -108.0f, -108.0f, -110.0f, -109.0f},  // preds - 110
+                   {1.0f, 0.0f},                                                 // labels
+                   {},                                                           // weights
+                   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f},                 // grad
+                   {0.24f, 0.91f, 0.67f, 0.33f, 0.09f, 0.24f});                  // hess = |grad|
+
   ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
@@ -44,13 +52,20 @@ void TestSoftmaxMultiClassBasic(const Context* ctx) {
 
   HostDeviceVector<bst_float> io_preds = {2.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f};
   std::vector<bst_float> out_preds = {0.0f, 2.0f};
-  obj->PredTransform(&io_preds);
+  std::vector<bst_ulong> shape{2, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{2, 1}));
 
   auto& preds = io_preds.HostVector();
 
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+  io_preds.Resize(0);
+  shape = {0, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 1}));
+  ASSERT_EQ(io_preds.Size(), 0);
 }
 
 void TestSoftprobMultiClassBasic(const Context* ctx) {
@@ -64,12 +79,19 @@ void TestSoftprobMultiClassBasic(const Context* ctx) {
   HostDeviceVector<bst_float> io_preds = {2.0f, 0.0f, 1.0f};
   std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
 
-  obj->PredTransform(&io_preds);
+  std::vector<bst_ulong> shape{1, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{1, 3}));
   auto& preds = io_preds.HostVector();
 
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+  io_preds.Resize(0);
+  shape = {0, 3};
+  shape = obj->PredTransform(&io_preds, shape);
+  ASSERT_EQ(shape, (std::vector<bst_ulong>{0, 3}));
+  ASSERT_EQ(io_preds.Size(), 0);
 }
 
 }  // namespace xgboost

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
@@ -16,7 +16,7 @@
 #include "../../common/row_set.h"          // for RowSetCollection
 #include "../../common/threading_utils.h"  // for ParallelFor2d, Range1d, BlockedSpace2d
 #include "../../data/gradient_index.h"     // for GHistIndexMatrix
-#include "expand_entry.h"                  // for MultiExpandEntry, CPUExpandEntry
+#include "expand_entry.h"                  // for CPUExpandEntry
 #include "hist_cache.h"                    // for BoundedHistCollection
 #include "hist_param.h"                    // for HistMakerTrainParam
 #include "xgboost/base.h"                  // for bst_node_t, bst_target_t, bst_bin_t
@@ -32,7 +32,7 @@ namespace xgboost::tree {
  * @brief Decide which node as the build node for multi-target trees.
  */
 void AssignNodes(MultiTargetTreeView const &tree,
-                 std::vector<MultiExpandEntry> const &valid_candidates,
+                 std::vector<CPUExpandEntry> const &valid_candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
 /**
@@ -74,19 +74,22 @@ class HistogramBuilder {
                             common::RowSetCollection const &row_set_collection,
                             common::Span<GradientPair const> gpair_h, bool read_by_column) {
     // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-      const auto tid = static_cast<unsigned>(omp_get_thread_num());
-      bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto const &elem = row_set_collection[nidx];
-      auto start_of_row_set = std::min(r.begin(), elem.Size());
-      auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::Span<bst_idx_t const>{elem.begin() + start_of_row_set,
-                                                   elem.begin() + end_of_row_set};
-      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.size() != 0) {
-        common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, read_by_column);
-      }
-    });
+    common::ParallelFor2d(
+        space, this->n_threads_,
+        common::WithWorker([&](size_t nid_in_set, common::Range1d r, common::Worker worker) {
+          const auto tid = static_cast<unsigned>(worker.Id());
+          bst_node_t const nidx = nodes_to_build[nid_in_set];
+          auto const &elem = row_set_collection[nidx];
+          auto start_of_row_set = std::min(r.begin(), elem.Size());
+          auto end_of_row_set = std::min(r.end(), elem.Size());
+          auto rid_set = common::Span<bst_idx_t const>{elem.begin() + start_of_row_set,
+                                                       elem.begin() + end_of_row_set};
+          auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+          if (rid_set.size() != 0) {
+            common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, read_by_column,
+                                           this->n_threads_);
+          }
+        }));
   }
 
   /**

@@ -785,16 +785,16 @@ std::vector<bst_idx_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_
     column.resize(n_columns, 0);
   }
 
-  ParallelFor(batch.Size(), n_threads, [&](omp_ulong i) {
-    auto &local_column_sizes = column_sizes_tloc.at(omp_get_thread_num());
-    auto const &line = batch.GetLine(i);
-    for (size_t j = 0; j < line.Size(); ++j) {
-      auto elem = line.GetElement(j);
-      if (is_valid(elem)) {
-        local_column_sizes[elem.column_idx]++;
-      }
-    }
-  });
+  ParallelFor(batch.Size(), n_threads, WithWorker([&](omp_ulong i, Worker worker) {
+                auto &local_column_sizes = column_sizes_tloc.at(worker.Id());
+                auto const &line = batch.GetLine(i);
+                for (size_t j = 0; j < line.Size(); ++j) {
+                  auto elem = line.GetElement(j);
+                  if (is_valid(elem)) {
+                    local_column_sizes[elem.column_idx]++;
+                  }
+                }
+              }));
   // reduce to first thread
   auto &entries_per_columns = column_sizes_tloc.front();
   CHECK_EQ(entries_per_columns.size(), static_cast<size_t>(n_columns));

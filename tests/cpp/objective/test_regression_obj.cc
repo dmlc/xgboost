@@ -153,7 +153,7 @@ void TestLogisticRegressionBasic(const Context* ctx) {
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
-  obj->PredTransform(&io_preds);
+  obj->PredTransform(&io_preds, {io_preds.Size(), 1});
   auto& preds = io_preds.HostVector();
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
@@ -242,7 +242,7 @@ void TestPoissonRegressionBasic(const Context* ctx) {
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&io_preds);
+  obj->PredTransform(&io_preds, {io_preds.Size(), 1});
   auto& preds = io_preds.HostVector();
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
@@ -299,7 +299,7 @@ void TestGammaRegressionBasic(const Context* ctx) {
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&io_preds);
+  obj->PredTransform(&io_preds, {io_preds.Size(), 1});
   auto& preds = io_preds.HostVector();
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
@@ -359,7 +359,7 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&io_preds);
+  obj->PredTransform(&io_preds, {io_preds.Size(), 1});
   auto& preds = io_preds.HostVector();
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);

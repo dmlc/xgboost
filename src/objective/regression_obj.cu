@@ -77,7 +77,7 @@ class CoxRegression : public ObjFunction {
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     *base_score = linalg::Zeros<float>(this->ctx_, this->Targets(info));
-    this->PredTransform(base_score->Data());
+    this->PredTransform(base_score->Data(), {1, base_score->Size()});
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
@@ -141,14 +141,15 @@ class CoxRegression : public ObjFunction {
       last_exp_p = exp_p;
     }
   }
-  void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<bst_float>* io_preds,
+                                       std::vector<bst_ulong> shape) const override {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t i, common::Span<bst_float> preds) { preds[i] = expf(preds[i]); },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
         io_preds->Device())
         .Eval(io_preds);
+    return shape;
   }
-  void EvalTransform(HostDeviceVector<bst_float>* io_preds) override { PredTransform(io_preds); }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
     ProbToMarginImpl(this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return std::log(v); });
   }

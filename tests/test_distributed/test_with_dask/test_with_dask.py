@@ -37,7 +37,9 @@ from xgboost.testing.dask import (
     check_multi_output_tree_classifier,
     check_multi_output_tree_regressor,
     check_multi_output_tree_shap,
+    check_multi_projection_ratio,
     check_uneven_nan,
+    deterministic_dmatrix,
     get_rabit_args,
     make_categorical,
     run_recode,
@@ -468,23 +470,21 @@ def run_boost_from_prediction(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_boost_from_prediction(tree_method: str, client_one_worker: "Client") -> None:
+def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    # This test has strict reproducibility requirements. However, Dask is freed to move
-    # partitions between workers and modify the partitions' size during the test. Given
-    # the lack of control over the partitioning logic, here we use a single worker as a
-    # workaround.
-    X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-    run_boost_from_prediction(X, y, tree_method, "cpu", client_one_worker)
+    # Keep row assignments stable across the separate and combined training runs.
+    with deterministic_dmatrix(client):
+        X_, y_ = load_breast_cancer(return_X_y=True)
+        X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+        run_boost_from_prediction(X, y, tree_method, "cpu", client)
 
-    X_, y_ = load_digits(return_X_y=True)
-    X_, _, y_, _ = train_test_split(
-        X_, y_, train_size=300, stratify=y_, random_state=1994
-    )
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client_one_worker)
+        X_, y_ = load_digits(return_X_y=True)
+        X_, _, y_, _ = train_test_split(
+            X_, y_, train_size=300, stratify=y_, random_state=1994
+        )
+        X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+        run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1493,6 +1493,9 @@ class TestWithDask:
     def test_hist_multi_regressor(self, client: "Client") -> None:
         check_multi_output_tree_regressor(client, "cpu")
 
+    def test_multi_projection_ratio(self, client: "Client") -> None:
+        check_multi_projection_ratio(client, "cpu")
+
     def test_hist_multi_classifier(self, client: "Client") -> None:
         check_multi_output_tree_classifier(client, "cpu")
 
@@ -1786,26 +1789,44 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_metrics(self, client: "Client") -> None:
         from sklearn.datasets import make_classification
-        from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+        from sklearn.metrics import hinge_loss, log_loss
 
         Xn, yn = make_classification(random_state=2025)
-        X, y = da.array(Xn), da.array(yn)
+        # Each partition has identical rows, so worker-local means have the same
+        # reference value regardless of how Dask assigns partitions to workers.
+        X = da.from_array(np.tile(Xn, (4, 1)), chunks=Xn.shape)
+        y = da.from_array(np.tile(yn, 4), chunks=yn.shape)
+        dmatrix = xgb.DMatrix(Xn)
+        metric_functions = {
+            "logloss": log_loss,
+            "hinge_loss": hinge_loss,
+            "log_loss": log_loss,
+        }
 
-        clf = dxgb.DaskXGBClassifier(
-            eval_metric=["logloss", hinge_loss], n_estimators=2
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        results = clf.evals_result()["validation_0"]
-        assert "logloss" in results
-        assert "hinge_loss" in results
-
-        clf = dxgb.DaskXGBClassifier(
-            eval_metric=[hamming_loss, log_loss], n_estimators=2
-        )
-        with pytest.raises(
-            NotImplementedError, match="multiple custom metrics is not yet supported."
+        for metrics, names in (
+            ([hinge_loss, log_loss], ["hinge_loss", "log_loss"]),
+            ([log_loss, "logloss", hinge_loss], ["logloss", "log_loss", "hinge_loss"]),
         ):
-            clf.fit(X, y, eval_set=[(X, y)])
+            clf = dxgb.DaskXGBClassifier(
+                eval_metric=metrics, n_estimators=2, disable_default_eval_metric=True
+            )
+            clf.fit(X, y, eval_set=[(X, y)], verbose=False)
+            results = clf.evals_result()["validation_0"]
+            assert list(results) == names
+            predictions = [
+                clf.get_booster().predict(dmatrix, iteration_range=(0, i + 1))
+                for i in range(2)
+            ]
+            for name in names:
+                expected = [metric_functions[name](yn, pred) for pred in predictions]
+                np.testing.assert_allclose(results[name], expected, atol=1e-6)
+
+        def logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+            return float(log_loss(y_true, y_pred))
+
+        clf = dxgb.DaskXGBClassifier(eval_metric=[hinge_loss, logloss], n_estimators=2)
+        with pytest.raises(ValueError, match="Metric names must be distinct.*logloss"):
+            clf.fit(X, y, eval_set=[(X, y)], verbose=False)
 
     def test_no_duplicated_partition(self) -> None:
         """Assert each worker has the correct amount of data, and DMatrix initialization

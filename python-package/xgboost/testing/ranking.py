@@ -2,7 +2,7 @@
 """Tests for learning to rank."""
 
 from types import ModuleType
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pytest
@@ -14,7 +14,13 @@ from .data import make_ltr
 from .utils import Device
 
 
-def run_ranking_qid_df(impl: ModuleType, tree_method: str, device: Device) -> None:
+def run_ranking_qid_df(
+    impl: ModuleType,
+    tree_method: str,
+    device: Device,
+    early_stopping_rounds: Optional[int],
+    custom_metric: bool,
+) -> None:
     """Test ranking with qid packed into X."""
     import scipy.sparse
     from sklearn.metrics import mean_squared_error
@@ -52,22 +58,32 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str, device: Device) -> No
         results = cross_val_score(ranker, df, y, cv=kfold, groups=df.qid)
         assert len(results) == 5
 
-    # Works with custom metric
-    def neg_mse(y_true: Any, y_pred: Any, **kwargs: Any) -> float:
+    # Works with built-in and custom metrics, with or without early stopping.
+    def mse(y_true: Any, y_pred: Any, **kwargs: Any) -> float:
         if hasattr(y_true, "get"):
             y_true = y_true.get()
-        return -float(mean_squared_error(y_true, y_pred, **kwargs))
+        return float(mean_squared_error(y_true, y_pred, **kwargs))
 
+    # Unrelated validation labels make the best iteration precede the final round.
+    y_valid = np.random.default_rng(2025).permutation(y)
     ranker = xgb.XGBRanker(
-        n_estimators=3,
-        eval_metric=neg_mse,
+        n_estimators=64 if early_stopping_rounds is not None else 3,
+        early_stopping_rounds=early_stopping_rounds,
+        eval_metric=mse if custom_metric else "ndcg@8",
         tree_method=tree_method,
         device=device,
-        disable_default_eval_metric=True,
+        disable_default_eval_metric=custom_metric,
     )
-    ranker.fit(df, y, eval_set=[(valid_df, y)])
-    score = ranker.score(valid_df, y)
-    assert np.isclose(score, ranker.evals_result()["validation_0"]["neg_mse"][-1])
+    ranker.fit(df, y, eval_set=[(valid_df, y_valid)], verbose=False)
+    score = ranker.score(valid_df, y_valid)
+    metric_name = "mse" if custom_metric else "ndcg@8"
+    history = ranker.evals_result()["validation_0"][metric_name]
+    iteration = -1
+    if early_stopping_rounds is not None:
+        iteration = ranker.best_iteration
+        assert iteration + 1 < ranker.get_booster().num_boosted_rounds()
+        assert score == pytest.approx(ranker.best_score)
+    assert score == pytest.approx(history[iteration])
 
     # Works with sparse data
     if device == "cpu":

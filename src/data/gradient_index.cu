@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2025, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  */
 #include <cstddef>  // for size_t
 #include <memory>   // for unique_ptr
@@ -28,29 +28,30 @@ void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
     hit_count_tloc.clear();
     hit_count_tloc.resize(ctx->Threads() * n_bins_total, 0);
     bool dense_compressed = page->IsDenseCompressed() && !page->IsDense();
-    common::ParallelFor(page->Size(), ctx->Threads(), [&](auto ridx) {
-      auto tid = omp_get_thread_num();
-      size_t in_rbegin = page->info.row_stride * ridx;
-      size_t out_rbegin = out->row_ptr[ridx];
-      if (dense_compressed) {
-        for (std::size_t j = 0, k = 0; j < page->info.row_stride; ++j) {
-          bst_bin_t bin_idx = accessor.gidx_iter[in_rbegin + j];
-          if (XGBOOST_EXPECT((bin_idx != kNull), true)) {  // relatively dense
-            bin_idx = get_offset(bin_idx, j);
-            index_data_span[out_rbegin + k++] = bin_idx;
-            ++hit_count_tloc[tid * n_bins_total + bin_idx];
-          }
-        }
-      } else {
-        auto r_size = out->row_ptr[ridx + 1] - out->row_ptr[ridx];
-        for (size_t j = 0; j < r_size; ++j) {
-          bst_bin_t bin_idx = accessor.gidx_iter[in_rbegin + j];
-          assert(bin_idx != kNull);
-          index_data_span[out_rbegin + j] = bin_idx;
-          ++hit_count_tloc[tid * n_bins_total + get_offset(bin_idx, j)];
-        }
-      }
-    });
+    common::ParallelFor(page->Size(), ctx->Threads(),
+                        common::WithWorker([&](auto ridx, common::Worker worker) {
+                          auto tid = worker.Id();
+                          size_t in_rbegin = page->info.row_stride * ridx;
+                          size_t out_rbegin = out->row_ptr[ridx];
+                          if (dense_compressed) {
+                            for (std::size_t j = 0, k = 0; j < page->info.row_stride; ++j) {
+                              bst_bin_t bin_idx = accessor.gidx_iter[in_rbegin + j];
+                              if (XGBOOST_EXPECT((bin_idx != kNull), true)) {  // relatively dense
+                                bin_idx = get_offset(bin_idx, j);
+                                index_data_span[out_rbegin + k++] = bin_idx;
+                                ++hit_count_tloc[tid * n_bins_total + bin_idx];
+                              }
+                            }
+                          } else {
+                            auto r_size = out->row_ptr[ridx + 1] - out->row_ptr[ridx];
+                            for (size_t j = 0; j < r_size; ++j) {
+                              bst_bin_t bin_idx = accessor.gidx_iter[in_rbegin + j];
+                              assert(bin_idx != kNull);
+                              index_data_span[out_rbegin + j] = bin_idx;
+                              ++hit_count_tloc[tid * n_bins_total + get_offset(bin_idx, j)];
+                            }
+                          }
+                        }));
   });
 }
 

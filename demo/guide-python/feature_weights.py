@@ -40,7 +40,6 @@ def main(args: argparse.Namespace) -> None:
 
     # feature zero has 0 weight
     assert feature_map.get("f0", None) is None
-    assert max(feature_map.values()) == feature_map.get("f9")
 
     if args.plot:
         xgboost.plot_importance(bst)

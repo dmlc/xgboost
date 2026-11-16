@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, List, Literal, Tuple, Type, Union, cast, overload
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -24,7 +27,6 @@ from ..dask import TrainReturnT, _get_rabit_args
 from ..dask.utils import _DASK_VERSION
 from .data import make_batches
 from .data import make_categorical as make_cat_local
-from .multi_target import LsObj1, LsObj2
 from .ordinal import make_recoded
 from .utils import Device, assert_allclose
 
@@ -192,21 +194,45 @@ def check_multi_output_tree_regressor(client: Client, device: Device) -> None:
         "multi_output_tree"
     )
 
-    for objective in (LsObj1(device), LsObj2(device, False)):
-        reg = dxgb.DaskXGBRegressor(
-            n_estimators=2,
-            device=device,
-            tree_method="hist",
-            objective=objective,
-            multi_strategy="multi_output_tree",
-            max_depth=2,
-            max_bin=64,
-        )
-        reg.client = client
-        reg.fit(X, y)
-        predt = _as_numpy(reg.predict(X).compute())
-        assert predt.shape == (X.shape[0], n_targets)
-        assert np.isfinite(predt).all()
+    reg = dxgb.DaskXGBRegressor(
+        n_estimators=2,
+        device=device,
+        tree_method="hist",
+        objective=tm.ls_obj,
+        multi_strategy="multi_output_tree",
+        max_depth=2,
+        max_bin=64,
+    )
+    reg.client = client
+    reg.fit(X, y)
+    predt = _as_numpy(reg.predict(X).compute())
+    assert predt.shape == (X.shape[0], n_targets)
+    assert np.isfinite(predt).all()
+
+
+def check_multi_projection_ratio(client: Client, device: Device) -> None:
+    """Check distributed training with projected split gradients."""
+    X, y = make_multi_output_regression(device, n_targets=4)
+    data = dxgb.DaskDMatrix(client, X, y)
+    result = dxgb.train(
+        client,
+        {
+            "device": device,
+            "tree_method": "hist",
+            "multi_strategy": "multi_output_tree",
+            "multi_projection_ratio": 0.5,
+            "max_depth": 2,
+            # Workers must agree on every tree despite generating random bases.
+            "debug_synchronize": True,
+        },
+        data,
+        num_boost_round=4,
+        evals=[(data, "train")],
+    )
+    history = result["history"]["train"]["rmse"]
+    assert history[-1] < history[0]
+    pred = dxgb.predict(client, result["booster"], data).compute()
+    assert pred.shape == y.shape  # Projection keeps all four prediction outputs.
 
 
 def check_multi_output_tree_classifier(client: Client, device: Device) -> None:
@@ -219,7 +245,7 @@ def check_multi_output_tree_classifier(client: Client, device: Device) -> None:
             n_estimators=2,
             device=device,
             tree_method="hist",
-            objective=LsObj2(device, False),
+            objective=tm.ls_obj,
             multi_strategy="multi_output_tree",
             max_depth=2,
             max_bin=64,
@@ -558,6 +584,41 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     return X, y
 
 
+@contextmanager
+def deterministic_dmatrix(client: Client) -> Generator[None, None, None]:
+    """Assign partitions consistently for matrices constructed within this context."""
+    workers = sorted(get_client_workers(client))
+    map_local_data = dxgb.DaskDMatrix._map_local_data  # pylint: disable=protected-access
+
+    async def assign_partitions(
+        self: dxgb.DaskDMatrix, **kwargs: Any
+    ) -> dxgb.DaskDMatrix:
+        dmatrix = await map_local_data(
+            self, client=kwargs.pop("client"), data=kwargs.pop("data"), **kwargs
+        )
+        # Assign packed partitions in row order so repeated fits and validation use
+        # the same worker assignment. Only future handles are rearranged here;
+        # partition data stays on workers and transfers directly between them as
+        # needed for training and prediction.
+        parts = sorted(
+            (
+                part
+                for worker_parts in dmatrix.worker_map.values()
+                for part in worker_parts
+            ),
+            key=lambda part: dmatrix.partition_order[part.key],
+        )
+        to = workers[: len(parts)]
+        dmatrix.worker_map = {
+            worker: parts[i :: len(to)] for i, worker in enumerate(to)
+        }
+        return dmatrix
+
+    # Apply the assignment to matrices created internally by the sklearn API too.
+    with patch.object(dxgb.DaskDMatrix, "_map_local_data", assign_partitions):
+        yield
+
+
 # pylint: disable=too-many-locals
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
@@ -627,5 +688,6 @@ def run_recode(client: Client, device: Device) -> None:
         predt_1 = dxgb.predict(client, results, Xy_valid).compute()
         assert_allclose(device, predt_0, predt_1)
 
-    for DMatrixT in [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]:
-        run(DMatrixT)
+    with deterministic_dmatrix(client):
+        for DMatrixT in [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]:
+            run(DMatrixT)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #ifndef PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
 #define PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
@@ -8,19 +8,24 @@
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../src/tree/constraints.h"
 #pragma GCC diagnostic pop
-#include "../../src/tree/hist/expand_entry.h"
+#include "../../src/tree/param.h"
 #include "../../src/tree/tree_view.h"
 
 namespace xgboost {
 namespace sycl {
 namespace tree {
 /* tree growing policies */
-struct ExpandEntry : public xgboost::tree::ExpandEntryImpl<ExpandEntry> {
+struct ExpandEntry {
   static constexpr bst_node_t kRootNid = 0;
 
+  bst_node_t nid{0};
+  bst_node_t depth{0};
   xgboost::tree::SplitEntry split;
 
-  ExpandEntry(int nid, int depth) : ExpandEntryImpl{nid, depth} {}
+  ExpandEntry(int nid, int depth) : nid{nid}, depth{depth} {}
+
+  [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
+  [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
 
   bst_node_t GetSiblingId(::xgboost::tree::ScalarTreeView const& tree) const {
     CHECK_EQ(tree.IsRoot(nid), false);

@@ -193,10 +193,12 @@ class QuantileRegression : public ObjFunction {
     CHECK_EQ(base_score->Size(), n_targets);
   }
 
-  void PredTransform(HostDeviceVector<float>* predictions) const override {
+  std::vector<bst_ulong> PredTransform(HostDeviceVector<float>* predictions,
+                                       std::vector<bst_ulong> shape) const override {
     CHECK(!alpha_.Empty());
     CHECK_EQ(predictions->Size() % alpha_.Size(), 0);
     common::DispatchKernel<QuantileTransformKernel>(ctx_, predictions, alpha_.Size());
+    return shape;
   }
 
   std::set<std::string> Configure(Args const& args) override {

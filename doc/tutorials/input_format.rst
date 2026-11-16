@@ -88,7 +88,7 @@ Embedding additional information inside LIBSVM file
 
 Query ID Columns
 ================
-This is most useful for `ranking task <https://github.com/dmlc/xgboost/tree/master/demo/rank>`_, where the instances are grouped into query groups. You may embed query group ID for each instance in the LIBSVM file by adding a token of form ``qid:xx`` in each row:
+This is most useful for `ranking task <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/learning_to_rank.py>`_, where the instances are grouped into query groups. You may embed query group ID for each instance in the LIBSVM file by adding a token of form ``qid:xx`` in each row:
 
 .. code-block:: none
   :caption: ``train.txt``
