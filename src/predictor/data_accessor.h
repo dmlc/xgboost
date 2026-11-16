@@ -3,7 +3,6 @@
  */
 #pragma once
 
-#include <algorithm>  // for fill_n
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -136,8 +135,6 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
           n_non_missings++;
         }
       };
-      // The bins of a row are sorted, so one pass over the row finds every feature.
-      bool ordered_by_feature = true;
       common::DispatchBinType(page_.index.GetBinTypeSize(), [&](auto t) {
         using T = decltype(t);
         auto bins = page_.index.template data<T>();
@@ -146,28 +143,12 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
         bst_feature_t fidx = 0;
         for (auto k = row_begin; k < row_end; ++k) {
           std::uint32_t bin_idx = bins[k];
-          bool same_or_earlier_feature = k != row_begin && bin_idx < ptrs_[fidx + 1];
-          if (same_or_earlier_feature) {
-            ordered_by_feature = false;
-            return;
-          }
           while (bin_idx >= ptrs_[fidx + 1]) {
             ++fidx;
           }
           fill_feature(fidx, static_cast<bst_bin_t>(bin_idx));
         }
       });
-      if (!ordered_by_feature) {
-        // A feature repeated in the row keeps the previous per-feature lookup.
-        std::fill_n(out, n_features, std::numeric_limits<float>::quiet_NaN());
-        n_non_missings = 0;
-        for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-          auto bin_idx = page_.GetGindex(gridx, fidx);
-          if (bin_idx != -1) {
-            fill_feature(fidx, bin_idx);
-          }
-        }
-      }
     }
     return n_non_missings;
   }
