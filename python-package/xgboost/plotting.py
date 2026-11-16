@@ -1,5 +1,5 @@
 # pylint: disable=too-many-locals, too-many-arguments
-# pylint: disable=too-many-branches
+# pylint: disable=too-many-branches, too-many-statements
 """Plotting Library."""
 
 import json
@@ -107,7 +107,8 @@ def plot_importance(
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
-        # pylint: disable=invalid-unary-operand-type
+        if max_num_features <= 0:
+            raise ValueError("`max_num_features` must be greater than 0.")
         tuples = sorted(tuples, key=lambda _x: _x[1])[-max_num_features:]
     else:
         tuples = sorted(tuples, key=lambda _x: _x[1])
