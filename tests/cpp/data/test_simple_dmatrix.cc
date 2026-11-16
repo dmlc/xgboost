@@ -329,6 +329,21 @@ TEST(SimpleDMatrix, Slice) {
   }
 }
 
+TEST(SimpleDMatrix, SliceOutOfBounds) {
+  bst_idx_t constexpr kRows{16};
+  bst_feature_t constexpr kCols{8};
+  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  for (std::int32_t ridx : {-1, 16, 17, std::numeric_limits<std::int32_t>::max()}) {
+    std::array<std::int32_t, 2> ridxs{0, ridx};
+    ASSERT_THAT([&] { std::unique_ptr<DMatrix> out{p_m->Slice(ridxs)}; },
+                GMockThrow("Row index out of bounds"));
+  }
+  // The last row is valid.
+  std::array<std::int32_t, 2> ridxs{0, 15};
+  std::unique_ptr<DMatrix> out{p_m->Slice(ridxs)};
+  ASSERT_EQ(out->Info().num_row_, ridxs.size());
+}
+
 TEST(SimpleDMatrix, SaveLoadBinary) {
   common::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
