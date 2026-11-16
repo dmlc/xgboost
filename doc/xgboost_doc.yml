@@ -19,6 +19,7 @@ dependencies:
     - breathe
     - sphinx_rtd_theme
     - sphinx-issues
+    - sphinx-llm>=1.1.0
     - sphinx-tabs
     - sphinxcontrib-jquery
     - pydot-ng

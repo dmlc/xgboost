@@ -5,7 +5,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-#include <xgboost/predictor.h>
 #pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
@@ -21,6 +20,18 @@
 #include "../predictor/test_predictor.h"
 
 namespace xgboost {
+
+TEST(SyclPredictor, InitOutPredictions) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestInitOutPredictions(&ctx);
+}
+
+TEST(SyclPredictor, BatchPredictionWithWeights) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestBatchPredictionWithWeights(&ctx);
+}
 
 TEST(SyclPredictor, Basic) {
   Context ctx;

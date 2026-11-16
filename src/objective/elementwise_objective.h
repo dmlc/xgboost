@@ -12,7 +12,6 @@
 #include "../common/kernel.h"            // for KernelRegistration
 #include "../common/linalg_op.h"         // for ElementWiseKernel
 #include "../common/optional_weight.h"   // for OptionalWeights
-#include "../common/threading_utils.h"   // for ParallelFor
 #include "xgboost/base.h"                // for GradientPair, bst_target_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
@@ -58,9 +57,9 @@ void GradientCpu(Context const* ctx, HostDeviceVector<float> const& preds, MetaI
 
 template <typename TransformFn>
 void TransformCpu(Context const* ctx, HostDeviceVector<float>* preds, TransformFn transform) {
-  auto values = preds->HostSpan();
-  common::ParallelFor(values.size(), ctx->Threads(),
-                      [=](std::size_t i) { values[i] = transform(values[i]); });
+  auto values = linalg::MakeVec(preds->HostPointer(), preds->Size());
+  linalg::cpu_impl::ElementWiseKernel(
+      values, ctx->Threads(), [=](std::size_t i) mutable { values(i) = transform(values(i)); });
 }
 
 template <typename CheckFn>

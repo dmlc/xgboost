@@ -8,7 +8,11 @@ from hypothesis import given, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
-from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
+from xgboost.testing.data_iter import (
+    check_invalid_cat_batches,
+    check_iterator_gc,
+    check_uneven_sizes,
+)
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -277,3 +281,9 @@ def test_cache_host_ratio(min_cache_page_bytes: int | None) -> None:
 
     for model in boosters[1:]:
         assert model == boosters[0]
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.parametrize("on_host", [False, True])
+def test_iterator_gc(on_host: bool) -> None:
+    check_iterator_gc("cuda", on_host=on_host)

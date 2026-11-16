@@ -302,7 +302,8 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
  */
 template <bool norm_by_diff, typename Delta>
 void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> const& preds,
-            const MetaInfo& info, std::shared_ptr<ltr::RankingCache> p_cache, Delta delta,
+            const MetaInfo& info, std::shared_ptr<ltr::RankingCache> p_cache,
+            common::Span<std::size_t const> rank_idx, Delta delta,
             linalg::VectorView<double const> ti_plus,   // input bias ratio
             linalg::VectorView<double const> tj_minus,  // input bias ratio
             linalg::VectorView<double> li, linalg::VectorView<double> lj,
@@ -330,7 +331,6 @@ void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> cons
 
   auto const d_threads_group_ptr = p_cache->CUDAThreadsGroupPtr();
   auto const d_gptr = p_cache->DataGroupPtr(ctx);
-  auto const rank_idx = p_cache->SortedIdx(ctx, predts);
 
   auto const unbiased = p_cache->Param().lambdarank_unbiased;
 
@@ -398,6 +398,7 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
   info.labels.SetDevice(device);
   preds.SetDevice(device);
 
+  auto const rank_idx = p_cache->SortedIdx(ctx, preds.ConstDeviceSpan());
   auto const exp_gain = p_cache->Param().ndcg_exp_gain;
   auto delta_ndcg = [=] XGBOOST_DEVICE(float y_high, float y_low, std::size_t rank_high,
                                        std::size_t rank_low, bst_group_t g) {
@@ -405,9 +406,10 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
                     : DeltaNDCG<false>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount);
   };
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, seed, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, preds, info, p_cache, rank_idx, delta_ndcg, ti_plus, tj_minus, li, lj,
+                 out_gpair);
   } else {
-    Launch<false>(ctx, seed, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj,
+    Launch<false>(ctx, seed, preds, info, p_cache, rank_idx, delta_ndcg, ti_plus, tj_minus, li, lj,
                   out_gpair);
   }
 }
@@ -492,9 +494,11 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::uint32_t seed,
     return d;
   };
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, seed, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, predt, info, p_cache, d_sorted_idx, delta_map, ti_plus, tj_minus, li,
+                 lj, out_gpair);
   } else {
-    Launch<false>(ctx, seed, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<false>(ctx, seed, predt, info, p_cache, d_sorted_idx, delta_map, ti_plus, tj_minus, li,
+                  lj, out_gpair);
   }
 }
 
@@ -511,14 +515,17 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::uint32_t seed,
   info.labels.SetDevice(device);
   predt.SetDevice(device);
 
+  auto const rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto delta = [] XGBOOST_DEVICE(float, float, std::size_t, std::size_t, bst_group_t) {
     return 1.0;
   };
 
   if (p_cache->Param().lambdarank_score_normalization) {
-    Launch<true>(ctx, seed, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<true>(ctx, seed, predt, info, p_cache, rank_idx, delta, ti_plus, tj_minus, li, lj,
+                 out_gpair);
   } else {
-    Launch<false>(ctx, seed, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+    Launch<false>(ctx, seed, predt, info, p_cache, rank_idx, delta, ti_plus, tj_minus, li, lj,
+                  out_gpair);
   }
 }
 

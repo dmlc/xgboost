@@ -4,6 +4,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <array>   // for array
+#include <memory>  // for weak_ptr
+
 #include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
@@ -87,6 +90,38 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
   }
 };
 }  // anonymous namespace
+
+TEST(EllpackPagePool, Allocate) {
+  curt::SetDevice(0);
+  EllpackPagePool pool{2048};
+  std::array<common::RefResourceView<common::CompressedByteT>,
+             ::xgboost::cuda_impl::DftPrefetchBatches()>
+      pages;
+  for (auto &page : pages) {
+    page = pool.Allocate(1024);
+    ASSERT_EQ(page.size(), 1024);
+    ASSERT_EQ(page.Resource()->Size(), 2048);
+  }
+  auto extra = pool.Allocate(1024);
+  std::weak_ptr<common::ResourceHandler> overflow = extra.Resource();
+  for (auto const &page : pages) {
+    ASSERT_NE(page.data(), extra.data());
+  }
+  extra = {};
+  ASSERT_TRUE(overflow.expired());  // Overflow buffers are not kept in the pool.
+
+  auto ptr = pages.front().data();
+  pages.front() = {};
+  auto smaller = pool.Allocate(512);
+  ASSERT_EQ(smaller.data(), ptr);
+  ASSERT_EQ(smaller.size(), 512);
+  smaller = {};
+  auto larger = pool.Allocate(2048);
+  ASSERT_EQ(larger.data(), ptr);
+  ASSERT_EQ(larger.size(), 2048);
+  ASSERT_EQ(larger.Resource()->Size(), 2048);
+  EXPECT_THROW(static_cast<void>(pool.Allocate(2049)), dmlc::Error);
+}
 
 TEST_P(TestEllpackPageRawFormat, DiskIO) {
   EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy> policy{false};

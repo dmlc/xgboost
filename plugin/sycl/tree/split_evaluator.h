@@ -16,6 +16,7 @@
 #include "../../src/common/math.h"
 #include "../../src/common/transform.h"
 #include "../../src/tree/param.h"
+#include "../../src/tree/split_gain.h"
 #include "../data.h"
 #include "param.h"
 #include "xgboost/context.h"
@@ -102,29 +103,8 @@ class TreeEvaluator {
       }
     }
 
-    inline static GradType ThresholdL1(GradType w, float alpha) {
-      if (w > +alpha) {
-        return w - alpha;
-      }
-      if (w < -alpha) {
-        return w + alpha;
-      }
-      return 0.0;
-    }
-
-    inline GradType CalcWeight(GradType sum_grad, GradType sum_hess) const {
-      if (sum_hess <= 0.0) {
-        return 0.0;
-      }
-      GradType dw = -this->ThresholdL1(sum_grad, param.reg_alpha) / (sum_hess + param.reg_lambda);
-      if (param.max_delta_step != 0.0f && std::abs(dw) > param.max_delta_step) {
-        dw = ::sycl::copysign((GradType)param.max_delta_step, dw);
-      }
-      return dw;
-    }
-
     inline GradType CalcWeight(bst_node_t nodeid, const GradStats<GradType>& stats) const {
-      GradType w = this->CalcWeight(stats.GetGrad(), stats.GetHess());
+      GradType w = xgboost::tree::CalcWeight(param, stats.GetGrad(), stats.GetHess());
       if (!has_constraint) {
         return w;
       }
@@ -140,10 +120,6 @@ class TreeEvaluator {
       }
     }
 
-    inline GradType CalcGainGivenWeight(GradType sum_grad, GradType sum_hess, GradType w) const {
-      return -(2.0f * sum_grad * w + (sum_hess + param.reg_lambda) * xgboost::common::Sqr(w));
-    }
-
     inline GradType CalcGainGivenWeight(bst_node_t nid, const GradStats<GradType>& stats,
                                         GradType w) const {
       if (stats.GetHess() <= 0) {
@@ -151,10 +127,9 @@ class TreeEvaluator {
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (param.max_delta_step == 0.0f && has_constraint == false) {
-        return xgboost::common::Sqr(this->ThresholdL1(stats.GetGrad(), param.reg_alpha)) /
-               (stats.GetHess() + param.reg_lambda);
+        return xgboost::tree::CalcGain(param, stats.GetGrad(), stats.GetHess());
       }
-      return this->CalcGainGivenWeight(stats.GetGrad(), stats.GetHess(), w);
+      return xgboost::tree::CalcGainGivenWeight(param, stats.GetGrad(), stats.GetHess(), w);
     }
 
     GradType CalcGain(bst_node_t nid, const GradStats<GradType>& stats) const {

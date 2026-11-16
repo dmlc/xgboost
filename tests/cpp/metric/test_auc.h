@@ -152,6 +152,18 @@ inline void VerifyMultiLabelAUCImpl(char const* name, DeviceOrd device) {
   perfect.Copy(*labels.Data());
   EXPECT_NEAR(GetMultiMetricEval(metric.get(), perfect, labels, {}, {}), 1.0, 1e-10);
 
+  // Dispatch through all three kernels using the same metric and device cache.
+  std::unique_ptr<Metric> fresh{Metric::Create(name, &ctx)};
+  auto ranking = GetMetricEval(fresh.get(), {0, 1, 0, 1}, {0, 1, 0, 1}, {2}, {0, 4});
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 0, 1}, {0, 1, 0, 1}, {2}, {0, 4}), ranking, 1e-6);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {1, 2, 3}, {}),
+              1.0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 0, 1}, {0, 1, 0, 1}, {1, 2, 3, 4}, {}), 1.0,
+              1e-10);
+  EXPECT_NEAR(GetMultiMetricEval(metric.get(), perfect, labels, weights, {}), 1.0, 1e-10);
+  EXPECT_NEAR(GetMultiMetricEval(metric.get(), predts, labels, weights, {}),
+              (expected0 + expected1) / 2.0, 1e-6);
+
   // A target containing only one class makes the aggregate score invalid.
   linalg::Tensor<float, 2> all_positive{{4, 2}, DeviceOrd::CPU()};
   all_positive.Data()->HostVector() = {
@@ -227,6 +239,11 @@ inline void VerifyRankingAUC(DeviceOrd device) {
 
   // AUC metric for grouped datasets - exception scenarios
   ASSERT_TRUE(std::isnan(GetMetricEval(metric.get(), {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3})));
+
+  // Keep a valid zero-AUC group in the denominator, but exclude the two-document group.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 2, 1, 0, 0, 1}, {0, 1, 2, 0, 1, 2, 0, 1}, {},
+                            {0, 3, 6, 8}),
+              0.5, 1e-10);
 
   // regression case
   HostDeviceVector<float> predt{
@@ -320,6 +337,9 @@ inline void VerifyRankingPRAUC(DeviceOrd device) {
   ASSERT_THROW(GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
                              {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3.0f}, {}, groups),
                dmlc::Error);
+
+  // A group with only one class contributes neither area nor a valid-group count.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 0, 1}, {0, 1, 1, 1}, {}, {0, 2, 4}), 1.0, 1e-10);
 
   // AUCPR with groups and no weights
   EXPECT_NEAR(

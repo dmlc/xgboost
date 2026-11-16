@@ -14,8 +14,8 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <cub/cub.cuh>
-#include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <cub/device/device_reduce.cuh>  // for DeviceReduce
+#include <cub/util_type.cuh>  // for UnitWord
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
@@ -277,36 +277,6 @@ class TemporaryArray {
  private:
   thrust::device_ptr<T> ptr_;
   size_t size_;
-};
-
-/**
- * \brief A double buffer, useful for algorithms like sort.
- */
-template <typename T>
-class DoubleBuffer {
- public:
-  cub::DoubleBuffer<T> buff;
-  xgboost::common::Span<T> a, b;
-  DoubleBuffer() = default;
-  template <typename VectorT>
-  DoubleBuffer(VectorT *v1, VectorT *v2) {
-    a = xgboost::common::Span<T>(v1->data().get(), v1->size());
-    b = xgboost::common::Span<T>(v2->data().get(), v2->size());
-    buff = cub::DoubleBuffer<T>(a.data(), b.data());
-  }
-
-  size_t Size() const {
-    CHECK_EQ(a.size(), b.size());
-    return a.size();
-  }
-  cub::DoubleBuffer<T> &CubBuffer() { return buff; }
-
-  T *Current() { return buff.Current(); }
-  xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{buff.Current(), Size()};
-  }
-
-  T *Other() { return buff.Alternate(); }
 };
 
 template <typename T>
@@ -708,6 +678,16 @@ void CopyTo(Src const &src, Dst *dst,
   static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
+
+// The temporary array can't be resized, it must have the same size as the source.
+template <class Src, typename T>
+void CopyTo(Src const &src, TemporaryArray<T> *dst, ::xgboost::curt::StreamRef stream) {
+  CHECK_EQ(src.size(), dst->size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  static_assert(std::is_same_v<SVT, T>, "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(dst->data().get(), src.data(), src.size() * sizeof(T),
+                                cudaMemcpyDefault, stream));
 }
 
 /**

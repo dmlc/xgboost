@@ -41,6 +41,7 @@ def test_external_memory_demo() -> None:
 
 @pytest.mark.skipif(**tm.no_rmm())
 @pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_loky())
 @pytest.mark.mgpu
 def test_distributed_extmem_basic_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "distributed_extmem_basic.py")

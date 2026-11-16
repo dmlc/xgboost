@@ -10,14 +10,14 @@
 
 #include "../../common/transform_iterator.h"  // for MakeIndexTransformIter
 #include "../tree_view.h"                     // for ScalarTreeView, MultiTargetTreeView
-#include "expand_entry.h"                     // for MultiExpandEntry, CPUExpandEntry
+#include "expand_entry.h"                     // for CPUExpandEntry
 #include "xgboost/logging.h"                  // for CHECK_EQ
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::tree {
 void AssignNodes(MultiTargetTreeView const &tree,
-                 std::vector<MultiExpandEntry> const &valid_candidates,
+                 std::vector<CPUExpandEntry> const &valid_candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   CHECK_EQ(nodes_to_build.size(), valid_candidates.size());
 
@@ -50,7 +50,7 @@ void AssignNodes(ScalarTreeView const &tree, std::vector<CPUExpandEntry> const &
   for (auto const &c : candidates) {
     auto left_nidx = tree.LeftChild(c.nid);
     auto right_nidx = tree.RightChild(c.nid);
-    auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
+    auto fewer_right = c.split.right_sum[0].GetHess() < c.split.left_sum[0].GetHess();
 
     auto build_nidx = left_nidx;
     auto subtract_nidx = right_nidx;

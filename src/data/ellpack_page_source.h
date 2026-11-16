@@ -5,12 +5,16 @@
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 #define XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 
-#include <cstdint>  // for int32_t
-#include <limits>   // for numeric_limits
-#include <memory>   // for shared_ptr
-#include <tuple>    // for tuple
-#include <utility>  // for move
-#include <vector>   // for vector
+#include <algorithm>  // for max_element
+#include <array>      // for array
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr
+#include <mutex>      // for mutex
+#include <tuple>      // for tuple
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../common/compressed_iterator.h"  // for CompressedByteT
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
@@ -26,6 +30,18 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::data {
+// Keep two device buffers and allocate temporary ones if both are in use.
+class EllpackPagePool {
+  std::array<std::shared_ptr<common::ResourceHandler>, ::xgboost::cuda_impl::DftPrefetchBatches()>
+      pages_;
+  std::mutex mutex_;
+  std::size_t const max_bytes_;
+
+ public:
+  explicit EllpackPagePool(std::size_t max_bytes) : max_bytes_{max_bytes} {}
+  [[nodiscard]] common::RefResourceView<common::CompressedByteT> Allocate(std::size_t n_bytes);
+};
+
 struct EllpackCacheInfo {
   BatchParam param;
   // The size ratio the host cache vs. the total cache
@@ -132,7 +148,7 @@ class EllpackHostCacheStream {
    * @param page[out] The returned page.
    * @param prefetch_copy[in] Does the stream need to copy the page?
    */
-  void Read(Context const* ctx, EllpackPage* page, bool prefetch_copy) const;
+  void Read(Context const* ctx, EllpackPage* page, bool prefetch_copy, EllpackPagePool* pool) const;
   /**
    * @brief Add a new page to the host cache.
    *
@@ -158,6 +174,7 @@ class EllpackFormatPolicy {
   Context const* ctx_{nullptr};
 
   EllpackCacheInfo cache_info_;
+  std::unique_ptr<EllpackPagePool> pool_;
   static_assert(std::is_same_v<S, EllpackPage>);
 
  public:
@@ -193,7 +210,8 @@ class EllpackFormatPolicy {
 
   [[nodiscard]] auto CreatePageFormat(BatchParam const& param) const {
     CHECK_EQ(cuts_->cut_values_.Device(), device_);
-    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{ctx_, cuts_, device_, param, has_hmm_}};
+    std::unique_ptr<FormatT> fmt{
+        new EllpackPageRawFormat{ctx_, cuts_, device_, param, has_hmm_, pool_.get()}};
     return fmt;
   }
   void SetCuts(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
@@ -202,6 +220,9 @@ class EllpackFormatPolicy {
     std::swap(this->cuts_, cuts);
     this->device_ = device;
     CHECK(this->device_.IsCUDA());
+    CHECK(!cinfo.buffer_bytes.empty());
+    this->pool_ = std::make_unique<EllpackPagePool>(
+        *std::max_element(cinfo.buffer_bytes.cbegin(), cinfo.buffer_bytes.cend()));
     this->cache_info_ = std::move(cinfo);
   }
   [[nodiscard]] auto GetCuts() const {

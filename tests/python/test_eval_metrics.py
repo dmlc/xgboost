@@ -1,3 +1,5 @@
+from typing import List, Tuple, Union
+
 import numpy as np
 import pytest
 
@@ -17,6 +19,76 @@ from xgboost.testing.metrics import (
 rng = np.random.RandomState(1337)
 
 
+@pytest.mark.parametrize(
+    "params, metric_result, error_match",
+    [
+        ({}, ("logloss", 1.0), "Metric names must be distinct.*logloss"),
+        (
+            {},
+            [("unique", 2.0), ("logloss", 1.0)],
+            "Metric names must be distinct.*logloss",
+        ),
+        (
+            {"eval_metric": "error@0.5"},
+            ("error", 1.0),
+            "Metric names must be distinct.*error",
+        ),
+        (
+            {"eval_metric": "error@0.5"},
+            [("unique", 2.0), ("error", 1.0)],
+            "Metric names must be distinct.*error",
+        ),
+        (
+            {},
+            [("custom", 1.0), ("other", 2.0), ("custom", 3.0)],
+            "Metric names must be distinct.*custom",
+        ),
+        ({}, ("my rmse", 0.0), "Metric name should not contain whitespace"),
+        ({}, ("my\trmse", 0.0), "Metric name should not contain whitespace"),
+    ],
+    ids=[
+        "default-tuple",
+        "default-list",
+        "normalized-tuple",
+        "normalized-list",
+        "repeated-custom",
+        "space",
+        "tab",
+    ],
+)
+@pytest.mark.parametrize("api", ["train", "cv"])
+def test_invalid_metric_names(
+    params: dict[str, str],
+    metric_result: Union[Tuple[str, float], List[Tuple[str, float]]],
+    error_match: str,
+    api: str,
+) -> None:
+    data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=np.arange(8) % 2)
+
+    def metric(
+        predt: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Union[Tuple[str, float], List[Tuple[str, float]]]:
+        return metric_result
+
+    with pytest.raises(ValueError, match=error_match):
+        if api == "train":
+            xgb.train(
+                {"objective": "binary:logistic", **params},
+                data,
+                2,
+                evals=[(data, "eval")],
+                custom_metric=metric,
+            )
+        else:
+            xgb.cv(
+                {"objective": "binary:logistic", **params},
+                data,
+                2,
+                nfold=2,
+                custom_metric=metric,
+            )
+
+
 class TestEvalMetrics:
     xgb_params_01 = {"nthread": 1, "eval_metric": "error"}
 
@@ -28,11 +100,11 @@ class TestEvalMetrics:
 
     def evalerror_01(self, preds, dtrain):
         labels = dtrain.get_label()
-        return "error", float(sum(labels != (preds > 0.0))) / len(labels)
+        return "custom_error", float(sum(labels != (preds > 0.0))) / len(labels)
 
     def evalerror_02(self, preds, dtrain):
         labels = dtrain.get_label()
-        return [("error", float(sum(labels != (preds > 0.0))) / len(labels))]
+        return [("custom_error", float(sum(labels != (preds > 0.0))) / len(labels))]
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def evalerror_03(self, preds, dtrain):
@@ -40,8 +112,8 @@ class TestEvalMetrics:
 
         labels = dtrain.get_label()
         return [
-            ("rmse", mean_squared_error(labels, preds)),
-            ("error", float(sum(labels != (preds > 0.0))) / len(labels)),
+            ("custom_rmse", mean_squared_error(labels, preds)),
+            ("custom_error", float(sum(labels != (preds > 0.0))) / len(labels)),
         ]
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -50,8 +122,8 @@ class TestEvalMetrics:
 
         labels = dtrain.get_label()
         return [
-            ("error", float(sum(labels != (preds > 0.0))) / len(labels)),
-            ("rmse", mean_squared_error(labels, preds)),
+            ("custom_error", float(sum(labels != (preds > 0.0))) / len(labels)),
+            ("custom_rmse", mean_squared_error(labels, preds)),
         ]
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -130,6 +202,48 @@ class TestEvalMetrics:
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
         assert gbdt_03.predict(dvalid)[0] != gbdt_04.predict(dvalid)[0]
+
+        # Fixed predictions isolate metric serialization from training accuracy.
+        for value in [1.2345678912345e-9, 1.2345678912345]:
+            labels = np.full(8, value, dtype=np.float32)
+            data = xgb.DMatrix(np.arange(16).reshape(8, 2), label=labels)
+            params = {
+                "base_score": 0.0,
+                "learning_rate": 0.0,
+                "eval_metric": ["rmse", "mae"],
+                "nthread": 1,
+            }
+            expected = {
+                "rmse": float(np.sqrt(np.mean(labels**2, dtype=np.float64))),
+                "mae": float(np.mean(labels, dtype=np.float64)),
+                "custom": value,
+            }
+
+            def metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
+                return "custom", value
+
+            evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+            xgb.train(
+                params,
+                data,
+                2,
+                evals=[(data, "eval")],
+                custom_metric=metric,
+                evals_result=evals_result,
+                verbose_eval=False,
+            )
+            cv_result = xgb.cv(
+                params, data, 2, nfold=2, custom_metric=metric, as_pandas=False
+            )
+            assert set(evals_result["eval"]) == set(expected)
+            for name, score in expected.items():
+                # Disable absolute tolerance so tiny values retain their precision.
+                # Native metrics print float32 precision; custom metrics use float64.
+                rel = 1e-12 if name == "custom" else 1e-8
+                target = pytest.approx([score, score], rel=rel, abs=0)
+                assert evals_result["eval"][name] == target
+                for dataset in ["train", "test"]:
+                    assert list(cv_result[f"{dataset}-{name}-mean"]) == target
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_gamma_deviance(self):

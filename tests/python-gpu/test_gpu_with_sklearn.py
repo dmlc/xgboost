@@ -3,7 +3,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -269,10 +269,14 @@ def test_custom_objective(
 
 
 @pytest.mark.skipif(**tm.no_cudf())
-def test_ranking_qid_df() -> None:
+@pytest.mark.parametrize("early_stopping_rounds", [None, 4])
+@pytest.mark.parametrize("custom_metric", [False, True])
+def test_ranking_qid_df(
+    early_stopping_rounds: Optional[int], custom_metric: bool
+) -> None:
     import cudf
 
-    run_ranking_qid_df(cudf, "hist", "cuda")
+    run_ranking_qid_df(cudf, "hist", "cuda", early_stopping_rounds, custom_metric)
 
 
 @pytest.mark.skipif(**tm.no_pandas())

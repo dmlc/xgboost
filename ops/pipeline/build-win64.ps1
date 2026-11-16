@@ -37,15 +37,15 @@ if ($variant -eq "gpu") {
   nvcc --version
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
-  # Add CUDA-specific flags
   $cmake_args += @(
     "-DUSE_CUDA=ON",
-    "-DGOOGLE_TEST=ON"
+    "-DGOOGLE_TEST=ON",
+    # Let nvcc find MSVC in PATH; CMake's short -ccbin path conflicts with sccache.
+    "-DCMAKE_CUDA_HOST_COMPILER="
   )
-
-  # Only build SM75 for non-release branches (faster CI)
-  if ($is_release_branch -eq 0) {
-    $cmake_args += "-DGPU_COMPUTE_VER=75"
+  if ($is_release_branch -eq 0 -or $Env:BRANCH_NAME -eq "master") {
+    # Master populates the same SM75 cache that PRs restore.
+    $cmake_args += @("-DGPU_COMPUTE_VER=75", "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache")
   }
 } else {
   Write-Host "--- Build libxgboost on Windows (CPU, minimal)"
@@ -60,6 +60,16 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 # Build
 cmake --build . -v
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+
+if ($variant -eq "gpu" -and $Env:BRANCH_NAME -eq "master") {
+  Write-Host "--- Build all CUDA architectures with sccache"
+  # Reconfigure in place so the SM75 cache uses the same build paths as PRs.
+  # Keep sccache enabled for both builds; the final wheel and tests use all architectures.
+  & cmake .. @cmake_args "-DGPU_COMPUTE_VER="
+  if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+  cmake --build . -v
+  if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+}
 
 Write-Host "--- Build binary wheel"
 cd ..

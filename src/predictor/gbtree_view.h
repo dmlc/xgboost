@@ -47,6 +47,9 @@ class GBTreeModelView {
     std::lock_guard guard{model.Mutex()};
     // Create tree views.
     std::vector<TreeViewVar> trees;
+    CHECK_GE(this->tree_end, this->tree_begin);
+    auto n_trees = this->tree_end - this->tree_begin;
+    trees.reserve(n_trees);
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
       auto const& p_tree = model.trees[tree_idx];
       if (p_tree->IsMultiTarget()) {
@@ -62,8 +65,6 @@ class GBTreeModelView {
 
     copy(&this->trees_, std::move(trees));  // NOLINT[build/include_what_you_use]
 
-    CHECK_GE(this->tree_end, this->tree_begin);
-    auto n_trees = this->tree_end - this->tree_begin;
     model.tree_info.SetDevice(device);
     this->tree_groups = model.TreeGroups(device).subspan(this->tree_begin, n_trees);
     CHECK_EQ(n_trees, this->trees_.size());

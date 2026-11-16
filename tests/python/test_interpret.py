@@ -5,9 +5,15 @@ import xgboost as xgb
 from xgboost import interpret
 
 
-def test_shap_values_matches_predict() -> None:
+@pytest.mark.parametrize("data_type", ["numpy", "numeric", "categorical"])
+def test_shap_values_matches_predict(data_type: str) -> None:
     rng = np.random.RandomState(1994)
     X = rng.randn(16, 4)
+    if data_type != "numpy":
+        pd = pytest.importorskip("pandas")
+        X = pd.DataFrame(X)
+        if data_type == "categorical":
+            X[3] = pd.Categorical(rng.choice(["x", "y", "z"], 16))
     y = rng.randn(16)
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
 
