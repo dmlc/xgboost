@@ -29,7 +29,7 @@ import numpy
 import xgboost
 
 COLS = 64
-ROWS_PER_BATCH = 1000  # data is splited by rows
+ROWS_PER_BATCH = 1000  # data is split by rows
 BATCHES = 32
 
 
@@ -37,12 +37,12 @@ class IterForDMatrixDemo(xgboost.core.DataIter):
     """A data iterator for XGBoost DMatrix.
 
     `reset` and `next` are required for any data iterator, other functions here
-    are utilites for demonstration's purpose.
+    are utilities for demonstration's purpose.
 
     """
 
     def __init__(self) -> None:
-        """Generate some random data for demostration.
+        """Generate some random data for demonstration.
 
         Actual data can be anything that is currently supported by XGBoost.
         """
