@@ -32,11 +32,11 @@ const MetaInfo& SimpleDMatrix::Info() const { return info_; }
 
 DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   auto n_samples = this->Info().num_row_;
-  for (auto ridx : ridxs) {
-    CHECK_GE(ridx, 0) << "Row index " << ridx << " is out of range.";
-    CHECK_LT(static_cast<bst_idx_t>(ridx), n_samples)
-        << "Row index " << ridx << " is out of range for a DMatrix with " << n_samples << " rows.";
-  }
+  CHECK(!std::any_of(ridxs.data(), ridxs.data() + ridxs.size(),
+                     [&](int32_t ridx) {
+                       return ridx < 0 || static_cast<bst_idx_t>(ridx) >= n_samples;
+                     }))
+      << "Row index is out of range for a DMatrix with " << n_samples << " rows.";
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
   // Convert to uint64 to avoid a breaking change in the C API. The performance impact is
