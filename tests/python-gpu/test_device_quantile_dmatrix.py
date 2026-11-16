@@ -37,6 +37,16 @@ class TestQuantileDMatrix:
             feature_weights.astype(np.float32),
         )
 
+        # The size is validated even if labels and sample weights are set.
+        y = rng.randn(5)
+        w = rng.uniform(size=5)
+        for weight in (None, w):
+            for size in (4, 6):
+                Xy = xgb.DMatrix(data, y, weight=weight)
+                Xy.set_info(feature_weights=rng.uniform(size=size))
+                with pytest.raises(ValueError, match="feature_weights"):
+                    xgb.train({"colsample_bynode": 0.5, "device": "cuda"}, Xy, 2)
+
     def test_categorical_strings(self) -> None:
         check_categorical_strings("cuda")
 

@@ -247,37 +247,14 @@ TEST(MetaInfo, Validate) {
   EXPECT_THROW(info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size())),
                dmlc::Error);
 
-#if defined(XGBOOST_USE_CUDA)
+  // The feature weights are validated even if the labels and the sample weights are set.
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
   info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_));
-  info.labels.SetDevice(FstCU());
-  EXPECT_THROW(info.Validate(DeviceOrd::CUDA(1)), dmlc::Error);
-
-  xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
-  d_groups.SetDevice(FstCU());
-  d_groups.DevicePointer();  // pull to device
-  std::string arr_interface_str{ArrayInterfaceStr(xgboost::linalg::MakeVec(
-      d_groups.ConstDevicePointer(), d_groups.Size(), xgboost::DeviceOrd::CUDA(0)))};
-  EXPECT_THROW(info.SetInfo(ctx, "group", xgboost::StringView{arr_interface_str}), dmlc::Error);
-#endif  // defined(XGBOOST_USE_CUDA)
-}
-
-TEST(MetaInfo, ValidateFeatureWeights) {
-  // The fields that come after the labels and the sample weights are still validated.
-  Context ctx;
-  xgboost::MetaInfo info;
-  info.num_row_ = 10;
-  info.num_nonzero_ = 12;
-  info.num_col_ = 3;
-
-  std::vector<float> labels(info.num_row_);
-  info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), labels.size()));
   std::vector<float> feature_weights(info.num_col_, 1.0f);
   info.SetInfo(ctx, "feature_weights",
                Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
   EXPECT_NO_THROW(info.Validate(FstCU()));
-
   for (auto n_weights : {info.num_col_ - 1, info.num_col_ + 1}) {
     feature_weights.assign(n_weights, 1.0f);
     info.SetInfo(ctx, "feature_weights",
@@ -292,6 +269,21 @@ TEST(MetaInfo, ValidateFeatureWeights) {
                 GMockThrow("Size of feature_weights must equal to number of columns"));
     info.weights_.Resize(0);
   }
+
+#if defined(XGBOOST_USE_CUDA)
+  info.group_ptr_.clear();
+  labels.resize(info.num_row_);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_));
+  info.labels.SetDevice(FstCU());
+  EXPECT_THROW(info.Validate(DeviceOrd::CUDA(1)), dmlc::Error);
+
+  xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
+  d_groups.SetDevice(FstCU());
+  d_groups.DevicePointer();  // pull to device
+  std::string arr_interface_str{ArrayInterfaceStr(xgboost::linalg::MakeVec(
+      d_groups.ConstDevicePointer(), d_groups.Size(), xgboost::DeviceOrd::CUDA(0)))};
+  EXPECT_THROW(info.SetInfo(ctx, "group", xgboost::StringView{arr_interface_str}), dmlc::Error);
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 
 TEST(MetaInfo, HostExtend) {
