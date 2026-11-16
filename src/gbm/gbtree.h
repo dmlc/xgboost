@@ -143,6 +143,12 @@ inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& mod
   return {tree_begin, tree_end};
 }
 
+// Number of layers in [begin, end) when taking every step-th layer, including the last
+// one if the range is not a multiple of the step.
+inline bst_layer_t NumSlicedLayers(bst_layer_t begin, bst_layer_t end, bst_layer_t step) {
+  return (end - begin + step - 1) / step;
+}
+
 // Call fn for each pair of input output tree.  Return true if index is out of bound.
 template <typename Func>
 bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeModel const& model,
@@ -156,7 +162,7 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
     return true;
   }
 
-  bst_layer_t n_layers = (end - begin) / step;
+  bst_layer_t n_layers = NumSlicedLayers(begin, end, step);
   bst_layer_t out_l = 0;
 
   for (bst_layer_t l = begin; l < end; l += step) {

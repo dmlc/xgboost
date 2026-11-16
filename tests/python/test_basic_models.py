@@ -381,6 +381,20 @@ class TestModels:
         single = booster[1:7].predict(dtrain, output_margin=True)
         np.testing.assert_allclose(merged, single, atol=1e-6)
 
+        # The range is not a multiple of the step.
+        sliced = booster[1:8:3]  # 1,4,7
+        assert sliced.num_boosted_rounds() == 3
+        assert len(sliced.get_dump()) == 3 * num_parallel_tree * num_classes
+        assert booster[::3].num_boosted_rounds() == (num_boost_round + 2) // 3
+
+        # (1,4,7), (2,5), (3,6)
+        predts = [
+            booster[beg:8:3].predict(dtrain, output_margin=True) for beg in (1, 2, 3)
+        ]
+        merged = predts[0] + predts[1] + predts[2] - 2 * intercept
+        single = booster[1:8].predict(dtrain, output_margin=True)
+        np.testing.assert_allclose(merged, single, atol=1e-6)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize("booster_name", ["gbtree", "dart"])
     def test_slice(self, booster_name: str) -> None:
