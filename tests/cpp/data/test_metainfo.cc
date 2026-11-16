@@ -269,6 +269,11 @@ TEST(MetaInfo, Validate) {
                 GMockThrow("Size of feature_weights must equal to number of columns"));
     info.weights_.Resize(0);
   }
+  // Restore valid feature weights so the checks below fail for their own reason.
+  feature_weights.assign(info.num_col_, 1.0f);
+  info.SetInfo(ctx, "feature_weights",
+               Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+  EXPECT_NO_THROW(info.Validate(FstCU()));
 
 #if defined(XGBOOST_USE_CUDA)
   info.group_ptr_.clear();
