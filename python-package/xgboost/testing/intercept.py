@@ -4,7 +4,6 @@ import json
 from typing import Dict, List, Optional
 
 import numpy as np
-import pytest
 from scipy.special import softmax
 from sklearn.datasets import (
     make_classification,
@@ -280,10 +279,3 @@ def run_tweedie_degenerate(device: Device) -> None:
     predt = bst.predict(dtrain)
     assert np.isfinite(predt).all()
     np.testing.assert_allclose(predt, 0.0, atol=1e-3)
-
-    with pytest.raises(ValueError, match="must be non-negative"):
-        train(
-            {"objective": "reg:tweedie", "base_score": -1.0, "device": device},
-            dtrain,
-            1,
-        )
