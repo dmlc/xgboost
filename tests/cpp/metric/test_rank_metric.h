@@ -112,6 +112,10 @@ inline void VerifyNDCG(DeviceOrd device) {
   ASSERT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}), 0.6509f,
               0.001f);
+  // A query without relevant documents is weighted like the others.
+  for (float w : {0.5f, 2.0f}) {
+    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 0}, {w}, {0, 2}), 1.0, kRtEps);
+  }
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@2", &ctx);
@@ -160,6 +164,9 @@ inline void VerifyMAP(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}), 1, kRtEps);
 
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}), 0.5f, 0.001f);
+  for (float w : {0.5f, 2.0f}) {
+    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 0}, {w}, {0, 2}), 1.0, kRtEps);
+  }
   EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{},
                             std::vector<xgboost::bst_float>{}, {}, {}),
               1, 1e-10);
