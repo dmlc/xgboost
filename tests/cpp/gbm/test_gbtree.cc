@@ -676,6 +676,30 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
 
 TEST(GBTree, Slice) { TestModelSlice("gbtree"); }
 
+TEST(GBTree, SlicePartialStep) {
+  bst_idx_t constexpr kRows = 128;
+  bst_feature_t constexpr kCols = 4;
+  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  learner->Configure(Args{{"max_depth", "2"}});
+  for (std::int32_t i = 0; i < 5; ++i) {
+    learner->UpdateOneIter(i, m);
+  }
+
+  // The last partial step is included when the range is not a multiple of the step.
+  auto check = [&](bst_layer_t begin, bst_layer_t end, bst_layer_t step, std::int32_t n_rounds) {
+    bool out_of_bound = false;
+    std::unique_ptr<Learner> sliced{learner->Slice(begin, end, step, &out_of_bound)};
+    ASSERT_FALSE(out_of_bound);
+    ASSERT_EQ(sliced->BoostedRounds(), n_rounds);
+  };
+  check(0, 5, 2, 3);  // 0, 2, 4
+  check(0, 0, 2, 3);  // an end of 0 stands for all the rounds
+  check(1, 5, 3, 2);  // 1, 4
+  check(0, 5, 4, 2);  // 0, 4
+  check(0, 4, 2, 2);  // 0, 2
+}
+
 TEST(Dart, Slice) {
   auto [model, sliced_model] = TestModelSlice("dart");
   auto const& weights =
