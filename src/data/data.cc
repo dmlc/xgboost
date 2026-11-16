@@ -544,6 +544,15 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView in_array) 
   } else {
     this->SetInfoFromHost(&ctx, key, j_interface);
   }
+
+  if (data::MapMetaField(key, true) == data::MetaField::kLabel && this->num_row_ != 0 &&
+      this->labels.Size() == 0) {
+    // An empty array for non-empty data is stored as a (n_samples, 0) matrix, which the
+    // objectives don't expect.
+    this->labels = decltype(this->labels){};
+    LOG(FATAL) << "Invalid `label`: the labels are empty for data with " << this->num_row_
+               << " rows.";
+  }
 }
 
 void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {

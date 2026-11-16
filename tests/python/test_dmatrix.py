@@ -275,6 +275,19 @@ class TestDMatrix:
         dtrain.set_group(group_len)
         np.testing.assert_equal(group_len, dtrain.get_group())
 
+        # Empty labels for a non-empty dataset are rejected.
+        X = np.random.default_rng(1994).normal(size=(16, 4))
+        for empty in (np.empty(0), np.empty((16, 0))):
+            with pytest.raises(ValueError, match="labels are empty"):
+                xgb.DMatrix(X, empty)
+            with pytest.raises(ValueError, match="labels are empty"):
+                xgb.QuantileDMatrix(X, empty)
+            Xy = xgb.DMatrix(X, np.zeros(16))
+            with pytest.raises(ValueError, match="labels are empty"):
+                Xy.set_label(empty)
+        # Empty data with empty labels is fine.
+        xgb.DMatrix(np.empty((0, 4)), np.empty(0))
+
     def test_qid(self):
         rows = 100
         cols = 10
