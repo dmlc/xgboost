@@ -12,6 +12,7 @@
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_stream.h"     // for Event
+#include "../split_gain.h"                // for ThresholdLossChange
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
@@ -429,7 +430,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
     // split evaluation
     float parent_gain = evaluator.CalcGain(
         input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
-    split.loss_chg -= parent_gain;
+    split.loss_chg = ThresholdLossChange(split.loss_chg - parent_gain, parent_gain);
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {

@@ -19,6 +19,7 @@ from xgboost.testing.updater import (
     check_get_quantile_cut,
     check_quantile_loss,
     check_scalar_base_weights,
+    check_split_gain_extremes,
     run_invalid_category,
     run_max_cat,
     train_result,
@@ -28,6 +29,10 @@ pytestmark = tm.timeout(30)
 
 
 class TestGPUUpdaters:
+    @pytest.mark.parametrize("strategy", ["one_output_per_tree", "multi_output_tree"])
+    def test_split_gain_extremes(self, strategy: str) -> None:
+        check_split_gain_extremes("cuda", strategy)
+
     @pytest.mark.parametrize("tree_method", ["approx", "hist"])
     @pytest.mark.parametrize("categorical", [False, True])
     def test_base_weights(self, tree_method: str, categorical: bool) -> None:

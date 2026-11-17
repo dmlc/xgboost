@@ -96,6 +96,44 @@ def check_base_weights(
             )
 
 
+def check_split_gain_extremes(
+    device: Device, multi_strategy: str, tree_method: str = "hist"
+) -> None:
+    """Check tiny gains and small improvements to large parent scores."""
+    params = {
+        "tree_method": tree_method,
+        "device": device,
+        "multi_strategy": multi_strategy,
+        "reg_lambda": 0,
+        "eta": 1,
+    }
+
+    # Tiny gains should still separate the four groups. Each group has constant labels.
+    labels = np.repeat(np.arange(4, dtype=np.float32) * 1e-8, 32)
+    data = DMatrix(np.arange(labels.size).reshape(-1, 1), label=labels)
+    grow_params = (
+        {"grow_policy": "lossguide", "max_depth": 0, "max_leaves": 128}
+        if tree_method == "hist"
+        else {}
+    )
+    model = train({**params, **grow_params}, data, num_boost_round=1)
+    np.testing.assert_array_equal(model.predict(data), labels)
+    assert np.unique(model.predict(data, pred_leaf=True)).size == 4
+
+    # Each target gains 2 from splitting a parent with a score of 8,388,608.
+    params["base_score"] = 0
+    labels = np.array([[2047, -2047], [2049, -2049]], dtype=np.float32)
+    data = DMatrix(np.array([[0], [1]]), label=labels)
+    model = train(params, data, num_boost_round=1)
+    np.testing.assert_array_equal(model.predict(data), labels)
+
+    # The split score rounds up in float, but the apparent gain is below one epsilon
+    # of the parent score and should not split these identical labels.
+    data = DMatrix(np.arange(3).reshape(-1, 1), label=np.full((3, 2), 4097 / 2**14))
+    model = train(params, data, num_boost_round=1)
+    assert (model.predict(data, pred_leaf=True) == 0).all()
+
+
 def check_scalar_base_weights(
     tree_method: str, device: Device, categorical: bool
 ) -> None:

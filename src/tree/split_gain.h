@@ -20,12 +20,28 @@
 #define XGBOOST_TREE_SPLIT_GAIN_H_
 
 #include <cmath>        // for abs
+#include <limits>       // for numeric_limits
 #include <type_traits>  // for enable_if_t, is_floating_point_v
 
 #include "../common/math.h"  // for Sqr
-#include "xgboost/base.h"    // for XGBOOST_DEVICE
+#include "xgboost/base.h"    // for XGBOOST_DEVICE, kRtEps
 
 namespace xgboost::tree {
+/**
+ * @brief Apply a capped relative tolerance to the winning split.
+ *
+ * Keep gains above the historical cutoff. Below it, scale the cutoff with the parent
+ * score so a small label scale can still produce a split.
+ */
+template <typename T>
+XGBOOST_DEVICE float ThresholdLossChange(float loss_chg, T parent_gain) {
+  if (loss_chg > kRtEps || loss_chg <= 0.0f) {
+    return loss_chg;  // Also preserve the negative sentinel for a missing split.
+  }
+  auto tolerance = std::numeric_limits<float>::epsilon() * std::abs(parent_gain);
+  return loss_chg > tolerance ? loss_chg : 0.0f;
+}
+
 /**
  * @brief Whether both children satisfy the Hessian requirement for a split.
  *

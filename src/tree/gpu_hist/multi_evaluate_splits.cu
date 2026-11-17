@@ -20,6 +20,7 @@
 #include "../../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../common/cuda_context.cuh"
 #include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "../split_gain.h"            // for ThresholdLossChange
 #include "../tree_view.h"             // for MultiTargetTreeView
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -750,7 +751,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     // Set up the output entry after persisting its weights and split sum by node ID.
     out_splits[nidx_in_set] = {nidx, input.depth, best_split};
-    out_splits[nidx_in_set].split.loss_chg -= parent_gain;
+    out_splits[nidx_in_set].split.loss_chg =
+        ThresholdLossChange(best_split.loss_chg - parent_gain, parent_gain);
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
   });
 }
