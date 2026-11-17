@@ -315,6 +315,16 @@ test_that("early stopping using a specific metric works", {
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 
+test_that("early stopping callback infers 'maximize' from the metric name by default", {
+  cb <- xgb.cb.early.stop(stopping_rounds = 2, verbose = FALSE)
+  cb$f_before_training(cb$env, list(), NULL, list(), 1L, 5L)
+  for (i in 1:5) {
+    stopped <- cb$f_after_iter(cb$env, list(), NULL, list(), i, c("eval-auc" = 0.5 + i / 10))
+    expect_false(stopped)
+  }
+  expect_equal(cb$env$best_iteration, 5)
+})
+
 test_that("early stopping works with titanic", {
   if (!requireNamespace("titanic")) {
     testthat::skip("Optional testing dependency 'titanic' not found.")

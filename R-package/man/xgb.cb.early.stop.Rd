@@ -6,7 +6,7 @@
 \usage{
 xgb.cb.early.stop(
   stopping_rounds,
-  maximize = FALSE,
+  maximize = NULL,
   metric_name = NULL,
   verbose = TRUE,
   save_best = FALSE
@@ -16,7 +16,8 @@ xgb.cb.early.stop(
 \item{stopping_rounds}{The number of rounds with no improvement in
 the evaluation metric in order to stop the training.}
 
-\item{maximize}{Whether to maximize the evaluation metric.}
+\item{maximize}{Whether to maximize the evaluation metric. If \code{NULL} (the default), it is
+inferred from the metric name.}
 
 \item{metric_name}{The name of an evaluation column to use as a criteria for early
 stopping. If not set, the last column would be used.
