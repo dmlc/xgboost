@@ -32,6 +32,20 @@ def test_inplace_predict_masked_array() -> None:
     )
 
 
+@pytest.mark.parametrize("CSR", [sparse.csr_matrix, sparse.csr_array])
+def test_inplace_predict_csr(CSR: Type) -> None:
+    rng = np.random.default_rng(2026)
+    X = rng.normal(size=(128, 8))
+    X[rng.random(X.shape) < 0.6] = 0.0
+    y = rng.normal(size=128)
+    X = CSR(X)
+    booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, y), 4)
+
+    np.testing.assert_allclose(
+        booster.inplace_predict(X), booster.predict(xgb.DMatrix(X)), rtol=1e-6
+    )
+
+
 def run_threaded_predict(X, rows, predict_func):
     results = []
     per_thread = 20
