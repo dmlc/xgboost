@@ -151,7 +151,10 @@ class CoxRegression : public ObjFunction {
     return shape;
   }
   void ProbToMargin(linalg::Vector<float>* base_score) const override {
-    ProbToMarginImpl(this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return std::log(v); });
+    // A zero or negative intercept would give an infinite or NaN margin, and NaN
+    // gradients. Bound it away from zero.
+    ProbToMarginImpl(this->ctx_, base_score,
+                     [] XGBOOST_DEVICE(float v) { return std::log(common::Max(v, kRtEps)); });
   }
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "cox-nloglik"; }
 
