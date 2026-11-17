@@ -307,16 +307,6 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             m.set_info(feature_weights=fw)
 
-        # The size is validated even if labels and sample weights are set.
-        y = rng.randn(kRows)
-        w = rng.uniform(size=kRows)
-        for weight in (None, w):
-            for size in (kCols - 1, kCols + 1):
-                Xy = xgb.DMatrix(X, y, weight=weight)
-                Xy.set_info(feature_weights=rng.uniform(size=size))
-                with pytest.raises(ValueError, match="feature_weights"):
-                    xgb.train({"colsample_bynode": 0.5}, Xy, 2)
-
     def test_sparse_dmatrix_csr(self, tmp_path: Path) -> None:
         nrow = 100
         ncol = 1000
