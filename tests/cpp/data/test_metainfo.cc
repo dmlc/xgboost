@@ -222,6 +222,42 @@ TEST(MetaInfo, CPUQid) {
   }
 }
 
+TEST(MetaInfo, ValidateEmpty) {
+  Context ctx;
+  auto make_info = [] {
+    xgboost::MetaInfo info;
+    info.num_row_ = 10;
+    info.num_col_ = 3;
+    return info;
+  };
+  // Unset fields are valid.
+  make_info().Validate(DeviceOrd::CPU());
+
+  // An empty array for non-empty data is invalid, for all fields stored as a matrix.
+  std::string const empty_interface =
+      R"({"data": [0, true], "shape": [10, 0], "typestr": "<f4", "strides": null, "version": 3})";
+  for (std::string key : {"label", "base_margin"}) {
+    auto info = make_info();
+    info.SetInfo(ctx, key, empty_interface);
+    EXPECT_THROW(info.Validate(DeviceOrd::CPU()), dmlc::Error) << key;
+  }
+
+  // Slicing unset fields keeps them unset instead of creating empty matrices.
+  auto info = make_info();
+  std::vector<xgboost::bst_idx_t> ridx{0, 1, 2};
+  auto sliced = info.Slice(&ctx, xgboost::common::Span<xgboost::bst_idx_t const>{ridx}, 3);
+  ASSERT_EQ(sliced.labels.Shape(0), 0);
+  ASSERT_EQ(sliced.base_margin_.Shape(0), 0);
+  sliced.num_row_ = 3;
+  sliced.Validate(DeviceOrd::CPU());
+
+  // Empty data with empty labels is valid.
+  xgboost::MetaInfo empty_info;
+  std::vector<float> empty;
+  empty_info.SetInfo(ctx, "label", Make1dInterfaceTest(empty.data(), 0));
+  empty_info.Validate(DeviceOrd::CPU());
+}
+
 TEST(MetaInfo, Validate) {
   xgboost::MetaInfo info;
   info.num_row_ = 10;
