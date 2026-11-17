@@ -74,6 +74,24 @@ def test_predict_proba_logitraw():
     np.testing.assert_allclose(proba[:, 1], expit(raw), rtol=1e-5)
 
 
+def test_softmax_with_two_classes() -> None:
+    # multi:softmax on two classes used to fail with "num_class should be
+    # greater equal to 1" because num_class was only set for three or more.
+    rng = np.random.RandomState(1994)
+    X = rng.standard_normal(size=(100, 4))
+    y = (X[:, 0] > 0).astype(np.int64)
+
+    clf = xgb.XGBClassifier(objective="multi:softmax", n_estimators=4)
+    clf.fit(X, y)
+
+    predt = clf.predict(X)
+    assert set(np.unique(predt)) <= {0, 1}
+    proba = clf.predict_proba(X)
+    assert proba.shape == (X.shape[0], 2)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, rtol=1e-5)
+    np.testing.assert_array_equal(proba.argmax(axis=1), predt)
+
+
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris

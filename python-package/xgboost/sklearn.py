@@ -1846,6 +1846,9 @@ class XGBClassifier(XGBClassifierMixIn, XGBModel):
                 if params.get("objective", None) != "multi:softmax":
                     params["objective"] = "multi:softprob"
                 params["num_class"] = self.n_classes_
+            elif params.get("objective", None) == "multi:softmax":
+                # Two classes still need num_class for the multiclass objective.
+                params["num_class"] = self.n_classes_
 
             model, metric, params = self._configure_fit(xgb_model, params)
             model, feature_types = get_model_categories(X, model, self.feature_types)
