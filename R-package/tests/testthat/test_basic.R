@@ -1073,6 +1073,14 @@ test_that("xgb.cv works for AFT", {
   )
 })
 
+test_that("xgb.cv errors when there are fewer rows than folds", {
+  dtrain <- xgb.DMatrix(matrix(c(1, 2, 3, 4, 5, 6), nrow = 3), label = c(0, 1, 0), nthread = n_threads)
+  expect_error(
+    xgb.cv(params = xgb.params(nthread = n_threads), data = dtrain, nrounds = 1L, nfold = 5L),
+    "fewer rows than folds"
+  )
+})
+
 test_that("xgb.cv works for ranking", {
   data(iris)
   x <- iris[, -(4:5)]
