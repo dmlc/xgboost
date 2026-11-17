@@ -3,13 +3,14 @@
  */
 #include "cat_container.h"
 
-#include <algorithm>    // for copy
+#include <algorithm>    // for copy, is_sorted, stable_sort
 #include <cstddef>      // for size_t
 #include <cstring>      // for memcpy
 #include <limits>       // for numeric_limits
 #include <memory>       // for make_unique
 #include <type_traits>  // for is_same_v
 #include <utility>      // for move
+#include <variant>      // for get_if
 #include <vector>       // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
@@ -136,10 +137,10 @@ void CatContainer::Save(Json* p_out) const {
               std::copy(f_offsets.cbegin(), f_offsets.cend(), joffsets.GetArray().begin());
               f_out["offsets"] = std::move(joffsets);
 
-              I8Array jnames{str.values.size()};  // fixme: uint8
+              U8Array jnames{str.values.size()};
               auto const& f_names = str.values;
               std::copy(f_names.cbegin(), f_names.cend(), jnames.GetArray().begin());
-              f_out["values"] = std::move(jnames);
+              f_out["utf8_bytes"] = std::move(jnames);
             },
             [&f_out](auto&& values) {
               using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
@@ -209,13 +210,59 @@ void LoadJson(Json jvalues, Vec* p_out) {
   }
   *p_out = std::move(buf);
 }
+
+/**
+ * @brief Put saved string lookup indices in unsigned byte order after loading.
+ *
+ * Legacy models sorted string names using signed bytes. Recoding now binary-searches the
+ * index using unsigned comparisons, so the two orders must agree before prediction.
+ */
+void MigrateStringOrder(enc::HostColumnsView cats, common::Span<bst_cat_t> sorted_idx) {
+  if (sorted_idx.empty()) {
+    return;
+  }
+  CHECK_EQ(sorted_idx.size(), cats.n_total_cats);
+  CHECK_EQ(cats.feature_segments.size(), cats.columns.size() + 1);
+  for (std::size_t fidx = 0; fidx < cats.columns.size(); ++fidx) {
+    auto const* p_str = std::get_if<enc::CatStrArrayView>(&cats.columns[fidx]);
+    if (!p_str || p_str->size() == 0) {
+      // integer cat index || numeric feature
+      continue;
+    }
+
+    auto begin = cats.feature_segments[fidx];
+    auto end = cats.feature_segments[fidx + 1];
+    CHECK_GE(begin, 0);
+    CHECK_LE(begin, end);
+    CHECK_LE(end, cats.n_total_cats);
+    auto index = sorted_idx.subspan(begin, end - begin);
+    CHECK_EQ(index.size(), p_str->size());
+    CHECK_GE(p_str->offsets.front(), 0);
+    CHECK_LE(p_str->offsets.back(), p_str->values.size());
+    CHECK(std::is_sorted(p_str->offsets.begin(), p_str->offsets.end()));
+    CHECK(std::all_of(index.begin(), index.end(), [&](bst_cat_t i) {
+      return i >= 0 && static_cast<std::size_t>(i) < p_str->size();
+    }));
+
+    // Re-sort the string names using uint8-backed storage.
+    auto less = [str = *p_str](bst_cat_t l, bst_cat_t r) {
+      return str[l] < str[r];  // span comparison
+    };
+    if (!std::is_sorted(index.begin(), index.end(), less)) {
+      // Binary search returns the first matching ID. Keep the saved order of duplicate names.
+      std::stable_sort(index.begin(), index.end(), less);
+    }
+  }
+}
 }  // namespace
 
 void CatContainer::Load(Json const& in) {
   auto array = get<Array const>(in["enc"]);
   auto n_features = array.size();
 
+  bool has_legacy_strings = false;
   auto& columns = this->cpu_impl_->columns;
+
   for (std::size_t fidx = 0; fidx < n_features; ++fidx) {
     auto const& column = get<Object>(array[fidx]);
     auto it = column.find("offsets");
@@ -223,71 +270,83 @@ void CatContainer::Load(Json const& in) {
       // str
       cpu_impl::CatStrArray str{};
       LoadJson<std::int32_t>(column.at("offsets"), &str.offsets);
-      LoadJson<enc::CatCharT>(column.at("values"), &str.values);
+      if (auto bytes = column.find("utf8_bytes"); bytes != column.cend()) {
+        LoadJson<enc::CatCharT>(bytes->second, &str.values);
+      } else {
+        auto const& values = column.at("values");
+        if (IsA<I8Array>(values)) {  // Legacy UBJSON.
+          CopyBitPattern(get<I8Array const>(values), &str.values);
+        } else {
+          LoadJson<enc::CatCharT>(values, &str.values);
+        }
+        has_legacy_strings |= str.size() != 0;
+      }
 
-      columns.emplace_back(str);
-    } else {
-      // numeric
-      auto type = get<Integer const>(column.at("type"));
-      auto const& jvalues = column.at("values");
-      columns.emplace_back();
-      switch (static_cast<CatIndexType>(type)) {
-        case CatIndexType::kI8: {
-          LoadJson<std::int8_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kU8: {
-          LoadJson<std::uint8_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kI16: {
-          LoadJson<std::int16_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kU16: {
-          LoadJson<std::uint16_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kI32: {
-          LoadJson<std::int32_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kU32: {
-          LoadJson<std::uint32_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kI64: {
-          LoadJson<std::int64_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kU64: {
-          LoadJson<std::uint64_t>(jvalues, &columns.back());
-          break;
-        }
-        case CatIndexType::kF32:
-        case CatIndexType::kF64: {
-          LOG(FATAL) << error::NoFloatCat();
-          break;
-        }
-        default: {
-          LOG(FATAL) << "Invalid type.";
-        }
+      columns.emplace_back(std::move(str));
+
+      continue;
+    }
+    // numeric
+    auto type = get<Integer const>(column.at("type"));
+    auto const& jvalues = column.at("values");
+    columns.emplace_back();
+    switch (static_cast<CatIndexType>(type)) {
+      case CatIndexType::kI8: {
+        LoadJson<std::int8_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kU8: {
+        LoadJson<std::uint8_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kI16: {
+        LoadJson<std::int16_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kU16: {
+        LoadJson<std::uint16_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kI32: {
+        LoadJson<std::int32_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kU32: {
+        LoadJson<std::uint32_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kI64: {
+        LoadJson<std::int64_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kU64: {
+        LoadJson<std::uint64_t>(jvalues, &columns.back());
+        break;
+      }
+      case CatIndexType::kF32:
+      case CatIndexType::kF64: {
+        LOG(FATAL) << error::NoFloatCat();
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Invalid type.";
       }
     }
   }
 
   auto& hf_segments = this->feature_segments_.HostVector();
   LoadJson<std::int32_t>(in["feature_segments"], &hf_segments);
-  if (hf_segments.empty()) {
-    this->n_total_cats_ = 0;
-  } else {
-    this->n_total_cats_ = hf_segments.back();
-  }
+  this->n_total_cats_ = hf_segments.empty() ? 0ul : hf_segments.back();
 
   auto& h_sorted_idx = this->sorted_idx_.HostVector();
   LoadJson<std::int32_t>(in["sorted_idx"], &h_sorted_idx);
 
   this->cpu_impl_->Finalize();
+
+  if (has_legacy_strings) {
+    MigrateStringOrder(this->HostViewImpl(), this->sorted_idx_.HostSpan());
+    LOG(WARNING) << error::OldCatContainer();
+  }
 }
 
 #if !defined(XGBOOST_USE_CUDA)

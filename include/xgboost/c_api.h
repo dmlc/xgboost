@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  *
  * @brief C API of XGBoost, used to interface with other high-level languages.
  */
@@ -178,7 +178,7 @@ XGB_DLL int XGDMatrixCreateFromURI(char const *config, DMatrixHandle *out);
  *       'values':
  *       {
  *         'data': (129412626416000, True),
- *         'typestr': '<i1', 'version': 3, 'strides': None, 'shape': (7,), 'mask': None
+ *         'typestr': '|u1', 'version': 3, 'strides': None, 'shape': (7,), 'mask': None
  *       }
  *     },
  *     {
