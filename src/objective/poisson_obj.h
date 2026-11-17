@@ -8,6 +8,7 @@
 
 #include <cmath>  // for expf, log
 
+#include "../common/common.h"       // for Max
 #include "elementwise_objective.h"  // for elementwise kernels
 #include "regression_loss.h"        // for PoissonLabel
 #include "xgboost/base.h"           // for GradientPair
@@ -47,7 +48,11 @@ struct PoissonPredTransform {
   XGBOOST_DEVICE float operator()(float value) const { return expf(value); }
 };
 struct PoissonProbToMargin {
-  XGBOOST_DEVICE float operator()(float value) const { return std::log(value); }
+  XGBOOST_DEVICE float operator()(float value) const {
+    // A zero or negative intercept would give an infinite or NaN margin. Bound it away
+    // from zero.
+    return std::log(common::Max(value, kRtEps));
+  }
 };
 struct PoissonLabelCheck {
   XGBOOST_DEVICE bool operator()(float value) const { return PoissonLabel::CheckLabel(value); }
