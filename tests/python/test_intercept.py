@@ -2,6 +2,7 @@ from itertools import product
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost.testing.intercept import (
     run_adaptive,
