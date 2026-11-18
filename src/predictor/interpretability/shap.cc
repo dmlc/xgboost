@@ -6,7 +6,7 @@
 #include <algorithm>    // for copy, fill
 #include <array>        // for array
 #include <atomic>       // for atomic
-#include <cmath>        // for abs
+#include <cmath>        // for abs, isfinite
 #include <type_traits>  // for remove_const_t
 #include <variant>      // for variant
 #include <vector>       // for vector
@@ -746,13 +746,20 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
               CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs,
                                            &path_features);
               auto const weight = tree_weights == nullptr ? 1 : (*tree_weights)[j];
-              for (auto fidx : path_features) {
-                p_contribs[fidx] += this_tree_contribs[fidx] * weight;
-                this_tree_contribs[fidx] = 0.0f;
+              if (std::isfinite(weight)) {
+                for (auto fidx : path_features) {
+                  p_contribs[fidx] += this_tree_contribs[fidx] * weight;
+                  this_tree_contribs[fidx] = 0.0f;
+                }
+                auto const bias = ncolumns - 1;
+                p_contribs[bias] += this_tree_contribs[bias] * weight;
+                this_tree_contribs[bias] = 0.0f;
+              } else {
+                for (size_t ci = 0; ci < ncolumns; ++ci) {
+                  p_contribs[ci] += this_tree_contribs[ci] * weight;
+                  this_tree_contribs[ci] = 0.0f;
+                }
               }
-              auto const bias = ncolumns - 1;
-              p_contribs[bias] += this_tree_contribs[bias] * weight;
-              this_tree_contribs[bias] = 0.0f;
             }
             if (base_margin.Size() != 0) {
               CHECK_EQ(base_margin.Shape(1), n_groups);
