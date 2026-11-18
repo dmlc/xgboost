@@ -73,7 +73,8 @@ void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *me
 
 void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feats,
                                   std::vector<float> *mean_values,
-                                  std::vector<bst_float> *out_contribs) {
+                                  std::vector<bst_float> *out_contribs,
+                                  std::vector<bst_feature_t> *path_features) {
   CHECK_EQ(out_contribs->size(), feats.Size() + 1);
   CHECK_GT(mean_values->size(), 0U);
   bst_feature_t split_index = 0;
@@ -87,6 +88,7 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
   auto const &cats = tree.GetCategoriesMatrix();
   while (!tree.IsLeaf(nidx)) {
     split_index = tree.SplitIndex(nidx);
+    path_features->push_back(split_index);
     nidx = predictor::GetNextNode<true, true>(tree, nidx, feats.GetFvalue(split_index), cats);
     auto new_value = (*mean_values)[nidx];
     (*out_contribs)[split_index] += new_value - node_value;
@@ -728,6 +730,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
             feats.Init(model.learner_model_state->num_feature);
           }
           auto &this_tree_contribs = contribs_tloc[tid];
+          std::vector<bst_feature_t> path_features;
           auto row_idx = view.base_rowid + i;
           auto n_valid = view.DoFill(i, feats.Data().data());
           feats.HasMissing(n_valid != feats.Size());
@@ -738,13 +741,18 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                 continue;
               }
 
-              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              path_features.clear();
               auto const sc_tree = model.trees[j]->HostScView();
-              CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
-              for (size_t ci = 0; ci < ncolumns; ++ci) {
-                p_contribs[ci] +=
-                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs,
+                                           &path_features);
+              auto const weight = tree_weights == nullptr ? 1 : (*tree_weights)[j];
+              for (auto fidx : path_features) {
+                p_contribs[fidx] += this_tree_contribs[fidx] * weight;
+                this_tree_contribs[fidx] = 0.0f;
               }
+              auto const bias = ncolumns - 1;
+              p_contribs[bias] += this_tree_contribs[bias] * weight;
+              this_tree_contribs[bias] = 0.0f;
             }
             if (base_margin.Size() != 0) {
               CHECK_EQ(base_margin.Shape(1), n_groups);
