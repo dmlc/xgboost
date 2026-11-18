@@ -7,7 +7,7 @@ import functools
 import importlib.util
 import logging
 import types
-from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
+from typing import TYPE_CHECKING, Any, Literal, Sequence, TypeGuard, cast, overload
 
 import numpy as np
 
@@ -128,13 +128,27 @@ def is_pandas_available() -> bool:
 
 
 @functools.cache
-def lazy_scipy_sparse() -> types.ModuleType | None:
+def _load_scipy() -> types.ModuleType:
+    import scipy.sparse as scipy_sparse
+
+    return scipy_sparse
+
+
+@overload
+def import_scipy_sparse(required: Literal[True]) -> types.ModuleType: ...
+
+
+@overload
+def import_scipy_sparse(required: Literal[False]) -> None | types.ModuleType: ...
+
+
+def import_scipy_sparse(required: bool) -> types.ModuleType | None:
     """Import scipy lazily to reduce overhead."""
     try:
-        import scipy.sparse as scipy_sparse
-
-        return scipy_sparse
+        return _load_scipy()
     except ImportError:
+        if required:
+            raise
         return None
 
 
@@ -229,7 +243,7 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if isinstance(value[0], np.ndarray):
         value_arr = cast(Sequence[np.ndarray], value)
         return cast(_T, np.concatenate(value_arr, axis=0))
-    ss = lazy_scipy_sparse()
+    ss = import_scipy_sparse(required=False)
     if ss and isinstance(value[0], ss.csr_matrix):
         return ss.vstack(value, format="csr")
     if ss and isinstance(value[0], ss.csc_matrix):

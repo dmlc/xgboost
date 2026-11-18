@@ -83,6 +83,7 @@ from .compat import (
     _is_cupy_alike,
     import_polars,
     import_pyarrow,
+    import_scipy_sparse,
     is_pandas_available,
     is_pyarrow_available,
     py_str,
@@ -1120,7 +1121,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         .. versionadded:: 1.7.0
 
         """
-        import scipy.sparse
+        ss = import_scipy_sparse(required=True)
 
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
         indices = np.empty(self.num_nonmissing(), dtype=np.uint32)
@@ -1134,7 +1135,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(
             _LIB.XGDMatrixGetDataAsCSR(self.handle, config, c_indptr, c_indices, c_data)
         )
-        ret = scipy.sparse.csr_matrix(
+        ret = ss.csr_matrix(
             (data, indices, indptr), shape=(self.num_row(), self.num_col())
         )
         return ret
