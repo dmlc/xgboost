@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 #pragma once
 
@@ -12,7 +12,7 @@
 #include <thrust/sort.h>                         // for sort
 
 #include <cstddef>           // for size_t
-#include <cstdint>           // for int32_t, int8_t
+#include <cstdint>           // for int32_t
 #include <cuda/functional>   // for proclaim_return_type
 #include <cuda/std/utility>  // for make_pair, pair
 #include <cuda/std/variant>  // for get
@@ -37,9 +37,7 @@ struct SegmentedSearchSortedStrOp {
     auto needles = cuda::std::get<CatStrArrayView>(needles_v.columns[f_idx]);
     // Get the search key
     auto idx = i - needles_v.feature_segments[f_idx];  // index local to the feature
-    auto begin = needles.offsets[idx];
-    auto end = needles.offsets[idx + 1];
-    auto needle = needles.values.subspan(begin, end - begin);
+    auto needle = needles[idx];
 
     // Search the key from the training set
     auto it = dh::make_counting_iterator(0);
@@ -48,26 +46,8 @@ struct SegmentedSearchSortedStrOp {
         haystack_v.feature_segments[f_idx + 1] - haystack_v.feature_segments[f_idx]);
     auto end_it = it + f_sorted_idx.size();
     auto ret_it = thrust::lower_bound(thrust::seq, it, end_it, SearchKey(), [&](auto l, auto r) {
-      Span<std::int8_t const> l_str;
-      if (l == SearchKey()) {
-        l_str = needle;
-      } else {
-        auto l_idx = f_sorted_idx[l];
-        auto l_beg = haystack.offsets[l_idx];
-        auto l_end = haystack.offsets[l_idx + 1];
-        l_str = haystack.values.subspan(l_beg, l_end - l_beg);
-      }
-
-      Span<std::int8_t const> r_str;
-      if (r == SearchKey()) {
-        r_str = needle;
-      } else {
-        auto r_idx = f_sorted_idx[r];
-        auto r_beg = haystack.offsets[r_idx];
-        auto r_end = haystack.offsets[r_idx + 1];
-        r_str = haystack.values.subspan(r_beg, r_end - r_beg);
-      }
-
+      auto l_str = l == SearchKey() ? needle : haystack[f_sorted_idx[l]];
+      auto r_str = r == SearchKey() ? needle : haystack[f_sorted_idx[r]];
       return l_str < r_str;
     });
     if (ret_it == it + f_sorted_idx.size()) {
@@ -75,10 +55,7 @@ struct SegmentedSearchSortedStrOp {
     }
     // Handle OOV category
     auto sorted_idx = *ret_it;
-    auto candidate_idx = f_sorted_idx[sorted_idx];
-    auto candidate_beg = haystack.offsets[candidate_idx];
-    auto candidate_end = haystack.offsets[candidate_idx + 1];
-    auto candidate = haystack.values.subspan(candidate_beg, candidate_end - candidate_beg);
+    auto candidate = haystack[f_sorted_idx[sorted_idx]];
     return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
@@ -176,27 +153,20 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       }));
   thrust::copy(exec, key_it, key_it + n_total_cats, keys.begin());
 
-  thrust::sort(
-      exec, keys.begin(), keys.end(),
-      cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
-        if (l.first == r.first) {  // same feature
-          auto const& col = orig_enc.columns[l.first];
-          return cuda::std::visit(
-              Overloaded{[&l, &r](CatStrArrayView const& str) -> bool {
-                           auto l_beg = str.offsets[l.second];
-                           auto l_end = str.offsets[l.second + 1];
-                           auto l_str = str.values.subspan(l_beg, l_end - l_beg);
-
-                           auto r_beg = str.offsets[r.second];
-                           auto r_end = str.offsets[r.second + 1];
-                           auto r_str = str.values.subspan(r_beg, r_end - r_beg);
-                           return l_str < r_str;
-                         },
-                         [&](auto&& values) { return values[l.second] < values[r.second]; }},
-              col);
-        }
-        return l.first < r.first;
-      }));
+  thrust::sort(exec, keys.begin(), keys.end(),
+               cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
+                 if (l.first == r.first) {  // same feature
+                   auto const& col = orig_enc.columns[l.first];
+                   return cuda::std::visit(Overloaded{[&l, &r](CatStrArrayView const& str) -> bool {
+                                                        return str[l.second] < str[r.second];
+                                                      },
+                                                      [&](auto&& values) {
+                                                        return values[l.second] < values[r.second];
+                                                      }},
+                                           col);
+                 }
+                 return l.first < r.first;
+               }));
 
   // Extract the sorted index out from sorted keys.
   auto s_keys = dh::ToSpan(keys);

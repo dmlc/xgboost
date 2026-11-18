@@ -1,5 +1,5 @@
 /**
- *  Copyright 2019-2025, XGBoost Contributors
+ *  Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -179,7 +179,7 @@ TEST(Adapter, EmptyCategories) {
 
   {
     HostDeviceVector<std::int32_t> offsets{0};
-    HostDeviceVector<std::int8_t> values;
+    HostDeviceVector<enc::CatCharT> values;
     Json names{Object{}};
     names["offsets"] = GetArrayInterface(&offsets, offsets.Size(), 1);
     names["values"] = GetArrayInterface(&values, values.Size(), 1);

@@ -73,6 +73,12 @@ for more details about differences between saving model and serializing.
 )doc";
 }
 
+constexpr StringView OldCatContainer() {
+  return "You are loading a model with an old encoding for string category names. "
+         "This format has been deprecated in 3.5 and will be removed in a future release. "
+         "Re-save the model for future compatibility.";
+}
+
 inline void WarnOldSerialization() {
   // Display it once is enough. Otherwise this can be really verbose in distributed
   // environments.
