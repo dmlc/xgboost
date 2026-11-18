@@ -258,6 +258,38 @@ TEST(MetaInfo, ValidateEmpty) {
   empty_info.Validate(DeviceOrd::CPU());
 }
 
+TEST(MetaInfo, LoadLegacyEmptyBinary) {
+  // Before the CPU slice kept unset fields unset, slicing data without base margin saved an
+  // (n_samples, 0) matrix. Loading such a file should restore an unset field.
+  Context ctx;
+  xgboost::MetaInfo info;
+  info.num_row_ = 10;
+  info.num_col_ = 3;
+  std::string const empty_interface =
+      R"({"data": [0, true], "shape": [10, 0], "typestr": "<f4", "strides": null, "version": 3})";
+  info.SetInfo(ctx, "label", empty_interface);
+  info.SetInfo(ctx, "base_margin", empty_interface);
+  ASSERT_EQ(info.labels.Shape(0), 10);
+  ASSERT_EQ(info.base_margin_.Shape(0), 10);
+  EXPECT_THROW(info.Validate(DeviceOrd::CPU()), dmlc::Error);
+
+  common::TemporaryDirectory tempdir;
+  auto const path = tempdir.Str() + "/legacy.binary";
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    info.SaveBinary(fo.get());
+  }
+  std::unique_ptr<dmlc::Stream> fi{dmlc::Stream::Create(path.c_str(), "r")};
+  xgboost::MetaInfo loaded;
+  loaded.LoadBinary(fi.get());
+  ASSERT_EQ(loaded.num_row_, 10);
+  ASSERT_EQ(loaded.labels.Size(), 0);
+  ASSERT_EQ(loaded.labels.Shape(0), 0);
+  ASSERT_EQ(loaded.base_margin_.Size(), 0);
+  ASSERT_EQ(loaded.base_margin_.Shape(0), 0);
+  loaded.Validate(DeviceOrd::CPU());
+}
+
 TEST(MetaInfo, Validate) {
   xgboost::MetaInfo info;
   info.num_row_ = 10;

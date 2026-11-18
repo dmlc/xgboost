@@ -357,6 +357,14 @@ void MetaInfo::LoadBinary(dmlc::Stream* fi) {
   LoadTensorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
+  // Binary files written by CPU slicing of a DMatrix with unset labels or base margin may
+  // contain an empty (n_samples, 0) matrix. It means the field is not set, so restore the
+  // shape of an unset field. This is not an error, unlike a user-supplied empty array.
+  for (auto* p_info : {&labels, &base_margin_}) {
+    if (p_info->Size() == 0 && p_info->Shape(0) != 0) {
+      p_info->Reshape(0, 0);
+    }
+  }
 
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
