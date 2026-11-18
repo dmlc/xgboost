@@ -79,7 +79,7 @@ that are allowed to interact with each other.
 
 A feature that does not appear in any group is not allowed to interact with any
 other feature: a branch that splits on it never splits on another feature, so its
-effect on the prediction is additive. For example, ``[[0]]`` does not isolate
+effect on the raw margin is additive. For example, ``[[0]]`` does not isolate
 :math:`x_0` from the other features, it removes every interaction from the model. To
 keep :math:`x_0` additive while the other features interact freely, list them in a
 second group: ``[[0], [1, 2, 3, 4]]``.
