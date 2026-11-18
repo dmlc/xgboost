@@ -77,6 +77,13 @@ interaction constraints is expressed as a nested list, e.g.
 ``[[0, 1], [2, 3, 4]]``, where each inner list is a group of indices of features
 that are allowed to interact with each other.
 
+A feature that does not appear in any group is not allowed to interact with any
+other feature: a branch that splits on it never splits on another feature, so its
+effect on the prediction is additive. For example, ``[[0]]`` does not isolate
+:math:`x_0` from the other features, it removes every interaction from the model. To
+keep :math:`x_0` additive while the other features interact freely, list them in a
+second group: ``[[0], [1, 2, 3, 4]]``.
+
 In the following diagram, the left decision tree is in violation of the first
 constraint (``[0, 1]``), whereas the right decision tree complies with both the
 first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
@@ -241,9 +248,18 @@ For one last example, we use ``[[0, 1], [1, 3, 4]]`` and choose feature ``0`` as
 the root node.  At the second layer of the built tree, ``1`` is the only legitimate split
 candidate except for ``0`` itself, since they belong to the same constraint set.
 Following the grow path of our example tree below, the node at the second layer splits at
-feature ``1``.  But due to the fact that ``1`` also belongs to second constraint set ``[1,
-3, 4]``, at the third layer, we are allowed to include all features as split candidates and
-still comply with the interaction constraints of its ascendants.
+feature ``1``.  At the third layer, the legitimate split candidates are those that share a
+constraint set with every feature already used on the path, ``0`` and ``1``.  Only ``[0, 1]``
+contains both, so the candidates remain ``{0, 1}``: ``3`` and ``4`` cannot be added below
+``0``, even though ``1`` also belongs to ``[1, 3, 4]``.  In general, every branch of the tree
+uses either features from a single constraint set, or a single feature that is in no set.
+
+.. note::
+
+  This describes the CPU tree methods (``hist``, ``approx`` and ``exact``).  With
+  ``device="cuda"``, the constraints are currently applied less strictly: a branch can combine
+  features from different constraint sets, and in this example the third layer can also split
+  on ``3`` and ``4``.
 
 .. plot::
   :nofigs:
@@ -257,8 +273,8 @@ still comply with the interaction constraints of its ascendants.
       0 [label=<x<SUB><FONT POINT-SIZE="11">0</FONT></SUB>>, shape=box, color=black, fontcolor=black];
       1 [label="...", shape=none];
       2 [label=<x<SUB><FONT POINT-SIZE="11">1</FONT></SUB>>, shape=box, color=black, fontcolor=black];
-      3 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
-      4 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      3 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      4 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
       5 [label="...", shape=none];
       6 [label="...", shape=none];
       7 [label="...", shape=none];
@@ -281,4 +297,4 @@ still comply with the interaction constraints of its ascendants.
    :align: center
    :figwidth: 80 %
 
-   ``{0, 1, 3, 4}`` represents the sets of legitimate split features.
+   ``{0, 1}`` represents the sets of legitimate split features on CPU.
