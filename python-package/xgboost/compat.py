@@ -35,42 +35,6 @@ def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
     return is_same_module and has_same_name
 
 
-# sklearn
-try:
-    from sklearn import __version__ as _sklearn_version
-    from sklearn.base import BaseEstimator as XGBModelBase
-    from sklearn.base import ClassifierMixin as XGBClassifierBase
-    from sklearn.base import RegressorMixin as XGBRegressorBase
-    from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
-
-    # sklearn.utils Tags types can be imported unconditionally once
-    # xgboost's minimum scikit-learn version is 1.6 or higher
-    try:
-        from sklearn.utils import Tags as _sklearn_Tags
-    except ImportError:
-        _sklearn_Tags = object
-
-    SKLEARN_INSTALLED = True
-
-except ImportError:
-    SKLEARN_INSTALLED = False
-
-    # used for compatibility without sklearn
-    class XGBModelBase:  # type: ignore[no-redef]
-        """Dummy class for sklearn.base.BaseEstimator."""
-
-    class XGBClassifierBase:  # type: ignore[no-redef]
-        """Dummy class for sklearn.base.ClassifierMixin."""
-
-    class XGBRegressorBase:  # type: ignore[no-redef]
-        """Dummy class for sklearn.base.RegressorMixin."""
-
-    XGBStratifiedKFold = None
-
-    _sklearn_Tags = object
-    _sklearn_version = object
-
-
 _logger = logging.getLogger(__name__)
 
 
@@ -163,10 +127,15 @@ def is_pandas_available() -> bool:
     return True
 
 
-try:
-    import scipy.sparse as scipy_sparse
-except ImportError:
-    scipy_sparse = False
+@functools.cache
+def lazy_scipy_sparse() -> types.ModuleType | None:
+    """Import scipy lazily to reduce overhead."""
+    try:
+        import scipy.sparse as scipy_sparse
+
+        return scipy_sparse
+    except ImportError:
+        return None
 
 
 def _is_polars_lazyframe(data: DataType) -> bool:
@@ -260,13 +229,14 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if isinstance(value[0], np.ndarray):
         value_arr = cast(Sequence[np.ndarray], value)
         return cast(_T, np.concatenate(value_arr, axis=0))
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
-        return scipy_sparse.vstack(value, format="csr")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csc_matrix):
-        return scipy_sparse.vstack(value, format="csc")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
+    ss = lazy_scipy_sparse()
+    if ss and isinstance(value[0], ss.csr_matrix):
+        return ss.vstack(value, format="csr")
+    if ss and isinstance(value[0], ss.csc_matrix):
+        return ss.vstack(value, format="csc")
+    if ss and isinstance(value[0], ss.spmatrix):
         # other sparse format will be converted to CSR.
-        return scipy_sparse.vstack(value, format="csr")
+        return ss.vstack(value, format="csr")
     if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
         import pandas as pd
         from pandas import concat as pd_concat

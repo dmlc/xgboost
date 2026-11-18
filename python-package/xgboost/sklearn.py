@@ -32,6 +32,14 @@ from scipy.special import expit, softmax
 
 from ._c_api import _parse_version, _py_version
 from ._data_utils import Categories
+from ._sklearn_compat import (
+    SKLEARN_INSTALLED,
+    XGBClassifierBase,
+    XGBModelBase,
+    XGBRegressorBase,
+    _sklearn_Tags,
+    _sklearn_version,
+)
 from ._typing import (
     ArrayLike,
     EvalsLog,
@@ -41,19 +49,7 @@ from ._typing import (
     ModelIn,
 )
 from .callback import TrainingCallback
-
-# Do not use class names on scikit-learn directly.  Re-define the classes on
-# .compat to guarantee the behavior without scikit-learn
-from .compat import (
-    SKLEARN_INSTALLED,
-    XGBClassifierBase,
-    XGBModelBase,
-    XGBRegressorBase,
-    _sklearn_Tags,
-    _sklearn_version,
-    import_cupy,
-    is_dataframe,
-)
+from .compat import import_cupy, is_dataframe
 from .config import config_context
 from .core import (
     Booster,

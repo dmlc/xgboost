@@ -37,7 +37,6 @@ from typing import (
 )
 
 import numpy as np
-import scipy.sparse
 
 from ._c_api import (
     _LIB,
@@ -90,8 +89,8 @@ from .compat import (
 )
 
 if TYPE_CHECKING:
+    import scipy.sparse
     from pandas import DataFrame as PdDataFrame
-
 
 XGBoostError = _XGBoostError
 
@@ -1113,7 +1112,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         group_ptr = self._get_info("group_ptr")
         return np.diff(group_ptr)
 
-    def get_data(self) -> scipy.sparse.csr_matrix:
+    def get_data(self) -> "scipy.sparse.csr_matrix":
         """Get the predictors from DMatrix as a CSR matrix. This getter is mostly for
         testing purposes. If this is a quantized DMatrix then quantized values are
         returned instead of input values.
@@ -1121,6 +1120,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         .. versionadded:: 1.7.0
 
         """
+        import scipy.sparse
+
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
         indices = np.empty(self.num_nonmissing(), dtype=np.uint32)
         data = np.empty(self.num_nonmissing(), dtype=np.float32)
@@ -1424,7 +1425,7 @@ class _ProxyDMatrix(DMatrix):
             _LIB.XGProxyDMatrixSetDataColumnar(self.handle, data.array_interface())
         )
 
-    def _ref_data_from_csr(self, csr: scipy.sparse.csr_matrix) -> None:
+    def _ref_data_from_csr(self, csr: "scipy.sparse.csr_matrix") -> None:
         """Reference data from scipy csr."""
         _LIB.XGProxyDMatrixSetDataCSR(
             self.handle,
