@@ -324,37 +324,28 @@ def _arrow_cat_names_inf(cats: "pa.StringArray") -> Tuple[StringArray, Any]:
     if not TYPE_CHECKING:
         pa = import_pyarrow()
 
-    # FIXME(jiamingy): Account for offset, need to find an implementation that returns
-    # offset > 0
-    assert cats.offset == 0
+    # Categories should not have missing values.
+    if cats.null_count != 0:
+        raise ValueError("Categories should not contain missing values.")
+    if isinstance(cats, pa.LargeStringArray):
+        import pyarrow.compute as pc
+
+        n_bytes = pc.sum(pc.binary_length(cats), min_count=0).as_py()
+        if n_bytes > np.iinfo(np.int32).max:
+            # Reject unsupported ranges before copying. Arrow supplies the
+            # narrowing error without inspecting the string payload.
+            cats.cast(pa.string())
+
+    # Let Arrow materialize the logical strings and convert their offsets to
+    # the 32-bit representation XGBoost uses.
+    cats = pa.concat_arrays([cats]).cast(pa.string())
     buffers: List[pa.Buffer] = cats.buffers()
     mask, offset, data = buffers
     assert offset.is_cpu
-
     off_len = len(cats) + 1
-
-    def get_n_bytes(typ: Type) -> int:
-        return off_len * (np.iinfo(typ).bits // 8)
-
-    if offset.size == get_n_bytes(np.int64):
-        if not isinstance(cats, pa.LargeStringArray):
-            arrow_str_error = "Expecting a `pyarrow.Array`."
-            raise TypeError(arrow_str_error + f" Got: {type(cats)}.")
-        # Convert to 32bit integer, arrow recommends against the use of i64. Also,
-        # XGBoost cannot handle large number of categories (> 2**31).
-        i32cats = cats.cast(pa.string())
-        mask, offset, data = i32cats.buffers()
-
-    if offset.size != get_n_bytes(np.int32):
-        raise TypeError(
-            "Arrow dictionary type offsets is required to be 32-bit integer."
-        )
 
     joffset = _arrow_buf_inf(offset.address, "<i4", off_len, None)
     jdata = _arrow_buf_inf(data.address, "|i1", data.size, None)
-    # Categories should not have missing values.
-    assert mask is None
-
     jnames: StringArray = {"offsets": joffset, "values": jdata}
     return jnames, (mask, offset, data)
 
