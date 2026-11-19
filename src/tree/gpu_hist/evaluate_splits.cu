@@ -6,8 +6,6 @@
 #include <cuda/std/functional>                     // for plus
 #include <limits>                                  // for numeric_limits
 
-#include "../../collective/allgather.h"
-#include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
 #include "../../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../../common/cuda_context.cuh"  // for CUDAContext
