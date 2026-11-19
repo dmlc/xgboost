@@ -718,6 +718,27 @@ test_that("Can predict class", {
   })
 })
 
+test_that("predict.xgboost warns about ignored arguments", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  expect_no_warning(pred <- predict(model, x))
+  expect_no_warning(predict(model, x, type = "contrib"))
+
+  expect_warning(
+    pred_flag <- predict(model, x, predcontrib = TRUE),
+    "Arguments passed through '...' are ignored: predcontrib.",
+    fixed = TRUE
+  )
+  expect_equal(pred_flag, pred)
+
+  expect_warning(
+    predict(model, x, foo = 1, bar = 2),
+    "Arguments passed through '...' are ignored: foo, bar.",
+    fixed = TRUE
+  )
+})
+
 test_that("Metadata survives serialization", {
   y <- iris$Species
   x <- iris[, -5L]

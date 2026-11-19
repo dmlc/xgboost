@@ -1325,7 +1325,7 @@ xgboost <- function(
 #'
 #' Note that this check might add some sizable latency to the predictions, so it's
 #' recommended to disable it for performance-sensitive applications.
-#' @param ... Not used.
+#' @param ... Not used. Passing any argument here produces a warning.
 #' @return Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
 #' (for 3D and higher), or `factor` (for class predictions). See documentation for parameter `type`
 #' for details about what the output type and shape will be.
@@ -1360,6 +1360,15 @@ predict.xgboost <- function(
     stop(
       "Predictions on 'xgb.DMatrix' objects are not supported with 'xgboost' class.",
       " Try 'xgb.train' or 'predict.xgb.Booster'."
+    )
+  }
+
+  if (...length()) {
+    arg_names <- setdiff(...names(), "")
+    warning(
+      "Arguments passed through '...' are ignored",
+      if (length(arg_names)) paste0(": ", paste(arg_names, collapse = ", ")),
+      "."
     )
   }
 
