@@ -222,6 +222,74 @@ TEST(MetaInfo, CPUQid) {
   }
 }
 
+TEST(MetaInfo, ValidateEmpty) {
+  Context ctx;
+  auto make_info = [] {
+    xgboost::MetaInfo info;
+    info.num_row_ = 10;
+    info.num_col_ = 3;
+    return info;
+  };
+  // Unset fields are valid.
+  make_info().Validate(DeviceOrd::CPU());
+
+  // An empty array for non-empty data is invalid, for all fields stored as a matrix.
+  std::string const empty_interface =
+      R"({"data": [0, true], "shape": [10, 0], "typestr": "<f4", "strides": null, "version": 3})";
+  for (std::string key : {"label", "base_margin"}) {
+    auto info = make_info();
+    info.SetInfo(ctx, key, empty_interface);
+    EXPECT_THROW(info.Validate(DeviceOrd::CPU()), dmlc::Error) << key;
+  }
+
+  // Slicing unset fields keeps them unset instead of creating empty matrices.
+  auto info = make_info();
+  std::vector<xgboost::bst_idx_t> ridx{0, 1, 2};
+  auto sliced = info.Slice(&ctx, xgboost::common::Span<xgboost::bst_idx_t const>{ridx}, 3);
+  ASSERT_EQ(sliced.labels.Shape(0), 0);
+  ASSERT_EQ(sliced.base_margin_.Shape(0), 0);
+  sliced.num_row_ = 3;
+  sliced.Validate(DeviceOrd::CPU());
+
+  // Empty data with empty labels is valid.
+  xgboost::MetaInfo empty_info;
+  std::vector<float> empty;
+  empty_info.SetInfo(ctx, "label", Make1dInterfaceTest(empty.data(), 0));
+  empty_info.Validate(DeviceOrd::CPU());
+}
+
+TEST(MetaInfo, LoadLegacyEmptyBinary) {
+  // Before the CPU slice kept unset fields unset, slicing data without base margin saved an
+  // (n_samples, 0) matrix. Loading such a file should restore an unset field.
+  Context ctx;
+  xgboost::MetaInfo info;
+  info.num_row_ = 10;
+  info.num_col_ = 3;
+  std::string const empty_interface =
+      R"({"data": [0, true], "shape": [10, 0], "typestr": "<f4", "strides": null, "version": 3})";
+  info.SetInfo(ctx, "label", empty_interface);
+  info.SetInfo(ctx, "base_margin", empty_interface);
+  ASSERT_EQ(info.labels.Shape(0), 10);
+  ASSERT_EQ(info.base_margin_.Shape(0), 10);
+  EXPECT_THROW(info.Validate(DeviceOrd::CPU()), dmlc::Error);
+
+  common::TemporaryDirectory tempdir;
+  auto const path = tempdir.Str() + "/legacy.binary";
+  {
+    std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
+    info.SaveBinary(fo.get());
+  }
+  std::unique_ptr<dmlc::Stream> fi{dmlc::Stream::Create(path.c_str(), "r")};
+  xgboost::MetaInfo loaded;
+  loaded.LoadBinary(fi.get());
+  ASSERT_EQ(loaded.num_row_, 10);
+  ASSERT_EQ(loaded.labels.Size(), 0);
+  ASSERT_EQ(loaded.labels.Shape(0), 0);
+  ASSERT_EQ(loaded.base_margin_.Size(), 0);
+  ASSERT_EQ(loaded.base_margin_.Shape(0), 0);
+  loaded.Validate(DeviceOrd::CPU());
+}
+
 TEST(MetaInfo, Validate) {
   xgboost::MetaInfo info;
   info.num_row_ = 10;
