@@ -1364,20 +1364,10 @@ predict.xgboost <- function(
 
   if (...length()) {
     arg_names <- setdiff(...names(), "")
-    # 'type' values matching the flags of 'predict.xgb.Booster'.
-    flag_types <- c(
-      outputmargin = "raw",
-      predleaf = "leaf",
-      predcontrib = "contrib",
-      predinteraction = "interaction"
-    )
-    flags <- intersect(arg_names, names(flag_types))
-    hints <- sprintf("'type = \"%s\"' in place of '%s = TRUE'", flag_types[flags], flags)
     warning(
       "Arguments passed through '...' are ignored",
       if (length(arg_names)) paste0(": ", paste(arg_names, collapse = ", ")),
-      ".",
-      if (length(hints)) paste0(" Use ", paste(hints, collapse = ", "), ".")
+      "."
     )
   }
 

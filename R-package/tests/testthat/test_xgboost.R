@@ -727,22 +727,14 @@ test_that("predict.xgboost warns about ignored arguments", {
 
   expect_warning(
     pred_flag <- predict(model, x, predcontrib = TRUE),
-    "Arguments passed through '...' are ignored: predcontrib. Use 'type = \"contrib\"' in place of 'predcontrib = TRUE'.",
+    "Arguments passed through '...' are ignored: predcontrib.",
     fixed = TRUE
   )
   expect_equal(pred_flag, pred)
 
   expect_warning(
-    predict(model, x, foo = 1),
-    "Arguments passed through '...' are ignored: foo.",
-    fixed = TRUE
-  )
-  expect_warning(
-    predict(model, x, outputmargin = TRUE, foo = 1, predleaf = TRUE),
-    paste0(
-      "Arguments passed through '...' are ignored: outputmargin, foo, predleaf. ",
-      "Use 'type = \"raw\"' in place of 'outputmargin = TRUE', 'type = \"leaf\"' in place of 'predleaf = TRUE'."
-    ),
+    predict(model, x, foo = 1, bar = 2),
+    "Arguments passed through '...' are ignored: foo, bar.",
     fixed = TRUE
   )
 })
