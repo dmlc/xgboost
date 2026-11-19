@@ -751,8 +751,9 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     // Set up the output entry after persisting its weights and split sum by node ID.
     out_splits[nidx_in_set] = {nidx, input.depth, best_split};
-    out_splits[nidx_in_set].split.loss_chg =
-        ThresholdLossChange(best_split.loss_chg - parent_gain, parent_gain);
+    // The winning child score was stored in float before subtracting the double parent score.
+    out_splits[nidx_in_set].split.loss_chg = ThresholdLossChange<decltype(best_split.loss_chg)>(
+        best_split.loss_chg - parent_gain, parent_gain);
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
   });
 }

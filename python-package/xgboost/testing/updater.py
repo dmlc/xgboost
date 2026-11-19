@@ -110,7 +110,9 @@ def check_split_gain_extremes(
 
     # Tiny gains should still separate the four groups. Each group has constant labels.
     labels = np.repeat(np.arange(4, dtype=np.float32) * 1e-8, 32)
-    data = DMatrix(np.arange(labels.size).reshape(-1, 1), label=labels)
+    if multi_strategy == "multi_output_tree":
+        labels = np.column_stack((labels, -labels))
+    data = DMatrix(np.arange(len(labels)).reshape(-1, 1), label=labels)
     grow_params = (
         {"grow_policy": "lossguide", "max_depth": 0, "max_leaves": 128}
         if tree_method == "hist"
@@ -127,9 +129,8 @@ def check_split_gain_extremes(
     model = train(params, data, num_boost_round=1)
     np.testing.assert_array_equal(model.predict(data), labels)
 
-    # The split score rounds up in float, but the apparent gain is below one epsilon
-    # of the parent score and should not split these identical labels.
-    data = DMatrix(np.arange(3).reshape(-1, 1), label=np.full((3, 2), 4097 / 2**14))
+    # Float rounding can give these identical labels a gain above the former 1e-6 cap.
+    data = DMatrix(np.arange(5).reshape(-1, 1), label=np.full((5, 2), 4097))
     model = train(params, data, num_boost_round=1)
     assert (model.predict(data, pred_leaf=True) == 0).all()
 

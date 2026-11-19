@@ -24,22 +24,17 @@
 #include <type_traits>  // for enable_if_t, is_floating_point_v
 
 #include "../common/math.h"  // for Sqr
-#include "xgboost/base.h"    // for XGBOOST_DEVICE, kRtEps
+#include "xgboost/base.h"    // for XGBOOST_DEVICE
 
 namespace xgboost::tree {
 /**
- * @brief Apply a capped relative tolerance to the winning split.
- *
- * Keep gains above the historical cutoff. Below it, scale the cutoff with the parent
- * score so a small label scale can still produce a split.
+ * @brief Filter the winning gain at the precision of the combined child score before subtraction.
  */
-template <typename T>
-XGBOOST_DEVICE float ThresholdLossChange(float loss_chg, T parent_gain) {
-  if (loss_chg > kRtEps || loss_chg <= 0.0f) {
-    return loss_chg;  // Also preserve the negative sentinel for a missing split.
-  }
-  auto tolerance = std::numeric_limits<float>::epsilon() * std::abs(parent_gain);
-  return loss_chg > tolerance ? loss_chg : 0.0f;
+template <typename ScoreT>
+XGBOOST_DEVICE float ThresholdLossChange(float loss_chg, ScoreT parent_gain) {
+  auto tolerance = std::numeric_limits<ScoreT>::epsilon() * std::abs(parent_gain);
+  // Preserve negative sentinels for missing splits.
+  return loss_chg < 0.0f || loss_chg > tolerance ? loss_chg : 0.0f;
 }
 
 /**
