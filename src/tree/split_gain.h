@@ -19,13 +19,30 @@
 #ifndef XGBOOST_TREE_SPLIT_GAIN_H_
 #define XGBOOST_TREE_SPLIT_GAIN_H_
 
+#include <algorithm>    // for max
 #include <cmath>        // for abs
+#include <cstddef>      // for size_t
+#include <limits>       // for numeric_limits
 #include <type_traits>  // for enable_if_t, is_floating_point_v
 
 #include "../common/math.h"  // for Sqr
 #include "xgboost/base.h"    // for XGBOOST_DEVICE
 
 namespace xgboost::tree {
+/**
+ * @brief Filter the winning gain at the precision of the combined child score before subtraction.
+ */
+template <typename ScoreT>
+XGBOOST_DEVICE float ThresholdLossChange(float loss_chg, ScoreT parent_gain,
+                                         std::size_t n_targets = 1) {
+  // Vector scores accumulate target contributions in double before the combined score is stored.
+  constexpr ScoreT kAccumEps = std::numeric_limits<double>::epsilon();
+  auto relative_tol = std::max(std::numeric_limits<ScoreT>::epsilon(), n_targets * kAccumEps);
+  auto tolerance = relative_tol * std::abs(parent_gain);
+  // Preserve negative sentinels for missing splits.
+  return loss_chg < 0.0f || loss_chg > tolerance ? loss_chg : 0.0f;
+}
+
 /**
  * @brief Whether both children satisfy the Hessian requirement for a split.
  *

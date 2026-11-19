@@ -19,6 +19,7 @@ from xgboost.testing.updater import (
     check_get_quantile_cut,
     check_quantile_loss,
     check_scalar_base_weights,
+    check_split_gain_extremes,
     run_invalid_category,
     run_max_cat,
     train_result,
@@ -28,6 +29,17 @@ from xgboost.testing.updater import (
 class TestTreeMethod:
     USE_ONEHOT = np.iinfo(np.int32).max
     USE_PART = 1
+
+    @pytest.mark.parametrize(
+        "tree_method,strategy",
+        [
+            ("exact", "one_output_per_tree"),
+            ("hist", "one_output_per_tree"),
+            ("hist", "multi_output_tree"),
+        ],
+    )
+    def test_split_gain_extremes(self, tree_method: str, strategy: str) -> None:
+        check_split_gain_extremes("cpu", strategy, tree_method)
 
     @pytest.mark.parametrize(
         "tree_method,categorical",

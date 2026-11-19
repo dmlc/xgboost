@@ -96,6 +96,48 @@ def check_base_weights(
             )
 
 
+def check_split_gain_extremes(
+    device: Device, multi_strategy: str, tree_method: str = "hist"
+) -> None:
+    """Check tiny gains and small improvements to large parent scores."""
+    params = {
+        "tree_method": tree_method,
+        "device": device,
+        "multi_strategy": multi_strategy,
+        "reg_lambda": 0,
+        "eta": 1,
+    }
+
+    # Tiny gains should still separate the four groups. Each group has constant labels.
+    labels = np.repeat(np.arange(4, dtype=np.float32) * 1e-8, 32)
+    if multi_strategy == "multi_output_tree":
+        labels = np.column_stack((labels, -labels))
+    data = DMatrix(np.arange(len(labels)).reshape(-1, 1), label=labels)
+    grow_params = (
+        {"grow_policy": "lossguide", "max_depth": 0, "max_leaves": 128}
+        if tree_method == "hist"
+        else {}
+    )
+    model = train({**params, **grow_params}, data, num_boost_round=1)
+    np.testing.assert_array_equal(model.predict(data), labels)
+    assert np.unique(model.predict(data, pred_leaf=True)).size == 4
+
+    # Each target gains 2 from splitting a parent with a score of 8,388,608.
+    params["base_score"] = 0
+    labels = np.array([[2047, -2047], [2049, -2049]], dtype=np.float32)
+    data = DMatrix(np.array([[0], [1]]), label=labels)
+    model = train(params, data, num_boost_round=1)
+    np.testing.assert_array_equal(model.predict(data), labels)
+
+    # Constant labels can yield apparent gains from float rounding or summation across
+    # targets.
+    for n_rows, label in [(5, 4097), (24, 0.1)]:
+        labels = np.full((n_rows, 2), label, dtype=np.float32)
+        data = DMatrix(np.arange(n_rows).reshape(-1, 1), label=labels)
+        model = train(params, data, num_boost_round=1)
+        assert (model.predict(data, pred_leaf=True) == 0).all()
+
+
 def check_scalar_base_weights(
     tree_method: str, device: Device, categorical: bool
 ) -> None:

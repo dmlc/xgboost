@@ -15,7 +15,6 @@
 #include <vector>
 
 #include "../common/linalg_op.h"
-#include "../common/math.h"
 #include "xgboost/linalg.h"
 #include "xgboost/parameter.h"
 

@@ -21,6 +21,7 @@
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
+#include "../split_gain.h"             // for ThresholdLossChange
 #include "expand_entry.h"              // for CPUExpandEntry
 #include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
@@ -421,9 +422,12 @@ class HistEvaluator {
         }));
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+      auto &entry = entries[nidx_in_set];
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
-        entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
+        entry.split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
+      entry.split.loss_chg =
+          ThresholdLossChange(entry.split.loss_chg, gain_[entry.nid], hist.size());
     }
   }
 
