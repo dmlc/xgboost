@@ -753,7 +753,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     out_splits[nidx_in_set] = {nidx, input.depth, best_split};
     // The winning child score was stored in float before subtracting the double parent score.
     out_splits[nidx_in_set].split.loss_chg = ThresholdLossChange<decltype(best_split.loss_chg)>(
-        best_split.loss_chg - parent_gain, parent_gain);
+        best_split.loss_chg - parent_gain, parent_gain, n_targets);
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
   });
 }

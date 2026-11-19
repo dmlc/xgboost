@@ -426,7 +426,8 @@ class HistEvaluator {
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
         entry.split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
-      entry.split.loss_chg = ThresholdLossChange(entry.split.loss_chg, gain_[entry.nid]);
+      entry.split.loss_chg =
+          ThresholdLossChange(entry.split.loss_chg, gain_[entry.nid], hist.size());
     }
   }
 
