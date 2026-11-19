@@ -38,7 +38,7 @@ template <typename ExpandEntryT>
 [[nodiscard]] bool IsValidExpandEntry(ExpandEntryT const& entry, TrainParam const& param,
                                       bst_node_t num_leaves) {
   auto loss_chg = entry.GetLossChange();
-  if (!(loss_chg > 0.0f)) {
+  if (!(loss_chg > 0.0f)) {  // Use !(a > b) to handle NaN and whatnot.
     return false;
   }
   if (loss_chg < param.min_split_loss) {
