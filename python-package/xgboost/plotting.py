@@ -3,23 +3,36 @@
 """Plotting Library."""
 
 import json
+import sys
 import warnings
 from io import BytesIO
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeGuard, Union, cast
 
 import numpy as np
 
 from ._typing import PathLike
 from .core import Booster, _deprecate_positional_args
-from .sklearn import XGBModel
+
+if TYPE_CHECKING:
+    from .sklearn import XGBModel
 
 Axes = Any  # real type is matplotlib.axes.Axes
 GraphvizSource = Any  # real type is graphviz.Source
 
 
+def _is_xgb_model(model: object) -> TypeGuard["XGBModel"]:
+    # An estimator can only exist after its class has been loaded.
+    if f"{__package__}.sklearn" not in sys.modules:
+        return False
+
+    from .sklearn import XGBModel
+
+    return isinstance(model, XGBModel)
+
+
 @_deprecate_positional_args
 def plot_importance(
-    booster: Union[XGBModel, Booster, dict],
+    booster: Union["XGBModel", Booster, dict],
     *,
     ax: Optional[Axes] = None,
     height: float = 0.2,
@@ -88,7 +101,7 @@ def plot_importance(
     except ImportError as e:
         raise ImportError("You must install matplotlib to plot importance") from e
 
-    if isinstance(booster, XGBModel):
+    if _is_xgb_model(booster):
         importance = booster.get_booster().get_score(
             importance_type=importance_type, fmap=fmap
         )
@@ -97,7 +110,7 @@ def plot_importance(
     elif isinstance(booster, dict):
         importance = booster
     else:
-        raise ValueError("tree must be Booster, XGBModel or dict instance")
+        raise TypeError("tree must be Booster, XGBModel or dict instance")
 
     if not importance:
         raise ValueError(
@@ -153,7 +166,7 @@ def plot_importance(
 
 @_deprecate_positional_args
 def to_graphviz(
-    booster: Union[Booster, XGBModel],
+    booster: Union[Booster, "XGBModel"],
     *,
     fmap: PathLike = "",
     num_trees: Optional[int] = None,
@@ -230,8 +243,7 @@ def to_graphviz(
         from graphviz import Source
     except ImportError as e:
         raise ImportError("You must install graphviz to plot tree") from e
-    if isinstance(booster, XGBModel):
-        booster = booster.get_booster()
+    bst = booster.get_booster() if _is_xgb_model(booster) else cast(Booster, booster)
 
     # squash everything back into kwargs again for compatibility
     parameters = "dot"
@@ -276,7 +288,7 @@ def to_graphviz(
             )
         tree_idx = num_trees
 
-    tree = booster.get_dump(fmap=fmap, dump_format=parameters, with_stats=with_stats)[
+    tree = bst.get_dump(fmap=fmap, dump_format=parameters, with_stats=with_stats)[
         tree_idx
     ]
     g = Source(tree)
@@ -285,7 +297,7 @@ def to_graphviz(
 
 @_deprecate_positional_args
 def plot_tree(
-    booster: Union[Booster, XGBModel],
+    booster: Union[Booster, "XGBModel"],
     *,
     fmap: PathLike = "",
     num_trees: Optional[int] = None,
