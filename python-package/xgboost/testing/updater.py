@@ -129,7 +129,8 @@ def check_split_gain_extremes(
     model = train(params, data, num_boost_round=1)
     np.testing.assert_array_equal(model.predict(data), labels)
 
-    # Constant labels can yield apparent gains from float rounding or summation across targets.
+    # Constant labels can yield apparent gains from float rounding or summation across
+    # targets.
     for n_rows, label in [(5, 4097), (24, 0.1)]:
         labels = np.full((n_rows, 2), label, dtype=np.float32)
         data = DMatrix(np.arange(n_rows).reshape(-1, 1), label=labels)
