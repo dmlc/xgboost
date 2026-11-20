@@ -506,6 +506,20 @@ def test_inplace_predict(client: "Client") -> None:
     np.testing.assert_allclose(inplace, copied)
 
 
+def test_inplace_predict_array_base_margin(client: "Client") -> None:
+    # A 1-dim margin split into several row blocks.
+    rng = np.random.default_rng(2026)
+    X_ = rng.normal(size=(256, 4))
+    margin_ = rng.normal(size=256)
+    booster = xgb.train({}, xgb.DMatrix(X_, X_[:, 0]), num_boost_round=4)
+    expected = booster.predict(xgb.DMatrix(X_, base_margin=margin_))
+
+    X = da.from_array(X_, chunks=(64, 4))
+    margin = da.from_array(margin_, chunks=64)
+    predt = dxgb.inplace_predict(client, booster, X, base_margin=margin).compute()
+    np.testing.assert_allclose(predt, expected, rtol=1e-6)
+
+
 def test_dask_missing_value_reg(client: "Client") -> None:
     X_0 = np.ones((20 // 2, kCols))
     X_1 = np.zeros((20 // 2, kCols))
