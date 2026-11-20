@@ -247,6 +247,34 @@ TEST(MetaInfo, Validate) {
   EXPECT_THROW(info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size())),
                dmlc::Error);
 
+  // The feature weights are validated even if the labels and the sample weights are set.
+  info.group_ptr_.clear();
+  labels.resize(info.num_row_);
+  info.SetInfo(ctx, "label", Make1dInterfaceTest(labels.data(), info.num_row_));
+  std::vector<float> feature_weights(info.num_col_, 1.0f);
+  info.SetInfo(ctx, "feature_weights",
+               Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+  EXPECT_NO_THROW(info.Validate(FstCU()));
+  for (auto n_weights : {info.num_col_ - 1, info.num_col_ + 1}) {
+    feature_weights.assign(n_weights, 1.0f);
+    info.SetInfo(ctx, "feature_weights",
+                 Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+    // With labels.
+    ASSERT_THAT([&] { info.Validate(FstCU()); },
+                GMockThrow("Size of feature_weights must equal to number of columns"));
+    // With labels and sample weights.
+    std::vector<float> weights(info.num_row_, 1.0f);
+    info.SetInfo(ctx, "weight", Make1dInterfaceTest(weights.data(), weights.size()));
+    ASSERT_THAT([&] { info.Validate(FstCU()); },
+                GMockThrow("Size of feature_weights must equal to number of columns"));
+    info.weights_.Resize(0);
+  }
+  // Restore valid feature weights so the checks below fail for their own reason.
+  feature_weights.assign(info.num_col_, 1.0f);
+  info.SetInfo(ctx, "feature_weights",
+               Make1dInterfaceTest(feature_weights.data(), feature_weights.size()));
+  EXPECT_NO_THROW(info.Validate(FstCU()));
+
 #if defined(XGBOOST_USE_CUDA)
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
