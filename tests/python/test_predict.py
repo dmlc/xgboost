@@ -68,6 +68,18 @@ def test_sparse_duplicated_entries(Sparse: Type) -> None:
     if Sparse is sparse.csr_matrix:
         np.testing.assert_allclose(booster.inplace_predict(X), expected, rtol=1e-6)
 
+    # Unsorted indices with float16 values, which scipy can't sort.
+    values = np.array([1.0, 2.0, 5.0], dtype=np.float16)
+    if Sparse is sparse.csr_matrix:
+        X_f16 = Sparse((values, [1, 0, 2], [0, 2, 3]), shape=(2, 3))
+    else:
+        X_f16 = Sparse((values, [1, 0, 1], [0, 2, 3, 3]), shape=(2, 3))
+    assert not X_f16.has_canonical_format
+    expected = booster.predict(
+        xgb.DMatrix(X_f16.astype(np.float32).toarray(), missing=0.0)
+    )
+    np.testing.assert_allclose(booster.predict(xgb.DMatrix(X_f16)), expected, rtol=1e-6)
+
 
 def run_threaded_predict(X, rows, predict_func):
     results = []
