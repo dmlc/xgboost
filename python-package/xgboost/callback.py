@@ -640,9 +640,10 @@ class TrainingCheckPoint(TrainingCallback):
     def before_training(self, model: _Model) -> _Model:
         self._start = model.num_boosted_rounds()
         # Otherwise training fails at the first checkpoint, after `interval` rounds.
-        # An empty directory is the current one and dmlc-core handles URIs. `save_model`
-        # expands `~`, `open` (for pickle) does not.
-        if collective.get_rank() == 0 and self._path and "://" not in self._path:
+        # An empty directory is the current one and dmlc-core handles URIs, but `open`
+        # (for pickle) doesn't. `save_model` expands `~`, `open` does not.
+        remote = "://" in self._path and not self._as_pickle
+        if collective.get_rank() == 0 and self._path and not remote:
             path = self._path if self._as_pickle else os.path.expanduser(self._path)
             if not os.path.isdir(path):
                 raise FileNotFoundError(f"Checkpoint directory does not exist: {path}")

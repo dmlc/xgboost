@@ -421,6 +421,13 @@ class TestCallbacks:
         check_point = xgb.callback.TrainingCheckPoint(directory="s3://bucket/ckpt")
         check_point.before_training(xgb.Booster())
 
+        # Pickle checkpoints are written with `open`, which doesn't take URIs.
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory="s3://bucket/ckpt", as_pickle=True
+        )
+        with pytest.raises(FileNotFoundError, match="Checkpoint directory"):
+            xgb.train({}, Xy, num_boost_round=2, callbacks=[check_point])
+
     def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
         m = xgb.DMatrix(X, y)
