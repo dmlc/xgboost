@@ -128,6 +128,11 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
     if len(data.indices) != len(data.data):
         raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
 
+    if not data.has_canonical_format:
+        # Follow scipy and sum the duplicated entries.
+        data = data.copy()
+        data.sum_duplicates()
+
     indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
     indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
     values, _ = _ensure_np_dtype(data.data, data.data.dtype)

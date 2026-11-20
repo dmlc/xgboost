@@ -46,6 +46,29 @@ def test_inplace_predict_csr(CSR: Type) -> None:
     )
 
 
+@pytest.mark.parametrize("Sparse", [sparse.csr_matrix, sparse.csc_matrix])
+def test_sparse_duplicated_entries(Sparse: Type) -> None:
+    """Duplicated entries are summed, following scipy."""
+    # Row 0 holds two entries for column 1 (1.0 and 2.0), which scipy sums to 3.0.
+    if Sparse is sparse.csr_matrix:
+        X = Sparse(([1.0, 2.0, 5.0, 4.0], [1, 1, 0, 2], [0, 2, 4]), shape=(2, 3))
+    else:
+        X = Sparse(([5.0, 1.0, 2.0, 4.0], [1, 0, 0, 1], [0, 1, 3, 4]), shape=(2, 3))
+    assert not X.has_canonical_format
+    rng = np.random.default_rng(2026)
+    X_train = rng.normal(size=(128, 3))
+    Xy = xgb.QuantileDMatrix(X_train, X_train[:, 1] * 3)
+    booster = xgb.train({"max_depth": 3}, Xy, 8)
+
+    expected = booster.predict(xgb.DMatrix(X.toarray(), missing=0.0))
+    np.testing.assert_allclose(booster.predict(xgb.DMatrix(X)), expected, rtol=1e-6)
+    np.testing.assert_allclose(
+        booster.predict(xgb.QuantileDMatrix(X, ref=Xy)), expected, rtol=1e-6
+    )
+    if Sparse is sparse.csr_matrix:
+        np.testing.assert_allclose(booster.inplace_predict(X), expected, rtol=1e-6)
+
+
 def run_threaded_predict(X, rows, predict_func):
     results = []
     per_thread = 20
