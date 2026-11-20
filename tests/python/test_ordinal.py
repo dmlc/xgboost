@@ -1,3 +1,4 @@
+import json
 from typing import Literal, cast
 
 import numpy as np
@@ -43,6 +44,79 @@ def test_cat_container_model_slice() -> None:
     expected = booster.get_categories(export_to_arrow=True).to_arrow()
     actual = booster[:1].get_categories(export_to_arrow=True).to_arrow()
     assert actual == expected
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.parametrize("encoding", ["mixed", "codes", "legacy"])
+@pytest.mark.parametrize("reload", [None, "json", "ubj"])
+def test_explicit_feature_types_continuation(
+    tree_method: str, encoding: str, reload: str | None
+) -> None:
+    import pandas as pd
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "dictionary": rng.integers(0, 3, 192),
+            "codes": rng.integers(0, 6, 192).astype(np.float32),
+        }
+    )
+    if encoding == "mixed":
+        X["dictionary"] = pd.Categorical(X["dictionary"])
+    y = np.isin(X["codes"], [0, 2, 4]).astype(np.float32)
+    feature_types = ["c", "c"]
+    params = dict(
+        tree_method=tree_method,
+        enable_categorical=True,
+        feature_types=feature_types,
+        max_cat_to_onehot=1,
+        max_depth=2,
+        n_jobs=1,
+    )
+    initial = xgb.XGBRegressor(**params, n_estimators=2)
+    # A separate validation dataframe must retain the manually specified types too.
+    initial.fit(X, y, eval_set=[(X.copy(), y)], verbose=False)
+    booster = initial.get_booster()
+    if encoding == "legacy":
+        saved = json.loads(booster.save_raw(raw_format="json"))
+        saved["learner"]["gradient_booster"]["model"]["cats"] = {
+            "enc": [{"offsets": [], "values": []} for _ in X.columns],
+            "feature_segments": [0] * (X.shape[1] + 1),
+            "sorted_idx": [],
+        }
+        booster.load_model(bytearray(json.dumps(saved), "utf-8"))
+    if reload is not None:
+        booster = xgb.Booster(model_file=booster.save_raw(raw_format=reload))
+
+    for export_to_arrow in [False, True]:
+        categories = booster.get_categories(export_to_arrow=export_to_arrow)
+        assert categories.empty() == (encoding != "mixed")
+        for matrix in [xgb.DMatrix, xgb.QuantileDMatrix]:
+            reference = matrix(X, y, enable_categorical=True, feature_types=categories)
+            assert reference.feature_types == feature_types
+            reused = matrix(
+                X,
+                y,
+                enable_categorical=True,
+                feature_types=reference.get_categories(),
+            )
+            assert reused.feature_types == feature_types
+
+    # A fresh estimator must also recover types from the saved model when omitted.
+    continuation_params = params.copy()
+    del continuation_params["feature_types"]
+    continued = xgb.XGBRegressor(**continuation_params, n_estimators=2)
+    continued.fit(X, y, xgb_model=booster, eval_set=[(X.copy(), y)], verbose=False)
+    expected = xgb.XGBRegressor(**params, n_estimators=4)
+    expected.fit(X, y, eval_set=[(X.copy(), y)], verbose=False)
+    assert continued.get_booster().feature_types == feature_types
+    assert continued.get_booster().get_dump(dump_format="json") == (
+        expected.get_booster().get_dump(dump_format="json")
+    )
+    np.testing.assert_allclose(
+        continued.evals_result()["validation_0"]["rmse"],
+        expected.evals_result()["validation_0"]["rmse"][2:],
+    )
 
 
 @pytest.mark.parametrize(

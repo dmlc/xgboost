@@ -627,7 +627,9 @@ def cudf_cat_inf(
 class Categories:
     """An internal storage class for categories returned by the DMatrix and the
     Booster. This class is designed to be opaque. It is intended to be used exclusively
-    by XGBoost as an intermediate storage for re-coding categorical data.
+    by XGBoost as an intermediate storage for re-coding categorical data. Feature
+    types are retained alongside the dictionaries so manually encoded categorical
+    columns keep their types when the reference is reused.
 
     The categories are saved along with the booster object. As a result, users don't
     need to preserve this class for re-coding. Use the booster model IO instead if you
@@ -660,6 +662,7 @@ class Categories:
         self,
         handle: Tuple[ctypes.c_void_p, Callable[[], None]],
         arrow_arrays: Optional[ArrowCatList],
+        feature_types: Optional[FeatureTypes],
     ) -> None:
         # The handle type is a bundle of the handle and the free call. Otherwise, we
         # will have to import the `_lib` and the `_check_call` from the core module
@@ -668,6 +671,7 @@ class Categories:
         # during exception handling (interpreter is shutting down).
         self._handle, self._free = handle
         self._arrow_arrays = arrow_arrays
+        self._feature_types = feature_types
 
     def to_arrow(self) -> ArrowCatList:
         """Get the categories in the dataset. The results are stored in a list of
@@ -687,6 +691,10 @@ class Categories:
     def empty(self) -> bool:
         """Returns True if there's no category."""
         return self._handle.value is None
+
+    def get_feature_types(self) -> Optional[FeatureTypes]:
+        """Internal feature types associated with the reference dictionaries."""
+        return self._feature_types
 
     def get_handle(self) -> int:
         """Internal method for retrieving the handle."""
@@ -709,7 +717,9 @@ def get_ref_categories(
     """
     if isinstance(feature_types, Categories):
         ref_categories = feature_types
-        feature_types = None
+        feature_types = ref_categories.get_feature_types()
+        if ref_categories.empty():
+            ref_categories = None
     else:
         ref_categories = None
     return feature_types, ref_categories

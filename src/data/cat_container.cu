@@ -156,6 +156,9 @@ CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df,
     : CatContainer{} {
   this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
+  if (this->n_total_cats_ == 0) {
+    return;
+  }
 
   this->feature_segments_.SetDevice(ctx->Device());
   this->feature_segments_.Resize(df.feature_segments.size());

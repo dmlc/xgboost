@@ -6,7 +6,8 @@
 #include <xgboost/base.h>  // for bst_cat_t
 #include <xgboost/span.h>  // for Span
 
-#include <vector>  // for vector
+#include <cstdint>  // for int32_t
+#include <vector>   // for vector
 
 #include "../../../src/common/common.h"           // for safe_cuda
 #include "../../../src/common/threading_utils.h"  // for ParallelFor
@@ -34,6 +35,18 @@ TEST(CatContainer, StrGpu) {
 TEST(CatContainer, MixedGpu) {
   auto ctx = MakeCUDACtx(0);
   auto df = TestCatContainerMixed<DfTest>(&ctx, eq_check);
+}
+
+TEST(CatContainer, EmptyGpu) {
+  auto ctx = MakeCUDACtx(0);
+  dh::device_vector<enc::DeviceCatIndexView> columns(2);
+  dh::device_vector<std::int32_t> segments{0, 0, 0};
+  enc::DeviceColumnsView view{dh::ToSpan(columns), dh::ToSpan(segments), 0};
+  CatContainer cats{&ctx, view, false};
+  ASSERT_TRUE(cats.Empty());
+  ASSERT_FALSE(cats.HasCategorical());
+  ASSERT_EQ(cats.NumFeatures(), 0);
+  ASSERT_TRUE(cats.HostView().Empty());
 }
 
 TEST(CatContainer, ThreadSafety) {
