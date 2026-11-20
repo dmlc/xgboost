@@ -5,7 +5,8 @@
 #include <thrust/reduce.h>   // for reduce_by_key
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
-#include <algorithm>  // for copy_if, max, transform
+#include <algorithm>  // for copy_if, max, min, transform
+#include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr
 #include <vector>     // for vector
 
@@ -17,10 +18,10 @@
 #include "../common/random.h"                  // for ColumnSampler
 #include "constraints.cuh"                     // for FeatureInteractionConstraintDevice
 #include "driver.h"                            // for Driver
+#include "gpu_hist/evaluate_splits.cuh"        // for GPUHistEvaluator
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
 #include "gpu_hist/leaf_sum.cuh"               // for LeafGradSum
-#include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
 #include "gpu_hist/sampler.cuh"                // for GradientBasedSampler
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
@@ -58,10 +59,9 @@ struct EncodeOp {
 };
 
 // Some nodes we will manually compute histograms, others we will do by subtraction
-template <typename TreeView, typename ExpandEntry, typename HessComp>
-void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidates,
-                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub,
-                 HessComp&& compare_hess) {
+inline void AssignNodes(RegTree const& tree, std::vector<GPUExpandEntry> const& candidates,
+                        common::Span<bst_node_t> nodes_to_build,
+                        common::Span<bst_node_t> nodes_to_sub) {
   std::size_t nidx_in_set{0};
   auto p_build_nidx = nodes_to_build.data();
   auto p_sub_nidx = nodes_to_sub.data();
@@ -70,8 +70,7 @@ void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidate
     // a heuristic to select node with fewest training instances This optimization is for
     // distributed training to avoid an allreduce call for synchronizing the number of
     // instances for each node.
-    bool fewer_right = compare_hess(e);
-    if (fewer_right) {
+    if (e.right_hess < e.left_hess) {
       p_build_nidx[nidx_in_set] = tree.RightChild(e.nidx);
       p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
     } else {
@@ -82,26 +81,110 @@ void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidate
   }
 }
 
-inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> d_gpair,
-                        common::Span<GradientPairInt64> root_sum) {
+/** @brief Calculate the gradient sum of the root node and store it in the evaluator. */
+inline void InitRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> d_gpair,
+                        GPUHistEvaluator* evaluator) {
   auto n_samples = d_gpair.Shape(0);
-  auto n_targets = d_gpair.Shape(1);
-  // Calculate the root sum
-  CHECK_EQ(n_targets, root_sum.size());
+  evaluator->AllocNodeSum(RegTree::kRoot);
+  auto root_sum = evaluator->GetNodeSum(RegTree::kRoot);
+  CHECK_EQ(d_gpair.Shape(1), root_sum.size());
 
   auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
-    auto cidx = i / n_samples;
-    return cidx;
+    return i / n_samples;
   });
   auto val_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> GradientPairInt64 {
-    auto cidx = i / n_samples;
-    auto ridx = i % n_samples;
-    auto g = d_gpair(ridx, cidx);
-    return g;
+    return d_gpair(i % n_samples, i / n_samples);
   });
-  thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
-                        thrust::make_discard_iterator(), dh::tbegin(root_sum));
+  if (n_samples == 0) {
+    // Empty worker, the reduction doesn't write any output.
+    thrust::fill_n(ctx->CUDACtx()->CTP(), dh::tbegin(root_sum), root_sum.size(),
+                   GradientPairInt64{});
+  } else {
+    thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
+                          thrust::make_discard_iterator(), dh::tbegin(root_sum));
+  }
+  using ReduceT = typename GradientPairInt64::ValueT;
+  auto rc = collective::GlobalSum(
+      ctx, linalg::MakeVec(reinterpret_cast<ReduceT*>(root_sum.data()), root_sum.size() * 2,
+                           ctx->Device()));
+  collective::SafeColl(rc);
 }
+
+/** @brief Split evaluation shared by the scalar and the vector leaf implementations. */
+struct SplitEvaluation {
+  Context const* ctx;
+  common::HistogramCuts const& cuts;
+  common::Span<FeatureType const> feature_types;
+  GradientQuantiserGroup const& quantiser;
+  TrainParam const& param;
+  common::ColumnSampler* column_sampler;
+  FeatureInteractionConstraintDevice* interaction_constraints;
+  DeviceHistogramBuilder* histogram;
+  GPUHistEvaluator* evaluator;
+
+  /**
+   * @brief Evaluate the root, or the children of the candidates. The results are copied
+   *        to the host, and the stream is synchronized before returning.
+   */
+  void operator()(RegTree const& tree, std::vector<GPUExpandEntry> const& candidates,
+                  common::Span<GPUExpandEntry> h_out) const {
+    std::vector<EvaluateSplitInputs> h_inputs;
+    // Keep the feature sets alive until the kernel is finished.
+    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+    bst_feature_t max_active_feature = 0;
+    bst_node_t min_nidx = std::numeric_limits<bst_node_t>::max(), max_nidx = 0;
+    auto push = [&](bst_node_t nidx, bst_node_t depth) {
+      feature_sets.emplace_back(column_sampler->GetFeatureSet(ctx, depth));
+      feature_sets.back()->SetDevice(ctx->Device());
+      auto feature_set =
+          interaction_constraints->Query(feature_sets.back()->ConstDeviceSpan(), nidx);
+      // The node sum is calculated in the last apply tree split.
+      h_inputs.push_back({nidx, depth, evaluator->GetNodeSum(nidx), feature_set,
+                          histogram->GetNodeHistogram(nidx)});
+      max_active_feature =
+          std::max(max_active_feature, static_cast<bst_feature_t>(feature_set.size()));
+      min_nidx = std::min(min_nidx, nidx);
+      max_nidx = std::max(max_nidx, nidx);
+    };
+    if (candidates.empty()) {
+      push(RegTree::kRoot, 0);
+    }
+    for (auto const& c : candidates) {
+      push(tree.LeftChild(c.nidx), c.depth + 1);
+      push(tree.RightChild(c.nidx), c.depth + 1);
+    }
+    CHECK_EQ(h_inputs.size(), h_out.size());
+
+    dh::CachingDeviceUVector<EvaluateSplitInputs> d_inputs(h_inputs.size());
+    dh::CachingDeviceUVector<GPUExpandEntry> d_out(h_inputs.size());
+    auto stream = ctx->CUDACtx()->Stream();
+    dh::safe_cuda(cudaMemcpyAsync(d_inputs.data(), h_inputs.data(),
+                                  common::SizeBytes<EvaluateSplitInputs>(h_inputs.size()),
+                                  cudaMemcpyDefault, stream));
+    std::size_t cat_storage_size = 0;
+    if (cuts.HasCategorical()) {
+      cat_storage_size =
+          common::CatBitField::ComputeStorageSize(common::AsCat(cuts.MaxCategory()) + 1);
+    }
+    EvaluateSplitSharedInputs shared{quantiser.DeviceSpan(),
+                                     cuts.cut_ptrs_.ConstDeviceSpan(),
+                                     cuts.cut_values_.ConstDevicePointer(),
+                                     feature_types,
+                                     cat_storage_size,
+                                     static_cast<bst_bin_t>(cuts.TotalBins()),
+                                     max_active_feature,
+                                     EvalParam{param}};
+    evaluator->EvaluateSplits(ctx, dh::ToSpan(d_inputs), shared, max_nidx, dh::ToSpan(d_out));
+    dh::safe_cuda(cudaMemcpyAsync(h_out.data(), d_out.data(), h_out.size_bytes(),
+                                  cudaMemcpyDefault, stream));
+    if (!tree.IsMultiTarget()) {
+      // The scalar tree is expanded on the host.
+      evaluator->CopyToHost(ctx, min_nidx, max_nidx);
+    }
+    // Synchronize before the input buffer goes out of scope.
+    stream.Sync();
+  }
+};
 
 /**
  * @brief Implementation for vector leaf.
@@ -123,7 +206,7 @@ class MultiTargetHistMaker {
   std::unique_ptr<GradientQuantiserGroup> split_quantizer_;
   std::unique_ptr<GradientQuantiserGroup> value_quantizer_;
 
-  MultiHistEvaluator evaluator_;
+  GPUHistEvaluator evaluator_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::unique_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
   // Feature types on device for categorical detection, cached in Reset. Empty when there
@@ -168,22 +251,16 @@ class MultiTargetHistMaker {
                                     h_hists);
   }
 
-  auto MakeSharedInputs(bst_feature_t max_active_feature) const {
-    common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
-    EvalParam d_param{this->param_};
-    std::size_t cat_storage_size = 0;
-    if (this->cuts_->HasCategorical()) {
-      cat_storage_size =
-          common::CatBitField::ComputeStorageSize(common::AsCat(this->cuts_->MaxCategory()) + 1);
-    }
-    return MultiEvaluateSplitSharedInputs{d_roundings,
-                                          this->cuts_->cut_ptrs_.ConstDeviceSpan(),
-                                          this->cuts_->cut_values_.ConstDevicePointer(),
-                                          this->feature_types_,
-                                          cat_storage_size,
-                                          this->cuts_->TotalBins(),
-                                          max_active_feature,
-                                          d_param};
+  [[nodiscard]] SplitEvaluation Evaluation() {
+    return {this->ctx_,
+            *this->cuts_,
+            this->feature_types_,
+            *this->split_quantizer_,
+            this->param_,
+            this->column_sampler_.get(),
+            this->interaction_constraints_.get(),
+            &this->histogram_,
+            &this->evaluator_};
   }
 
  public:
@@ -240,25 +317,12 @@ class MultiTargetHistMaker {
                      cuts_->TotalBins() * n_split_targets, force_global);
   }
 
-  [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
+  [[nodiscard]] GPUExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
-
-    auto d_gpair = split_gpair_.View(ctx_->Device());
-    auto n_targets = d_gpair.Shape(1);
-
-    // Calculate the root sum
-    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
-    auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
-    CalcRootSum(this->ctx_, d_gpair, d_root_sum);
-    using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc =
-        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
-                                                    d_root_sum.size() * 2, ctx_->Device()));
-    collective::SafeColl(rc);
+    InitRootSum(this->ctx_, this->split_gpair_.View(ctx_->Device()), &this->evaluator_);
 
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
-
     CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.Size());
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
@@ -267,34 +331,22 @@ class MultiTargetHistMaker {
     }
     this->histogram_.AllReduceHist(ctx_, RegTree::kRoot, 1);
 
-    // Evaluate root split
-    auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
-    auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
-    MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
-
-    auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
-    auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
-    auto weights = this->evaluator_.GetNodeWeights(n_targets);
+    auto entry = this->pinned_.GetSpan<GPUExpandEntry>(1);
+    this->Evaluation()(*p_tree, {}, entry);
     // Root's sum_hess is the sum of left and right child hessians
-    float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    auto base_weight = weights.Base(RegTree::kRoot);
+    float root_sum_hess = static_cast<float>(entry[0].left_hess + entry[0].right_hess);
+    auto base_weight = this->evaluator_.GetNodeWeights().Base(RegTree::kRoot);
     p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), base_weight), root_sum_hess);
-
-    return entry;
+    return entry[0];
   }
 
-  void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
+  void ApplySplit(std::vector<GPUExpandEntry> const& h_candidates, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
     CHECK(!h_candidates.empty());
-    auto n_targets = this->split_gpair_.Shape(1);
-    this->evaluator_.PrepareTreeSplit(this->ctx_, h_candidates);
-
     // Candidate spans can become stale while entries wait in the loss-guide queue, so
     // look up the persistent weight storage by node ID.
-    auto weights = this->evaluator_.GetNodeWeights(n_targets);
+    auto weights = this->evaluator_.GetNodeWeights();
 
     ExpandBatch batch;
 
@@ -314,9 +366,9 @@ class MultiTargetHistMaker {
       }
       batch.push_back({{candidate.nidx, static_cast<bst_feature_t>(candidate.split.findex),
                         candidate.split.fvalue, candidate.split.dir == kLeftDir, cat_bits},
-                       {base_weight, candidate.left_sum + candidate.right_sum},
-                       {left_weight, candidate.left_sum},
-                       {right_weight, candidate.right_sum},
+                       {base_weight, candidate.left_hess + candidate.right_hess},
+                       {left_weight, candidate.left_hess},
+                       {right_weight, candidate.right_hess},
                        candidate.split.loss_chg});
     }
 
@@ -328,8 +380,7 @@ class MultiTargetHistMaker {
                                       p_tree->RightChild(candidate.nidx));
     }
 
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
-                                    common::Span<MultiExpandEntry const>{h_candidates}, n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, h_candidates);
   }
   /**
    * @brief Calculate output weights using value gradients and finalize prediction leaves.
@@ -409,7 +460,7 @@ class MultiTargetHistMaker {
   };
 
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
-                                      std::vector<MultiExpandEntry> const& candidates) {
+                                      std::vector<GPUExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
     auto split_types = p_tree->GetSplitTypes(DeviceOrd::CPU());
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
@@ -452,7 +503,7 @@ class MultiTargetHistMaker {
     }
   };
 
-  void ReduceHist(DMatrix* p_fmat, std::vector<MultiExpandEntry> const& candidates,
+  void ReduceHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& candidates,
                   std::vector<bst_node_t> const& build_nidx,
                   std::vector<bst_node_t> const& subtraction_nidx) {
     if (candidates.empty()) {
@@ -482,8 +533,8 @@ class MultiTargetHistMaker {
     }
   }
 
-  void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<MultiExpandEntry> const& expand_set,
-                             std::vector<MultiExpandEntry> const& candidates,
+  void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& expand_set,
+                             std::vector<GPUExpandEntry> const& candidates,
                              RegTree const* p_tree) {
     if (expand_set.empty()) {
       return;
@@ -500,10 +551,7 @@ class MultiTargetHistMaker {
 
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    AssignNodes(*p_tree, candidates, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
-      bool fewer_right = e.right_sum < e.left_sum;
-      return fewer_right;
-    });
+    AssignNodes(*p_tree, candidates, build_nidx, subtraction_nidx);
 
     // TODO(jiamingy): Define threshold for deep trees.
     bool prefetch_copy = !build_nidx.empty();
@@ -535,69 +583,6 @@ class MultiTargetHistMaker {
     }
 
     this->ReduceHist(p_fmat, candidates, build_nidx, subtraction_nidx);
-  }
-
-  void EvaluateSplits(std::vector<MultiExpandEntry> const& candidates, RegTree const& tree,
-                      common::Span<MultiExpandEntry> pinned_candidates_out) {
-    if (candidates.empty()) {
-      return;
-    }
-    xgboost_NVTX_FN_RANGE();
-
-    dh::DeviceUVector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
-    dh::DeviceUVector<MultiExpandEntry> outputs(2 * candidates.size());
-
-    std::vector<MultiEvaluateSplitInputs> h_node_inputs(inputs.size());
-
-    // Store the feature set ptrs so they don't go out of scope before the kernel is called
-    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
-
-    auto n_targets = this->split_gpair_.Shape(1);
-    bst_feature_t max_active_feature = 0;
-    // Track max node ID for buffer allocation
-    bst_node_t max_nidx = 0;
-
-    for (std::size_t i = 0; i < candidates.size(); i++) {
-      auto candidate = candidates.at(i);
-      bst_node_t left_nidx = tree.LeftChild(candidate.nidx);
-      bst_node_t right_nidx = tree.RightChild(candidate.nidx);
-
-      auto child_depth = candidate.depth + 1;
-      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
-      feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
-
-      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
-      feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
-
-      // Make sure no allocation is happening.
-      // The parent sum is calculated in the last apply tree split.
-      auto left = MultiEvaluateSplitInputs{
-          left_nidx, candidate.depth + 1, this->evaluator_.GetNodeSum(left_nidx, n_targets),
-          left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
-      auto right = MultiEvaluateSplitInputs{
-          right_nidx, candidate.depth + 1, this->evaluator_.GetNodeSum(right_nidx, n_targets),
-          right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
-      h_node_inputs[i * 2] = left;
-      h_node_inputs[i * 2 + 1] = right;
-
-      max_active_feature = std::max({left_feature_set.size(), right_feature_set.size(),
-                                     static_cast<std::size_t>(max_active_feature)});
-      max_nidx = std::max({max_nidx, left_nidx, right_nidx});
-    }
-    dh::safe_cuda(cudaMemcpyAsync(inputs.data(), h_node_inputs.data(),
-                                  common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
-                                  cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
-
-    auto shared_inputs = MakeSharedInputs(max_active_feature);
-    this->evaluator_.EvaluateSplits(this->ctx_, dh::ToSpan(inputs), shared_inputs, max_nidx,
-                                    dh::ToSpan(outputs));
-    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data(),
-                                  pinned_candidates_out.size_bytes(), cudaMemcpyDefault,
-                                  ctx_->CUDACtx()->Stream()));
   }
 
   void FinalizePosition(DMatrix* p_fmat, RegTree const* p_tree,
@@ -645,7 +630,7 @@ class MultiTargetHistMaker {
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
-    Driver<MultiExpandEntry> driver{
+    Driver<GPUExpandEntry> driver{
         ScaleMinSplitLoss(param_, split_gpair->Shape(1), p_tree->NumTargets()), kMaxNodeBatchSize};
 
     this->Reset(split_gpair, p_fmat);
@@ -657,17 +642,21 @@ class MultiTargetHistMaker {
       this->ApplySplit(expand_set, p_tree);
       // Get the candidates we are allowed to expand further
       // e.g. We do not bother further processing nodes whose children are beyond max depth
-      std::vector<MultiExpandEntry> valid_candidates;
+      std::vector<GPUExpandEntry> valid_candidates;
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
                    [&](auto const& e) { return driver.IsChildValid(e); });
 
       // Allocate children nodes.
-      auto new_candidates = pinned_.GetSpan(valid_candidates.size() * 2, MultiExpandEntry{});
+      auto new_candidates = pinned_.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});
 
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
-      this->EvaluateSplits(valid_candidates, *p_tree, new_candidates);
-      this->ctx_->CUDACtx()->Stream().Sync();
+      if (!valid_candidates.empty()) {
+        // The evaluation synchronizes the stream.
+        this->Evaluation()(*p_tree, valid_candidates, new_candidates);
+      } else {
+        this->ctx_->CUDACtx()->Stream().Sync();
+      }
 
       driver.Push(new_candidates.begin(), new_candidates.end());
 

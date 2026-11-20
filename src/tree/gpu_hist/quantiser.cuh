@@ -2,7 +2,8 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #pragma once
-#include <vector>  // for vector
+#include <type_traits>  // for is_trivially_copyable_v
+#include <vector>       // for vector
 
 #include "../../common/deterministic.cuh"   // for CreateRoundingFactor
 #include "../../common/device_helpers.cuh"  // for ToSpan
@@ -87,6 +88,32 @@ class GradientQuantiser {
     return {g, h};
   }
 };
+
+/**
+ * @brief Vector gradient sum view over quantised per-target values, for the vector split
+ *        evaluator.
+ *
+ * @tparam kTargets Number of targets if known at compile time. A static count lets the
+ *                  single-target evaluation fold the loops over targets.
+ */
+template <std::size_t kTargets = common::dynamic_extent>
+struct QuantizedGradientSum {
+  GradientPairInt64 const *values;
+  common::Span<GradientQuantiser const, kTargets> roundings;
+
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const {
+    if constexpr (kTargets == common::dynamic_extent) {
+      return roundings.size();
+    } else {
+      return kTargets;
+    }
+  }
+  [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise operator()(std::size_t t) const {
+    return roundings.data()[t].ToFloatingPoint(values[t]);
+  }
+};
+
+static_assert(std::is_trivially_copyable_v<QuantizedGradientSum<>>);
 
 /**
  * @brief Unified quantiser group for single-target and multi-target gradient quantisation.
