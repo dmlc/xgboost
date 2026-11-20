@@ -80,6 +80,19 @@ def test_sparse_duplicated_entries(Sparse: Type) -> None:
     )
     np.testing.assert_allclose(booster.predict(xgb.DMatrix(X_f16)), expected, rtol=1e-6)
 
+    # Boolean duplicates are combined with logical or.
+    X_bool = Sparse(
+        (np.ones(X.nnz, dtype=np.bool_), X.indices, X.indptr), shape=X.shape
+    )
+    assert not X_bool.has_canonical_format
+    assert X_bool.toarray().max() == 1
+    expected = booster.predict(
+        xgb.DMatrix(X_bool.toarray().astype(np.float32), missing=0.0)
+    )
+    np.testing.assert_allclose(
+        booster.predict(xgb.DMatrix(X_bool)), expected, rtol=1e-6
+    )
+
 
 def run_threaded_predict(X, rows, predict_func):
     results = []

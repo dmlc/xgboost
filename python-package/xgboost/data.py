@@ -129,6 +129,12 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
         raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
 
     canonical = data.has_canonical_format
+    if not canonical and data.dtype == np.bool_:
+        # scipy sums boolean duplicates with logical or, do it before the conversion
+        # to float.
+        data = data.copy()
+        data.sum_duplicates()
+        canonical = True
     indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
     indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
     values, _ = _ensure_np_dtype(data.data, data.data.dtype)
