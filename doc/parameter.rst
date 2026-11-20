@@ -259,6 +259,7 @@ Parameters for Tree Booster
   - Constraints for interaction representing permitted interactions.  The constraints must
     be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
     list is a group of indices of features that are allowed to interact with each other.
+    Features not listed in any group cannot interact with any other feature.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
 * ``multi_strategy``, [default = ``one_output_per_tree``]
