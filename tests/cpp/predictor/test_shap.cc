@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>  // for numeric_limits
 #include <memory>  // for unique_ptr
 #include <sstream>
 #include <string>   // for to_string
@@ -503,6 +504,36 @@ TEST(Predictor, ApproxContribsBasic) {
   common::DispatchKernel<predictor::PredictContributionKernel>(&fallback_ctx, dmat.get(), &fallback,
                                                                *gbtree, 0, gbtree->TreeWeights());
   EXPECT_EQ(fallback.ConstHostVector(), exact_contribs.ConstHostVector());
+}
+
+TEST(Predictor, ApproxContribsInfiniteTreeWeightOnRepeatedSplit) {
+  Context ctx;
+  std::size_t shape[1]{1};
+  linalg::Vector<float> base_score{shape, ctx.Device()};
+  base_score.Data()->HostVector()[0] = 0.0f;
+  LearnerModelState mparam{2, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  gbm::GBTreeModel model{&mparam, &ctx};
+
+  gbm::TreesOneGroup trees;
+  trees.emplace_back(std::make_unique<RegTree>());
+  auto& tree = *trees.front();
+  tree.Expand({{RegTree::kRoot, 0, 0.5f, true}, {0.0f, 4.0f}, {0.0f, 2.0f}, {4.0f, 2.0f}, 1.0f});
+  tree.Expand({{1, 0, 0.25f, true}, {0.0f, 2.0f}, {1.0f, 1.0f}, {2.0f, 1.0f}, 1.0f});
+  tree.FinalizeLeaves(1.0f);
+  model.CommitModelGroup(std::move(trees), 0);
+
+  auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 0.0f}, 1, 2);
+  std::vector<float> unit_weight{1.0f};
+  HostDeviceVector<float> finite;
+  interpretability::ApproxFeatureImportance(&ctx, dmat.get(), &finite, model, 0, &unit_weight);
+  std::vector<float> inf_weight{std::numeric_limits<float>::infinity()};
+  HostDeviceVector<float> infinite;
+  interpretability::ApproxFeatureImportance(&ctx, dmat.get(), &infinite, model, 0, &inf_weight);
+
+  auto const& h_finite = finite.ConstHostVector();
+  auto const& h_infinite = infinite.ConstHostVector();
+  ASSERT_NE(h_finite[0], 0.0f);
+  EXPECT_EQ(h_infinite[0], h_finite[0] * inf_weight[0]);
 }
 
 TEST(Predictor, ShapIterationRange) {
