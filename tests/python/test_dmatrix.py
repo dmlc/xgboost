@@ -171,6 +171,24 @@ class TestDMatrix:
         sliced = d.slice(ridxs_arr)
         np.testing.assert_equal(sliced.get_label(), y[2:7])
 
+    @pytest.mark.parametrize("ridxs", [[10], [99], [-1], [0, 10], [-1000000]])
+    def test_slice_out_of_range(self, ridxs) -> None:
+        X = np.arange(20.0).reshape(10, 2)
+        d = xgb.DMatrix(X, np.arange(10.0))
+
+        with pytest.raises(xgb.core.XGBoostError, match="out of range"):
+            d.slice(ridxs)
+        # The last row is still reachable.
+        assert d.slice([0, 9]).num_row() == 2
+
+    @pytest.mark.parametrize("ridxs", [[2**32], np.array([2**32, 2**32 + 3])])
+    def test_slice_index_too_large(self, ridxs) -> None:
+        d = xgb.DMatrix(np.arange(20.0).reshape(10, 2), np.arange(10.0))
+
+        # Narrowing to int32 would wrap these back to rows 0 and 3.
+        with pytest.raises(IndexError, match="32-bit"):
+            d.slice(ridxs)
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 
