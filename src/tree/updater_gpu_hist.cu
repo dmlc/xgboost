@@ -216,8 +216,9 @@ struct GPUHistMakerDevice {
     EvalParam gpu_param(param);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     sampled_features->SetDevice(ctx_->Device());
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints.Query(sampled_features->ConstDeviceSpan(), nidx);
+    dh::CachingDeviceUVector<bst_feature_t> constrained_features;
+    common::Span<bst_feature_t const> feature_set = interaction_constraints.Query(
+        sampled_features->ConstDeviceSpan(), nidx, &constrained_features);
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, histogram_.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{gpu_param,
                                             (*quantiser)[0],
@@ -247,6 +248,7 @@ struct GPUHistMakerDevice {
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     // Store the feature set ptrs so they don't go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+    std::vector<dh::CachingDeviceUVector<bst_feature_t>> constrained_features(h_node_inputs.size());
     auto sc_tree = tree.HostScView();
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
@@ -256,12 +258,12 @@ struct GPUHistMakerDevice {
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      common::Span<bst_feature_t const> left_feature_set = interaction_constraints.Query(
+          left_sampled_features->ConstDeviceSpan(), left_nidx, &constrained_features[i * 2]);
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      common::Span<bst_feature_t const> right_feature_set = interaction_constraints.Query(
+          right_sampled_features->ConstDeviceSpan(), right_nidx, &constrained_features[i * 2 + 1]);
       h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
                               left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
       h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
