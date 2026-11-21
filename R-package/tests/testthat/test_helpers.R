@@ -329,6 +329,17 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   expect_equal(as.integer(data.table::tstrsplit(dt.tree$Missing, '-', fixed = TRUE)[[2]]), dt.tree.int$Missing)
 })
 
+test_that("xgb.model.dt.tree errors on out-of-range tree index instead of silently dropping it", {
+  .skip_if_vcd_not_available()
+  # bst.Tree has `nrounds` (12) trees, so index 100 is unambiguously out of range.
+  expect_error(xgb.model.dt.tree(model = bst.Tree, trees = 100))
+  # a request mixing a valid and an invalid index should also error, not silently
+  # return results for only the valid one.
+  expect_error(xgb.model.dt.tree(model = bst.Tree, trees = c(1, 100)))
+  # in-range indices should still work as before.
+  expect_error(xgb.model.dt.tree(model = bst.Tree, trees = 1), regexp = NA)
+})
+
 test_that("xgb.model.dt.tree throws error for gblinear", {
   .skip_if_vcd_not_available()
   expect_error(xgb.model.dt.tree(model = bst.GLM))
