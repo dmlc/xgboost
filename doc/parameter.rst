@@ -544,7 +544,7 @@ Parameters for Tweedie Regression (``objective=reg:tweedie``)
 * ``tweedie_variance_power`` [default=1.5]
 
   - Parameter that controls the variance of the Tweedie distribution ``var(y) ~ E(y)^tweedie_variance_power``
-  - range: (1,2)
+  - range: [1,2)
   - Set closer to 2 to shift towards a gamma distribution
   - Set closer to 1 to shift towards a Poisson distribution.
 
