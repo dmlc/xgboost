@@ -45,6 +45,7 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(LoadConfig)) {
 
     std::unique_ptr<Metric> restored{Metric::Create("aft-nloglik", &ctx)};
     restored->LoadConfig(config);
+    restored->Configure({});
     EXPECT_NEAR(restored->Evaluate(preds, dmat), expected, 1e-6);
 
     restored->Configure(
