@@ -293,6 +293,9 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, group, params) {
     }
     return(generate.group.folds(nfold, group))
   }
+  if (nrows < nfold) {
+    stop("DMatrix has fewer rows than folds.")
+  }
   objective <- params$objective
   if (stratified && !is.character(objective)) {
     warning("Will use unstratified splitting (custom objective used)")
