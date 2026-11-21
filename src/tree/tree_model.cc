@@ -381,7 +381,8 @@ class JsonGenerator : public TreeGenerator<TreeView> {
   std::string Indicator(TreeView tree, bst_node_t nid, uint32_t depth) const override {
     int32_t nyes = tree.DefaultLeft(nid) ? tree.RightChild(nid) : tree.LeftChild(nid);
     static std::string const kIndicatorTemplate =
-        R"ID( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", "yes": {yes}, "no": {no})ID";
+        R"ID( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )ID"
+        R"ID("split_type": "present", "yes": {yes}, "no": {no})ID";
     auto split_index = tree.SplitIndex(nid);
     auto result =
         SuperT::Match(kIndicatorTemplate, {{"{nid}", std::to_string(nid)},
@@ -396,7 +397,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
     auto cats = GetSplitCategories(tree, nid);
     static std::string const kCategoryTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
-        R"I("split_condition": {cond}, "yes": {right}, "no": {left}, )I"
+        R"I("split_type": "in", "split_condition": {cond}, "yes": {right}, "no": {left}, )I"
         R"I("missing": {missing})I";
     std::string cats_ptr = "[";
     for (size_t i = 0; i < cats.size(); ++i) {
@@ -431,7 +432,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
     }
     static std::string const kIntegerTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
-        R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
+        R"I("split_type": "<", "split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
     return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(*threshold), depth);
   }
@@ -439,7 +440,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
   std::string Quantitive(TreeView tree, int32_t nid, uint32_t depth) const override {
     static std::string const kQuantitiveTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
-        R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
+        R"I("split_type": "<", "split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
     bst_float cond = tree.SplitCond(nid);
     return SplitNodeImpl(tree, nid, kQuantitiveTemplate, ToJsonStr(cond), depth);
@@ -449,7 +450,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
     auto cond = tree.SplitCond(nid);
     static std::string const kNodeTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
-        R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"
+        R"I("split_type": "<", "split_condition": {cond}, "yes": {left}, "no": {right}, )I"
         R"I("missing": {missing})I";
     return SplitNodeImpl(tree, nid, kNodeTemplate, ToJsonStr(cond), depth);
   }
