@@ -331,6 +331,25 @@ class TestBasic:
         )
         assert output == solution
 
+    def test_cv_invalid_nfold(self) -> None:
+        rng = np.random.default_rng(1994)
+        Xy = xgb.DMatrix(rng.normal(size=(5, 3)), label=rng.normal(size=5))
+
+        for nfold in (1, 0, -3):
+            with pytest.raises(ValueError, match="at least 2"):
+                xgb.cv({}, Xy, num_boost_round=1, nfold=nfold)
+        # More folds than rows would leave some test folds empty.
+        with pytest.raises(ValueError, match="number of rows"):
+            xgb.cv({}, Xy, num_boost_round=1, nfold=6)
+        # Leave-one-out is still valid.
+        results = xgb.cv({}, Xy, num_boost_round=1, nfold=5, as_pandas=False)
+        assert len(results["test-rmse-mean"]) == 1
+
+        # Ranking data is split by query group.
+        Xy.set_group([2, 3])
+        with pytest.raises(ValueError, match="query groups"):
+            xgb.cv({"objective": "rank:ndcg"}, Xy, num_boost_round=1, nfold=3)
+
 
 class TestBasicPathLike:
     """Unit tests using pathlib.Path for file interaction."""
