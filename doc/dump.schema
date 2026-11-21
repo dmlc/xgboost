@@ -23,6 +23,10 @@
                 "split": {
                     "type": "string"
                 },
+                "split_type": {
+                    "description": "Test that selects the yes child: less than the split condition, membership in the listed categories, or presence of an indicator feature.",
+                    "enum": ["<", "in", "present"]
+                },
                 "children": {
                     "type": "array",
                     "items": {
