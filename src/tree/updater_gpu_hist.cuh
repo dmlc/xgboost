@@ -270,8 +270,9 @@ class MultiTargetHistMaker {
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
+    dh::CachingDeviceUVector<bst_feature_t> constrained_features;
+    common::Span<bst_feature_t const> feature_set = interaction_constraints_->Query(
+        sampled_features->ConstDeviceSpan(), RegTree::kRoot, &constrained_features);
     MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
@@ -551,6 +552,7 @@ class MultiTargetHistMaker {
 
     // Store the feature set ptrs so they don't go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+    std::vector<dh::CachingDeviceUVector<bst_feature_t>> constrained_features(inputs.size());
 
     auto n_targets = this->split_gpair_.Shape(1);
     bst_feature_t max_active_feature = 0;
@@ -565,13 +567,13 @@ class MultiTargetHistMaker {
       auto child_depth = candidate.depth + 1;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      common::Span<bst_feature_t const> left_feature_set = interaction_constraints_->Query(
+          left_sampled_features->ConstDeviceSpan(), left_nidx, &constrained_features[i * 2]);
 
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      common::Span<bst_feature_t const> right_feature_set = interaction_constraints_->Query(
+          right_sampled_features->ConstDeviceSpan(), right_nidx, &constrained_features[i * 2 + 1]);
 
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.

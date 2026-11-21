@@ -1,3 +1,6 @@
+import json
+from typing import Any, Dict, Set
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,6 +19,41 @@ class TestGPUInteractionConstraints:
 
     def test_hist_multi_interaction_constraints(self) -> None:
         run_interaction_constraints(tree_method="hist", device="cuda", n_targets=3)
+
+    @pytest.mark.parametrize("n_targets", [1, 3])
+    def test_branch_constraints(self, n_targets: int) -> None:
+        constraints = [[0, 1], [1, 3, 4]]
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(5000, 5))
+        y = X[:, 0] * X[:, 1] * X[:, 3] + X[:, 0] * X[:, 4] + X[:, 1] * X[:, 2]
+        params = {
+            "device": "cuda",
+            "tree_method": "hist",
+            "grow_policy": "depthwise",
+            "max_depth": 4,
+            "interaction_constraints": str(constraints),
+        }
+        if n_targets > 1:
+            y = np.column_stack([y, y + X[:, 2], y - X[:, 3]])
+            params["multi_strategy"] = "multi_output_tree"
+        booster = xgb.train(params, xgb.DMatrix(X, y), num_boost_round=20)
+
+        sets = [set(s) for s in constraints]
+
+        # Both the CPU rule and the GPU's union rule require each split to share a
+        # constraint set with a feature used above it on the branch.
+        def check(node: Dict[str, Any], used: Set[int]) -> None:
+            if "leaf" in node:
+                return
+            fidx = int(node["split"][1:])
+            assert (
+                not used or fidx in used or any(fidx in s and used & s for s in sets)
+            ), (fidx, used)
+            for child in node["children"]:
+                check(child, used | {fidx})
+
+        for tree in booster.get_dump(dump_format="json"):
+            check(json.loads(tree), set())
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_training_accuracy(self, tree_method: str) -> None:
