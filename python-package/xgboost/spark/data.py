@@ -178,10 +178,15 @@ def make_qdm(
     meta: Dict[str, Any],
     ref: Optional[DMatrix],
     params: Dict[str, Any],
+    n_features: int = 0,
 ) -> DMatrix:
     """Handle empty partition for QuantileDMatrix."""
     if not data:
-        return QuantileDMatrix(np.empty((0, 0)), ref=ref)
+        # Pass the parameters (e.g. max_bin) so that the empty QuantileDMatrix
+        # is compatible with its reference and with DMatrices from other
+        # workers. The matrix must have at least 1 column, so we use the
+        # number of features seen in other partitions if this one is empty.
+        return QuantileDMatrix(np.empty((0, n_features)), **params, ref=ref)
     it = PartIter(data, dev_ordinal, **meta)
     m = QuantileDMatrix(it, **params, ref=ref)
     return m
@@ -260,6 +265,8 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         nonlocal n_features
 
         if name == alias.data or name in part.columns:
+            if len(part) == 0:  # guard against empty partition
+                return
             if name == alias.data:
                 array = _read_csr_matrix_from_unwrapped_spark_vec(part)
                 if n_features == 0:
@@ -279,8 +286,10 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 "Detected an empty partition in the training data. Consider to enable"
                 " repartition_random_shuffle"
             )
-            # We must construct an empty DMatrix to bypass the AllReduce
-            return DMatrix(data=np.empty((0, 0)), **kwargs)
+            # We must construct an empty DMatrix to bypass the AllReduce. Keep
+            # the number of columns so that the DMatrix is consistent with the
+            # ones from the other workers.
+            return DMatrix(data=np.empty((0, n_features)), **kwargs)
 
         data = concat_or_none(values[alias.data])
         label = concat_or_none(values.get(alias.label, None))
@@ -322,13 +331,15 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     if feature_cols is not None and use_qdm:
         cache_partitions(iterator, append_fn)
-        dtrain: DMatrix = make_qdm(train_data, dev_ordinal, meta, None, params)
+        dtrain: DMatrix = make_qdm(
+            train_data, dev_ordinal, meta, None, params, n_features
+        )
     elif feature_cols is not None and not use_qdm:
         cache_partitions(iterator, append_fn)
         dtrain = make(train_data, kwargs)
     elif feature_cols is None and use_qdm:
         cache_partitions(iterator, append_fn)
-        dtrain = make_qdm(train_data, dev_ordinal, meta, None, params)
+        dtrain = make_qdm(train_data, dev_ordinal, meta, None, params, n_features)
     else:
         cache_partitions(iterator, append_fn)
         dtrain = make(train_data, kwargs)
@@ -342,7 +353,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     if has_validation_col:
         if use_qdm:
             dvalid: Optional[DMatrix] = make_qdm(
-                valid_data, dev_ordinal, meta, dtrain, params
+                valid_data, dev_ordinal, meta, dtrain, params, n_features
             )
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None
