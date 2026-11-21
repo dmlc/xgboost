@@ -38,6 +38,7 @@ void FeatureInteractionConstraintHost::Reset() {
                << this->interaction_constraint_str_ << "\n"
                << "With error:\n" << e.what();
   }
+  interaction_constraints_.clear();
   for (const auto& e : tmp) {
     interaction_constraints_.emplace_back(e.begin(), e.end());
   }
