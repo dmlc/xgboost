@@ -245,6 +245,24 @@ inline void VerifyRankingAUC(DeviceOrd device) {
                             {0, 3, 6, 8}),
               0.5, 1e-10);
 
+  // Documents with the same label form no pair, so the order of the documents in a group does not
+  // matter: 4 of the 6 pairs with different labels are ordered correctly.
+  EXPECT_NEAR(
+      GetMetricEval(metric.get(), {0.9f, 0.2f, 0.5f, 0.1f, 0.3f}, {1, 1, 0, 0, 0}, {}, {0, 5}),
+      4.0 / 6.0, 1e-6);
+  EXPECT_NEAR(
+      GetMetricEval(metric.get(), {0.3f, 0.1f, 0.5f, 0.2f, 0.9f}, {0, 0, 0, 1, 1}, {}, {0, 5}),
+      4.0 / 6.0, 1e-6);
+
+  // A group whose documents all have the same label has no AUC and is not counted.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 0, 1, 2}, {0, 1, 2, 1, 1, 1}, {}, {0, 3, 6}),
+              1.0, 1e-10);
+
+  // A group with a zero weight is not counted either.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 2, 1, 0}, {0, 1, 2, 0, 1, 2},
+                            /*weights=*/{1.0f, 0.0f}, {0, 3, 6}),
+              1.0, 1e-10);
+
   // regression case
   HostDeviceVector<float> predt{
       0.33935383, 0.5149714,  0.32138085, 1.4547751, 1.2010975, 0.42651367, 0.23104341, 0.83610827,
@@ -254,7 +272,7 @@ inline void VerifyRankingAUC(DeviceOrd device) {
 
   EXPECT_NEAR(GetMetricEval(metric.get(), std::move(predt), labels,
                             /*weights=*/{}, groups),
-              0.769841f, 1e-6);
+              0.792857f, 1e-6);
 }
 
 inline void VerifyPRAUC(DeviceOrd device) {

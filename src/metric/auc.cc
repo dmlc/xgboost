@@ -166,7 +166,7 @@ std::tuple<double, double, double> BinaryROCAUC(Context const* ctx,
  */
 double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
                        linalg::VectorView<float const> labels, float w) {
-  // on ranking, we just count all pairs.
+  // on ranking, we count all pairs of documents with different labels.
   double auc{0};
   // argsort doesn't support tensor input yet.
   auto raw_labels = labels.Values().subspan(0, labels.Size());
@@ -177,6 +177,10 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
   double sum_w = 0.0f;
   for (size_t i = 0; i < labels.Size(); ++i) {
     for (size_t j = i + 1; j < labels.Size(); ++j) {
+      if (raw_labels[sorted_idx[i]] == raw_labels[sorted_idx[j]]) {
+        // Documents with the same label have no expected order.
+        continue;
+      }
       auto predt = predts[sorted_idx[i]] - predts[sorted_idx[j]];
       if (predt > 0) {
         predt = 1.0;
@@ -189,9 +193,11 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
       sum_w += w;
     }
   }
-  if (sum_w != 0) {
-    auc /= sum_w;
+  if (sum_w == 0) {
+    // No pair with different labels, or a zero weight: the group has no AUC.
+    return std::numeric_limits<double>::quiet_NaN();
   }
+  auc /= sum_w;
   CHECK_LE(auc, 1.0 + kRtEps);
   return auc;
 }
