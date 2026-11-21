@@ -604,7 +604,8 @@ xgb.cb.reset.parameters <- function(new_params) {
 #'
 #' @param stopping_rounds The number of rounds with no improvement in
 #'   the evaluation metric in order to stop the training.
-#' @param maximize Whether to maximize the evaluation metric.
+#' @param maximize Whether to maximize the evaluation metric. If `NULL` (the default), it is
+#'   inferred from the metric name.
 #' @param metric_name The name of an evaluation column to use as a criteria for early
 #'   stopping. If not set, the last column would be used.
 #'   Let's say the test data in `evals` was labelled as `dtest`,
@@ -622,7 +623,7 @@ xgb.cb.reset.parameters <- function(new_params) {
 #' @export
 xgb.cb.early.stop <- function(
   stopping_rounds,
-  maximize = FALSE,
+  maximize = NULL,
   metric_name = NULL,
   verbose = TRUE,
   save_best = FALSE
