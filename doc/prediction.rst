@@ -82,6 +82,34 @@ the 3-class classification dataset, and want to use the first 2 iterations of tr
 prediction, you need to provide ``iteration_range=(0, 2)``.  Then the first :math:`2
 \times 3 \times 4` trees will be used in this prediction.
 
+*********************
+Feature Contributions
+*********************
+
+For tree boosters, TreeSHAP uses the paths in each tree to estimate the prediction
+when only a subset of the features is known. At a split on a feature outside that
+subset, XGBoost normally weights each branch by the ratio of the child's cover to
+the parent's cover. Cover is the sum of the effective Hessians at a node. With
+equal, positive effective Hessians, the cover ratios match the proportions of the
+training rows used at that split. If the parent's cover is zero, XGBoost weights
+the two branches equally.
+
+Each row's contributions, including the baseline in the last column, add up to
+its raw prediction margin. The following example uses one group and one feature.
+
+.. code-block:: python
+
+    import numpy as np
+    import xgboost as xgb
+
+    X = np.array([[0.0], [1.0], [2.0], [3.0]])
+    data = xgb.DMatrix(X, label=np.array([0.0, 0.0, 1.0, 1.0]))
+    model = xgb.train({"max_depth": 1, "eta": 1}, data, num_boost_round=1)
+
+    contribs = model.predict(data, pred_contribs=True, strict_shape=True)
+    margin = model.predict(data, output_margin=True, strict_shape=True)
+    np.testing.assert_allclose(contribs.sum(axis=-1), margin, atol=1e-6)
+
 **************
 Early Stopping
 **************

@@ -60,6 +60,7 @@ Only applicable to tree-based boosters (not \code{gblinear}).
 given observation, based on SHAP values. The contribution values are on the scale of
 untransformed margin (e.g., for binary classification, the values are log-odds deviations from
 the baseline).
+See \code{\link[=predict.xgb.Booster]{predict.xgb.Booster()}} for how tree-based contributions are computed.
 
 Output will be a numeric matrix with shape \verb{[nrows, nfeatures+1]}, with the intercept being the
 last feature, or a numeric array with shape \verb{[nrows, nscores, nfeatures+1]} if the model

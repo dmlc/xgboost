@@ -195,9 +195,14 @@ e.g., as implemented in \code{\link[=xgb.create.features]{xgb.create.features()}
 
 Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 individual predictions. For "gblinear" booster, feature contributions are simply linear terms
-(feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
-values (Lundberg 2017) that sum to the difference between the expected output
-of the model and the current prediction (where the hessian weights are used to compute the expectations).
+(feature_beta * feature_value). For tree boosters, XGBoost computes
+\href{https://arxiv.org/abs/1802.03888}{TreeSHAP} values using
+\href{https://arxiv.org/abs/2605.04497}{Quadrature-TreeSHAP} by default. At a split
+on a feature outside the subset of known features, XGBoost normally weights
+the branches by their shares of the parent node's cover. Cover is the sum of
+effective Hessians at a node. If the parent's cover is zero, both branches
+receive equal weight. The baseline is the last entry along the feature axis.
+The feature contributions and the baseline sum to the raw prediction margin.
 Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
 in \url{http://blog.datadive.net/interpreting-random-forests/}.
 
