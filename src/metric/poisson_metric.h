@@ -13,13 +13,18 @@
 #include "xgboost/base.h"        // for bst_float
 
 namespace xgboost::metric {
+// Poisson negative log-likelihood without the log(y!) term, taking 0 * log(p) as 0.
+[[nodiscard]] XGBOOST_DEVICE inline bst_float PoissonNegLogLikNoConst(bst_float y, bst_float p) {
+  return y == 0 ? p : p - y * std::log(p);
+}
+
 struct EvalPoissonNegLogLik {
   [[nodiscard]] const char* Name() const { return "poisson-nloglik"; }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float operator()(bst_float y, bst_float py) const {
     const bst_float eps = 1e-16f;
     if (py < eps) py = eps;
-    return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
+    return common::LogGamma(y + 1.0f) + PoissonNegLogLikNoConst(y, py);
   }
 
   static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
