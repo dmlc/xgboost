@@ -79,6 +79,22 @@ public class XGBoostTest {
   }
 
   @Test
+  public void testRecallMaximizeEvaluation() {
+    String[] evalNames = {"validation"};
+    for (String metric : new String[]{"recall", "recall-", "recall@2", "recall@2-"}) {
+      HashMap<String, Object> params = new HashMap<>();
+      String log = composeEvalInfo(metric, evalNames[0]);
+      TestCase.assertTrue(XGBoost.isMaximizeEvaluation(log, evalNames, params));
+      params.put("eval_metric", metric);
+      TestCase.assertTrue(XGBoost.isMaximizeEvaluation(log, evalNames, params));
+      params.put("maximize_evaluation_metrics", false);
+      TestCase.assertFalse(XGBoost.isMaximizeEvaluation(log, evalNames, params));
+      params.put("maximize_evaluation_metrics", true);
+      TestCase.assertTrue(XGBoost.isMaximizeEvaluation(log, evalNames, params));
+    }
+  }
+
+  @Test
   public void testEarlyStop() throws XGBoostError {
     Random random = new Random(1);
 
