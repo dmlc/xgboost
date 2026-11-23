@@ -1,10 +1,10 @@
 /**
- * Copyright 2024-2025, XGBoost contributors
+ * Copyright 2024-2026, XGBoost contributors
  */
 #pragma once
 #include <gtest/gtest.h>
 
-#include <cstdint>  // for int32_t, int8_t
+#include <cstdint>  // for int32_t
 #include <numeric>  // for partial_sum
 #include <string>   // for string
 #include <utility>  // for forward
@@ -19,7 +19,7 @@ namespace enc {
 template <typename... Strs>
 auto MakeStrArrayImpl(Strs&&... strs) {
   std::vector<std::string> names{strs...};
-  std::vector<std::int8_t> values;
+  std::vector<CatCharT> values;
   std::vector<std::int32_t> offsets{0};
 
   for (const auto& name : names) {
@@ -71,9 +71,7 @@ class DfTest {
       std::visit(Overloaded{[&](xgboost::cpu_impl::CatStrArray const& str) {
                               df.columns_v_.emplace_back(enc::CatStrArrayView(str));
                             },
-                            [&](auto&& args) {
-                              df.columns_v_.emplace_back(Span{args});
-                            }},
+                            [&](auto&& args) { df.columns_v_.emplace_back(Span{args}); }},
                  col);
     }
     auto check = [&] {

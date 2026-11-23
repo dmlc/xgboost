@@ -16,7 +16,7 @@ def main(client):
     # xgb.set_config(use_rmm=True)
 
     X, y = make_classification(n_samples=10000, n_informative=5, n_classes=3)
-    # In pratice one should prefer loading the data with dask collections instead of
+    # In practice one should prefer loading the data with dask collections instead of
     # using `from_array`.
     X = dask.array.from_array(X)
     y = dask.array.from_array(y)

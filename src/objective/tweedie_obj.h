@@ -8,6 +8,7 @@
 
 #include <cmath>  // for expf, log
 
+#include "../common/common.h"       // for Max
 #include "elementwise_objective.h"  // for elementwise kernels
 #include "regression_loss.h"        // for TweedieLabel
 #include "xgboost/base.h"           // for GradientPair
@@ -66,7 +67,11 @@ struct TweediePredTransform {
   XGBOOST_DEVICE float operator()(float value) const { return expf(value); }
 };
 struct TweedieProbToMargin {
-  XGBOOST_DEVICE float operator()(float value) const { return std::log(value); }
+  XGBOOST_DEVICE float operator()(float value) const {
+    // A zero intercept, estimated from all-zero labels, would give an infinite margin
+    // and NaN gradients. Bound it away from zero.
+    return std::log(common::Max(value, kRtEps));
+  }
 };
 struct TweedieLabelCheck {
   XGBOOST_DEVICE bool operator()(float value) const { return TweedieLabel::CheckLabel(value); }

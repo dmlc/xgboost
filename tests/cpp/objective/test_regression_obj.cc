@@ -238,6 +238,9 @@ void TestPoissonRegressionBasic(const Context* ctx) {
   CheckProbaToMargin(obj, 0.1f, -2.30f);
   CheckProbaToMargin(obj, 0.5f, -0.69f);
   CheckProbaToMargin(obj, 0.9f, -0.10f);
+  // A zero or negative intercept is bounded away from zero.
+  CheckProbaToMargin(obj, 0.0f, std::log(kRtEps));
+  CheckProbaToMargin(obj, -1.0f, std::log(kRtEps));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -355,6 +358,9 @@ void TestTweedieRegressionBasic(const Context* ctx) {
   CheckProbaToMargin(obj, 0.1f, -2.30f);
   CheckProbaToMargin(obj, 0.5f, -0.69f);
   CheckProbaToMargin(obj, 0.9f, -0.10f);
+  // A zero intercept, estimated from all-zero labels, is bounded away from zero.
+  CheckProbaToMargin(obj, 0.0f, std::log(kRtEps));
+  CheckProbaToMargin(obj, -1.0f, std::log(kRtEps));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -460,6 +466,11 @@ void TestCoxRegressionGPair(const Context* ctx) {
                    { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
   // clang-format on
+
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  // A zero or negative intercept is bounded away from zero.
+  CheckProbaToMargin(obj, 0.0f, std::log(kRtEps));
+  CheckProbaToMargin(obj, -1.0f, std::log(kRtEps));
 }
 
 void TestCoxRegressionInitEstimation(const Context* ctx) {

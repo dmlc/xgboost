@@ -115,6 +115,19 @@ class TestPlotting:
             assert bar_bbox.x1 < text_bbox.x0  # text is positioned after the bar
             assert text_bbox.x1 <= ax.bbox.x1  # and before the axis ends
 
+    def test_importance_plot_max_num_features(self) -> None:
+        importance = {"f0": 0.02, "f1": 0.05, "f2": 0.1}
+
+        # `max_num_features=0` used to silently show every feature instead of
+        # raising, since `tuples[-0:]` is the same as `tuples[0:]`.
+        with pytest.raises(ValueError, match="max_num_features"):
+            xgb.plot_importance(importance, max_num_features=0)
+        with pytest.raises(ValueError, match="max_num_features"):
+            xgb.plot_importance(importance, max_num_features=-1)
+
+        ax = xgb.plot_importance(importance, max_num_features=2)
+        assert len(ax.patches) == 2
+
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self) -> None:
         run_categorical("approx", "cpu")

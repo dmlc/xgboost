@@ -143,23 +143,28 @@ inline std::pair<bst_tree_t, bst_tree_t> LayerToTree(gbm::GBTreeModel const& mod
   return {tree_begin, tree_end};
 }
 
+// Number of layers in the sequence begin, begin + step, ... that stops before end.
+inline bst_layer_t SliceSize(bst_layer_t begin, bst_layer_t end, bst_layer_t step) {
+  return (end - begin - 1) / step + 1;
+}
+
 // Call fn for each pair of input output tree.  Return true if index is out of bound.
 template <typename Func>
 bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeModel const& model,
                 Func&& fn) {
   end = end == 0 ? model.iteration_indptr.size() : end;
   CHECK_GE(step, 1);
-  if (step > end - begin) {
+  if (end < begin) {
     return true;
   }
   if (end > model.BoostedRounds()) {
     return true;
   }
 
-  bst_layer_t n_layers = (end - begin) / step;
-  bst_layer_t out_l = 0;
-
-  for (bst_layer_t l = begin; l < end; l += step) {
+  bst_layer_t n_layers = detail::SliceSize(begin, end, step);
+  // Index by output layer so that begin + out_l * step stays below end and cannot overflow.
+  for (bst_layer_t out_l = 0; out_l < n_layers; ++out_l) {
+    bst_layer_t l = begin + out_l * step;
     auto [tree_begin, tree_end] = detail::LayerToTree(model, l, l + 1);
     if (tree_end > static_cast<bst_tree_t>(model.trees.size())) {
       return true;
@@ -168,10 +173,8 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
       fn(tree_idx, out_l);
     }
-    ++out_l;
   }
 
-  CHECK_EQ(out_l, n_layers);
   return false;
 }
 }  // namespace detail

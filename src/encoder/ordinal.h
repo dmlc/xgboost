@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  *
  * @brief Orindal re-coder for categorical features.
  *
@@ -55,7 +55,7 @@ namespace enc {
 using xgboost::common::MakeIndexTransformIter;
 using xgboost::common::Span;
 
-using CatCharT = std::int8_t;
+using CatCharT = std::uint8_t;
 
 /**
  * @brief String names of categorical data. Represented in the arrow StringArray format.
@@ -67,6 +67,11 @@ struct CatStrArrayView {
   [[nodiscard]] ENC_DEVICE bool empty() const { return offsets.empty(); }  // NOLINT
   [[nodiscard]] ENC_DEVICE std::size_t size() const {                      // NOLINT
     return this->empty() ? 0 : this->offsets.size() - 1;
+  }
+
+  [[nodiscard]] ENC_DEVICE Span<CatCharT const> operator[](std::size_t i) const {
+    auto begin = offsets[i];
+    return values.subspan(begin, offsets[i + 1] - begin);
   }
 
   [[nodiscard]] std::size_t SizeBytes() const {
@@ -218,32 +223,12 @@ void ArgSort(InIt in_first, InIt in_last, OutIt out_first, Comp comp = std::less
 
 [[nodiscard]] inline std::int32_t SearchSorted(CatStrArrayView haystack,
                                                Span<std::int32_t const> ref_sorted_idx,
-                                               Span<std::int8_t const> needle) {
+                                               Span<CatCharT const> needle) {
   auto it = MakeIndexTransformIter([](auto i) { return static_cast<std::int32_t>(i); });
-  auto const h_off = haystack.offsets;
-  auto const h_data = haystack.values;
   using detail::SearchKey;
   auto ret_it = std::lower_bound(it, it + haystack.size(), SearchKey(), [&](auto l, auto r) {
-    Span<std::int8_t const> l_str;
-    if (l == SearchKey()) {
-      l_str = needle;
-    } else {
-      auto l_idx = ref_sorted_idx[l];
-      auto l_beg = h_off[l_idx];
-      auto l_end = h_off[l_idx + 1];
-      l_str = h_data.subspan(l_beg, l_end - l_beg);
-    }
-
-    Span<std::int8_t const> r_str;
-    if (r == SearchKey()) {
-      r_str = needle;
-    } else {
-      auto r_idx = ref_sorted_idx[r];
-      auto r_beg = h_off[r_idx];
-      auto r_end = h_off[r_idx + 1];
-      r_str = h_data.subspan(r_beg, r_end - r_beg);
-    }
-
+    auto l_str = l == SearchKey() ? needle : haystack[ref_sorted_idx[l]];
+    auto r_str = r == SearchKey() ? needle : haystack[ref_sorted_idx[r]];
     return l_str < r_str;
   });
   if (ret_it == it + haystack.size()) {
@@ -251,10 +236,7 @@ void ArgSort(InIt in_first, InIt in_last, OutIt out_first, Comp comp = std::less
   }
   // Handle OOV category
   auto sorted_idx = *ret_it;
-  auto candidate_idx = ref_sorted_idx[sorted_idx];
-  auto candidate_beg = h_off[candidate_idx];
-  auto candidate_end = h_off[candidate_idx + 1];
-  auto candidate = h_data.subspan(candidate_beg, candidate_end - candidate_beg);
+  auto candidate = haystack[ref_sorted_idx[sorted_idx]];
   return candidate == needle ? sorted_idx : detail::NotFound();
 }
 
@@ -286,15 +268,8 @@ void SortNames(ExecPolicy const &policy, HostCatIndexView const &cats,
     policy.Error("Invalid size of sorted index.");
   }
   std::visit(Overloaded{[&](CatStrArrayView const &str) {
-                          cpu_impl::ArgSort(it, it + str.size(), sorted_idx.begin(), [&](T l, T r) {
-                            auto l_beg = str.offsets[l];
-                            auto l_str = str.values.subspan(l_beg, str.offsets[l + 1] - l_beg);
-
-                            auto r_beg = str.offsets[r];
-                            auto r_str = str.values.subspan(r_beg, str.offsets[r + 1] - r_beg);
-
-                            return l_str < r_str;
-                          });
+                          cpu_impl::ArgSort(it, it + str.size(), sorted_idx.begin(),
+                                            [&](T l, T r) { return str[l] < str[r]; });
                         },
                         [&](auto &&values) {
                           cpu_impl::ArgSort(it, it + values.size(), sorted_idx.begin(),
@@ -382,14 +357,12 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
     std::vector<std::int32_t> searched_idx(n_new_categories, -1);
     auto const &col = new_enc.columns[f_idx];
     std::visit(Overloaded{[&](CatStrArrayView const &str) {
-                            for (std::size_t j = 1, m = n_new_categories + 1; j < m; ++j) {
-                              auto begin = str.offsets[j - 1];
-                              auto end = str.offsets[j];
-                              auto needle = str.values.subspan(begin, end - begin);
-                              searched_idx[j - 1] = cpu_impl::SearchSorted(
+                            for (std::size_t j = 0; j < n_new_categories; ++j) {
+                              auto needle = str[j];
+                              searched_idx[j] = cpu_impl::SearchSorted(
                                   std::get<CatStrArrayView>(orig_enc.columns[f_idx]),
                                   ref_sorted_idx, needle);
-                              if (searched_idx[j - 1] == detail::NotFound()) {
+                              if (searched_idx[j] == detail::NotFound()) {
                                 std::stringstream ss;
                                 for (auto c : needle) {
                                   ss.put(c);

@@ -74,6 +74,7 @@ from .compat import (
     import_pandas,
     import_polars,
     import_pyarrow,
+    import_scipy_sparse,
     is_pyarrow_available,
     lazy_isinstance,
 )
@@ -112,21 +113,9 @@ def _check_data_shape(data: DataType) -> None:
 
 def is_scipy_csr(data: DataType) -> bool:
     """Predicate for scipy CSR input."""
-    is_array = False
-    is_matrix = False
-    try:
-        from scipy.sparse import csr_array
-
-        is_array = isinstance(data, csr_array)
-    except ImportError:
-        pass
-    try:
-        from scipy.sparse import csr_matrix
-
-        is_matrix = isinstance(data, csr_matrix)
-    except ImportError:
-        pass
-    return is_array or is_matrix
+    if ss := import_scipy_sparse(required=False):
+        return isinstance(data, (ss.csr_array, ss.csr_matrix))
+    return False
 
 
 def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
@@ -134,7 +123,7 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
     be either csr or csc matrix.
 
     """
-    from scipy.sparse import csc_matrix, csr_matrix
+    ss = import_scipy_sparse(required=True)
 
     if len(data.indices) != len(data.data):
         raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
@@ -148,9 +137,9 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
         or values is not data.data
     ):
         if is_csr:
-            data = csr_matrix((values, indices, indptr), shape=data.shape)
+            data = ss.csr_matrix((values, indices, indptr), shape=data.shape)
         else:
-            data = csc_matrix((values, indices, indptr), shape=data.shape)
+            data = ss.csc_matrix((values, indices, indptr), shape=data.shape)
     return data
 
 
@@ -184,21 +173,9 @@ def _from_scipy_csr(
 
 def is_scipy_csc(data: DataType) -> bool:
     """Predicate for scipy CSC input."""
-    is_array = False
-    is_matrix = False
-    try:
-        from scipy.sparse import csc_array
-
-        is_array = isinstance(data, csc_array)
-    except ImportError:
-        pass
-    try:
-        from scipy.sparse import csc_matrix
-
-        is_matrix = isinstance(data, csc_matrix)
-    except ImportError:
-        pass
-    return is_array or is_matrix
+    if ss := import_scipy_sparse(required=False):
+        return isinstance(data, (ss.csc_array, ss.csc_matrix))
+    return False
 
 
 def _from_scipy_csc(
@@ -230,21 +207,9 @@ def _from_scipy_csc(
 
 def is_scipy_coo(data: DataType) -> bool:
     """Predicate for scipy COO input."""
-    is_array = False
-    is_matrix = False
-    try:
-        from scipy.sparse import coo_array
-
-        is_array = isinstance(data, coo_array)
-    except ImportError:
-        pass
-    try:
-        from scipy.sparse import coo_matrix
-
-        is_matrix = isinstance(data, coo_matrix)
-    except ImportError:
-        pass
-    return is_array or is_matrix
+    if ss := import_scipy_sparse(required=False):
+        return isinstance(data, (ss.coo_array, ss.coo_matrix))
+    return False
 
 
 def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
@@ -1301,13 +1266,12 @@ def _convert_unknown_data(data: DataType) -> DataType:
         f"Unknown data type: {type(data)}, trying to convert it to csr_matrix",
         UserWarning,
     )
-    try:
-        import scipy.sparse
-    except ImportError:
+    ss = import_scipy_sparse(required=False)
+    if ss is None:
         return None
 
     try:
-        data = scipy.sparse.csr_matrix(data)
+        data = ss.csr_matrix(data)
     except Exception:  # pylint: disable=broad-except
         return None
 

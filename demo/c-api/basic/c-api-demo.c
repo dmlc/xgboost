@@ -99,7 +99,7 @@ int main() {
   uint64_t const* out_shape;
   /* Dimension of output prediction */
   uint64_t out_dim;
-  /* Pointer to a thread local contigious array, assigned in prediction function. */
+  /* Pointer to a thread local contiguous array, assigned in prediction function. */
   float const* out_result = NULL;
   safe_xgboost(
       XGBoosterPredictFromDMatrix(booster, dtest, config, &out_shape, &out_dim, &out_result));
