@@ -111,7 +111,7 @@ from ..sklearn import (
 )
 from ..tracker import RabitTracker
 from ..training import train as worker_train
-from .data import _get_dmatrices, no_group_split
+from .data import _EMPTY_TRAINING_DATA_ERROR, _get_dmatrices, no_group_split
 from .utils import _DASK_2024_12_1, _DASK_2025_3_0, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
@@ -718,6 +718,8 @@ async def _train_async(
     custom_metric: Optional[Metric],
     coll_cfg: Optional[CollConfig],
 ) -> Optional[TrainReturnT]:
+    if not dtrain.worker_map:
+        raise ValueError(_EMPTY_TRAINING_DATA_ERROR)
     workers = _get_workers_from_data(dtrain, evals)
     await _check_workers_are_alive(workers, client)
     coll_args = await _get_rabit_args(client, len(workers), coll_cfg=coll_cfg)

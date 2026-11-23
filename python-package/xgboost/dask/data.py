@@ -32,6 +32,7 @@ from ..sklearn import get_model_categories, pick_ref_categories
 from ..training import _RefError
 
 LOGGER = logging.getLogger("[xgboost.dask]")
+_EMPTY_TRAINING_DATA_ERROR = "Training data must contain at least one row."
 
 _DataParts = List[Dict[str, Any]]
 
@@ -292,14 +293,12 @@ def _extract_data(
     return unzipped_dict, model_cats
 
 
-def _get_is_cuda(parts: Optional[_DataParts]) -> bool:
-    if parts is not None:
-        is_cuda = is_on_cuda(parts[0].get("data"))
-    else:
-        is_cuda = False
-
-    is_cuda = bool(coll.allreduce(np.array([is_cuda], dtype=np.int32), coll.Op.MAX)[0])
-    return is_cuda
+def _get_data_info(parts: Optional[_DataParts]) -> Tuple[bool, bool]:
+    """Check for CUDA data and nonempty partitions across all workers."""
+    is_cuda = is_on_cuda(parts[0]["data"]) if parts else False
+    has_rows = any(part["data"].shape[0] > 0 for part in parts or ())
+    flags = coll.allreduce(np.array([is_cuda, has_rows], dtype=np.int32), coll.Op.MAX)
+    return bool(flags[0]), bool(flags[1])
 
 
 def _make_empty(is_cuda: bool) -> np.ndarray:
@@ -324,6 +323,7 @@ def _create_quantile_dmatrix(
     missing: float,
     nthread: int,
     parts: Optional[_DataParts],
+    is_cuda: bool,
     max_bin: int,
     enable_categorical: bool,
     max_quantile_batches: Optional[int],
@@ -331,7 +331,6 @@ def _create_quantile_dmatrix(
     model: Optional[Booster],
     Xy_cats: Optional[Categories],
 ) -> QuantileDMatrix:
-    is_cuda = _get_is_cuda(parts)
     if parts is None:
         _warn_empty()
         return QuantileDMatrix(
@@ -371,6 +370,7 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     nthread: int,
     enable_categorical: bool,
     parts: Optional[_DataParts],
+    is_cuda: bool,
     model: Optional[Booster],
     Xy_cats: Optional[Categories],
 ) -> DMatrix:
@@ -381,7 +381,6 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     A DMatrix object.
 
     """
-    is_cuda = _get_is_cuda(parts)
     if parts is None:
         _warn_empty()
         return DMatrix(
@@ -416,10 +415,19 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     )
 
 
-def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
+def _dmatrix_from_list_of_parts(
+    is_quantile: bool,
+    *,
+    parts: Optional[_DataParts],
+    require_rows: bool = False,
+    **kwargs: Any,
+) -> DMatrix:
+    is_cuda, has_rows = _get_data_info(parts)
+    if require_rows and not has_rows:
+        raise ValueError(_EMPTY_TRAINING_DATA_ERROR)
     if is_quantile:
-        return _create_quantile_dmatrix(**kwargs)
-    return _create_dmatrix(**kwargs)
+        return _create_quantile_dmatrix(parts=parts, is_cuda=is_cuda, **kwargs)
+    return _create_dmatrix(parts=parts, is_cuda=is_cuda, **kwargs)
 
 
 def _get_dmatrices(
@@ -433,7 +441,7 @@ def _get_dmatrices(
 ) -> Tuple[DMatrix, List[Tuple[DMatrix, str]]]:
     # Create the training DMatrix
     Xy = _dmatrix_from_list_of_parts(
-        **train_ref, nthread=n_threads, model=model, Xy_cats=None
+        **train_ref, nthread=n_threads, model=model, Xy_cats=None, require_rows=True
     )
 
     # Create evaluation DMatrices

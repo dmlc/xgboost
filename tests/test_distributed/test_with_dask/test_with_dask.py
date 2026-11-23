@@ -735,6 +735,25 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
     assert dxgb.predict(client, out, dtrain).compute().shape[0] == 1
 
 
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.parametrize("as_dataframe", [False, True])
+def test_empty_training_data(
+    client: "Client", tree_method: str, as_dataframe: bool
+) -> None:
+    X = np.empty((0, 2))
+    y = np.empty(0)
+    if as_dataframe:
+        train_X = dd.from_array(X, chunksize=1)
+        train_y = dd.from_array(y, chunksize=1)
+    else:
+        train_X = da.from_array(X, chunks=(0, 2))
+        train_y = da.from_array(y, chunks=0)
+
+    reg = dxgb.DaskXGBRegressor(n_estimators=1, tree_method=tree_method)
+    with pytest.raises(ValueError, match="Training data must contain at least one row"):
+        reg.fit(train_X, train_y)
+
+
 def run_empty_dmatrix_reg(
     client: "Client", parameters: Dict[str, Any], n_targets: int = 1
 ) -> None:
