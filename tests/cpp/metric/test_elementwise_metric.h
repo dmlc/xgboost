@@ -8,6 +8,7 @@
 #include <algorithm>   // for transform
 #include <cmath>       // for acos, log
 #include <functional>  // for plus
+#include <limits>      // for numeric_limits
 #include <memory>
 #include <numeric>  // for iota
 #include <vector>   // for vector
@@ -243,6 +244,8 @@ inline void VerifyPoissonNegLogLik(DeviceOrd device) {
   xgboost::Metric *metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
+  auto inf = std::numeric_limits<bst_float>::infinity();
+  EXPECT_EQ(GetMetricEval(metric, {inf}, {1}, {}, {}), inf);
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}), 0.5f, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.5f, 1e-17f, 1.0f + 1e-17f, 0.9f}, {0, 0, 1, 1}, {}, {}),
               0.6263f, 0.001f);
@@ -303,6 +306,9 @@ inline void VerifyTweedieNLogLik(DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric.get(), {1}, {1}, {}, {}), 6.25, 1e-5);
   metric.reset(Metric::Create("tweedie-nloglik@1", &ctx));
   metric->Configure({});
+  auto inf = std::numeric_limits<bst_float>::infinity();
+  EXPECT_EQ(GetMetricEval(metric.get(), {inf}, {1}, {}, {}), inf);
+  EXPECT_EQ(GetMetricEval(metric.get(), {0, 1}, {1, 0}, {0, 1}, {}), 1);
   EXPECT_EQ(GetMetricEval(metric.get(), {0}, {0}, {}, {}), 0);
   EXPECT_NEAR(GetMetricEval(metric.get(), {1, 4}, {0, 2}, {}, {}),
               (5.0 - 2.0 * std::log(4.0)) / 2.0, 1e-6);
