@@ -33,6 +33,12 @@ struct NDCGEvalKernel {
                                        std::shared_ptr<ltr::NDCGCache>);
 };
 
+struct RecallEvalKernel {
+  using Signature = PackedReduceResult(Context const *, MetaInfo const &,
+                                       HostDeviceVector<float> const &, bool,
+                                       std::shared_ptr<ltr::RecallCache>);
+};
+
 struct MAPEvalKernel {
   using Signature = PackedReduceResult(Context const *, MetaInfo const &,
                                        HostDeviceVector<float> const &, bool,
