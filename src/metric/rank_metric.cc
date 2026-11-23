@@ -484,6 +484,26 @@ class EvalRecall : public EvalRank<ltr::RecallCache> {
  public:
   using EvalRank::EvalRank;
 
+  double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
+    auto const& info = p_fmat->Info();
+    if (!info.labels.Empty()) {
+      CHECK_EQ(info.labels.Shape(1), 1) << "Ranking metrics do not support multi-target labels.";
+    }
+    CHECK_EQ(preds.Size(), info.labels.Size());
+    // Labels and grouping can change on the same DMatrix. Run constructor
+    // validation and capture current query boundaries on every evaluation.
+    auto p_cache = [&] {
+      // Match DispatchKernel's device lookup: a host fallback should not build
+      // device ranking state only to copy it back for CPU scoring.
+      if (common::GetKernelRegistry<RecallEvalKernel>().Find(ctx_->Device().device)) {
+        return std::make_shared<ltr::RecallCache>(ctx_, info, param_);
+      }
+      auto cpu_ctx = ctx_->MakeCPU();
+      return std::make_shared<ltr::RecallCache>(&cpu_ctx, info, param_);
+    }();
+    return this->Eval(preds, info, std::move(p_cache));
+  }
+
   double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
               std::shared_ptr<ltr::RecallCache> p_cache) override {
     auto result = common::DispatchKernel<RecallEvalKernel>(ctx_, info, predt, minus_, p_cache);
