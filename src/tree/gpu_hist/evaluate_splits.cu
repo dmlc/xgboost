@@ -1,6 +1,9 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
+#include <thrust/execution_policy.h>  // for seq
+#include <thrust/fill.h>              // for fill_n
+
 #include <algorithm>                 // for max, min
 #include <cstdint>                   // for int32_t
 #include <cub/util_type.cuh>         // for KeyValuePair, Uninitialized
@@ -395,9 +398,7 @@ __global__ __launch_bounds__(dh::WarpThreads()) void FinalizeSplitsKernel(
   out = GPUExpandEntry{nidx, input.depth, split, parent_hess, 0.0};
 
   auto node_cats = d_split_cats.subspan(nidx * cat_storage_size, cat_storage_size);
-  for (auto &word : node_cats) {
-    word = 0;
-  }
+  thrust::fill_n(thrust::seq, node_cats.data(), node_cats.size(), CatWordT{0});
   if (split.child_sum.empty()) {
     return;
   }
