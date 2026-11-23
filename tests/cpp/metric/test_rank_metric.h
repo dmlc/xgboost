@@ -151,7 +151,42 @@ inline void VerifyNDCG(DeviceOrd device) {
   delete metric;
 }
 
+inline void VerifyRecallMetadataMutation(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  for (bool minus : {false, true}) {
+    auto dmat = EmptyDMatrix();
+    auto& info = dmat->Info();
+    info.num_row_ = 4;
+    info.labels = linalg::Matrix<float>{{0, 0, 1, 0}, {4, 1}, device};
+    info.group_ptr_ = {0, 4};
+    HostDeviceVector<float> preds{4, 3, 2, 1};
+    std::unique_ptr<Metric> metric{Metric::Create(minus ? "recall@1-" : "recall@1", &ctx)};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.0, kRtEps);
+    info.group_ptr_ = {0, 2, 4};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.5 : 1.0, kRtEps);
+    info.group_ptr_ = {0, 1, 4};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.0 : 0.5, kRtEps);
+    info.group_ptr_.clear();
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.0, kRtEps);
+    info.group_ptr_ = {0, 2, 4};
+    info.weights_.HostVector() = {1, 3};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.75 : 1.0, kRtEps);
+    info.weights_.HostVector() = {3, 1};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.25 : 1.0, kRtEps);
+    info.labels = linalg::Matrix<float>{{2, 0, 1, 0}, {4, 1}, device};
+    EXPECT_ANY_THROW(metric->Evaluate(preds, dmat));
+    info.labels = linalg::Matrix<float>{{1, 0, 0, 1}, {4, 1}, device};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.75, kRtEps);
+    info.group_ptr_ = {0, 1, 3};
+    EXPECT_ANY_THROW(metric->Evaluate(preds, dmat));
+    info.group_ptr_ = {0, 4};
+    info.weights_.HostVector() = {2};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.5, kRtEps);
+  }
+}
+
 inline void VerifyRecall(DeviceOrd device) {
+  VerifyRecallMetadataMutation(device);
   VerifyRankingCutoff(device, "recall", 1.0);
   VerifyRankingKernelCache(device, "recall", 0.875, 1.0, 0.125);
   auto ctx = MakeCUDACtx(device.ordinal);
