@@ -530,3 +530,41 @@ test_that("prediction in xgb.cv works for multi-output", {
   )
   expect_equal(dim(cv$cv_predict$pred), c(nrow(x), 2))
 })
+
+
+test_that("recall early stopping maximizes by default", {
+  x <- matrix(seq_len(24), ncol = 2)
+  d <- xgb.DMatrix(x, label = rep(c(1, 0), 6))
+  setinfo(d, "group", rep(4, 3))
+  for (metric in c("recall", "recall-", "recall@2", "recall@2-")) {
+    for (direction in list(NULL, TRUE, FALSE)) {
+      model <- xgb.train(
+        params = list(objective = "rank:pairwise", eval_metric = metric, nthread = 2),
+        data = d, nrounds = 4, evals = list(valid = d), maximize = direction,
+        early_stopping_rounds = 2, verbose = 0
+      )
+      values <- as.numeric(attributes(model)$evaluation_log[[2]])
+      expected <- if (identical(direction, FALSE)) min(values) else max(values)
+      expect_equal(as.numeric(xgb.attr(model, "best_score")), expected)
+    }
+  }
+})
+
+
+test_that("recall callback direction follows changing scores", {
+  for (metric in c("recall", "recall-", "recall@2", "recall@2-")) {
+    for (direction in list(NULL, TRUE, FALSE)) {
+      cb <- xgb.cb.early.stop(2, maximize = direction, verbose = FALSE)
+      cb$f_before_training(cb$env, NULL, NULL, list(), 1L, 4L)
+      scores <- c(0.2, 0.5, 0.3, 0.4)
+      for (iteration in seq_along(scores)) {
+        value <- setNames(scores[iteration], paste0("valid_", metric))
+        stop_now <- cb$f_after_iter(cb$env, NULL, NULL, list(), iteration, value)
+        if (stop_now) break
+      }
+      expected <- if (identical(direction, FALSE)) 1L else 2L
+      expect_equal(cb$env$best_iteration, expected)
+      expect_identical(cb$env$maximize, !identical(direction, FALSE))
+    }
+  }
+})
