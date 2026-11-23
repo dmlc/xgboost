@@ -691,7 +691,7 @@ xgb.cb.early.stop <- function(
         if (is.null(env$maximize)) {
           # MAPE must be minimized, despite sharing the MAP prefix.
           env$maximize <- !endsWith(env$metric_name, '_mape') &&
-            grepl('(_auc|_aupr|_map|_ndcg|_pre|_ams@|_interval_regression_accuracy$)',
+            grepl('(_auc|_aupr|_map|_ndcg|_pre|_recall|_ams@|_interval_regression_accuracy$)',
                   env$metric_name)
         }
 
