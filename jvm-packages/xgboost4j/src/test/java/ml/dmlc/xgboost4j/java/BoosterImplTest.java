@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
 /**
@@ -815,6 +816,63 @@ public class BoosterImplTest {
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
+  }
+
+  @Test
+  public void testParseNativeMetricValue() {
+    for (String value : new String[]{"nan(ind)", "-nan(ind)", "+NAN(IND)", "NAN(SNAN)",
+        "-nan(snan)", "+NAN(SNAN)"}) {
+      TestCase.assertTrue(value, Float.isNaN(Booster.parseMetricValue(value)));
+    }
+    TestCase.assertEquals(Float.NEGATIVE_INFINITY, Booster.parseMetricValue("-INF"), 0.0f);
+    TestCase.assertEquals(-125.0f, Booster.parseMetricValue("-1.25e2"), 0.0f);
+    assertThrows(NumberFormatException.class, () -> Booster.parseMetricValue("not-nan(ind)"));
+  }
+
+  @Test
+  public void testEvalSetWithInfiniteMetric() throws XGBoostError {
+    DMatrix finite = new DMatrix(new float[]{0.0f, 1.0f}, 2, 1, Float.NaN);
+    finite.setLabel(new float[]{0.0f, 0.0f});
+    finite.setBaseMargin(new float[]{1.0f, 1.0f});
+
+    DMatrix overflowing = new DMatrix(new float[]{0.0f, 1.0f}, 2, 1, Float.NaN);
+    overflowing.setLabel(new float[]{0.0f, 0.0f});
+    overflowing.setBaseMargin(new float[]{1.0e38f, -1.0e38f});
+
+    Map<String, Object> params = new HashMap<>();
+    params.put("eval_metric", "rmse");
+    params.put("eta", 0.0f);
+    params.put("nthread", 1);
+    Booster booster = new Booster(params, new DMatrix[]{finite});
+    try {
+      booster.update(finite, 0);
+      float[] metrics = new float[2];
+      booster.evalSet(
+          new DMatrix[]{finite, overflowing}, new String[]{"finite", "overflowing"}, 0, metrics);
+      assertArrayEquals(new float[]{1.0f, Float.POSITIVE_INFINITY}, metrics, 0.0f);
+    } finally {
+      booster.dispose();
+      finite.dispose();
+      overflowing.dispose();
+    }
+  }
+
+  @Test
+  public void testCVWithNaNMetric() throws XGBoostError {
+    DMatrix train = new DMatrix(new float[]{0.0f, 1.0f, 2.0f, 3.0f}, 4, 1, Float.NaN);
+    train.setLabel(new float[]{0.0f, 0.0f, 0.0f, 0.0f});
+    Map<String, Object> params = new HashMap<>();
+    params.put("eval_metric", "rmsle");
+    params.put("base_score", -10.0f);
+    params.put("eta", 0.0f);
+    params.put("nthread", 1);
+    try {
+      String[] result = XGBoost.crossValidation(train, params, 1, 2, null, null, null);
+      TestCase.assertTrue(result[0].contains("train-rmsle:NaN"));
+      TestCase.assertTrue(result[0].contains("test-rmsle:NaN"));
+    } finally {
+      train.dispose();
+    }
   }
 
   /**

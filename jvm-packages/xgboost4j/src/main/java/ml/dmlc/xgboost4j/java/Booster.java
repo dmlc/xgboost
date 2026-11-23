@@ -328,16 +328,32 @@ public class Booster implements Serializable, KryoSerializable {
     String stringFormat = evalSet(evalMatrixs, evalNames, iter);
     String[] metricPairs = stringFormat.split("\t");
     for (int i = 1; i < metricPairs.length; i++) {
-      String value = metricPairs[i].split(":")[1];
-      if (value.equalsIgnoreCase("nan")) {
-        metricsOut[i - 1] = Float.NaN;
-      } else if (value.equalsIgnoreCase("-nan")) {
-        metricsOut[i - 1] = -Float.NaN;
-      } else {
-        metricsOut[i - 1] = Float.valueOf(value);
-      }
+      metricsOut[i - 1] = parseMetricValue(metricPairs[i].split(":")[1]);
     }
     return stringFormat;
+  }
+
+  static float parseMetricValue(String value) {
+    // The Windows C runtime can emit indeterminate or signaling NaNs.
+    switch (value.toLowerCase(Locale.ROOT)) {
+      case "nan":
+      case "+nan":
+      case "-nan":
+      case "nan(ind)":
+      case "+nan(ind)":
+      case "-nan(ind)":
+      case "nan(snan)":
+      case "+nan(snan)":
+      case "-nan(snan)":
+        return Float.NaN;
+      case "inf":
+      case "+inf":
+        return Float.POSITIVE_INFINITY;
+      case "-inf":
+        return Float.NEGATIVE_INFINITY;
+      default:
+        return Float.parseFloat(value);
+    }
   }
 
   /**

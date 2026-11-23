@@ -550,7 +550,7 @@ public class XGBoost {
       for (int i = 1; i < items.length; i++) {
         String[] tup = items[i].split(":");
         String key = tup[0];
-        Float value = Float.valueOf(tup[1]);
+        float value = Booster.parseMetricValue(tup[1]);
         if (!cvMap.containsKey(key)) {
           cvMap.put(key, new ArrayList<Float>());
         }
