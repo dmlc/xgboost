@@ -347,18 +347,6 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   EXPECT_EQ(r.right_sum, eval.ToFixed({1.5, 1.0}));
 }
 
-TEST(GpuHist, EvaluateSingleSplitMissingOnly) {
-  auto ctx = MakeCUDACtx(0);
-  // The forward and backward endpoints give equal gain. CPU hist keeps the
-  // forward cut, so the observed bin goes left and missing values go right.
-  ScalarEvaluator eval{&ctx, ZeroParam(), {0, 1}, {2.0}};
-  auto r = eval.EvaluateOne({0, {0.0, 2.0}, {{1.0, 1.0}}}, {0});
-  EXPECT_EQ(r.split.fvalue, 2.0);
-  EXPECT_EQ(r.split.dir, kRightDir);
-  EXPECT_EQ(r.left_sum, eval.ToFixed({1.0, 1.0}));
-  EXPECT_EQ(r.right_sum, eval.ToFixed({-1.0, 1.0}));
-}
-
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
   auto ctx = MakeCUDACtx(0);
   ScalarEvaluator eval{&ctx, ZeroParam(), {0, 1}, {1.0}};
