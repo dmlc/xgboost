@@ -207,29 +207,41 @@ struct FeatureSplitEnumerator {
         loss_chg = isnan(loss_chg) ? -std::numeric_limits<float>::infinity() : loss_chg;
       }
 
+      // Like the CPU scan, retain the first split on equal gain.
       auto max = MaxT(storage->max).Reduce({lane, loss_chg}, cub::ArgMax{});
-      auto winner = __shfl_sync(dh::WarpFullMask(), max.key, 0);
-      if (lane == winner && loss_chg > best->loss_chg) {
-        *best_bin = bin_idx;
-        if constexpr (kTargets == 1) {
-          best_sum[0] = bin;
-        }
-        if constexpr (kKind == SplitKind::kPartition) {
-          auto offset = bin_idx - begin;
-          auto thresh = kDir == kLeftDir ? offset : end - begin - offset - 1;
-          best->UpdateCat(loss_chg, kDir, thresh, fidx, best_sum);
-        } else if constexpr (kKind == SplitKind::kOneHot) {
-          auto cat = common::AsCat(shared.feature_values[bin_idx]);
-          best->UpdateCat(loss_chg, kDir, cat, fidx, best_sum);
-        } else {
-          float fvalue = shared.feature_values[bin_idx];
+      int updated_lane = -1;
+      // Lane 0 owns the candidate throughout both passes.
+      if (lane == 0 && max.value > best->loss_chg) {
+        auto idx = tile + max.key;
+        *best_bin = idx;
+        updated_lane = max.key;
+        best->loss_chg = max.value;
+        best->dir = kDir;
+        best->findex = fidx;
+        best->child_sum = best_sum;
+        best->is_cat = kKind != SplitKind::kNumerical;
+        if constexpr (kKind == SplitKind::kNumerical) {
           if constexpr (kDir == kLeftDir) {
-            // The right child starts at the reversed bin. All bins go right at the beginning.
-            auto split_bin = RevBinIdx(begin, end, bin_idx);
-            fvalue = split_bin == begin ? -std::numeric_limits<float>::infinity()
-                                        : shared.feature_values[split_bin - 1];
+            auto split_bin = RevBinIdx(begin, end, idx);
+            best->fvalue = split_bin == begin ? -std::numeric_limits<float>::infinity()
+                                              : shared.feature_values[split_bin - 1];
+          } else {
+            best->fvalue = shared.feature_values[idx];
           }
-          best->Update(loss_chg, kDir, fvalue, fidx, best_sum);
+        } else {
+          best->fvalue = std::numeric_limits<float>::quiet_NaN();
+          if constexpr (kKind == SplitKind::kPartition) {
+            auto offset = idx - begin;
+            best->thresh = kDir == kLeftDir ? offset : end - begin - offset - 1;
+          } else {
+            best->thresh = common::AsCat(shared.feature_values[idx]);
+          }
+        }
+      }
+      if constexpr (kTargets == 1) {
+        // The winning lane already holds the complete child sum.
+        if (lane == __shfl_sync(dh::WarpFullMask(), updated_lane, 0)) {
+          best_sum[0] = bin;
         }
       }
       __syncwarp();
@@ -240,12 +252,12 @@ struct FeatureSplitEnumerator {
   template <SplitKind kKind>
   __device__ void RestoreBest() {
     if constexpr (kTargets != 1) {
-      auto best_idx = *best_bin;
+      auto best_idx = __shfl_sync(dh::WarpFullMask(), *best_bin, 0);
       if (best_idx < 0) {
         return;
       }
       auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
-      auto dir = best->dir;
+      auto dir = __shfl_sync(dh::WarpFullMask(), static_cast<int>(best->dir), 0);
       for (bst_target_t t = 0; t < this->Targets(); ++t) {
         auto hist = this->Histogram(t);
         GradientPairInt64 local;
@@ -280,7 +292,10 @@ struct FeatureSplitEnumerator {
     } else {
       this->Enumerate<kKind, kRightDir>();
       // Without missing values, the backward pass enumerates the same splits.
-      if (this->HasMissing()) {
+      auto has_missing = this->HasMissing();
+      // Finish reading the forward sums before the backward pass clears carry.
+      __syncwarp();
+      if (has_missing) {
         this->Enumerate<kKind, kLeftDir>();
       }
     }
@@ -297,18 +312,11 @@ __global__ __launch_bounds__(dh::WarpThreads()) void EvaluateSplitsKernel(
     common::Span<GradientPairInt64> scratch, common::Span<DeviceSplitCandidate> out) {
   using Enumerator = FeatureSplitEnumerator<kTargets>;
   __shared__ typename Enumerator::TempStorage storage;
-  __shared__ cub::Uninitialized<DeviceSplitCandidate> best_storage;
   __shared__ cub::Uninitialized<GradientPairInt64> carry_storage;
-  __shared__ bst_bin_t best_bin;
+  DeviceSplitCandidate best;
+  bst_bin_t best_bin = -1;
 
   auto lane = cuda::ptx::get_sreg_laneid();
-  auto &best = best_storage.Alias();
-  if (lane == 0) {
-    best = DeviceSplitCandidate{};
-    best_bin = -1;
-  }
-  __syncwarp();
-
   auto n_features = shared.max_active_feature;
   auto nidx_in_set = blockIdx.x / n_features;
   auto const &node = nodes[nidx_in_set];

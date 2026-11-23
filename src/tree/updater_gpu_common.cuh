@@ -39,33 +39,6 @@ struct DeviceSplitCandidate {
   // Gradient sum of the child without missing values for each target. It's the left child
   // when missing values go right, and vice versa.
   common::Span<GradientPairInt64 const> child_sum;
-
-  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
-                             int findex_in, common::Span<GradientPairInt64 const> child_sum_in) {
-    if (loss_chg_in > loss_chg) {
-      loss_chg = loss_chg_in;
-      dir = dir_in;
-      fvalue = fvalue_in;
-      is_cat = false;
-      child_sum = child_sum_in;
-      findex = findex_in;
-    }
-  }
-
-  // Update for categorical splits.
-  XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
-                                bst_feature_t findex_in,
-                                common::Span<GradientPairInt64 const> child_sum_in) {
-    if (loss_chg_in > loss_chg) {
-      loss_chg = loss_chg_in;
-      dir = dir_in;
-      fvalue = std::numeric_limits<float>::quiet_NaN();
-      thresh = thresh_in;
-      is_cat = true;
-      child_sum = child_sum_in;
-      findex = findex_in;
-    }
-  }
 };
 
 namespace cuda_impl {
