@@ -329,6 +329,25 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   expect_equal(as.integer(data.table::tstrsplit(dt.tree$Missing, '-', fixed = TRUE)[[2]]), dt.tree.int$Missing)
 })
 
+test_that("xgb.model.dt.tree parses infinite split thresholds", {
+  data <- matrix(rep(c(3e38, NA_real_), each = 3), ncol = 1L)
+  label <- rep(c(0, 5), each = 3)
+  for (feature_names in list(NULL, "signal")) {
+    dtrain <- xgb.DMatrix(data, label = label, feature_names = feature_names, nthread = 1)
+    model <- xgb.train(
+      params = list(tree_method = "hist", max_depth = 1, nthread = 1),
+      data = dtrain,
+      nrounds = 1,
+      verbose = 0
+    )
+
+    tree <- xgb.model.dt.tree(model)
+    root <- tree$Node == 0L
+    expect_equal(tree$Split[root], Inf)
+    expect_equal(tree$Feature[root], if (is.null(feature_names)) "0" else feature_names)
+  }
+})
+
 test_that("xgb.model.dt.tree throws error for gblinear", {
   .skip_if_vcd_not_available()
   expect_error(xgb.model.dt.tree(model = bst.GLM))

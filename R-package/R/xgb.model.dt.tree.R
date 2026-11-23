@@ -102,6 +102,7 @@ xgb.model.dt.tree <- function(model, trees = NULL, use_int_id = FALSE, ...) {
   add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
 
   anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
+  split_regex <- paste0(anynumber_regex, "|[-+]?[Ii][Nn][Ff]")
 
   td <- data.table(t = text)
   td[position, Tree := 1L]
@@ -119,9 +120,9 @@ xgb.model.dt.tree <- function(model, trees = NULL, use_int_id = FALSE, ...) {
   td[, isLeaf := grepl("leaf", t, fixed = TRUE)]
 
   # parse branch lines
-  branch_rx_nonames <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
+  branch_rx_nonames <- paste0("f(\\d+)<(", split_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
                               "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-  branch_rx_w_names <- paste0("\\d+:\\[(.+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
+  branch_rx_w_names <- paste0("\\d+:\\[(.+)<(", split_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
                               "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
   text_has_feature_names <- FALSE
   if (NROW(feature_names)) {
