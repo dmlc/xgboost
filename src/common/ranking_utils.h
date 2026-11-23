@@ -419,6 +419,22 @@ class PreCache : public RankingCache {
   }
 };
 
+/** \brief Host-scored binary recall, with one output per query. */
+class RecallCache : public RankingCache {
+  HostDeviceVector<double> recall_;
+
+ public:
+  RecallCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p);
+
+  common::Span<double> Recall(Context const* ctx) {
+    if (recall_.Empty()) {
+      recall_.SetDevice(ctx->Device());
+      recall_.Resize(this->Groups());
+    }
+    return ctx->IsCUDA() ? recall_.DeviceSpan() : recall_.HostSpan();
+  }
+};
+
 class MAPCache : public RankingCache {
   // Total number of relevant documents for each group
   HostDeviceVector<double> n_rel_;
