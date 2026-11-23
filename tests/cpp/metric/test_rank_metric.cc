@@ -15,6 +15,25 @@
 #include "xgboost/base.h"  // for bst_float, kRtEps
 
 namespace xgboost::metric {
+TEST(Metric, RecallHostFallbackMutation) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", DeviceSym::SyclDefault()}});
+  auto dmat = EmptyDMatrix();
+  auto& info = dmat->Info();
+  info.num_row_ = 4;
+  info.labels = linalg::Matrix<float>{{0, 0, 1, 0}, {4, 1}, DeviceOrd::CPU()};
+  info.group_ptr_ = {0, 4};
+  HostDeviceVector<float> preds{4, 3, 2, 1};
+  std::unique_ptr<Metric> metric{Metric::Create("recall@1-", &ctx)};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.0, kRtEps);
+  info.group_ptr_ = {0, 2, 4};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.5, kRtEps);
+  info.labels = linalg::Matrix<float>{{2, 0, 1, 0}, {4, 1}, DeviceOrd::CPU()};
+  EXPECT_ANY_THROW(metric->Evaluate(preds, dmat));
+  info.labels = linalg::Matrix<float>{{1, 0, 0, 1}, {4, 1}, DeviceOrd::CPU()};
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.5, kRtEps);
+}
+
 TEST(Metric, AMS) {
   auto ctx = MakeCUDACtx(GPUIDX);
   EXPECT_ANY_THROW(Metric::Create("ams", &ctx));
