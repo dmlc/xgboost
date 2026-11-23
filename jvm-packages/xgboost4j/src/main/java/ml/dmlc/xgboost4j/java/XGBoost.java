@@ -33,7 +33,7 @@ public class XGBoost {
   private static final Log logger = LogFactory.getLog(XGBoost.class);
 
   public static final String[] MAXIMIZ_METRICES = {
-    "auc", "aucpr", "pre", "pre@", "map", "ndcg",
+    "auc", "aucpr", "pre", "pre@", "map", "ndcg", "recall",
     "auc@", "aucpr@", "map@", "ndcg@",
     "ams@", "interval-regression-accuracy",
   };
