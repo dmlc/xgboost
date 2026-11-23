@@ -150,6 +150,29 @@ def test_from_dask_dataframe(client: "Client") -> None:
     assert bool(X.isnull().values.any().compute()) is False
 
 
+@pytest.mark.parametrize("matrix_type", [xgb.DMatrix, xgb.QuantileDMatrix])
+def test_local_matrix_from_dask_dataframe(matrix_type: Type[xgb.DMatrix]) -> None:
+    X = dd.from_array(
+        np.arange(8).reshape(4, 2), chunksize=2, columns=["first", "second"]
+    )
+    y = dd.from_array(np.array([0, 1, 0, 1]), chunksize=2)
+    matrix = matrix_type(X, y, nthread=1)
+    assert matrix.feature_names == ["first", "second"]
+    np.testing.assert_array_equal(matrix.get_label(), y.compute())
+
+
+def test_local_classifier_dask_eval_set() -> None:
+    import pandas as pd
+
+    X = pd.DataFrame({"first": [1, 2, 3, 4], "second": [4, 3, 2, 1]})
+    y = pd.Series([0, 1, 0, 1])
+    valid_X = dd.from_pandas(X, npartitions=2)
+    valid_y = dd.from_pandas(y, npartitions=2)
+    clf = xgb.XGBClassifier(n_estimators=2, n_jobs=1)
+    clf.fit(X, y, eval_set=[(valid_X, valid_y)], verbose=False)
+    assert len(clf.evals_result()["validation_0"]["logloss"]) == 2
+
+
 def test_from_dask_array(client: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client, X, y)

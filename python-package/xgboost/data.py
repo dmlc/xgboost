@@ -6,6 +6,7 @@ import ctypes
 import functools
 import json
 import os
+import sys
 import warnings
 from typing import (
     TYPE_CHECKING,
@@ -1261,6 +1262,14 @@ def _has_array_protocol(data: DataType) -> bool:
     return hasattr(data, "__array__")
 
 
+def _maybe_compute_dask_dataframe(data: DataType) -> DataType:
+    """Materialize a Dask DataFrame without discarding its column metadata."""
+    dataframe = getattr(sys.modules.get("dask.dataframe"), "DataFrame", None)
+    if dataframe is not None and isinstance(data, dataframe):
+        return data.compute()
+    return data
+
+
 def _convert_unknown_data(data: DataType) -> DataType:
     warnings.warn(
         f"Unknown data type: {type(data)}, trying to convert it to csr_matrix",
@@ -1298,6 +1307,7 @@ def dispatch_data_backend(
             )
         return True
 
+    data = _maybe_compute_dask_dataframe(data)
     if (
         not _is_cudf_ser(data)
         and not _is_pandas_series(data)
@@ -1585,6 +1595,7 @@ def _proxy_transform(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> TransformedData:
+    data = _maybe_compute_dask_dataframe(data)
     if _is_cudf_pandas(data):
         data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_cudf_df(data) or _is_cudf_ser(data):
