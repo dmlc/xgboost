@@ -41,19 +41,7 @@ from ._typing import (
     ModelIn,
 )
 from .callback import TrainingCallback
-
-# Do not use class names on scikit-learn directly.  Re-define the classes on
-# .compat to guarantee the behavior without scikit-learn
-from .compat import (
-    SKLEARN_INSTALLED,
-    XGBClassifierBase,
-    XGBModelBase,
-    XGBRegressorBase,
-    _sklearn_Tags,
-    _sklearn_version,
-    import_cupy,
-    is_dataframe,
-)
+from .compat import import_cupy, is_dataframe
 from .config import config_context
 from .core import (
     Booster,
@@ -75,6 +63,38 @@ from .data import (
     _is_polars_lazyframe,
 )
 from .training import train
+
+# Keep the estimator module importable when scikit-learn is unavailable.
+try:
+    from sklearn import __version__ as _sklearn_version
+    from sklearn.base import BaseEstimator as XGBModelBase
+    from sklearn.base import ClassifierMixin as XGBClassifierBase
+    from sklearn.base import RegressorMixin as XGBRegressorBase
+
+    # sklearn.utils Tags types can be imported unconditionally once
+    # xgboost's minimum scikit-learn version is 1.6 or higher
+    try:
+        from sklearn.utils import Tags as _sklearn_Tags
+    except ImportError:
+        _sklearn_Tags = object
+
+    SKLEARN_INSTALLED = True
+
+except ImportError:
+
+    class XGBModelBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.BaseEstimator."""
+
+    class XGBClassifierBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.ClassifierMixin."""
+
+    class XGBRegressorBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.RegressorMixin."""
+
+    _sklearn_Tags = object
+    _sklearn_version = object
+
+    SKLEARN_INSTALLED = False
 
 
 class XGBRankerMixIn:

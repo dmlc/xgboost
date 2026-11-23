@@ -351,7 +351,7 @@ def _arrow_cat_names_inf(cats: "pa.StringArray") -> Tuple[StringArray, Any]:
         )
 
     joffset = _arrow_buf_inf(offset.address, "<i4", off_len, None)
-    jdata = _arrow_buf_inf(data.address, "|i1", data.size, None)
+    jdata = _arrow_buf_inf(data.address, "|u1", data.size, None)
     # Categories should not have missing values.
     assert mask is None
 
@@ -531,7 +531,7 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
     # String index type
     name_offsets, name_values = npstr_to_arrow_strarr(cats.values)
     joffsets = array_interface_dict(name_offsets)
-    name_values_np = np.frombuffer(name_values, dtype=np.int8)
+    name_values_np = np.frombuffer(name_values, dtype=np.uint8)
     jvalues = array_interface_dict(name_values_np)
     jnames: StringArray = {"offsets": joffsets, "values": jvalues}
 
@@ -589,7 +589,7 @@ def _cudf_str_cat_inf(cats: CudfCatIndex) -> Tuple[CudaStringArray, Tuple]:
     # String category index in arrow format
     jdata: CudaArrayInf = _arrow_buf_inf(
         plc_col.data().__cuda_array_interface__["data"][0],
-        "|i1",
+        "|u1",
         0,
         STREAM_PER_THREAD,
     )

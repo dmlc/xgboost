@@ -321,7 +321,7 @@ PackedReduceResult NDCGScoreCpu(Context const* ctx, MetaInfo const& info,
     double ndcg{.0};
     double inv_idcg = h_inv_idcg(g);
     if (inv_idcg <= 0.0) {
-      ndcg_gloc(g) = minus ? 0.0 : 1.0;
+      ndcg_gloc(g) = (minus ? 0.0 : 1.0) * weights[g];
       return;
     }
     std::size_t n{std::min(sorted_idx.size(), static_cast<std::size_t>(p_cache->Param().TopK()))};

@@ -109,7 +109,7 @@ Be aware that this only applies to column names and not to factor levels in cate
 Note that this check might add some sizable latency to the predictions, so it's
 recommended to disable it for performance-sensitive applications.}
 
-\item{...}{Not used.}
+\item{...}{Not used. Passing any argument here produces a warning.}
 }
 \value{
 Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array

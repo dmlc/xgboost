@@ -27,7 +27,6 @@ from .callback import (
     EvaluationMonitor,
     TrainingCallback,
 )
-from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold
 from .core import (
     Booster,
     CustomObj,
@@ -40,6 +39,7 @@ from .core import (
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
+    from sklearn.model_selection import StratifiedKFold
 
 _CVFolds = Sequence["CVPack"]
 
@@ -378,7 +378,7 @@ def mknfold(
     evals: Sequence[str] = (),
     fpreproc: Optional[FPreProcCallable] = None,
     stratified: Optional[bool] = False,
-    folds: Optional[XGBStratifiedKFold] = None,
+    folds: Optional["StratifiedKFold"] = None,
     shuffle: bool = True,
 ) -> List[CVPack]:
     """
@@ -421,7 +421,14 @@ def mknfold(
         nfold = len(out_idset)
     else:
         # Do standard stratified k-fold split
-        sfk = XGBStratifiedKFold(
+        try:
+            from sklearn.model_selection import StratifiedKFold
+        except ImportError as e:
+            raise XGBoostError(
+                "sklearn needs to be installed in order to use stratified cv"
+            ) from e
+
+        sfk = StratifiedKFold(
             n_splits=nfold, shuffle=shuffle, random_state=seed if shuffle else None
         )
         splits = list(sfk.split(X=dall.get_label(), y=dall.get_label()))
@@ -452,7 +459,7 @@ def cv(
     *,
     nfold: int = 3,
     stratified: bool = False,
-    folds: Optional[XGBStratifiedKFold] = None,
+    folds: Optional["StratifiedKFold"] = None,
     metrics: Sequence[str] = (),
     obj: Optional[CustomObj] = None,
     maximize: Optional[bool] = None,
@@ -552,10 +559,6 @@ def cv(
     -------
     evaluation history : list(string)
     """
-    if stratified is True and not SKLEARN_INSTALLED:
-        raise XGBoostError(
-            "sklearn needs to be installed in order to use stratified cv"
-        )
     if isinstance(metrics, str):
         metrics = [metrics]
     if isinstance(dtrain, _RefMixIn):

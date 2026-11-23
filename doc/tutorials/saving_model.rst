@@ -278,7 +278,8 @@ numerical and thus has no categories, and the last feature includes two categori
 
 This array stores the sorted indices (`argsort`) of categories across all features,
 segmented by the ``feature_segments``. Given a feature with categories: ``["b", "c",
-"a"]``, the sorted index is ``[2, 0, 1]``.
+"a"]``, the sorted index is ``[2, 0, 1]``. In the current format, string categories
+are ordered lexicographically by unsigned UTF-8 bytes.
 
 - enc
 
@@ -287,12 +288,13 @@ in the same order as the input dataframe. The storage schema depends on whether 
 categories are strings (XGBoost also supports numerical categories, such as integers). For
 string categories, we use a schema similar to the arrow format for a string array. The
 categories of each feature are represented by two arrays, namely ``offsets`` and
-``values``. The format is also similar to a CSR-matrix. The ``values`` field is a
-``uint8`` array storing characters from all category names. Given a feature with three
-categories: ``["bb", "c", "a"]``, the ``values`` field is ``[98, 98, 99, 97]``. Then the
-``offsets`` segments the ``values`` array similar to a CSR pointer: ``[0, 2, 3, 4]``. We
-chose to not store the ``values`` as a JSON string to avoid handling special characters
-and string encoding. The string names are stored exactly as given by the dataframe.
+``utf8_bytes``. The format is also similar to a CSR-matrix. The ``utf8_bytes`` field is a
+``uint8`` array storing the UTF-8 bytes from all category names. Given a feature with three
+categories: ``["bb", "c", "a"]``, the ``utf8_bytes`` field is ``[98, 98, 99, 97]``. Then
+``offsets`` segments the byte array similar to a CSR pointer: ``[0, 2, 3, 4]``. We chose to
+not store the bytes as a JSON string to avoid handling special characters and string
+encoding. The string names are stored exactly as given by the dataframe.
+
 
 As for numerical categories, the ``enc`` contains two keys: ``type`` and ``values``. The
 ``type`` field is an integer ID that identifies the integer type of the categories, such

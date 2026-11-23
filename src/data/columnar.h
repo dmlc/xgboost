@@ -1,5 +1,5 @@
 /**
- *  Copyright 2025, XGBoost Contributors
+ *  Copyright 2025-2026, XGBoost Contributors
  *
  * @brief Helpers for handling columnar data with adapters.
  */
@@ -88,11 +88,11 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
     });
   }
 
-  CHECK_EQ(strbuf.type, ArrayInterfaceHandler::kI1);
+  CHECK_EQ(strbuf.type, ArrayInterfaceHandler::kU1);
   CHECK_EQ(offset.type, ArrayInterfaceHandler::kI4);
   auto names = enc::CatStrArrayView{
       common::Span{static_cast<std::int32_t const*>(offset.data), offset.Shape<0>()},
-      common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(strbuf.data), strbuf.n}};
+      common::Span{static_cast<enc::CatCharT const*>(strbuf.data), strbuf.n}};
   cat_columns.emplace_back(names);
   return names;
 }

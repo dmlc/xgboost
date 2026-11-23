@@ -1696,22 +1696,36 @@ class TestWithDask:
         assert len(merged) == 2
 
     @pytest.mark.skipif(**tm.no_dask())
-    def test_feature_weights(self, client: "Client") -> None:
+    @pytest.mark.parametrize("container", ["dask", "numpy", "list"])
+    def test_feature_weights(self, client: "Client", container: str) -> None:
+        # The sklearn estimators take the feature weights as a constructor
+        # parameter, which can be any array-like rather than a dask collection.
         kRows = 1024
         kCols = 64
         rng = da.random.RandomState(1994)
         X = rng.random_sample((kRows, kCols), chunks=(32, -1))
         y = rng.random_sample(kRows, chunks=32)
 
+        def as_container(weights: np.ndarray) -> Any:
+            if container == "dask":
+                return da.from_array(weights)
+            if container == "numpy":
+                return weights
+            return weights.tolist()
+
         fw = np.ones(shape=(kCols,))
         for i in range(kCols):
             fw[i] *= float(i)
-        fw = da.from_array(fw)
+
+        Xy = DaskDMatrix(client, X, y, feature_weights=as_container(fw))
+        assert Xy.feature_weights is not None
+        np.testing.assert_allclose(np.asarray(Xy.feature_weights), fw)
+
         parser = os.path.join(tm.demo_dir(__file__), "guide-python", "model_parser.py")
         poly_increasing = get_feature_weights(
             X=X,
             y=y,
-            fw=fw,
+            fw=as_container(fw),
             parser_path=parser,
             tree_method="approx",
             model=dxgb.DaskXGBRegressor,
@@ -1720,11 +1734,10 @@ class TestWithDask:
         fw = np.ones(shape=(kCols,))
         for i in range(kCols):
             fw[i] *= float(kCols - i)
-        fw = da.from_array(fw)
         poly_decreasing = get_feature_weights(
             X=X,
             y=y,
-            fw=fw,
+            fw=as_container(fw),
             parser_path=parser,
             tree_method="approx",
             model=dxgb.DaskXGBRegressor,

@@ -108,7 +108,8 @@ PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
   auto it = dh::MakeTransformIterator<PackedReduceResult>(
       dh::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
         if (d_inv_idcg(i) <= 0.0) {
-          return PackedReduceResult{minus ? 0.0 : 1.0, static_cast<double>(d_weight[i])};
+          return PackedReduceResult{(minus ? 0.0 : 1.0) * d_weight[i],
+                                    static_cast<double>(d_weight[i])};
         }
         return PackedReduceResult{d_out_dcg(i) * d_inv_idcg(i) * d_weight[i],
                                   static_cast<double>(d_weight[i])};
@@ -193,7 +194,8 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
             return PackedReduceResult{map[g] * d_weight[g] / std::min(g_n_rel.back(), topk),
                                       static_cast<double>(d_weight[g])};
           }
-          return PackedReduceResult{minus ? 0.0 : 1.0, static_cast<double>(d_weight[g])};
+          return PackedReduceResult{(minus ? 0.0 : 1.0) * d_weight[g],
+                                    static_cast<double>(d_weight[g])};
         });
     result =
         thrust::reduce(cuctx->CTP(), val_it, val_it + map.size(), PackedReduceResult{0.0, 0.0});
