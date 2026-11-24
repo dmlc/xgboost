@@ -9,13 +9,13 @@
 
 #include <cmath>    // for fabsf, fmaxf, sqrtf, tanhf
 #include <cstddef>  // for size_t
-#include <vector>   // for vector
 
-#include "../../../src/collective/aggregator.h"   // for GlobalSum
-#include "../../../src/common/kernel.h"           // for KernelRegistration
-#include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights, SumOptionalWeights
-#include "../common/linalg_op.h"                  // for ElementWiseKernel
-#include "../device_manager.h"                    // for DeviceManager
+#include "../../../src/collective/aggregator.h"        // for GlobalSum
+#include "../../../src/collective/communicator-inl.h"  // for IsDistributed
+#include "../../../src/common/kernel.h"                // for KernelRegistration
+#include "../../../src/common/optional_weight.h"       // for MakeOptionalWeights
+#include "../common/linalg_op.h"                       // for ElementWiseKernel
+#include "../device_manager.h"                         // for DeviceManager
 
 namespace xgboost::sycl::obj {
 DMLC_REGISTRY_FILE_TAG(quantile_kernel_sycl);
@@ -40,42 +40,52 @@ void QuantileGradient(Context const* ctx, HostDeviceVector<float> const& preds,
   sycl::DeviceManager device_manager;
   auto* qu = device_manager.GetQueue(device);
 
-  std::vector<double> scale_stats(n_targets + 1, 0.0);
+  auto n_stats = static_cast<std::size_t>(n_targets) + 1;
+  auto scale_stats = xgboost::linalg::Zeros<double>(ctx, n_stats);
+  auto stats = scale_stats.View(device);
   if (info.num_row_ != 0) {
+    auto* stats_ptr = stats.Values().data();
     for (bst_target_t target{0}; target < n_targets; ++target) {
-      ::sycl::buffer<double> buff(&scale_stats[target], 1);
       qu->submit([&](::sycl::handler& cgh) {
-          auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
-          cgh.parallel_for<>(::sycl::range<1>(info.num_row_), reduction,
-                             [=](::sycl::id<1> pid, auto& sum) {
-                               std::size_t i = pid[0];
-                               sum += weights[i] * sqrtf(fabsf(predt(i, target) - labels(i, 0)));
-                             });
-        }).wait_and_throw();
+        auto reduction = ::sycl::reduction(stats_ptr + target, ::sycl::plus<>());
+        cgh.parallel_for<>(::sycl::range<1>(info.num_row_), reduction,
+                           [=](::sycl::id<1> pid, auto& sum) {
+                             std::size_t i = pid[0];
+                             sum += weights[i] * sqrtf(fabsf(predt(i, target) - labels(i, 0)));
+                           });
+      });
     }
+    qu->submit([&](::sycl::handler& cgh) {
+      auto reduction = ::sycl::reduction(stats_ptr + n_targets, ::sycl::plus<>());
+      cgh.parallel_for<>(::sycl::range<1>(info.num_row_), reduction,
+                         [=](::sycl::id<1> pid, auto& sum) { sum += weights[pid[0]]; });
+    });
+    qu->wait_and_throw();
   }
-  scale_stats.back() = xgboost::common::SumOptionalWeights(ctx, weights, info.num_row_);
-  auto cpu_ctx = ctx->MakeCPU();
-  xgboost::collective::SafeColl(xgboost::collective::GlobalSum(
-      &cpu_ctx, xgboost::linalg::MakeVec(scale_stats.data(), scale_stats.size())));
+  if (xgboost::collective::IsDistributed()) {
+    // The CPU allreduce can't access device memory; re-fetch the view to sync the result back.
+    auto cpu_ctx = ctx->MakeCPU();
+    xgboost::collective::SafeColl(xgboost::collective::GlobalSum(&cpu_ctx, scale_stats.HostView()));
+    stats = scale_stats.View(device);
+  }
 
-  HostDeviceVector<float> scale(n_targets, 0.0f);
-  auto& h_scale = scale.HostVector();
-  for (bst_target_t target{0}; target < n_targets; ++target) {
-    if (scale_stats.back() != 0.0) {
-      auto root_mean = scale_stats[target] / scale_stats.back();
-      h_scale[target] = static_cast<float>(root_mean * root_mean);
+  auto scale = stats.Slice(xgboost::linalg::Range(static_cast<bst_target_t>(0), n_targets));
+  sycl::linalg::ElementWiseKernel(scale, [=](std::size_t target) mutable {
+    auto sum_weight = stats(n_targets);
+    if (sum_weight != 0.0) {
+      auto root_mean = stats(target) / sum_weight;
+      stats(target) = root_mean * root_mean;
+    } else {
+      stats(target) = 0.0;
     }
-  }
-  scale.SetDevice(device);
-  auto scale_d = scale.ConstDeviceSpan();
+  });
 
   out_gpair->SetDevice(device);
   out_gpair->Reshape(info.num_row_, n_targets);
   auto gpair = out_gpair->View(device);
   sycl::linalg::ElementWiseKernel(gpair, [=](std::size_t i, std::size_t j) mutable {
     auto residual = predt(i, j) - labels(i, 0);
-    auto residual_scale = scale_d[j];
+    auto residual_scale = static_cast<float>(stats(j));
     auto weight = weights[i];
     if (!(residual_scale > 0.0f) || weight == 0.0f) {
       gpair(i, j) = GradientPair{0.0f, 0.0f};
