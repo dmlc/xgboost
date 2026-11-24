@@ -9,7 +9,7 @@ enable_testing()
 add_test(
   NAME test_xgboost_demo_c_basic
   COMMAND api-demo
-  WORKING_DIRECTORY ${xgboost-c-examples_BINARY_DIR}
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/basic"
 )
 add_test(
   NAME test_xgboost_demo_c_external_memory

@@ -18,15 +18,12 @@ ninja -v install
 popd
 
 # Build and run C API demo with static library
-pushd demo/c-api/
-mkdir build-c-api-demo
-pushd build-c-api-demo
-cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-ninja -v
-ctest
-popd
-rm -rf ./build-c-api-demo
-popd
+# Exercise a build directory outside the source tree.
+demo_build_dir=$(mktemp -d)
+cmake -S demo/c-api -B "$demo_build_dir" -GNinja -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"
+cmake --build "$demo_build_dir" --verbose
+(cd "$demo_build_dir" && ctest --output-on-failure)
+rm -rf "$demo_build_dir"
 
 # Build and install XGBoost shared library (libxgboost.so)
 pushd build
