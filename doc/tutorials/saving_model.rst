@@ -249,6 +249,13 @@ export the model in a readable format like ``text``, ``json`` or ``dot`` (graphv
 primary use case for it is for model interpretation and visualization, and is not supposed
 to be loaded back to XGBoost.
 
+In a JSON tree dump, each split node has a ``split_type`` field. A numerical split
+(``<``) follows the ``yes`` child when the feature value is below ``split_condition``.
+A categorical split (``in``) follows ``yes`` when the category belongs to the listed
+``split_condition`` values. Both use the ``missing`` child for a missing value.
+An indicator split (``present``) follows ``yes`` when the feature is present and ``no``
+when it is missing.
+
 **********
 Categories
 **********

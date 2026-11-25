@@ -230,8 +230,11 @@ void TestCategoricalTreeDump(std::string format, std::string sep) {
   ASSERT_NE(str.find("gain"), std::string::npos);
 
   if (format == "json") {
-    // Make sure it's valid JSON
-    Json::Load(StringView{str});
+    auto root = Json::Load(StringView{str});
+    ASSERT_EQ(get<String>(root["split_type"]), "in");
+    ASSERT_EQ(get<Integer>(root["yes"]), tree[0].RightChild());
+    ASSERT_EQ(get<String>(root["children"][0]["split_type"]), "<");
+    ASSERT_EQ(get<String>(root["children"][1]["split_type"]), "in");
   }
 }
 }  // anonymous namespace
@@ -240,6 +243,7 @@ TEST(Tree, DumpJson) {
   auto tree = ConstructTree();
   FeatureMap fmap;
   auto str = tree.DumpModel(fmap, true, "json");
+  ASSERT_EQ(get<String>(Json::Load(StringView{str})["split_type"]), "<");
   size_t n_leaves = 0;
   size_t iter = 0;
   while ((iter = str.find("leaf", iter + 1)) != std::string::npos) {
@@ -268,6 +272,10 @@ TEST(Tree, DumpJson) {
 
   auto j_tree = Json::Load({str.c_str(), str.size()});
   ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2ul);
+  ASSERT_EQ(get<String>(j_tree["split_type"]), "present");
+  ASSERT_EQ(get<Integer>(j_tree["no"]), tree[0].DefaultChild());
+  ASSERT_EQ(get<String>(j_tree["children"][0]["split_type"]), "<");
+  ASSERT_EQ(get<String>(j_tree["children"][1]["split_type"]), "<");
 }
 
 TEST(Tree, DumpIntegerSplit) {
