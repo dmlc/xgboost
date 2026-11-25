@@ -14,8 +14,7 @@
 #include <limits>                    // for numeric_limits
 #include <type_traits>               // for integral_constant
 
-#include "../../common/categorical.h"     // for CatBitField, UseOneHot
-#include "../../common/cuda_compat.cuh"   // for CUDA compatibility
+#include "../../common/categorical.h"  // for CatBitField, UseOneHot
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/nvtx_utils.h"      // for xgboost_NVTX_FN_RANGE
 #include "evaluate_splits.cuh"
@@ -89,9 +88,8 @@ struct FeatureSplitEnumerator {
                                     TreeEvaluator::SplitEvaluator<EvalParam> const &evaluator,
                                     bst_feature_t fidx, bst_bin_t const *sorted_idx,
                                     common::Span<GradientPairInt64> carry,
-                                    common::Span<GradientPairInt64> best_sum,
-                                    TempStorage *storage, DeviceSplitCandidate *best,
-                                    bst_bin_t *best_bin)
+                                    common::Span<GradientPairInt64> best_sum, TempStorage *storage,
+                                    DeviceSplitCandidate *best, bst_bin_t *best_bin)
       : node{node},
         shared{shared},
         evaluator{evaluator},
@@ -199,8 +197,8 @@ struct FeatureSplitEnumerator {
         auto const &right = kDir == kRightDir ? sibling : child;
         left_hess += left.GetHess();
         right_hess += right.GetHess();
-        gain += evaluator.CalcTargetSplitGain(shared.param, node.nidx, fidx, t, nt == 1, left,
-                                              right);
+        gain +=
+            evaluator.CalcTargetSplitGain(shared.param, node.nidx, fidx, t, nt == 1, left, right);
       }
       auto k = static_cast<double>(nt);
       float loss_chg = -std::numeric_limits<float>::infinity();
@@ -331,9 +329,9 @@ __global__ __launch_bounds__(dh::WarpThreads()) void EvaluateSplitsKernel(
     auto best_sum = scratch.subspan(static_cast<std::size_t>(blockIdx.x) * nt, nt);
     // The best sum is restored after the scan with multiple targets, share the storage.
     auto carry = kTargets == 1 ? common::Span{&carry_storage.Alias(), 1} : best_sum;
-    auto node_sorted_idx = sorted_idx.empty() ? nullptr
-                                              : sorted_idx.data() +
-                                                    nidx_in_set * shared.n_total_bins_per_tar;
+    auto node_sorted_idx = sorted_idx.empty()
+                               ? nullptr
+                               : sorted_idx.data() + nidx_in_set * shared.n_total_bins_per_tar;
     Enumerator enumerator{node,  shared,   evaluator, fidx,  node_sorted_idx,
                           carry, best_sum, &storage,  &best, &best_bin};
 
@@ -516,13 +514,12 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Find the best split for each node, then calculate and persist weights and categories.
   dh::LaunchKernel{n_nodes, dh::WarpThreads(), 0, ctx->CUDACtx()->Stream()}(
-      FinalizeSplitsKernel, d_inputs, shared_inputs, d_sorted_idx, evaluator,
-      dh::ToSpan(d_splits), this->GetNodeWeights(), dh::ToSpan(this->split_sums_),
-      dh::ToSpan(this->split_cats_), this->node_cat_storage_size_, out_splits);
+      FinalizeSplitsKernel, d_inputs, shared_inputs, d_sorted_idx, evaluator, dh::ToSpan(d_splits),
+      this->GetNodeWeights(), dh::ToSpan(this->split_sums_), dh::ToSpan(this->split_cats_),
+      this->node_cat_storage_size_, out_splits);
 }
 
-void GPUHistEvaluator::CopyToHost(Context const *ctx, bst_node_t first_nidx,
-                                  bst_node_t last_nidx) {
+void GPUHistEvaluator::CopyToHost(Context const *ctx, bst_node_t first_nidx, bst_node_t last_nidx) {
   CHECK_LE(first_nidx, last_nidx);
   auto copy = [&](auto const &d_vec, auto *h_vec, std::size_t n_per_node) {
     if (n_per_node == 0) {
@@ -561,16 +558,16 @@ void GPUHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
   auto d_splits = dh::ToSpan(this->d_splits_);
 
   auto weights = this->GetNodeWeights();
-  this->tree_evaluator_->AddSplits(
-      d_splits.size(), max_nidx, [=] XGBOOST_DEVICE(std::size_t i, bst_target_t t) {
-        auto const &s = d_splits[i];
-        return TreeEvaluator::SplitBounds{s.nidx,
-                                          s.left_nidx,
-                                          s.right_nidx,
-                                          s.fidx,
-                                          weights.Left(s.nidx)[t],
-                                          weights.Right(s.nidx)[t]};
-      });
+  this->tree_evaluator_->AddSplits(d_splits.size(), max_nidx,
+                                   [=] XGBOOST_DEVICE(std::size_t i, bst_target_t t) {
+                                     auto const &s = d_splits[i];
+                                     return TreeEvaluator::SplitBounds{s.nidx,
+                                                                       s.left_nidx,
+                                                                       s.right_nidx,
+                                                                       s.fidx,
+                                                                       weights.Left(s.nidx)[t],
+                                                                       weights.Right(s.nidx)[t]};
+                                   });
 
   // Assign the node sums for the next evaluation. Use the persistent split sums instead of
   // the candidate's child sum, which can be stale in the loss-guide policy.
