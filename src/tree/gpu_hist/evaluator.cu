@@ -18,10 +18,9 @@
 #include "evaluate_splits.cuh"
 
 namespace xgboost::tree {
-void GPUHistEvaluator::Reset(Context const *ctx,
-                             common::Span<std::uint32_t const> feature_segments,
-                             common::Span<FeatureType const> feature_types,
-                             TrainParam const &param, bst_target_t n_targets) {
+void GPUHistEvaluator::Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
+                             common::Span<FeatureType const> feature_types, TrainParam const &param,
+                             bst_target_t n_targets) {
   CHECK_GT(feature_segments.size(), 0);
   CHECK_GT(n_targets, 0);
   auto n_features = static_cast<bst_feature_t>(feature_segments.size() - 1);
@@ -70,11 +69,10 @@ common::Span<bst_bin_t const> GPUHistEvaluator::SortHistogram(
   }
   auto d_feature_idx = dh::ToSpan(this->feature_idx_);
   dh::TemporaryArray<std::size_t> partition_bins(n);
-  auto partition_end = thrust::copy_if(
-      ctx->CUDACtx()->CTP(), it, it + n, partition_bins.data(),
-      [=] XGBOOST_DEVICE(std::size_t i) {
-        return shared.IsPartition(d_feature_idx[i % total_bins]);
-      });
+  auto partition_end = thrust::copy_if(ctx->CUDACtx()->CTP(), it, it + n, partition_bins.data(),
+                                       [=] XGBOOST_DEVICE(std::size_t i) {
+                                         return shared.IsPartition(d_feature_idx[i % total_bins]);
+                                       });
   auto partition_n = partition_end - partition_bins.data();
   auto d_partition_bins = dh::ToSpan(partition_bins).subspan(0, partition_n);
 

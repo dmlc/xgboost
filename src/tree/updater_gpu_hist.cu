@@ -3,16 +3,15 @@
  */
 #include <thrust/transform.h>  // for transform
 
-#include <algorithm>            // for max
-#include <cmath>                // for isnan
-#include <cstdint>              // for int32_t, uint32_t
-#include <memory>               // for unique_ptr, make_unique
-#include <string>               // for string
-#include <type_traits>          // for is_trivially_copyable_v
-#include <utility>              // for move
-#include <vector>               // for vector
+#include <algorithm>    // for max
+#include <cmath>        // for isnan
+#include <cstdint>      // for int32_t, uint32_t
+#include <memory>       // for unique_ptr, make_unique
+#include <string>       // for string
+#include <type_traits>  // for is_trivially_copyable_v
+#include <utility>      // for move
+#include <vector>       // for vector
 
-#include "../collective/aggregator.h"
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/categorical.h"           // for KCatBitField
 #include "../common/cuda_context.cuh"        // for CUDAContext
@@ -41,7 +40,6 @@
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
 #include "xgboost/base.h"                // for bst_idx_t
-#include "xgboost/collective/result.h"   // for Success, SafeColl
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for DMatrix
 #include "xgboost/gradient.h"            // for GradientContainer
@@ -113,9 +111,8 @@ struct GPUHistMakerDevice {
       nodes.nidx.at(i) = e.nidx;
       nodes.left_nidx[i] = tree.LeftChild(e.nidx);
       nodes.right_nidx[i] = tree.RightChild(e.nidx);
-      nodes.split_data[i] =
-          NodeSplitData{split_node, split_type,
-                        common::KCatBitField{this->evaluator_.GetNodeCats(e.nidx)}};
+      nodes.split_data[i] = NodeSplitData{
+          split_node, split_type, common::KCatBitField{this->evaluator_.GetNodeCats(e.nidx)}};
 
       CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
     }
@@ -460,13 +457,13 @@ struct GPUHistMakerDevice {
         CHECK(!common::CheckNAN(split.fvalue));
       }
       auto nidx = candidate.nidx;
-      p_tree->Expand({SplitInfo{nidx, static_cast<bst_feature_t>(split.findex), split.fvalue,
-                                split.dir == kLeftDir, cat_bits},
-                      {weights.Base(nidx)[0],
-                       static_cast<float>(candidate.left_hess + candidate.right_hess)},
-                      {weights.Left(nidx)[0], static_cast<float>(candidate.left_hess)},
-                      {weights.Right(nidx)[0], static_cast<float>(candidate.right_hess)},
-                      split.loss_chg});
+      p_tree->Expand(
+          {SplitInfo{nidx, static_cast<bst_feature_t>(split.findex), split.fvalue,
+                     split.dir == kLeftDir, cat_bits},
+           {weights.Base(nidx)[0], static_cast<float>(candidate.left_hess + candidate.right_hess)},
+           {weights.Left(nidx)[0], static_cast<float>(candidate.left_hess)},
+           {weights.Right(nidx)[0], static_cast<float>(candidate.right_hess)},
+           split.loss_chg});
       interaction_constraints.Split(ctx_, nidx, split.findex, p_tree->LeftChild(nidx),
                                     p_tree->RightChild(nidx));
     }
@@ -511,10 +508,9 @@ struct GPUHistMakerDevice {
       // Get the candidates we are allowed to expand further
       // e.g. We do not bother further processing nodes whose children are beyond max depth
       std::vector<GPUExpandEntry> valid_candidates;
-      std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
-                   [&](auto const& e) {
-                     return driver.IsChildValid(e, e.left_hess, e.right_hess);
-                   });
+      std::copy_if(
+          expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
+          [&](auto const& e) { return driver.IsChildValid(e, e.left_hess, e.right_hess); });
 
       // Allocaate children nodes.
       auto new_candidates = pinned.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});

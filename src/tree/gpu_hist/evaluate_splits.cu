@@ -493,7 +493,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx,
     this->scratch_.resize(n_blocks * n_targets);
     auto launch = [&](auto targets, auto has_cat) {
       auto kernel = EvaluateSplitsKernel<decltype(targets)::value, decltype(has_cat)::value>;
-      dh::LaunchKernel{static_cast<std::uint32_t>(n_blocks), dh::WarpThreads(), 0,
+      dh::LaunchKernel{static_cast<std::uint32_t>(n_blocks), dh::WarpThreads(), 0,  // NOLINT
                        ctx->CUDACtx()->Stream()}(kernel, d_inputs, shared_inputs, d_sorted_idx,
                                                  evaluator, dh::ToSpan(this->scratch_),
                                                  dh::ToSpan(d_splits));
@@ -513,7 +513,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Find the best split for each node, then calculate and persist weights and categories.
-  dh::LaunchKernel{n_nodes, dh::WarpThreads(), 0, ctx->CUDACtx()->Stream()}(
+  dh::LaunchKernel{n_nodes, dh::WarpThreads(), 0, ctx->CUDACtx()->Stream()}(  // NOLINT
       FinalizeSplitsKernel, d_inputs, shared_inputs, d_sorted_idx, evaluator, dh::ToSpan(d_splits),
       this->GetNodeWeights(), dh::ToSpan(this->split_sums_), dh::ToSpan(this->split_cats_),
       this->node_cat_storage_size_, out_splits);
