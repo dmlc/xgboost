@@ -4,8 +4,6 @@ channels:
 dependencies:
 - python=3.12
 - pylint
-- wheel
-- setuptools
 - mypy
 - numpy
 - scipy

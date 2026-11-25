@@ -17,4 +17,3 @@ sphinx-tabs
 dask
 pyspark
 cloudpickle
-setuptools
