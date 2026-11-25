@@ -158,12 +158,6 @@ std::size_t HistShmemBytes(std::int32_t device) {
   return std::min({static_cast<std::size_t>(n_bytes_per_block), optin, kMaxShmemBytes});
 }
 namespace {
-__device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
-  static_assert(sizeof(int4) == sizeof(GradientPairInt64));
-  auto g = *reinterpret_cast<int4 const*>(gpairs);
-  return *reinterpret_cast<GradientPairInt64*>(&g);
-}
-
 // Accumulate sub-segment entries [begin, end) for one target.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,

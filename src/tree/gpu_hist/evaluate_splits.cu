@@ -18,6 +18,7 @@
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/nvtx_utils.h"      // for xgboost_NVTX_FN_RANGE
 #include "evaluate_splits.cuh"
+#include "histogram.cuh"         // for LoadGpair
 #include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost::tree {
@@ -32,13 +33,6 @@ enum class SplitKind { kNumerical, kOneHot, kPartition };
 // Reversed bin index for the backward pass. All inputs are global across features.
 XGBOOST_DEV_INLINE bst_bin_t RevBinIdx(bst_bin_t begin, bst_bin_t end, bst_bin_t bin) {
   return begin + (end - bin - 1);
-}
-
-// Load using efficient 128 vector load instruction
-XGBOOST_DEV_INLINE GradientPairInt64 LoadGpair(GradientPairInt64 const *ptr) {
-  static_assert(sizeof(GradientPairInt64) == sizeof(float4));
-  float4 tmp = *reinterpret_cast<float4 const *>(ptr);
-  return *reinterpret_cast<GradientPairInt64 const *>(&tmp);
 }
 
 /**

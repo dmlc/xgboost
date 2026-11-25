@@ -3,10 +3,11 @@
  */
 #pragma once
 
-#include <cstddef>  // for size_t
-#include <cstdint>  // for int32_t
-#include <memory>   // for unique_ptr
-#include <vector>   // for vector
+#include <cstddef>       // for size_t
+#include <cstdint>       // for int32_t
+#include <cuda/std/bit>  // for bit_cast
+#include <memory>        // for unique_ptr
+#include <vector>        // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for LaunchN
@@ -20,6 +21,12 @@
 namespace xgboost::tree {
 // Shared-memory budget per block for the architecture's histogram launch bounds.
 [[nodiscard]] std::size_t HistShmemBytes(std::int32_t device);
+
+// Load a 16-byte-aligned quantized gradient pair with a single vector load.
+XGBOOST_DEV_INLINE GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT ptr) {
+  static_assert(sizeof(int4) == sizeof(GradientPairInt64));
+  return cuda::std::bit_cast<GradientPairInt64>(*reinterpret_cast<int4 const*>(ptr));
+}
 
 /**
  * @brief An atomicAdd designed for gradient pair with better performance.  For general
