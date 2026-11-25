@@ -10,6 +10,7 @@
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <cub/warp/warp_scan.cuh>    // for WarpScan
 #include <cuda/ptx>                  // for get_sreg_laneid
+#include <cuda/std/cmath>            // for isnan
 #include <cuda/std/functional>       // for plus
 #include <limits>                    // for numeric_limits
 #include <type_traits>               // for integral_constant
@@ -66,7 +67,7 @@ struct EvaluateSplitAgent {
   common::Span<GradientPairInt64> best_sum;
   TempStorage *storage;
   DeviceSplitCandidate *best;
-  bst_bin_t *best_bin;
+  bst_bin_t *best_bin;  // Only written by lane 0.
   double parent_gain{0};
 
   [[nodiscard]] __device__ bst_target_t Targets() const {
@@ -135,7 +136,7 @@ struct EvaluateSplitAgent {
    */
   template <SplitKind kKind, DefaultDirection kDir>
   __device__ void Enumerate() {
-    auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
+    auto const lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
     auto n_targets = this->Targets();
     auto limit = this->end;
     if constexpr (kKind == SplitKind::kPartition) {
@@ -174,6 +175,7 @@ struct EvaluateSplitAgent {
             bin = carry[t] - bin;
           }
         } else {
+          // The first lane provides the initial value for the scan
           if (lane == 0) {
             bin += carry[t];
           }
@@ -194,27 +196,21 @@ struct EvaluateSplitAgent {
         gain += evaluator.CalcTargetSplitGain(shared.param, node.nidx, fidx, t, n_targets == 1,
                                               left, right);
       }
-      auto k = static_cast<double>(n_targets);
       float loss_chg = -std::numeric_limits<float>::infinity();
-      if (bin_idx < limit && IsValidSplit(shared.param, left_hess / k, right_hess / k)) {
+      if (bin_idx < limit && IsValidSplit(shared.param, left_hess, right_hess, n_targets)) {
         // Subtract the parent gain in double before narrowing, as the CPU implementation does.
         loss_chg = static_cast<float>(gain - parent_gain);
-        loss_chg = isnan(loss_chg) ? -std::numeric_limits<float>::infinity() : loss_chg;
+        loss_chg = cuda::std::isnan(loss_chg) ? -std::numeric_limits<float>::infinity() : loss_chg;
       }
 
-      // Like the CPU scan, retain the first split on equal gain.
       auto max = MaxT(storage->max).Reduce({lane, loss_chg}, cub::ArgMax{});
       int updated_lane = -1;
       // Lane 0 owns the candidate throughout both passes.
-      if (lane == 0 && max.value > best->loss_chg) {
+      if (lane == 0 &&
+          best->Update(max.value, fidx, kDir, kKind != SplitKind::kNumerical, best_sum)) {
         auto idx = tile + max.key;
-        *best_bin = idx;
+        *this->best_bin = idx;
         updated_lane = max.key;
-        best->loss_chg = max.value;
-        best->dir = kDir;
-        best->findex = fidx;
-        best->child_sum = best_sum;
-        best->is_cat = kKind != SplitKind::kNumerical;
         if constexpr (kKind == SplitKind::kNumerical) {
           if constexpr (kDir == kLeftDir) {
             auto split_bin = RevBinIdx(begin, end, idx);
@@ -236,7 +232,7 @@ struct EvaluateSplitAgent {
       if constexpr (kTargets == 1) {
         // The winning lane already holds the complete child sum.
         if (lane == __shfl_sync(dh::WarpFullMask(), updated_lane, 0)) {
-          best_sum[0] = bin;
+          this->best_sum[0] = bin;
         }
       }
       __syncwarp();
@@ -259,21 +255,21 @@ struct EvaluateSplitAgent {
       auto hist = this->Histogram(t);
       GradientPairInt64 local;
       if constexpr (kKind == SplitKind::kOneHot) {
-        for (auto i = begin + lane; i < end; i += dh::WarpThreads()) {
+        for (auto i = this->begin + lane; i < end; i += dh::WarpThreads()) {
           // Only the category for kLeftDir, all other categories for kRightDir.
           if ((i == best_idx) == (dir == kLeftDir)) {
             local += hist[i];
           }
         }
       } else {
-        for (auto i = begin + lane; i <= best_idx; i += dh::WarpThreads()) {
+        for (auto i = this->begin + lane; i <= best_idx; i += dh::WarpThreads()) {
           local += hist[dir == kRightDir ? this->HistogramIndex<kKind, kRightDir>(i)
                                          : this->HistogramIndex<kKind, kLeftDir>(i)];
         }
       }
       auto sum = SumT(storage->sum).Sum(local);
       if (lane == 0) {
-        best_sum[t] = sum;
+        this->best_sum[t] = sum;
       }
       __syncwarp();
     }
@@ -388,6 +384,8 @@ __global__ __launch_bounds__(dh::WarpThreads()) void FinalizeSplitsKernel(
     parent_hess += g.GetHess();
   }
   auto &out = out_splits[nidx_in_set];
+  // Write parent_hess, so that the left_hess + right_hess is still valid even if we don't
+  // have an actul split.
   out = GPUExpandEntry{nidx, input.depth, split, parent_hess, 0.0};
 
   auto node_cats = d_split_cats.subspan(nidx * cat_storage_size, cat_storage_size);
@@ -488,6 +486,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx,
     this->scratch_.resize(n_blocks * n_targets);
     auto launch = [&](auto targets, auto has_cat) {
       auto kernel = EvaluateSplitsKernel<decltype(targets)::value, decltype(has_cat)::value>;
+      CHECK_LE(n_blocks, std::numeric_limits<std::uint32_t>::max());
       dh::LaunchKernel{static_cast<std::uint32_t>(n_blocks), dh::WarpThreads(), 0,  // NOLINT
                        ctx->CUDACtx()->Stream()}(kernel, d_inputs, shared_inputs, d_sorted_idx,
                                                  evaluator, dh::ToSpan(this->scratch_),

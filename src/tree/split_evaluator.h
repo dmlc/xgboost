@@ -259,8 +259,7 @@ class TreeEvaluator {
         right_hess += right_t.GetHess();
         gain += this->CalcTargetSplitGain(param, nidx, fidx, t, n_targets == 1, left_t, right_t);
       }
-      auto k = static_cast<double>(n_targets);
-      if (!IsValidSplit(param, left_hess / k, right_hess / k)) {
+      if (!IsValidSplit(param, left_hess, right_hess, n_targets)) {
         return -std::numeric_limits<double>::infinity();
       }
       return gain;
