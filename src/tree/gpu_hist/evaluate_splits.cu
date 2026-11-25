@@ -14,7 +14,7 @@
 #include <limits>                    // for numeric_limits
 #include <type_traits>               // for integral_constant
 
-#include "../../common/categorical.h"  // for CatBitField, UseOneHot
+#include "../../common/categorical.h"     // for CatBitField, UseOneHot
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/nvtx_utils.h"      // for xgboost_NVTX_FN_RANGE
 #include "evaluate_splits.cuh"
@@ -52,7 +52,7 @@ XGBOOST_DEV_INLINE GradientPairInt64 LoadGpair(GradientPairInt64 const *ptr) {
  * @tparam kTargets Number of targets if known at compile time.
  */
 template <std::size_t kTargets>
-struct FeatureSplitEnumerator {
+struct EvaluateSplitAgent {
   struct TempStorage {
     ScanT::TempStorage scan;
     MaxT::TempStorage max;
@@ -83,13 +83,13 @@ struct FeatureSplitEnumerator {
     }
   }
 
-  __device__ FeatureSplitEnumerator(EvaluateSplitInputs const &node,
-                                    EvaluateSplitSharedInputs const &shared,
-                                    TreeEvaluator::SplitEvaluator<EvalParam> const &evaluator,
-                                    bst_feature_t fidx, bst_bin_t const *sorted_idx,
-                                    common::Span<GradientPairInt64> carry,
-                                    common::Span<GradientPairInt64> best_sum, TempStorage *storage,
-                                    DeviceSplitCandidate *best, bst_bin_t *best_bin)
+  __device__ EvaluateSplitAgent(EvaluateSplitInputs const &node,
+                                EvaluateSplitSharedInputs const &shared,
+                                TreeEvaluator::SplitEvaluator<EvalParam> const &evaluator,
+                                bst_feature_t fidx, bst_bin_t const *sorted_idx,
+                                common::Span<GradientPairInt64> carry,
+                                common::Span<GradientPairInt64> best_sum, TempStorage *storage,
+                                DeviceSplitCandidate *best, bst_bin_t *best_bin)
       : node{node},
         shared{shared},
         evaluator{evaluator},
@@ -311,7 +311,7 @@ __global__ __launch_bounds__(dh::WarpThreads()) void EvaluateSplitsKernel(
     common::Span<EvaluateSplitInputs const> nodes, EvaluateSplitSharedInputs shared,
     common::Span<bst_bin_t const> sorted_idx, TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
     common::Span<GradientPairInt64> scratch, common::Span<DeviceSplitCandidate> out) {
-  using Enumerator = FeatureSplitEnumerator<kTargets>;
+  using Enumerator = EvaluateSplitAgent<kTargets>;
   __shared__ typename Enumerator::TempStorage storage;
   __shared__ cub::Uninitialized<GradientPairInt64> carry_storage;
   DeviceSplitCandidate best;
