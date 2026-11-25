@@ -142,22 +142,22 @@ struct EvaluateSplitAgent {
   template <SplitKind kKind, DefaultDirection kDir>
   __device__ void Enumerate() {
     auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
-    auto nt = this->Targets();
-    auto limit = end;
+    auto n_targets = this->Targets();
+    auto limit = this->end;
     if constexpr (kKind == SplitKind::kPartition) {
       // A partition must leave at least one category on each side.
-      limit = begin + std::min(shared.param.max_cat_threshold, end - begin) - 1;
+      limit = begin + std::min(shared.param.max_cat_threshold, this->end - begin) - 1;
     }
-    for (bst_target_t t = lane; t < nt; t += dh::WarpThreads()) {
+    for (bst_target_t t = lane; t < n_targets; t += dh::WarpThreads()) {
       carry[t] = GradientPairInt64{};
     }
     __syncwarp();
     if constexpr (kKind == SplitKind::kOneHot && kDir == kRightDir) {
       // Missing values follow the matching category to the right. The left child is the
       // feature sum excluding the category.
-      for (bst_target_t t = 0; t < nt; ++t) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
         GradientPairInt64 local;
-        for (auto i = begin + lane; i < end; i += dh::WarpThreads()) {
+        for (auto i = begin + lane; i < this->end; i += dh::WarpThreads()) {
           local += LoadGpair(this->Histogram(t) + i);
         }
         auto total = SumT(storage->sum).Sum(local);
@@ -167,13 +167,13 @@ struct EvaluateSplitAgent {
         __syncwarp();
       }
     }
-
+    // A tile has the same size of a CUDA warp.
     for (bst_bin_t tile = begin; tile < limit; tile += dh::WarpThreads()) {
       auto bin_idx = tile + lane;
       auto hidx = this->HistogramIndex<kKind, kDir>(std::min(bin_idx, end - 1));
       double gain = 0, left_hess = 0, right_hess = 0;
       GradientPairInt64 bin;
-      for (bst_target_t t = 0; t < nt; ++t) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
         bin = bin_idx < limit ? LoadGpair(this->Histogram(t) + hidx) : GradientPairInt64{};
         if constexpr (kKind == SplitKind::kOneHot) {
           if constexpr (kDir == kRightDir) {
@@ -197,10 +197,10 @@ struct EvaluateSplitAgent {
         auto const &right = kDir == kRightDir ? sibling : child;
         left_hess += left.GetHess();
         right_hess += right.GetHess();
-        gain +=
-            evaluator.CalcTargetSplitGain(shared.param, node.nidx, fidx, t, nt == 1, left, right);
+        gain += evaluator.CalcTargetSplitGain(shared.param, node.nidx, fidx, t, n_targets == 1,
+                                              left, right);
       }
-      auto k = static_cast<double>(nt);
+      auto k = static_cast<double>(n_targets);
       float loss_chg = -std::numeric_limits<float>::infinity();
       if (bin_idx < limit && IsValidSplit(shared.param, left_hess / k, right_hess / k)) {
         // Subtract the parent gain in double before narrowing, as the CPU implementation does.
@@ -252,35 +252,36 @@ struct EvaluateSplitAgent {
   // Restore the child sums of the best split for multiple targets.
   template <SplitKind kKind>
   __device__ void RestoreBest() {
-    if constexpr (kTargets != 1) {
-      auto best_idx = __shfl_sync(dh::WarpFullMask(), *best_bin, 0);
-      if (best_idx < 0) {
-        return;
-      }
-      auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
-      auto dir = __shfl_sync(dh::WarpFullMask(), static_cast<int>(best->dir), 0);
-      for (bst_target_t t = 0; t < this->Targets(); ++t) {
-        auto hist = this->Histogram(t);
-        GradientPairInt64 local;
-        if constexpr (kKind == SplitKind::kOneHot) {
-          for (auto i = begin + lane; i < end; i += dh::WarpThreads()) {
-            // Only the category for kLeftDir, all other categories for kRightDir.
-            if ((i == best_idx) == (dir == kLeftDir)) {
-              local += hist[i];
-            }
-          }
-        } else {
-          for (auto i = begin + lane; i <= best_idx; i += dh::WarpThreads()) {
-            local += hist[dir == kRightDir ? this->HistogramIndex<kKind, kRightDir>(i)
-                                           : this->HistogramIndex<kKind, kLeftDir>(i)];
+    if constexpr (kTargets == 1) {
+      return;
+    }
+    auto best_idx = __shfl_sync(dh::WarpFullMask(), *this->best_bin, 0);
+    if (best_idx < 0) {
+      return;
+    }
+    auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
+    auto dir = __shfl_sync(dh::WarpFullMask(), static_cast<int>(best->dir), 0);
+    for (bst_target_t t = 0; t < this->Targets(); ++t) {
+      auto hist = this->Histogram(t);
+      GradientPairInt64 local;
+      if constexpr (kKind == SplitKind::kOneHot) {
+        for (auto i = begin + lane; i < end; i += dh::WarpThreads()) {
+          // Only the category for kLeftDir, all other categories for kRightDir.
+          if ((i == best_idx) == (dir == kLeftDir)) {
+            local += hist[i];
           }
         }
-        auto sum = SumT(storage->sum).Sum(local);
-        if (lane == 0) {
-          best_sum[t] = sum;
+      } else {
+        for (auto i = begin + lane; i <= best_idx; i += dh::WarpThreads()) {
+          local += hist[dir == kRightDir ? this->HistogramIndex<kKind, kRightDir>(i)
+                                         : this->HistogramIndex<kKind, kLeftDir>(i)];
         }
-        __syncwarp();
       }
+      auto sum = SumT(storage->sum).Sum(local);
+      if (lane == 0) {
+        best_sum[t] = sum;
+      }
+      __syncwarp();
     }
   }
 
@@ -325,8 +326,8 @@ __global__ __launch_bounds__(dh::WarpThreads()) void EvaluateSplitsKernel(
   auto fi = blockIdx.x % n_features;
   if (fi < node.feature_set.size()) {
     auto fidx = node.feature_set[fi];
-    auto nt = kTargets == common::dynamic_extent ? shared.Targets() : kTargets;
-    auto best_sum = scratch.subspan(static_cast<std::size_t>(blockIdx.x) * nt, nt);
+    auto n_targets = kTargets == common::dynamic_extent ? shared.Targets() : kTargets;
+    auto best_sum = scratch.subspan(static_cast<std::size_t>(blockIdx.x) * n_targets, n_targets);
     // The best sum is restored after the scan with multiple targets, share the storage.
     auto carry = kTargets == 1 ? common::Span{&carry_storage.Alias(), 1} : best_sum;
     auto node_sorted_idx = sorted_idx.empty()
