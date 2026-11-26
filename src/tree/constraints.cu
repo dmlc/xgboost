@@ -9,7 +9,6 @@
 #include <set>
 #include <string>
 
-#include "../common/cuda_compat.cuh"   // for CUDA compatibility
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
 #include "constraints.cuh"
@@ -17,6 +16,7 @@
 #include "param.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
+#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
 
@@ -135,21 +135,6 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::PrepareBatch(
   return dh::ToSpan(result_buffer_);
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(
-    Context const* ctx, bst_node_t nidx, common::Span<bst_feature_t> out) const {
-  if (!has_constraint_) {
-    return {};
-  }
-  CHECK_LT(nidx, s_node_constraints_.size());
-  CHECK_GE(out.size(), this->Features());
-  auto allowed = s_node_constraints_[nidx];
-  auto begin = dh::make_counting_iterator(bst_feature_t{0});
-  auto end = thrust::copy_if(
-      ctx->CUDACtx()->CTP(), begin, begin + this->Features(), dh::tbegin(out),
-      [=] __device__(bst_feature_t fidx) { return nidx == 0 || allowed.Check(fidx); });
-  return out.first(end - dh::tbegin(out));
-}
-
 common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
     Context const* ctx, common::Span<bst_feature_t const> feature_list, bst_node_t nidx,
     common::Span<bst_feature_t> out) const {
@@ -194,32 +179,33 @@ __global__ void InteractionConstraintSplitKernel(
   }
 }
 
-void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t node_id,
-                                               bst_feature_t feature_id, bst_node_t left_id,
-                                               bst_node_t right_id) {
+void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t nidx,
+                                               bst_feature_t feature_id, bst_node_t left_idx,
+                                               bst_node_t right_idx) {
   if (!has_constraint_) {
     return;
   }
-  detail::CheckFeatureInteractionSplit(node_id, left_id, right_id);
-  CHECK_LT(right_id, s_node_constraints_.size());
+  detail::CheckFeatureInteractionSplit(nidx, left_idx, right_idx);
+  CHECK_LT(right_idx, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
 
   auto n_words = LBitField64::ComputeStorageSize(n_sets_);
-  auto required = (static_cast<std::size_t>(std::max(left_id, right_id)) + 1) * n_words;
+  auto required = (static_cast<std::size_t>(std::max(left_idx, right_idx)) + 1) * n_words;
   if (node_groups_.size() < required) {
     node_groups_.resize(std::max(required, node_groups_.size() * 2), 0, ctx->CUDACtx()->Stream());
   }
-  auto group_mask = [&](bst_node_t nid) {
-    return LBitField64{dh::ToSpan(node_groups_).subspan(nid * n_words, n_words)};
+  auto group_mask = [&](bst_node_t nidx) {
+    return LBitField64{dh::ToSpan(node_groups_).subspan(nidx * n_words, n_words)};
   };
   auto begin = h_sets_ptr_.at(feature_id);
   auto groups = s_sets_.subspan(begin, h_sets_ptr_.at(feature_id + 1) - begin);
   // A single block handles the split feature itself when it belongs to no group.
+  CHECK_LE(groups.size(), std::numeric_limits<std::uint32_t>::max());
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(1, groups.size()));
-  dh::LaunchKernel{n_blocks, 256, 0, ctx->CUDACtx()->Stream()}(
-      InteractionConstraintSplitKernel, feature_id, node_id == 0, groups, s_fconstraints_,
-      s_fconstraints_ptr_, group_mask(node_id), group_mask(left_id), group_mask(right_id),
-      s_node_constraints_[left_id], s_node_constraints_[right_id]);
+  dh::LaunchKernel{n_blocks, 256u, 0, ctx->CUDACtx()->Stream()}(
+      InteractionConstraintSplitKernel, feature_id, nidx == RegTree::kRoot, groups, s_fconstraints_,
+      s_fconstraints_ptr_, group_mask(nidx), group_mask(left_idx), group_mask(right_idx),
+      s_node_constraints_[left_idx], s_node_constraints_[right_idx]);
 }
 
 }  // namespace xgboost

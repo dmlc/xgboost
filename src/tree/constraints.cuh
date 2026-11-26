@@ -6,14 +6,13 @@
 #ifndef XGBOOST_TREE_CONSTRAINTS_CUH_
 #define XGBOOST_TREE_CONSTRAINTS_CUH_
 
-#include <dmlc/json.h>
+#include <cstddef>  // for size_t
+#include <vector>   // for vector
 
-#include <vector>
-
-#include "../common/bitfield.h"
+#include "../common/bitfield.h"         // for LBitField64
 #include "../common/device_vector.cuh"  // for CachingDeviceUVector, device_vector
-#include "param.h"
-#include "xgboost/span.h"
+#include "param.h"                      // for TrainParam
+#include "xgboost/span.h"               // for Span
 
 namespace xgboost {
 // Feature interaction constraints built for GPU Hist updater.
@@ -22,7 +21,7 @@ struct FeatureInteractionConstraintDevice {
   // Whether interaction constraint is used.
   bool has_constraint_;
   // n interaction sets.
-  size_t n_sets_;
+  std::size_t n_sets_;
 
   // The parsed feature interaction constraints as CSR.
   dh::device_vector<bst_feature_t> d_fconstraints_;
@@ -51,6 +50,7 @@ struct FeatureInteractionConstraintDevice {
   // Reused across batches. Each node gets a disjoint slice for its filtered features.
   dh::CachingDeviceUVector<bst_feature_t> result_buffer_;
   // One bit per interaction group. A set bit means the group contains the entire path.
+  // Logical size is n_groups x n_nodes bits.
   dh::CachingDeviceUVector<LBitField64::value_type> node_groups_;
 
  public:
@@ -64,9 +64,6 @@ struct FeatureInteractionConstraintDevice {
   void Reset(Context const* ctx);
   /** @brief Get output storage for all queries in a batch. Reuse it after evaluation finishes. */
   common::Span<bst_feature_t> PrepareBatch(std::size_t n_sampled);
-  /** @brief Write all features allowed at a node into the supplied output slice. */
-  common::Span<bst_feature_t> QueryNode(Context const* ctx, bst_node_t nid,
-                                        common::Span<bst_feature_t> out) const;
   /** @brief Filter sorted, unique sampled features into the node's output slice.
    *  @return The sampled features for an unrestricted node, or the populated prefix of out.
    */
@@ -78,5 +75,5 @@ struct FeatureInteractionConstraintDevice {
              bst_node_t right_id);
 };
 
-}      // namespace xgboost
+}  // namespace xgboost
 #endif  // XGBOOST_TREE_CONSTRAINTS_CUH_

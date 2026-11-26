@@ -133,46 +133,6 @@ TEST(GPUFeatureInteractionConstraint, Split) {
   }
 }
 
-TEST(GPUFeatureInteractionConstraint, QueryNode) {
-  auto ctx = MakeCUDACtx(0);
-  tree::TrainParam param = GetParameter();
-  bst_feature_t constexpr kFeatures = 6;
-  FConstraintWrapper constraints(param, kFeatures);
-  auto out = constraints.PrepareBatch(kFeatures);
-
-  {
-    auto span = constraints.QueryNode(&ctx, 0, out);
-    ASSERT_EQ(span.size(), kFeatures);
-  }
-
-  {
-    constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/1, 1, 2);
-    auto span = constraints.QueryNode(&ctx, 1, out);
-    std::vector<bst_feature_t> h_result(span.size());
-    thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
-                 thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
-    ASSERT_EQ(h_result.size(), 2);
-    ASSERT_EQ(h_result[0], 1);
-    ASSERT_EQ(h_result[1], 2);
-  }
-
-  {
-    tree::TrainParam large_param = GetParameter();
-    large_param.interaction_constraints = R"([[1, 139], [244, 0], [139, 221]])";
-    FConstraintWrapper large_features(large_param, 256);
-    large_features.Split(&ctx, 0, 139, 1, 2);
-    auto large_out = large_features.PrepareBatch(large_features.Features());
-    auto span = large_features.QueryNode(&ctx, 2, large_out);
-    std::vector<bst_feature_t> h_result(span.size());
-    thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
-                 thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
-    ASSERT_EQ(h_result.size(), 3);
-    ASSERT_EQ(h_result[0], 1);
-    ASSERT_EQ(h_result[1], 139);
-    ASSERT_EQ(h_result[2], 221);
-  }
-}
-
 namespace {
 void CompareFeatureList(common::Span<bst_feature_t const> s_output,
                         std::vector<bst_feature_t> solution) {
