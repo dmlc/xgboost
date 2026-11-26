@@ -117,6 +117,8 @@ struct EvaluateSplitAgent {
     return node.histogram.data() + static_cast<std::size_t>(t) * shared.n_total_bins_per_tar;
   }
 
+  // carry[t] stores the sums for target t over rows in this node that have a non-missing
+  // value for this feature.
   __device__ void SumCategories() {
     auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
     for (bst_target_t t = 0; t < this->Targets(); ++t) {

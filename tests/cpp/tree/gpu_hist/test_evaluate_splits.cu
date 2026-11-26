@@ -404,6 +404,16 @@ TEST_P(GpuHistEvaluatorTargets, EvaluateSingleSplitEmpty) {
   EXPECT_LT(r.split.loss_chg, 0.0f);
 }
 
+TEST_P(GpuHistEvaluatorTargets, OneHotMissingRight) {
+  auto eval = this->MakeEval({0, 3}, {0.0, 1.0, 2.0}, {kCat});
+  // The missing row and category 0 both have gradient +1.
+  auto r = eval.EvaluateOne({0, {0, 4}, {{1, 1}, {-1, 1}, {-1, 1}}}, {0});
+  EXPECT_EQ(r.split.thresh, 0);
+  EXPECT_EQ(r.split.dir, kRightDir);
+  EXPECT_EQ(r.left_sum, eval.ToFixed({-2, 2}));
+  EXPECT_EQ(r.right_sum, eval.ToFixed({2, 2}));
+}
+
 // Feature 0 has a better split, but the algorithm must select feature 1
 TEST_P(GpuHistEvaluatorTargets, EvaluateSingleSplitFeatureSampling) {
   auto eval = this->MakeEval({0, 2, 4}, {1.0, 2.0, 11.0, 12.0});
