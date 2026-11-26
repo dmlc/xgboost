@@ -1,13 +1,14 @@
 /*!
  * Copyright by Contributors 2019
  */
+#include "param.h"
+
 #include <iostream>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
-#include "param.h"
 
 namespace std {
 std::istream &operator>>(std::istream &is, std::vector<int> &t) {
@@ -83,9 +84,8 @@ std::istream &operator>>(std::istream &is, std::vector<int> &t) {
 }  // namespace std
 
 namespace xgboost {
-void ParseInteractionConstraint(
-    std::string const &constraint_str,
-    std::vector<std::vector<bst_feature_t>> *p_out) {
+void ParseInteractionConstraint(std::string const &constraint_str,
+                                std::vector<std::vector<bst_feature_t>> *p_out) {
   try {
     auto &out = *p_out;
     auto j_inc = Json::Load({constraint_str.c_str(), constraint_str.size()});
@@ -99,18 +99,17 @@ void ParseInteractionConstraint(
           out[i].emplace_back(u);
         } else if (IsA<Number>(v)) {
           double d = get<Number const>(v);
-          CHECK_EQ(std::floor(d), d)
-              << "Found floating point number in interaction constraints";
+          CHECK_EQ(std::floor(d), d) << "Found floating point number in interaction constraints";
           out[i].emplace_back(static_cast<uint32_t>(d));
         } else {
-          LOG(FATAL) << "Unknown value type for interaction constraint:"
-                     << v.GetValue().TypeStr();
+          LOG(FATAL) << "Unknown value type for interaction constraint:" << v.GetValue().TypeStr();
         }
       }
     }
   } catch (dmlc::Error const &e) {
     LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
-               << constraint_str << "\nWith error:\n" << e.what();
+               << constraint_str << "\nWith error:\n"
+               << e.what();
   }
 }
 }  // namespace xgboost
