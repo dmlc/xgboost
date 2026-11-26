@@ -161,7 +161,7 @@ struct FeatureInteractionConstraintDevice {
  public:
   [[nodiscard]] bst_feature_t Features() const;
   FeatureInteractionConstraintDevice() = default;
-  void Configure(tree::TrainParam const& param, int32_t const n_features);
+  void Configure(tree::TrainParam const& param, bst_feature_t const n_features);
   FeatureInteractionConstraintDevice(tree::TrainParam const& param, int32_t const n_features);
   FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = delete;
   FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;

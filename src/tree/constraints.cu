@@ -27,7 +27,7 @@ bst_feature_t FeatureInteractionConstraintDevice::Features() const {
 }
 
 void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param,
-                                                   int32_t const n_features) {
+                                                   bst_feature_t const n_features) {
   has_constraint_ = true;
   if (param.interaction_constraints.length() == 0) {
     has_constraint_ = false;
@@ -37,14 +37,7 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
   // Interaction constraints parsed from string parameter.  After
   // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
   std::vector<std::vector<bst_feature_t>> h_feature_constraints;
-  try {
-    ParseInteractionConstraint(param.interaction_constraints, &h_feature_constraints);
-  } catch (dmlc::Error const& e) {
-    LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
-               << param.interaction_constraints << "\n"
-               << "With error:\n"
-               << e.what();
-  }
+  ParseInteractionConstraint(param.interaction_constraints, &h_feature_constraints);
   n_sets_ = h_feature_constraints.size();
 
   CHECK_GE(n_features, 0);
@@ -95,7 +88,9 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
     // empty set is well defined here.
     h_sets_ptr_.push_back(h_sets.size());
   }
-  d_sets_ = h_sets;
+
+  d_sets_.resize(h_sets.size());
+  thrust::copy(h_sets.cbegin(), h_sets.cend(), d_sets_.begin());
 }
 
 FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(

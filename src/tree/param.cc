@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "xgboost/json.h"
+#include "xgboost/logging.h"
 #include "param.h"
 
 namespace std {
@@ -85,26 +86,31 @@ namespace xgboost {
 void ParseInteractionConstraint(
     std::string const &constraint_str,
     std::vector<std::vector<bst_feature_t>> *p_out) {
-  auto &out = *p_out;
-  auto j_inc = Json::Load({constraint_str.c_str(), constraint_str.size()});
-  auto const &all = get<Array>(j_inc);
-  out.resize(all.size());
-  for (size_t i = 0; i < all.size(); ++i) {
-    auto const &set = get<Array const>(all[i]);
-    for (auto const &v : set) {
-      if (XGBOOST_EXPECT(IsA<Integer const>(v), true)) {
-        auto u = static_cast<bst_feature_t>(get<Integer const>(v));
-        out[i].emplace_back(u);
-      } else if (IsA<Number>(v)) {
-        double d = get<Number const>(v);
-        CHECK_EQ(std::floor(d), d)
-            << "Found floating point number in interaction constraints";
-        out[i].emplace_back(static_cast<uint32_t>(d));
-      } else {
-        LOG(FATAL) << "Unknown value type for interaction constraint:"
-                   << v.GetValue().TypeStr();
+  try {
+    auto &out = *p_out;
+    auto j_inc = Json::Load({constraint_str.c_str(), constraint_str.size()});
+    auto const &all = get<Array>(j_inc);
+    out.resize(all.size());
+    for (size_t i = 0; i < all.size(); ++i) {
+      auto const &set = get<Array const>(all[i]);
+      for (auto const &v : set) {
+        if (XGBOOST_EXPECT(IsA<Integer const>(v), true)) {
+          auto u = static_cast<bst_feature_t>(get<Integer const>(v));
+          out[i].emplace_back(u);
+        } else if (IsA<Number>(v)) {
+          double d = get<Number const>(v);
+          CHECK_EQ(std::floor(d), d)
+              << "Found floating point number in interaction constraints";
+          out[i].emplace_back(static_cast<uint32_t>(d));
+        } else {
+          LOG(FATAL) << "Unknown value type for interaction constraint:"
+                     << v.GetValue().TypeStr();
+        }
       }
     }
+  } catch (dmlc::Error const &e) {
+    LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
+               << constraint_str << "\nWith error:\n" << e.what();
   }
 }
 }  // namespace xgboost

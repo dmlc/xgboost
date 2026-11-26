@@ -39,14 +39,7 @@ void FeatureInteractionConstraintHost::Reset() {
   // Read std::vector<std::vector<bst_feature_t>> first and then
   //   convert to std::vector<std::unordered_set<bst_feature_t>>
   std::vector<std::vector<bst_feature_t>> tmp;
-  try {
-    ParseInteractionConstraint(this->interaction_constraint_str_, &tmp);
-  } catch (dmlc::Error const& e) {
-    LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
-               << this->interaction_constraint_str_ << "\n"
-               << "With error:\n"
-               << e.what();
-  }
+  ParseInteractionConstraint(this->interaction_constraint_str_, &tmp);
   for (const auto& e : tmp) {
     interaction_constraints_.emplace_back(e.begin(), e.end());
   }
