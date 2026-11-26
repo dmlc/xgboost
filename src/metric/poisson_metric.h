@@ -22,8 +22,8 @@ struct EvalPoissonNegLogLik {
   [[nodiscard]] const char* Name() const { return "poisson-nloglik"; }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float operator()(double y, double py) const {
-    constexpr double eps = 1e-16;
-    if (py < eps) py = eps;
+    constexpr double kEps = 1e-16;
+    if (py < kEps) py = kEps;
     return common::LogGamma(y + 1.0) + PoissonNegLogLikNoConst(y, py);
   }
 
