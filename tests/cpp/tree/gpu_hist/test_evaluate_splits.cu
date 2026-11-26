@@ -379,6 +379,7 @@ TEST_P(GpuHistEvaluatorTargets, EvaluateSingleSplit) {
     EXPECT_EQ(r.split.findex, 1);
     if (is_categorical) {
       ASSERT_TRUE(std::isnan(r.split.fvalue));
+      EXPECT_EQ(r.split.dir, kLeftDir);
     } else {
       EXPECT_EQ(r.split.fvalue, 11.0);
     }
@@ -509,7 +510,7 @@ TEST(GpuHist, MultiTargetDense) {
     ASSERT_EQ(r.split.is_cat, is_cat);
     ASSERT_NEAR(r.split.loss_chg, 3.04239, 1e-5);
     // No missing value, only the forward pass is performed.
-    ASSERT_EQ(r.split.dir, kRightDir);
+    ASSERT_EQ(r.split.dir, is_cat ? kLeftDir : kRightDir);
     if (is_cat) {
       ASSERT_TRUE(std::isnan(r.split.fvalue));
       ASSERT_EQ(r.split.thresh, 3);

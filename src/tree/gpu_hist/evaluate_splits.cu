@@ -61,7 +61,7 @@ struct EvaluateSplitAgent {
   bst_bin_t begin;
   bst_bin_t end;
   bst_bin_t const *sorted_idx;
-  // Running prefix sum for each target.
+  // Per-target prefix sum for scans, or sum of all categories for one-hot.
   common::Span<GradientPairInt64> carry;
   // Child sum of the best split for each target.
   common::Span<GradientPairInt64> best_sum;
@@ -117,6 +117,21 @@ struct EvaluateSplitAgent {
     return node.histogram.data() + static_cast<std::size_t>(t) * shared.n_total_bins_per_tar;
   }
 
+  __device__ void SumCategories() {
+    auto lane = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
+    for (bst_target_t t = 0; t < this->Targets(); ++t) {
+      GradientPairInt64 local;
+      for (auto i = begin + lane; i < end; i += dh::WarpThreads()) {
+        local += LoadGpair(this->Histogram(t) + i);
+      }
+      auto total = SumT(storage->sum).Sum(local);
+      if (lane == 0) {
+        carry[t] = total;
+      }
+      __syncwarp();
+    }
+  }
+
   // Whether the sum of the observed bins in carry differs from the node sum.
   [[nodiscard]] __device__ bool HasMissing() const {
     for (bst_target_t t = 0; t < this->Targets(); ++t) {
@@ -142,24 +157,11 @@ struct EvaluateSplitAgent {
       // A partition must leave at least one category on each side.
       limit = begin + std::min(shared.param.max_cat_threshold, this->end - begin) - 1;
     }
-    for (bst_target_t t = lane; t < n_targets; t += dh::WarpThreads()) {
-      carry[t] = GradientPairInt64{};
-    }
-    __syncwarp();
-    if constexpr (kKind == SplitKind::kOneHot && kDir == kRightDir) {
-      // Missing values follow the matching category to the right. The left child is the
-      // feature sum excluding the category.
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        GradientPairInt64 local;
-        for (auto i = begin + lane; i < this->end; i += dh::WarpThreads()) {
-          local += LoadGpair(this->Histogram(t) + i);
-        }
-        auto total = SumT(storage->sum).Sum(local);
-        if (lane == 0) {
-          carry[t] = total;
-        }
-        __syncwarp();
+    if constexpr (kKind != SplitKind::kOneHot) {
+      for (bst_target_t t = lane; t < n_targets; t += dh::WarpThreads()) {
+        carry[t] = GradientPairInt64{};
       }
+      __syncwarp();
     }
     // A tile has the same size of a CUDA warp.
     for (bst_bin_t tile = begin; tile < limit; tile += dh::WarpThreads()) {
@@ -280,14 +282,21 @@ struct EvaluateSplitAgent {
   template <SplitKind kKind>
   __device__ void Run() {
     using Kind = std::integral_constant<SplitKind, kKind>;
-    if constexpr (kKind == SplitKind::kPartition) {
+    if constexpr (kKind == SplitKind::kOneHot) {
+      this->SumCategories();
+      auto has_missing = this->HasMissing();
+      this->Enumerate<kKind, kLeftDir>();
+      if (has_missing) {
+        this->Enumerate<kKind, kRightDir>();
+      }
+    } else if constexpr (kKind == SplitKind::kPartition) {
       this->Enumerate<kKind, kLeftDir>();
       this->Enumerate<kKind, kRightDir>();
     } else {
       this->Enumerate<kKind, kRightDir>();
       // Without missing values, the backward pass enumerates the same splits.
       auto has_missing = this->HasMissing();
-      // Finish reading the forward sums before the backward pass clears carry.
+      // Finish reading the observed sums before the numerical backward pass clears carry.
       __syncwarp();
       if (has_missing) {
         this->Enumerate<kKind, kLeftDir>();
