@@ -1,15 +1,10 @@
 /**
  * Copyright 2019-2026, XGBoost contributors
  */
-#include <thrust/copy.h>
-#include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
-
 #include <algorithm>  // for clamp, max, min
-#include <iterator>   // for back_inserter
 #include <limits>     // for numeric_limits
-#include <set>
-#include <string>
+#include <string>     // for string
+#include <vector>     // for vector
 
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
@@ -22,88 +17,63 @@
 
 namespace xgboost {
 
-bst_feature_t FeatureInteractionConstraintDevice::Features() const {
-  return static_cast<bst_feature_t>(h_sets_ptr_.size() - 1);
+FeatureInteractionConstraintDevice::State::State(Context const* ctx, std::string const& spec,
+                                                 bst_feature_t n_features)
+    : constraints{spec} {
+  std::vector<std::vector<bst_feature_t>> sets;
+  ParseInteractionConstraint(spec, &sets);
+  CHECK_LE(sets.size(), std::numeric_limits<GroupId>::max());
+
+  std::vector<bst_feature_t> h_members;
+  std::vector<std::size_t> h_group_ptr{0};
+  std::vector<std::vector<GroupId>> by_feature(n_features);
+  for (GroupId gid = 0; gid < sets.size(); ++gid) {
+    auto const& set = sets[gid];
+    h_members.insert(h_members.end(), set.begin(), set.end());
+    h_group_ptr.push_back(h_members.size());
+    for (auto f : set) {
+      auto& ids = by_feature.at(f);
+      if (ids.empty() || ids.back() != gid) {
+        ids.push_back(gid);
+      }
+    }
+  }
+
+  std::vector<GroupId> h_groups;
+  feature_ptr.reserve(by_feature.size() + 1);
+  feature_ptr.push_back(0);
+  for (auto const& ids : by_feature) {
+    h_groups.insert(h_groups.end(), ids.begin(), ids.end());
+    feature_ptr.push_back(h_groups.size());
+  }
+
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::CopyTo(h_members, &members, stream);
+  dh::CopyTo(h_group_ptr, &group_ptr, stream);
+  dh::CopyTo(h_groups, &groups, stream);
+  stream.Sync();
 }
 
-void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param,
-                                                   bst_feature_t const n_features) {
-  has_constraint_ = true;
-  if (param.interaction_constraints.length() == 0) {
-    has_constraint_ = false;
+bst_feature_t FeatureInteractionConstraintDevice::Features() const {
+  return state_ ? static_cast<bst_feature_t>(state_->feature_ptr.size() - 1) : 0;
+}
+
+void FeatureInteractionConstraintDevice::Reset(Context const* ctx, tree::TrainParam const& param,
+                                               bst_feature_t n_features) {
+  auto const& spec = param.interaction_constraints;
+  if (spec.empty()) {
+    state_.reset();
     return;
   }
-  // --- Parse interaction constraints
-  // Interaction constraints parsed from string parameter.  After
-  // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
-  std::vector<std::vector<bst_feature_t>> h_feature_constraints;
-  ParseInteractionConstraint(param.interaction_constraints, &h_feature_constraints);
-  n_sets_ = h_feature_constraints.size();
-
-  CHECK_GE(n_features, 0);
-  n_nodes_ = param.MaxNodes();
-  auto words_per_node = LBitField64::ComputeStorageSize(n_features);
-  node_constraints_.assign(n_nodes_ * words_per_node, 0);
-
-  // Represent constraints as CSR format, flatten is the value vector,
-  // ptr is row_ptr vector in CSR.
-  std::vector<uint32_t> h_feature_constraints_flatten;
-  for (auto const& constraints : h_feature_constraints) {
-    std::copy(constraints.cbegin(), constraints.cend(),
-              std::back_inserter(h_feature_constraints_flatten));
-  }
-  std::vector<size_t> h_feature_constraints_ptr;
-  size_t n_features_in_constraints = 0;
-  h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
-  for (auto const& v : h_feature_constraints) {
-    n_features_in_constraints += v.size();
-    h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
-  }
-  // Copy the CSR to device.
-  d_fconstraints_.resize(h_feature_constraints_flatten.size());
-  thrust::copy(h_feature_constraints_flatten.cbegin(), h_feature_constraints_flatten.cend(),
-               d_fconstraints_.begin());
-  d_fconstraints_ptr_.resize(h_feature_constraints_ptr.size());
-  thrust::copy(h_feature_constraints_ptr.cbegin(), h_feature_constraints_ptr.cend(),
-               d_fconstraints_ptr_.begin());
-
-  // --- Compute interaction sets attached to each feature.
-  // Use a set to eliminate duplicated entries.
-  CHECK_LE(n_sets_, std::numeric_limits<GroupId>::max());
-  std::vector<std::set<GroupId>> h_features_set(n_features);
-  GroupId cid = 0;
-  for (auto const& constraints : h_feature_constraints) {
-    for (auto const& feat : constraints) {
-      h_features_set.at(feat).insert(cid);
-    }
-    cid++;
-  }
-  // Compute device sets.
-  std::vector<GroupId> h_sets;
-  h_sets_ptr_.assign(1, 0);
-  for (auto const& feature : h_features_set) {
-    for (auto constraint_id : feature) {
-      h_sets.emplace_back(constraint_id);
-    }
-    // empty set is well defined here.
-    h_sets_ptr_.push_back(h_sets.size());
+  if (!state_ || state_->constraints != spec) {
+    state_.emplace(ctx, spec, n_features);
   }
 
-  d_sets_.resize(h_sets.size());
-  thrust::copy(h_sets.cbegin(), h_sets.cend(), d_sets_.begin());
-}
-
-FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
-    tree::TrainParam const& param, int32_t const n_features)
-    : has_constraint_{true}, n_sets_{0} {
-  this->Configure(param, n_features);
-}
-
-void FeatureInteractionConstraintDevice::Reset(Context const* ctx) {
-  node_groups_.clear();
-  if (!node_constraints_.empty()) {
-    thrust::fill(ctx->CUDACtx()->CTP(), node_constraints_.begin(), node_constraints_.end(), 0);
-  }
+  state_->n_nodes = param.MaxNodes();
+  auto n_words = LBitField64::ComputeStorageSize(this->Features());
+  state_->node_constraints.clear();
+  state_->node_constraints.resize(state_->n_nodes * n_words, 0, ctx->CUDACtx()->Stream());
+  state_->node_groups.clear();
 }
 
 // One block per group containing the split feature. Children inherit only groups that
@@ -143,31 +113,32 @@ __global__ void InteractionConstraintSplitKernel(
 void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t nidx,
                                                bst_feature_t feature_id, bst_node_t left_idx,
                                                bst_node_t right_idx) {
-  if (!has_constraint_) {
+  if (!state_) {
     return;
   }
+  auto& state = *state_;
   detail::CheckFeatureInteractionSplit(nidx, left_idx, right_idx);
   CHECK_GE(std::min({nidx, left_idx, right_idx}), 0);
-  CHECK_LT(std::max({nidx, left_idx, right_idx}), n_nodes_);
+  CHECK_LT(std::max({nidx, left_idx, right_idx}), state.n_nodes);
 
-  auto n_words = LBitField64::ComputeStorageSize(n_sets_);
+  auto n_words = LBitField64::ComputeStorageSize(state.group_ptr.size() - 1);
   auto required = (static_cast<std::size_t>(std::max(left_idx, right_idx)) + 1) * n_words;
-  if (node_groups_.size() < required) {
-    auto max_words = static_cast<std::size_t>(n_nodes_) * n_words;
-    auto new_size = std::clamp(node_groups_.size() * 2, required, max_words);
-    node_groups_.resize(new_size, 0, ctx->CUDACtx()->Stream());
+  if (state.node_groups.size() < required) {
+    auto max_words = static_cast<std::size_t>(state.n_nodes) * n_words;
+    auto new_size = std::clamp(state.node_groups.size() * 2, required, max_words);
+    state.node_groups.resize(new_size, 0, ctx->CUDACtx()->Stream());
   }
-  detail::NodeBitFields group_masks{dh::ToSpan(node_groups_), n_words};
+  detail::NodeBitFields group_masks{dh::ToSpan(state.node_groups), n_words};
   auto feature_masks = this->FeatureMasks();
-  auto begin = h_sets_ptr_.at(feature_id);
-  auto s_sets = dh::ToSpan(this->d_sets_);
-  auto groups = s_sets.subspan(begin, h_sets_ptr_.at(feature_id + 1) - begin);
+  auto begin = state.feature_ptr.at(feature_id);
+  auto s_sets = dh::ToSpan(state.groups);
+  auto groups = s_sets.subspan(begin, state.feature_ptr.at(feature_id + 1) - begin);
   // A single block handles the split feature itself when it belongs to no group.
   CHECK_LE(groups.size(), std::numeric_limits<GroupId>::max());
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(1, groups.size()));
   dh::LaunchKernel{n_blocks, 256u, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
       InteractionConstraintSplitKernel, feature_id, nidx == RegTree::kRoot, groups,
-      dh::ToSpan(d_fconstraints_), dh::ToSpan(d_fconstraints_ptr_), group_masks[nidx],
+      dh::ToSpan(state.members), dh::ToSpan(state.group_ptr), group_masks[nidx],
       group_masks[left_idx], group_masks[right_idx], feature_masks[left_idx],
       feature_masks[right_idx]);
 }

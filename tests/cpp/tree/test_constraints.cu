@@ -21,13 +21,10 @@ namespace {
 
 struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
   using FeatureInteractionConstraintDevice::FeatureMasks;
-  FConstraintWrapper(tree::TrainParam param, bst_feature_t n_features)
-      : FeatureInteractionConstraintDevice(param, n_features) {}
-
-  dh::device_vector<GroupId> const& GetDSets() const { return d_sets_; }
-  std::size_t GroupMaskCapacity() const { return node_groups_.Capacity(); }
-  std::size_t ResultCapacity() const { return result_buffer_.Capacity(); }
-  std::vector<size_t> const& GetSetsPtr() const { return h_sets_ptr_; }
+  dh::device_vector<GroupId> const& GetDSets() const { return state_->groups; }
+  std::size_t GroupMaskCapacity() const { return state_->node_groups.Capacity(); }
+  std::size_t ResultCapacity() const { return state_->result_buffer.Capacity(); }
+  std::vector<size_t> const& GetSetsPtr() const { return state_->feature_ptr; }
 };
 
 std::string GetConstraintsStr() {
@@ -62,10 +59,12 @@ void CompareBitField(LBitField64 d_field, std::set<uint32_t> positions) {
 }  // anonymous namespace
 
 TEST(GPUFeatureInteractionConstraint, Init) {
+  auto ctx = MakeCUDACtx(0);
   {
     bst_feature_t constexpr kFeatures = 6;
     tree::TrainParam param = GetParameter();
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     ASSERT_EQ(constraints.Features(), kFeatures);
     auto masks = constraints.FeatureMasks();
     for (bst_node_t nidx = 0; nidx < param.MaxNodes(); ++nidx) {
@@ -78,7 +77,8 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     int32_t constexpr kFeatures = 7;
     tree::TrainParam param = GetParameter();
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 6]])";
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     std::vector<FConstraintWrapper::GroupId> h_sets{0, 0, 0, 1, 1, 1};
     std::vector<size_t> h_sets_ptr{0, 1, 2, 2, 4, 4, 5, 6};
     auto d_sets = constraints.GetDSets();
@@ -98,7 +98,8 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     int32_t constexpr kFeatures = 129;
     tree::TrainParam param = GetParameter();
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 128], [127, 128]])";
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     auto d_sets = constraints.GetDSets();
     auto d_sets_ptr = constraints.GetSetsPtr();
     auto _128_beg = d_sets_ptr[128];
@@ -106,10 +107,9 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     ASSERT_EQ(_128_end - _128_beg, 2);
     ASSERT_EQ(d_sets[_128_beg], 1);
     ASSERT_EQ(d_sets[_128_end - 1], 2);
-    auto ctx = MakeCUDACtx(0);
     constraints.Split(&ctx, 0, 128, 1, 2);
     CompareBitField(constraints.FeatureMasks()[1], {3, 5, 127, 128});
-    constraints.Reset(&ctx);
+    constraints.Reset(&ctx, param, kFeatures);
     CompareBitField(constraints.FeatureMasks()[1], {});
   }
 }
@@ -118,7 +118,8 @@ TEST(GPUFeatureInteractionConstraint, Split) {
   auto ctx = MakeCUDACtx(0);
   tree::TrainParam param = GetParameter();
   int32_t constexpr kFeatures = 6;
-  FConstraintWrapper constraints(param, kFeatures);
+  FConstraintWrapper constraints;
+  constraints.Reset(&ctx, param, kFeatures);
 
   constraints.Split(&ctx, 0, /*feature_id=*/1, 1, 2);
   for (auto nid : {1, 2}) {
@@ -174,7 +175,8 @@ TEST(GPUFeatureInteractionConstraint, Query) {
   {
     tree::TrainParam param = GetParameter();
     bst_feature_t constexpr kFeatures = 6;
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4, 5};
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
@@ -185,7 +187,8 @@ TEST(GPUFeatureInteractionConstraint, Query) {
   {
     tree::TrainParam param = GetParameter();
     bst_feature_t constexpr kFeatures = 6;
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/1, /*left_id=*/1, /*right_id=*/2);
     dh::device_vector<bst_feature_t> sampled{0, 1, 2, 3};
     auto features = dh::ToSpan(sampled);
@@ -211,7 +214,8 @@ TEST(GPUFeatureInteractionConstraint, Query) {
   {
     auto param = GetParameter();
     param.interaction_constraints = R"([[1, 2, 510], [2, 4, 512, 1026]])";
-    FConstraintWrapper constraints(param, 1027);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, 1027);
     constraints.Split(&ctx, 0, 2, 1, 2);
 
     dh::device_vector<bst_feature_t> sampled(514);
@@ -226,7 +230,8 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     bst_feature_t constexpr kFeatures = 6;
     std::string const constraints_str = R"constraint([[0, 1]])constraint";
     param.interaction_constraints = constraints_str;
-    FConstraintWrapper constraints(param, kFeatures);
+    FConstraintWrapper constraints;
+    constraints.Reset(&ctx, param, kFeatures);
     std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4, 5};
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
@@ -244,7 +249,8 @@ TEST(GPUFeatureInteractionConstraint, WideBatch) {
   param.max_depth = 10;
   bst_node_t constexpr kChildren = 1 << 10;
   bst_feature_t constexpr kFeatures = 100000;
-  FConstraintWrapper constraints{param, kFeatures};
+  FConstraintWrapper constraints;
+  constraints.Reset(&ctx, param, kFeatures);
   // Feature 0 belongs to no group, so every descendant can only split on 0.
   for (bst_node_t nidx = 0; nidx < kChildren - 1; ++nidx) {
     constraints.Split(&ctx, nidx, 0, 2 * nidx + 1, 2 * nidx + 2);
@@ -271,13 +277,14 @@ TEST(GPUFeatureInteractionConstraint, PathMatchesCPU) {
   auto ctx = MakeCUDACtx(0);
   bst_feature_t constexpr kFeatures = 5;
   dh::device_vector<bst_feature_t> sampled{0, 1, 2, 3, 4};
+  FeatureInteractionConstraintDevice gpu;
   auto check_paths = [&](std::string const& groups, bst_feature_t root_feature,
                          bst_feature_t left_feature, bst_feature_t right_feature) {
     auto param = GetParameter();
     param.interaction_constraints = groups;
     FeatureInteractionConstraintHost cpu;
     cpu.Configure(param, kFeatures);
-    FeatureInteractionConstraintDevice gpu{param, kFeatures};
+    gpu.Reset(&ctx, param, kFeatures);
     auto check = [&](bst_node_t nid) {
       std::vector<bst_feature_t> expected;
       for (bst_feature_t f = 0; f < kFeatures; ++f) {

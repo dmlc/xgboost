@@ -135,14 +135,15 @@ struct GPUHistMakerDevice {
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
 
-  FeatureInteractionConstraintDevice interaction_constraints;
+  FeatureInteractionConstraintDevice& interaction_constraints;
 
   std::unique_ptr<cuda_impl::Sampler> sampler;
 
   common::Monitor monitor;
 
   GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
-                     std::shared_ptr<common::ColumnSampler> column_sampler, MetaInfo const& info,
+                     std::shared_ptr<common::ColumnSampler> column_sampler,
+                     FeatureInteractionConstraintDevice& constraints, MetaInfo const& info,
                      std::vector<bst_idx_t> batch_ptr,
                      std::shared_ptr<common::HistogramCuts const> cuts, bool dense_compressed)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
@@ -154,7 +155,7 @@ struct GPUHistMakerDevice {
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         HistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
-        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
+        interaction_constraints{constraints},
         sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
                                                      param.sampling_method)} {
     if (!param.monotone_constraints.empty()) {
@@ -198,7 +199,7 @@ struct GPUHistMakerDevice {
      */
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
                                 param.colsample_bylevel, param.colsample_bytree);
-    this->interaction_constraints.Reset(ctx_);
+    this->interaction_constraints.Reset(ctx_, param, static_cast<bst_feature_t>(info.num_col_));
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
                            this->param);
 
@@ -712,12 +713,12 @@ class GPUHistMaker : public TreeUpdater {
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch);
     auto batch_ptr = p_fmat->BatchPtr();
 
-    this->p_scimpl_ =
-        std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_, column_sampler_,
-                                             p_fmat->Info(), batch_ptr, cuts, dense_compressed);
+    this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(
+        ctx_, *param, &hist_maker_param_, column_sampler_, interaction_constraints_, p_fmat->Info(),
+        batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
-        this->ctx_, *param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
-        dense_compressed);
+        this->ctx_, *param, &hist_maker_param_, this->column_sampler_, interaction_constraints_,
+        batch_ptr, cuts, dense_compressed);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -747,6 +748,8 @@ class GPUHistMaker : public TreeUpdater {
 
  private:
   bool initialised_{false};
+
+  FeatureInteractionConstraintDevice interaction_constraints_;
 
   // Scalar tree implementation
   std::unique_ptr<GPUHistMakerDevice> p_scimpl_;
@@ -819,9 +822,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto batch_ptr = p_fmat->BatchPtr();
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
-    this->maker_ =
-        std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_, column_sampler_,
-                                             p_fmat->Info(), batch_ptr, cuts, dense_compressed);
+    this->maker_ = std::make_unique<GPUHistMakerDevice>(
+        ctx_, *param, &hist_maker_param_, column_sampler_, interaction_constraints_, p_fmat->Info(),
+        batch_ptr, cuts, dense_compressed);
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {
@@ -870,6 +873,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   HistMakerTrainParam hist_maker_param_;
   dh::device_vector<float> hess_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
+  FeatureInteractionConstraintDevice interaction_constraints_;
   std::unique_ptr<GPUHistMakerDevice> maker_;
 
   DMatrix* p_last_fmat_{nullptr};

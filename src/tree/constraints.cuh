@@ -13,6 +13,8 @@
 #include <cstdint>                     // for uint32_t
 #include <cub/block/block_reduce.cuh>  // for BlockReduce
 #include <cub/block/block_scan.cuh>    // for BlockScan
+#include <optional>                    // for optional
+#include <string>                      // for string
 #include <vector>                      // for vector
 
 #include "../common/bitfield.h"          // for LBitField64
@@ -37,6 +39,9 @@ struct NodeBitFields {
 XGBOOST_DEVICE inline bool HasConstrainedSet(bst_feature_t n_outputs, bst_feature_t n_inputs) {
   return n_outputs != n_inputs;
 }
+
+// Following kernels use one block for each feature, the measured runtime is within 1ms
+// even for 100000 features. As a result, did not optimize any further.
 
 // Count eligible features and the space each node needs in the packed result.
 template <std::uint32_t kBlockSize, typename Input>
@@ -114,39 +119,39 @@ struct FeatureInteractionConstraintDevice {
   using GroupId = std::uint32_t;
 
  protected:
-  // Whether interaction constraint is used.
-  bool has_constraint_;
-  // n interaction sets.
-  std::size_t n_sets_;
+  struct State {
+    State(Context const* ctx, std::string const& constraints, bst_feature_t n_features);
 
-  // The parsed feature interaction constraints as CSR.
-  dh::device_vector<bst_feature_t> d_fconstraints_;
-  dh::device_vector<size_t> d_fconstraints_ptr_;
-  /* Interaction sets for each feature as CSR.  For an input like:
-   * [[0, 1], [1, 2]], this will have values:
-   *
-   * fid:                                |0 | 1  | 2|
-   * sets a feature belongs to(d_sets_): |0 |0, 1| 1|
-   *
-   * h_sets_ptr_:                        |0, 1, 3, 4|
-   */
-  dh::device_vector<GroupId> d_sets_;
-  // Host offsets into d_sets_ for looking up the groups containing a split feature.
-  std::vector<std::size_t> h_sets_ptr_;
+    // Original parameter string used by Reset to detect a change in group membership.
+    std::string constraints;
+    // The parsed feature interaction constraints as CSR, with one row per group.
+    dh::device_vector<bst_feature_t> members;
+    dh::device_vector<std::size_t> group_ptr;
+    // Interaction groups for each feature as CSR. For [[0, 1], [1, 2]]:
+    //   feature ID       | 0 |  1  | 2 |
+    //   groups           | 0 | 0,1 | 1 |
+    //   feature_ptr = [0, 1, 3, 4]
+    dh::device_vector<GroupId> groups;
+    // Host offsets into groups for looking up the groups containing a split feature.
+    std::vector<std::size_t> feature_ptr;
 
-  // One fixed-width feature mask per node, stored consecutively on the device.
-  dh::device_vector<LBitField64::value_type> node_constraints_;
-  bst_node_t n_nodes_{0};
+    // Maximum number of nodes in the current tree.
+    bst_node_t n_nodes{0};
+    // One fixed-width feature mask per node, stored consecutively on the device.
+    dh::DeviceUVector<LBitField64::value_type> node_constraints;
+    // One bit per interaction group per node. A set bit means the group contains every
+    // split feature on the path to that node. Rows are allocated as the tree grows.
+    dh::CachingDeviceUVector<LBitField64::value_type> node_groups;
+    // Reused across batches. Each node gets a disjoint slice for its filtered features.
+    dh::CachingDeviceUVector<bst_feature_t> result_buffer;
+  };
+  // Engaged when interaction constraints are enabled.
+  std::optional<State> state_;
 
   [[nodiscard]] detail::NodeBitFields FeatureMasks() {
-    return {dh::ToSpan(node_constraints_), LBitField64::ComputeStorageSize(this->Features())};
+    return {dh::ToSpan(state_->node_constraints),
+            LBitField64::ComputeStorageSize(this->Features())};
   }
-
-  // Reused across batches. Each node gets a disjoint slice for its filtered features.
-  dh::CachingDeviceUVector<bst_feature_t> result_buffer_;
-  // One bit per interaction group. A set bit means the group contains the entire path.
-  // Logical size is n_groups x n_nodes bits.
-  dh::CachingDeviceUVector<LBitField64::value_type> node_groups_;
 
  private:
   template <typename Input>
@@ -161,12 +166,10 @@ struct FeatureInteractionConstraintDevice {
  public:
   [[nodiscard]] bst_feature_t Features() const;
   FeatureInteractionConstraintDevice() = default;
-  void Configure(tree::TrainParam const& param, bst_feature_t const n_features);
-  FeatureInteractionConstraintDevice(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = delete;
-  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;
-  /*! \brief Reset before constructing a new tree. */
-  void Reset(Context const* ctx);
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const&) = delete;
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&&) = default;
+  /*! \brief Reset the path masks for a new tree, rebuilding group membership only on change. */
+  void Reset(Context const* ctx, tree::TrainParam const& param, bst_feature_t n_features);
   /** @brief Upload split inputs and filter their sorted, unique sampled features in place.
    *  Returns the largest eligible count. Filtered spans remain valid until the next batch.
    */
@@ -180,7 +183,7 @@ struct FeatureInteractionConstraintDevice {
     auto stream = ctx->CUDACtx()->Stream();
     dh::safe_cuda(cudaMemcpyAsync(d_inputs.data(), inputs.data(), inputs.size_bytes(),
                                   cudaMemcpyHostToDevice, stream));
-    if (!has_constraint_) {
+    if (!state_) {
       return MaxActiveFeature(inputs);
     }
 
@@ -205,9 +208,10 @@ struct FeatureInteractionConstraintDevice {
       }
       n_output += counts[i];
     }
-    result_buffer_.clear();
-    result_buffer_.resize(n_output, stream);
-    auto result = dh::ToSpan(result_buffer_);
+    auto& result_buffer = state_->result_buffer;
+    result_buffer.clear();
+    result_buffer.resize(n_output, stream);
+    auto result = dh::ToSpan(result_buffer);
     dh::LaunchKernel{static_cast<std::uint32_t>(inputs.size()), kBlockSize, 0, stream}(
         detail::CompactEligibleFeatures<kBlockSize, Input>, d_inputs, masks, dh::ToSpan(d_counts),
         dh::ToSpan(d_offsets), result);
