@@ -784,9 +784,9 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * ngroup * (ncolumns + 1));
   auto &contribs_diag = contribs_diag_hdv.HostVector();
 
-  // Compute the difference in effects when conditioning on each of the features on and off
-  // see: Axiomatic characterizations of probabilistic and
-  //      cardinal-probabilistic interaction indices
+  // Approximate contributions ignore feature conditioning, so contribs_off and contribs_on
+  // are the same unconditioned values. The loop below only reads them, so they can share
+  // storage with contribs_diag.
   ApproxFeatureImportance(ctx, p_fmat, &contribs_diag_hdv, model, tree_end, tree_weights);
   auto &contribs_off = contribs_diag;
   auto &contribs_on = contribs_diag;
