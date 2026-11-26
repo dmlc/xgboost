@@ -28,9 +28,7 @@ struct FeatureInteractionConstraintDevice {
 
   // The parsed feature interaction constraints as CSR.
   dh::device_vector<bst_feature_t> d_fconstraints_;
-  common::Span<bst_feature_t> s_fconstraints_;
   dh::device_vector<size_t> d_fconstraints_ptr_;
-  common::Span<size_t> s_fconstraints_ptr_;
   /* Interaction sets for each feature as CSR.  For an input like:
    * [[0, 1], [1, 2]], this will have values:
    *

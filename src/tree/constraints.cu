@@ -67,7 +67,7 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
   // ptr is row_ptr vector in CSR.
   std::vector<uint32_t> h_feature_constraints_flatten;
   for (auto const& constraints : h_feature_constraints) {
-    for (uint32_t c : constraints) {
+    for (auto c : constraints) {
       h_feature_constraints_flatten.emplace_back(c);
     }
   }
@@ -82,11 +82,9 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
   d_fconstraints_.resize(h_feature_constraints_flatten.size());
   thrust::copy(h_feature_constraints_flatten.cbegin(), h_feature_constraints_flatten.cend(),
                d_fconstraints_.begin());
-  s_fconstraints_ = dh::ToSpan(d_fconstraints_);
   d_fconstraints_ptr_.resize(h_feature_constraints_ptr.size());
   thrust::copy(h_feature_constraints_ptr.cbegin(), h_feature_constraints_ptr.cend(),
                d_fconstraints_ptr_.begin());
-  s_fconstraints_ptr_ = dh::ToSpan(d_fconstraints_ptr_);
 
   // --- Compute interaction sets attached to each feature.
   // Use a set to eliminate duplicated entries.
@@ -172,11 +170,13 @@ __global__ void InteractionConstraintSplitKernel(
     return;
   }
   if (threadIdx.x == 0) {
+    // The current group becomes valid for the left and right child
     left_groups.Set(ic_group_idx);
     right_groups.Set(ic_group_idx);
   }
   auto end = group_ptr[ic_group_idx + 1];
   for (auto i = group_ptr[ic_group_idx] + threadIdx.x; i < end; i += blockDim.x) {
+    // Enable each feature in the group.
     left_features.Set(members[i]);
     right_features.Set(members[i]);
   }
@@ -206,10 +206,10 @@ void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t ni
   // A single block handles the split feature itself when it belongs to no group.
   CHECK_LE(groups.size(), std::numeric_limits<GroupId>::max());
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(1, groups.size()));
-  dh::LaunchKernel{n_blocks, 256u, 0, ctx->CUDACtx()->Stream()}(
-      InteractionConstraintSplitKernel, feature_id, nidx == RegTree::kRoot, groups, s_fconstraints_,
-      s_fconstraints_ptr_, group_mask(nidx), group_mask(left_idx), group_mask(right_idx),
-      s_node_constraints_[left_idx], s_node_constraints_[right_idx]);
+  dh::LaunchKernel{n_blocks, 256u, 0, ctx->CUDACtx()->Stream()} (
+      InteractionConstraintSplitKernel, feature_id, nidx == RegTree::kRoot, groups,
+      dh::ToSpan(d_fconstraints_), dh::ToSpan(d_fconstraints_ptr_), group_mask(nidx), group_mask(left_idx),
+      group_mask(right_idx), s_node_constraints_[left_idx], s_node_constraints_[right_idx]);
 }
 
 }  // namespace xgboost
