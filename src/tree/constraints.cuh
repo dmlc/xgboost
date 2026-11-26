@@ -37,7 +37,6 @@ struct FeatureInteractionConstraintDevice {
    * h_sets_ptr_:                        |0, 1, 3, 4|
    */
   dh::device_vector<bst_feature_t> d_sets_;
-  common::Span<bst_feature_t> s_sets_;
   // Host offsets into d_sets_ for looking up the groups containing a split feature.
   std::vector<std::size_t> h_sets_ptr_;
 

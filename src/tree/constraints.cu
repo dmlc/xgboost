@@ -108,7 +108,6 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
     h_sets_ptr_.push_back(h_sets.size());
   }
   d_sets_ = h_sets;
-  s_sets_ = dh::ToSpan(d_sets_);
 }
 
 FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
@@ -198,7 +197,8 @@ void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t ni
     return LBitField64{dh::ToSpan(node_groups_).subspan(nidx * n_words, n_words)};
   };
   auto begin = h_sets_ptr_.at(feature_id);
-  auto groups = s_sets_.subspan(begin, h_sets_ptr_.at(feature_id + 1) - begin);
+  auto s_sets = dh::ToSpan(this->d_sets_);
+  auto groups = s_sets.subspan(begin, h_sets_ptr_.at(feature_id + 1) - begin);
   // A single block handles the split feature itself when it belongs to no group.
   CHECK_LE(groups.size(), std::numeric_limits<std::uint32_t>::max());
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(1, groups.size()));
