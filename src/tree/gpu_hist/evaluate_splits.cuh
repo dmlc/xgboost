@@ -108,7 +108,6 @@ class GPUHistEvaluator {
 
  private:
   using CatAlloc = common::cuda_impl::PinnedAllocator<CatWordT>;
-  using WeightAlloc = common::cuda_impl::PinnedAllocator<float>;
 
   std::unique_ptr<TreeEvaluator> tree_evaluator_{nullptr};
   bst_target_t n_targets_{0};
@@ -131,7 +130,7 @@ class GPUHistEvaluator {
   dh::DeviceUVector<CatWordT> split_cats_;
   std::size_t node_cat_storage_size_{0};
   // Host copies of node weights and categories for the scalar tree.
-  std::vector<float, WeightAlloc> h_node_weights_;
+  std::vector<float> h_node_weights_;
   std::vector<CatWordT, CatAlloc> h_split_cats_;
   // Whether any categorical feature requires partition-based evaluation.
   bool need_sort_histogram_{false};
