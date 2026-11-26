@@ -10,7 +10,7 @@
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <cub/warp/warp_scan.cuh>    // for WarpScan
 #include <cuda/ptx>                  // for get_sreg_laneid
-#include <cuda/std/cmath>            // for isnan
+#include <cuda/std/cmath>            // for isfinite
 #include <cuda/std/functional>       // for plus
 #include <limits>                    // for numeric_limits
 #include <type_traits>               // for integral_constant
@@ -117,8 +117,7 @@ struct EvaluateSplitAgent {
     return node.histogram.data() + static_cast<std::size_t>(t) * shared.n_total_bins_per_tar;
   }
 
-  // Whether the sum of the observed bins differs from the node sum. Valid after the
-  // forward pass.
+  // Whether the sum of the observed bins in carry differs from the node sum.
   [[nodiscard]] __device__ bool HasMissing() const {
     for (bst_target_t t = 0; t < this->Targets(); ++t) {
       if (!(carry[t] == node.parent_sum[t])) {
@@ -129,10 +128,10 @@ struct EvaluateSplitAgent {
   }
 
   /**
-   * @brief Enumerate split points in one direction.
+   * @brief Enumerate split points for a feature.
    *
-   * @tparam kDir The default direction for missing values. The scanned child is the left
-   *              child for kRightDir and the right child for kLeftDir.
+   * @tparam kDir The default direction for missing values. One-hot starts with kLeftDir
+   *              and evaluates both directions if there are missing values.
    */
   template <SplitKind kKind, DefaultDirection kDir>
   __device__ void Enumerate() {
@@ -199,8 +198,11 @@ struct EvaluateSplitAgent {
       float loss_chg = -std::numeric_limits<float>::infinity();
       if (bin_idx < limit && IsValidSplit(shared.param, left_hess, right_hess, n_targets)) {
         // Subtract the parent gain in double before narrowing, as the CPU implementation does.
-        loss_chg = static_cast<float>(gain - parent_gain);
-        loss_chg = cuda::std::isnan(loss_chg) ? -std::numeric_limits<float>::infinity() : loss_chg;
+        auto candidate_gain = static_cast<float>(gain - parent_gain);
+        // Discard overflow before ArgMax so it cannot hide a finite candidate in this tile.
+        if (cuda::std::isfinite(candidate_gain)) {
+          loss_chg = candidate_gain;
+        }
       }
 
       auto max = MaxT(storage->max).Reduce({lane, loss_chg}, cub::ArgMax{});
