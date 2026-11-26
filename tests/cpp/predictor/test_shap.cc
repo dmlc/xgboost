@@ -534,6 +534,7 @@ TEST(Predictor, ApproxContribsInfiniteTreeWeightOnRepeatedSplit) {
   auto const& h_infinite = infinite.ConstHostVector();
   ASSERT_NE(h_finite[0], 0.0f);
   EXPECT_EQ(h_infinite[0], h_finite[0] * inf_weight[0]);
+  EXPECT_TRUE(std::isnan(h_infinite[1]));
 }
 
 TEST(Predictor, ShapIterationRange) {
