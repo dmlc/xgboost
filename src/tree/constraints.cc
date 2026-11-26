@@ -22,10 +22,10 @@ void CheckFeatureInteractionSplit(bst_node_t nidx, bst_node_t left_idx, bst_node
 void FeatureInteractionConstraintHost::Configure(tree::TrainParam const& param,
                                                  bst_feature_t const n_features) {
   if (param.interaction_constraints.empty()) {
-    enabled_ = !param.interaction_constraints.empty();
+    has_constraint_ = !param.interaction_constraints.empty();
     return;  // short-circuit if no constraint is specified
   }
-  enabled_ = true;
+  has_constraint_ = true;
 
   this->interaction_constraint_str_ = param.interaction_constraints;
   this->n_features_ = n_features;
@@ -33,7 +33,7 @@ void FeatureInteractionConstraintHost::Configure(tree::TrainParam const& param,
 }
 
 void FeatureInteractionConstraintHost::Reset() {
-  if (!enabled_) {
+  if (!has_constraint_) {
     return;
   }
   // Read std::vector<std::vector<bst_feature_t>> first and then
