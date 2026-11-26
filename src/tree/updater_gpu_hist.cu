@@ -216,8 +216,7 @@ struct GPUHistMakerDevice {
     EvalParam gpu_param(param);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     sampled_features->SetDevice(ctx_->Device());
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints.Query(sampled_features->ConstDeviceSpan(), nidx);
+    auto feature_set = sampled_features->ConstDeviceSpan();
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, histogram_.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{gpu_param,
                                             (*quantiser)[0],
@@ -256,22 +255,17 @@ struct GPUHistMakerDevice {
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      auto left_feature_set = left_sampled_features->ConstDeviceSpan();
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      auto right_feature_set = right_sampled_features->ConstDeviceSpan();
       h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
                               left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
       h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
                                   right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
     }
-    bst_feature_t max_active_features = 0;
-    for (auto input : h_node_inputs) {
-      max_active_features =
-          std::max(max_active_features, static_cast<bst_feature_t>(input.feature_set.size()));
-    }
+    auto max_active_features =
+        cuda_impl::FilterInteractionFeatures(ctx_, &interaction_constraints, h_node_inputs);
     dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
                                   h_node_inputs.size() * sizeof(EvaluateSplitInputs),
                                   cudaMemcpyDefault));

@@ -3,16 +3,15 @@
  *
  * \file Various constraints used in GPU_Hist.
  */
-#ifndef XGBOOST_TREE_CONSTRAINTS_H_
-#define XGBOOST_TREE_CONSTRAINTS_H_
+#ifndef XGBOOST_TREE_CONSTRAINTS_CUH_
+#define XGBOOST_TREE_CONSTRAINTS_CUH_
 
 #include <dmlc/json.h>
 
 #include <vector>
 
 #include "../common/bitfield.h"
-#include "../common/device_vector.cuh"  // for device_vector
-#include "constraints.h"
+#include "../common/device_vector.cuh"  // for CachingDeviceUVector, device_vector
 #include "param.h"
 #include "xgboost/span.h"
 
@@ -36,12 +35,12 @@ struct FeatureInteractionConstraintDevice {
    * fid:                                |0 | 1  | 2|
    * sets a feature belongs to(d_sets_): |0 |0, 1| 1|
    *
-   * d_sets_ptr_:                        |0, 1, 3, 4|
+   * h_sets_ptr_:                        |0, 1, 3, 4|
    */
   dh::device_vector<bst_feature_t> d_sets_;
   common::Span<bst_feature_t> s_sets_;
-  dh::device_vector<size_t> d_sets_ptr_;
-  common::Span<size_t> s_sets_ptr_;
+  // Host offsets into d_sets_ for looking up the groups containing a split feature.
+  std::vector<std::size_t> h_sets_ptr_;
 
   // Allowed features attached to each node, have n_nodes bitfields,
   // each of size n_features.
@@ -49,52 +48,35 @@ struct FeatureInteractionConstraintDevice {
   std::vector<LBitField64> node_constraints_;
   common::Span<LBitField64> s_node_constraints_;
 
-  // buffer storing return feature list from Query, of size n_features.
-  dh::device_vector<bst_feature_t> result_buffer_;
-  common::Span<bst_feature_t> s_result_buffer_;
-
-  // Temp buffers, one bit for each possible feature.
-  dh::device_vector<LBitField64::value_type> output_buffer_bits_storage_;
-  LBitField64 output_buffer_bits_;
-  dh::device_vector<LBitField64::value_type> input_buffer_bits_storage_;
-  LBitField64 input_buffer_bits_;
-  /*
-   * Combined features from all interaction sets that one feature belongs to.
-   * For an input with [[0, 1], [1, 2]], the feature 1 belongs to sets {0, 1}
-   */
-  dh::device_vector<LBitField64::value_type> d_feature_buffer_storage_;
-  LBitField64 feature_buffer_;  // of Size n features.
-
-  // Clear out all temp buffers except for `feature_buffer_', which is
-  // handled in `Split'.
-  void ClearBuffers();
+  // Reused across batches. Each node gets a disjoint slice for its filtered features.
+  dh::CachingDeviceUVector<bst_feature_t> result_buffer_;
+  // One bit per interaction group. A set bit means the group contains the entire path.
+  dh::CachingDeviceUVector<LBitField64::value_type> node_groups_;
 
  public:
   size_t Features() const;
   FeatureInteractionConstraintDevice() = default;
   void Configure(tree::TrainParam const& param, int32_t const n_features);
   FeatureInteractionConstraintDevice(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = default;
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = delete;
   FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;
   /*! \brief Reset before constructing a new tree. */
   void Reset(Context const* ctx);
-  /*! \brief Return a list of features given node id */
-  common::Span<bst_feature_t> QueryNode(Context const* ctx, bst_node_t nid);
-  /**
-   * @brief Return a list of selected features from given feature_list and node id.
-   *
-   * @param feature_list A list of features
-   * @param nidx node id
-   *
-   * @return A list of features picked from `feature_list' that conform to constraints in
-   * node.
+  /** @brief Get output storage for all queries in a batch. Reuse it after evaluation finishes. */
+  common::Span<bst_feature_t> PrepareBatch(std::size_t n_sampled);
+  /** @brief Write all features allowed at a node into the supplied output slice. */
+  common::Span<bst_feature_t> QueryNode(Context const* ctx, bst_node_t nid,
+                                        common::Span<bst_feature_t> out) const;
+  /** @brief Filter sorted, unique sampled features into the node's output slice.
+   *  @return The sampled features for an unrestricted node, or the populated prefix of out.
    */
-  common::Span<bst_feature_t const> Query(common::Span<bst_feature_t const> feature_list,
-                                          bst_node_t nidx);
+  common::Span<bst_feature_t const> Query(Context const* ctx,
+                                          common::Span<bst_feature_t const> feature_list,
+                                          bst_node_t nidx, common::Span<bst_feature_t> out) const;
   /*! \brief Apply split for node_id. */
   void Split(Context const* ctx, bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id,
              bst_node_t right_id);
 };
 
 }      // namespace xgboost
-#endif  // XGBOOST_TREE_CONSTRAINTS_H_
+#endif  // XGBOOST_TREE_CONSTRAINTS_CUH_

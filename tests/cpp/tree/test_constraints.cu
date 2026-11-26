@@ -11,6 +11,7 @@
 
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/tree/constraints.cuh"
+#include "../../../src/tree/constraints.h"
 #include "../../../src/tree/param.h"
 #include "../helpers.h"  // MakeCUDACtx
 
@@ -25,7 +26,7 @@ struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
       : FeatureInteractionConstraintDevice(param, n_features) {}
 
   dh::device_vector<bst_feature_t> const& GetDSets() const { return d_sets_; }
-  dh::device_vector<size_t> const& GetDSetsPtr() const { return d_sets_ptr_; }
+  std::vector<size_t> const& GetSetsPtr() const { return h_sets_ptr_; }
 };
 
 std::string GetConstraintsStr() {
@@ -90,7 +91,7 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     std::vector<size_t> h_sets_ptr{0, 1, 2, 2, 4, 4, 5, 6};
     auto d_sets = constraints.GetDSets();
     ASSERT_EQ(h_sets.size(), d_sets.size());
-    auto d_sets_ptr = constraints.GetDSetsPtr();
+    auto d_sets_ptr = constraints.GetSetsPtr();
     ASSERT_EQ(h_sets_ptr, d_sets_ptr);
     for (size_t i = 0; i < h_sets.size(); ++i) {
       ASSERT_EQ(h_sets[i], d_sets[i]);
@@ -107,7 +108,7 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 128], [127, 128]])";
     FConstraintWrapper constraints(param, kFeatures);
     auto d_sets = constraints.GetDSets();
-    auto d_sets_ptr = constraints.GetDSetsPtr();
+    auto d_sets_ptr = constraints.GetSetsPtr();
     auto _128_beg = d_sets_ptr[128];
     auto _128_end = d_sets_ptr[128 + 1];
     ASSERT_EQ(_128_end - _128_beg, 2);
@@ -122,27 +123,13 @@ TEST(GPUFeatureInteractionConstraint, Split) {
   int32_t constexpr kFeatures = 6;
   FConstraintWrapper constraints(param, kFeatures);
 
-  {
-    LBitField64 d_node[3];
-    constraints.Split(&ctx, 0, /*feature_id=*/1, 1, 2);
-    for (size_t nid = 0; nid < 3; ++nid) {
-      d_node[nid] = constraints.GetNodeConstraints()[nid];
-      ASSERT_EQ(d_node[nid].Bits().size(), 1);
-      CompareBitField(d_node[nid], {1, 2});
-    }
+  constraints.Split(&ctx, 0, /*feature_id=*/1, 1, 2);
+  for (auto nid : {1, 2}) {
+    CompareBitField(constraints.GetNodeConstraints()[nid], {1, 2});
   }
-
-  {
-    LBitField64 d_node[5];
-    constraints.Split(&ctx, 1, /*feature_id=*/0, /*left_id=*/3, /*right_id=*/4);
-    for (auto nid : {1, 3, 4}) {
-      d_node[nid] = constraints.GetNodeConstraints()[nid];
-      CompareBitField(d_node[nid], {0, 1, 2});
-    }
-    for (auto nid : {0, 2}) {
-      d_node[nid] = constraints.GetNodeConstraints()[nid];
-      CompareBitField(d_node[nid], {1, 2});
-    }
+  constraints.Split(&ctx, 1, /*feature_id=*/2, 3, 4);
+  for (auto nid : {2, 3, 4}) {
+    CompareBitField(constraints.GetNodeConstraints()[nid], {1, 2});
   }
 }
 
@@ -151,15 +138,16 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
   tree::TrainParam param = GetParameter();
   bst_feature_t constexpr kFeatures = 6;
   FConstraintWrapper constraints(param, kFeatures);
+  auto out = constraints.PrepareBatch(kFeatures);
 
   {
-    auto span = constraints.QueryNode(&ctx, 0);
-    ASSERT_EQ(span.size(), 0);
+    auto span = constraints.QueryNode(&ctx, 0, out);
+    ASSERT_EQ(span.size(), kFeatures);
   }
 
   {
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/1, 1, 2);
-    auto span = constraints.QueryNode(&ctx, 0);
+    auto span = constraints.QueryNode(&ctx, 1, out);
     std::vector<bst_feature_t> h_result(span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
@@ -169,33 +157,12 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
   }
 
   {
-    constraints.Split(&ctx, 1, /*feature_id=*/0, 3, 4);
-    auto span = constraints.QueryNode(&ctx, 1);
-    std::vector<bst_feature_t> h_result(span.size());
-    thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
-                 thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
-    ASSERT_EQ(h_result.size(), 3);
-    ASSERT_EQ(h_result[0], 0);
-    ASSERT_EQ(h_result[1], 1);
-    ASSERT_EQ(h_result[2], 2);
-
-    // same as parent
-    span = constraints.QueryNode(&ctx, 3);
-    h_result.resize(span.size());
-    thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
-                 thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
-    ASSERT_EQ(h_result.size(), 3);
-    ASSERT_EQ(h_result[0], 0);
-    ASSERT_EQ(h_result[1], 1);
-    ASSERT_EQ(h_result[2], 2);
-  }
-
-  {
     tree::TrainParam large_param = GetParameter();
     large_param.interaction_constraints = R"([[1, 139], [244, 0], [139, 221]])";
     FConstraintWrapper large_features(large_param, 256);
     large_features.Split(&ctx, 0, 139, 1, 2);
-    auto span = large_features.QueryNode(&ctx, 0);
+    auto large_out = large_features.PrepareBatch(large_features.Features());
+    auto span = large_features.QueryNode(&ctx, 2, large_out);
     std::vector<bst_feature_t> h_result(span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()), h_result.begin());
@@ -228,7 +195,7 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(s_input_feature_list, 0);
+    auto s_output = constraints.Query(&ctx, s_input_feature_list, 0, {});
     CompareFeatureList(s_output, h_input_feature_list);
   }
   {
@@ -236,39 +203,13 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     bst_feature_t constexpr kFeatures = 6;
     FConstraintWrapper constraints(param, kFeatures);
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/1, /*left_id=*/1, /*right_id=*/2);
-    constraints.Split(&ctx, /*node_id=*/1, /*feature_id=*/0, /*left_id=*/3, /*right_id=*/4);
-    constraints.Split(&ctx, /*node_id=*/4, /*feature_id=*/3, /*left_id=*/5, /*right_id=*/6);
-    /*
-     * (node id) [allowed features]
-     *
-     *               (0) [1, 2]
-     *           /        \
-     *      {split at 0}   \
-     *         /            \
-     *        (1)[0, 1, 2]  (2)[1, 2]
-     *     /        \
-     *    /      {split at 3}
-     *   /            \
-     * (3)[0, 1, 2]   (4)[0, 1, 2, 3, 4, 5]
-     *
-     */
-
-    std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4, 5};
-    dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
-    common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
-
-    auto s_output = constraints.Query(s_input_feature_list, 1);
-    CompareFeatureList(s_output, {0, 1, 2});
-    s_output = constraints.Query(s_input_feature_list, 2);
-    CompareFeatureList(s_output, {1, 2});
-    s_output = constraints.Query(s_input_feature_list, 3);
-    CompareFeatureList(s_output, {0, 1, 2});
-    s_output = constraints.Query(s_input_feature_list, 4);
-    CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
-    s_output = constraints.Query(s_input_feature_list, 5);
-    CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
-    s_output = constraints.Query(s_input_feature_list, 6);
-    CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
+    dh::device_vector<bst_feature_t> sampled{0, 1, 2, 3};
+    auto features = dh::ToSpan(sampled);
+    auto batch = constraints.PrepareBatch(4);
+    auto left = constraints.Query(&ctx, features.first(2), 1, batch.first(2));
+    auto right = constraints.Query(&ctx, features.subspan(2), 2, batch.subspan(2));
+    CompareFeatureList(left, {1});
+    CompareFeatureList(right, {2});
   }
 
   // Test shared feature
@@ -285,7 +226,8 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(s_input_feature_list, 1);
+    auto out = constraints.PrepareBatch(kFeatures);
+    auto s_output = constraints.Query(&ctx, s_input_feature_list, 1, out);
     CompareFeatureList(s_output, {1, 2, 3, 4});
   }
 
@@ -300,11 +242,56 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/2, /*left_id=*/1, /*right_id=*/2);
-    auto s_output = constraints.Query(s_input_feature_list, 1);
+    auto out = constraints.PrepareBatch(kFeatures);
+    auto s_output = constraints.Query(&ctx, s_input_feature_list, 1, out);
     CompareFeatureList(s_output, {2});
-    s_output = constraints.Query(s_input_feature_list, 2);
+    s_output = constraints.Query(&ctx, s_input_feature_list, 2, out);
     CompareFeatureList(s_output, {2});
   }
+}
+
+// Compare eligible features after each prescribed split. The sibling is queried again
+// after its peer splits, since the two branches can retain different groups.
+TEST(GPUFeatureInteractionConstraint, PathMatchesCPU) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t constexpr kFeatures = 5;
+  dh::device_vector<bst_feature_t> sampled{0, 1, 2, 3, 4};
+  auto check_paths = [&](std::string const& groups, bst_feature_t root_feature,
+                         bst_feature_t left_feature, bst_feature_t right_feature) {
+    auto param = GetParameter();
+    param.interaction_constraints = groups;
+    FeatureInteractionConstraintHost cpu;
+    cpu.Configure(param, kFeatures);
+    FeatureInteractionConstraintDevice gpu{param, kFeatures};
+    auto out = gpu.PrepareBatch(kFeatures);
+    auto check = [&](bst_node_t nid) {
+      std::vector<bst_feature_t> expected;
+      for (bst_feature_t f = 0; f < kFeatures; ++f) {
+        if (cpu.Query(nid, f)) {
+          expected.push_back(f);
+        }
+      }
+      CompareFeatureList(gpu.Query(&ctx, dh::ToSpan(sampled), nid, out), expected);
+    };
+    auto split = [&](bst_node_t nid, bst_feature_t f, bst_node_t left, bst_node_t right) {
+      ASSERT_TRUE(cpu.Query(nid, f));
+      cpu.Split(nid, f, left, right);
+      gpu.Split(&ctx, nid, f, left, right);
+      check(left);
+      check(right);
+    };
+    check(0);
+    split(0, root_feature, 1, 2);
+    split(1, left_feature, 3, 4);
+    check(2);
+    split(2, right_feature, 5, 6);
+    check(3);
+  };
+
+  check_paths("[[0,1],[1,3,4]]", 0, 1, 0);
+  check_paths("[[0,1],[1,3,4]]", 1, 0, 4);
+  check_paths("[[0,1],[0,2],[1,2]]", 0, 1, 2);
+  check_paths("[[0,1]]", 4, 4, 4);
 }
 
 }  // namespace xgboost

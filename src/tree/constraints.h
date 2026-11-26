@@ -40,7 +40,7 @@ class FeatureInteractionConstraintHost {
 
  public:
   FeatureInteractionConstraintHost() = default;
-  void Split(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id,
+  void Split(bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id,
              bst_node_t right_id) {
     if (!enabled_) {
       return;

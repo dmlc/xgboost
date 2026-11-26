@@ -103,6 +103,30 @@ inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64
                         thrust::make_discard_iterator(), dh::tbegin(root_sum));
 }
 
+template <typename Input>
+bst_feature_t FilterInteractionFeatures(Context const* ctx,
+                                        FeatureInteractionConstraintDevice* constraints,
+                                        common::Span<Input> inputs) {
+  std::size_t n_sampled = 0;
+  for (auto const& input : inputs) {
+    n_sampled += input.feature_set.size();
+  }
+  // Size the buffer before taking slices so each child's filtered list stays valid.
+  auto remaining = constraints->PrepareBatch(n_sampled);
+  bst_feature_t max_active_features = 0;
+  for (auto& input : inputs) {
+    auto sampled = input.feature_set;
+    if (!remaining.empty()) {
+      input.feature_set =
+          constraints->Query(ctx, sampled, input.nidx, remaining.first(sampled.size()));
+      remaining = remaining.subspan(sampled.size());
+    }
+    max_active_features =
+        std::max(max_active_features, static_cast<bst_feature_t>(input.feature_set.size()));
+  }
+  return max_active_features;
+}
+
 /**
  * @brief Implementation for vector leaf.
  */
@@ -270,8 +294,7 @@ class MultiTargetHistMaker {
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
+    auto feature_set = sampled_features->ConstDeviceSpan();
     MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
@@ -553,7 +576,6 @@ class MultiTargetHistMaker {
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
 
     auto n_targets = this->split_gpair_.Shape(1);
-    bst_feature_t max_active_feature = 0;
     // Track max node ID for buffer allocation
     bst_node_t max_nidx = 0;
 
@@ -565,13 +587,11 @@ class MultiTargetHistMaker {
       auto child_depth = candidate.depth + 1;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      auto left_feature_set = left_sampled_features->ConstDeviceSpan();
 
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      auto right_feature_set = right_sampled_features->ConstDeviceSpan();
 
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
@@ -584,15 +604,16 @@ class MultiTargetHistMaker {
       h_node_inputs[i * 2] = left;
       h_node_inputs[i * 2 + 1] = right;
 
-      max_active_feature = std::max({left_feature_set.size(), right_feature_set.size(),
-                                     static_cast<std::size_t>(max_active_feature)});
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
+    auto max_active_feature = FilterInteractionFeatures(ctx_, interaction_constraints_.get(),
+                                                        common::Span{h_node_inputs});
     dh::safe_cuda(cudaMemcpyAsync(inputs.data(), h_node_inputs.data(),
                                   common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
                                   cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
 
-    auto shared_inputs = MakeSharedInputs(max_active_feature);
+    // An all-empty batch still needs one invalid candidate per node to finalize its leaf weight.
+    auto shared_inputs = MakeSharedInputs(std::max<bst_feature_t>(1, max_active_feature));
     this->evaluator_.EvaluateSplits(this->ctx_, dh::ToSpan(inputs), shared_inputs, max_nidx,
                                     dh::ToSpan(outputs));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data(),

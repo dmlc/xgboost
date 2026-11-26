@@ -17,6 +17,29 @@ class TestGPUInteractionConstraints:
     def test_hist_multi_interaction_constraints(self) -> None:
         run_interaction_constraints(tree_method="hist", device="cuda", n_targets=3)
 
+    @pytest.mark.parametrize("strategy", ["one_output_per_tree", "multi_output_tree"])
+    def test_sampled_siblings(self, strategy: str) -> None:
+        x = np.arange(64, dtype=np.float32)
+        data = xgb.DMatrix(np.column_stack([x] * 4), label=np.column_stack([x, x]))
+        params = {
+            "device": "cuda",
+            "tree_method": "hist",
+            "grow_policy": "lossguide",
+            "multi_strategy": strategy,
+            "max_depth": 3,
+            "colsample_bynode": 0.25,
+        }
+        expected = xgb.train(params, data, num_boost_round=1)
+        # All four features are allowed. Each sibling should keep its own sampled column.
+        constrained = xgb.train(
+            {**params, "interaction_constraints": [[0, 1, 2, 3]]},
+            data,
+            num_boost_round=1,
+        )
+        assert constrained.get_dump(dump_format="json") == expected.get_dump(
+            dump_format="json"
+        )
+
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_training_accuracy(self, tree_method: str) -> None:
         dpath = "demo/data/"
