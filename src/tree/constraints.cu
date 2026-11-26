@@ -5,7 +5,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 
-#include <algorithm>  // for max
+#include <algorithm>  // for clamp, max, min
+#include <iterator>   // for back_inserter
 #include <limits>     // for numeric_limits
 #include <set>
 #include <string>
@@ -55,9 +56,8 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
   // ptr is row_ptr vector in CSR.
   std::vector<uint32_t> h_feature_constraints_flatten;
   for (auto const& constraints : h_feature_constraints) {
-    for (auto c : constraints) {
-      h_feature_constraints_flatten.emplace_back(c);
-    }
+    std::copy(constraints.cbegin(), constraints.cend(),
+              std::back_inserter(h_feature_constraints_flatten));
   }
   std::vector<size_t> h_feature_constraints_ptr;
   size_t n_features_in_constraints = 0;
@@ -158,7 +158,9 @@ void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t ni
   auto n_words = LBitField64::ComputeStorageSize(n_sets_);
   auto required = (static_cast<std::size_t>(std::max(left_idx, right_idx)) + 1) * n_words;
   if (node_groups_.size() < required) {
-    node_groups_.resize(std::max(required, node_groups_.size() * 2), 0, ctx->CUDACtx()->Stream());
+    auto max_words = static_cast<std::size_t>(n_nodes_) * n_words;
+    auto new_size = std::clamp(node_groups_.size() * 2, required, max_words);
+    node_groups_.resize(new_size, 0, ctx->CUDACtx()->Stream());
   }
   detail::NodeBitFields group_masks{dh::ToSpan(node_groups_), n_words};
   auto feature_masks = this->FeatureMasks();
