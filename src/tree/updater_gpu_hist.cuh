@@ -6,7 +6,7 @@
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <algorithm>  // for copy_if, max, transform
-#include <memory>     // for unique_ptr
+#include <memory>     // for shared_ptr, unique_ptr
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
@@ -125,7 +125,7 @@ class MultiTargetHistMaker {
 
   MultiHistEvaluator evaluator_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  FeatureInteractionConstraintDevice& interaction_constraints_;
+  std::shared_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
   // Feature types on device for categorical detection, cached in Reset. Empty when there
   // are no categorical features.
   common::Span<FeatureType const> feature_types_;
@@ -196,8 +196,8 @@ class MultiTargetHistMaker {
     auto const& info = p_fmat->Info();
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
-    this->interaction_constraints_.Reset(this->ctx_, param_,
-                                         static_cast<bst_feature_t>(info.num_col_));
+    this->interaction_constraints_->Reset(this->ctx_, param_,
+                                          static_cast<bst_feature_t>(info.num_col_));
 
     // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -322,9 +322,9 @@ class MultiTargetHistMaker {
     p_tree->Expand(this->ctx_, batch);
 
     for (auto const& candidate : h_candidates) {
-      interaction_constraints_.Split(this->ctx_, candidate.nidx, candidate.split.findex,
-                                     p_tree->LeftChild(candidate.nidx),
-                                     p_tree->RightChild(candidate.nidx));
+      interaction_constraints_->Split(this->ctx_, candidate.nidx, candidate.split.findex,
+                                      p_tree->LeftChild(candidate.nidx),
+                                      p_tree->RightChild(candidate.nidx));
     }
 
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
@@ -583,7 +583,7 @@ class MultiTargetHistMaker {
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
     auto max_active_feature =
-        interaction_constraints_.Query(ctx_, common::Span{h_node_inputs}, dh::ToSpan(inputs));
+        interaction_constraints_->Query(ctx_, common::Span{h_node_inputs}, dh::ToSpan(inputs));
 
     // An all-empty batch still needs one invalid candidate per node to finalize its leaf weight.
     auto shared_inputs = MakeSharedInputs(std::max<bst_feature_t>(1, max_active_feature));
@@ -677,7 +677,7 @@ class MultiTargetHistMaker {
   explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
                                 HistMakerTrainParam const* hist_param,
                                 std::shared_ptr<common::ColumnSampler> column_sampler,
-                                FeatureInteractionConstraintDevice& constraints,
+                                std::shared_ptr<FeatureInteractionConstraintDevice> constraints,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
                                 bool dense_compressed)
@@ -690,6 +690,6 @@ class MultiTargetHistMaker {
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
-        interaction_constraints_{constraints} {}
+        interaction_constraints_{std::move(constraints)} {}
 };
 }  // namespace xgboost::tree::cuda_impl

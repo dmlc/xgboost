@@ -22,7 +22,6 @@ namespace {
 struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
   using FeatureInteractionConstraintDevice::FeatureMasks;
   dh::device_vector<GroupId> const& GetDSets() const { return state_->groups; }
-  std::size_t GroupMaskCapacity() const { return state_->node_groups.Capacity(); }
   std::size_t ResultCapacity() const { return state_->result_buffer.Capacity(); }
   std::vector<size_t> const& GetSetsPtr() const { return state_->feature_ptr; }
 };
