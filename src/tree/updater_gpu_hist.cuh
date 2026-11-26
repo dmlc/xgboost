@@ -103,30 +103,6 @@ inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64
                         thrust::make_discard_iterator(), dh::tbegin(root_sum));
 }
 
-template <typename Input>
-bst_feature_t FilterInteractionFeatures(Context const* ctx,
-                                        FeatureInteractionConstraintDevice* constraints,
-                                        common::Span<Input> inputs) {
-  std::size_t n_sampled = 0;
-  for (auto const& input : inputs) {
-    n_sampled += input.feature_set.size();
-  }
-  // Size the buffer before taking slices so each child's filtered list stays valid.
-  auto remaining = constraints->PrepareBatch(n_sampled);
-  bst_feature_t max_active_features = 0;
-  for (auto& input : inputs) {
-    auto sampled = input.feature_set;
-    if (!remaining.empty()) {
-      input.feature_set =
-          constraints->Query(ctx, sampled, input.nidx, remaining.first(sampled.size()));
-      remaining = remaining.subspan(sampled.size());
-    }
-    max_active_features =
-        std::max(max_active_features, static_cast<bst_feature_t>(input.feature_set.size()));
-  }
-  return max_active_features;
-}
-
 /**
  * @brief Implementation for vector leaf.
  */
@@ -606,11 +582,8 @@ class MultiTargetHistMaker {
 
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
-    auto max_active_feature = FilterInteractionFeatures(ctx_, interaction_constraints_.get(),
-                                                        common::Span{h_node_inputs});
-    dh::safe_cuda(cudaMemcpyAsync(inputs.data(), h_node_inputs.data(),
-                                  common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
-                                  cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
+    auto max_active_feature =
+        interaction_constraints_->Query(ctx_, common::Span{h_node_inputs}, dh::ToSpan(inputs));
 
     // An all-empty batch still needs one invalid candidate per node to finalize its leaf weight.
     auto shared_inputs = MakeSharedInputs(std::max<bst_feature_t>(1, max_active_feature));

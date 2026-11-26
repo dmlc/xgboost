@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
+#include <thrust/sequence.h>
 
 #include <cstdint>
 #include <set>
@@ -19,13 +20,12 @@ namespace xgboost {
 namespace {
 
 struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
-  common::Span<LBitField64> GetNodeConstraints() {
-    return FeatureInteractionConstraintDevice::s_node_constraints_;
-  }
+  using FeatureInteractionConstraintDevice::FeatureMasks;
   FConstraintWrapper(tree::TrainParam param, bst_feature_t n_features)
       : FeatureInteractionConstraintDevice(param, n_features) {}
 
   dh::device_vector<GroupId> const& GetDSets() const { return d_sets_; }
+  std::size_t ResultCapacity() const { return result_buffer_.Capacity(); }
   std::vector<size_t> const& GetSetsPtr() const { return h_sets_ptr_; }
 };
 
@@ -62,22 +62,13 @@ void CompareBitField(LBitField64 d_field, std::set<uint32_t> positions) {
 
 TEST(GPUFeatureInteractionConstraint, Init) {
   {
-    int32_t constexpr kFeatures = 6;
+    bst_feature_t constexpr kFeatures = 6;
     tree::TrainParam param = GetParameter();
     FConstraintWrapper constraints(param, kFeatures);
     ASSERT_EQ(constraints.Features(), kFeatures);
-    common::Span<LBitField64> s_nodes_constraints = constraints.GetNodeConstraints();
-    for (LBitField64 const& d_node : s_nodes_constraints) {
-      std::vector<LBitField64::value_type> h_node_storage(d_node.Bits().size());
-      thrust::copy(thrust::device_ptr<LBitField64::value_type const>(d_node.Bits().data()),
-                   thrust::device_ptr<LBitField64::value_type const>(d_node.Bits().data() +
-                                                                     d_node.Bits().size()),
-                   h_node_storage.data());
-      LBitField64 h_node{{h_node_storage.data(), h_node_storage.data() + h_node_storage.size()}};
-      // no feature is attached to node.
-      for (size_t i = 0; i < h_node.Capacity(); ++i) {
-        ASSERT_FALSE(h_node.Check(i));
-      }
+    auto masks = constraints.FeatureMasks();
+    for (bst_node_t nidx = 0; nidx < param.MaxNodes(); ++nidx) {
+      CompareBitField(masks[nidx], {});
     }
   }
 
@@ -114,6 +105,11 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     ASSERT_EQ(_128_end - _128_beg, 2);
     ASSERT_EQ(d_sets[_128_beg], 1);
     ASSERT_EQ(d_sets[_128_end - 1], 2);
+    auto ctx = MakeCUDACtx(0);
+    constraints.Split(&ctx, 0, 128, 1, 2);
+    CompareBitField(constraints.FeatureMasks()[1], {3, 5, 127, 128});
+    constraints.Reset(&ctx);
+    CompareBitField(constraints.FeatureMasks()[1], {});
   }
 }
 
@@ -125,15 +121,42 @@ TEST(GPUFeatureInteractionConstraint, Split) {
 
   constraints.Split(&ctx, 0, /*feature_id=*/1, 1, 2);
   for (auto nid : {1, 2}) {
-    CompareBitField(constraints.GetNodeConstraints()[nid], {1, 2});
+    CompareBitField(constraints.FeatureMasks()[nid], {1, 2});
   }
   constraints.Split(&ctx, 1, /*feature_id=*/2, 3, 4);
   for (auto nid : {2, 3, 4}) {
-    CompareBitField(constraints.GetNodeConstraints()[nid], {1, 2});
+    CompareBitField(constraints.FeatureMasks()[nid], {1, 2});
   }
 }
 
 namespace {
+struct NodeFeatures {
+  bst_node_t nidx;
+  common::Span<bst_feature_t const> feature_set;
+};
+
+bst_feature_t QueryBatch(Context const* ctx, FeatureInteractionConstraintDevice* constraints,
+                         common::Span<NodeFeatures> inputs) {
+  dh::DeviceUVector<NodeFeatures> d_inputs(inputs.size());
+  auto max_active = constraints->Query(ctx, inputs, dh::ToSpan(d_inputs));
+  std::vector<NodeFeatures> evaluated;
+  dh::CopyTo(d_inputs, &evaluated, ctx->CUDACtx()->Stream());
+  ctx->CUDACtx()->Stream().Sync();
+  for (std::size_t i = 0; i < inputs.size(); ++i) {
+    EXPECT_EQ(evaluated[i].nidx, inputs[i].nidx);
+    EXPECT_EQ(evaluated[i].feature_set.data(), inputs[i].feature_set.data());
+    EXPECT_EQ(evaluated[i].feature_set.size(), inputs[i].feature_set.size());
+  }
+  return max_active;
+}
+
+auto QueryNodeFeatures(Context const* ctx, FeatureInteractionConstraintDevice* constraints,
+                       common::Span<bst_feature_t const> sampled, bst_node_t nidx) {
+  NodeFeatures input{nidx, sampled};
+  QueryBatch(ctx, constraints, common::Span{&input, 1});
+  return input.feature_set;
+}
+
 void CompareFeatureList(common::Span<bst_feature_t const> s_output,
                         std::vector<bst_feature_t> solution) {
   std::vector<bst_feature_t> h_output(s_output.size());
@@ -155,7 +178,7 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(&ctx, s_input_feature_list, 0, {});
+    auto s_output = QueryNodeFeatures(&ctx, &constraints, s_input_feature_list, 0);
     CompareFeatureList(s_output, h_input_feature_list);
   }
   {
@@ -165,30 +188,35 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/1, /*left_id=*/1, /*right_id=*/2);
     dh::device_vector<bst_feature_t> sampled{0, 1, 2, 3};
     auto features = dh::ToSpan(sampled);
-    auto batch = constraints.PrepareBatch(4);
-    auto left = constraints.Query(&ctx, features.first(2), 1, batch.first(2));
-    auto right = constraints.Query(&ctx, features.subspan(2), 2, batch.subspan(2));
-    CompareFeatureList(left, {1});
-    CompareFeatureList(right, {2});
+    NodeFeatures empty[]{{1, features.first(1)}, {2, features.first(1)}};
+    ASSERT_EQ(QueryBatch(&ctx, &constraints, common::Span<NodeFeatures>{empty}), 0);
+    ASSERT_TRUE(empty[0].feature_set.empty());
+    ASSERT_TRUE(empty[1].feature_set.empty());
+    ASSERT_EQ(constraints.ResultCapacity(), 0);
+
+    NodeFeatures batch[]{{1, features.first(2)},
+                         {2, features.subspan(2)},
+                         {1, features.subspan(1, 2)},
+                         {2, features.first(1)}};
+    ASSERT_EQ(QueryBatch(&ctx, &constraints, common::Span<NodeFeatures>{batch}), 2);
+    CompareFeatureList(batch[0].feature_set, {1});
+    CompareFeatureList(batch[1].feature_set, {2});
+    ASSERT_EQ(batch[2].feature_set.data(), features.data() + 1);
+    ASSERT_TRUE(batch[3].feature_set.empty());
+    ASSERT_EQ(constraints.ResultCapacity(), 2);
   }
 
-  // Test shared feature
+  // An overlapping group and a sampled list spanning multiple compaction tiles.
   {
-    tree::TrainParam param = GetParameter();
-    bst_feature_t constexpr kFeatures = 6;
-    std::string const constraints_str = R"constraint([[1, 2], [2, 3, 4]])constraint";
-    param.interaction_constraints = constraints_str;
+    auto param = GetParameter();
+    param.interaction_constraints = R"([[1, 2, 510], [2, 4, 512, 1026]])";
+    FConstraintWrapper constraints(param, 1027);
+    constraints.Split(&ctx, 0, 2, 1, 2);
 
-    FConstraintWrapper constraints(param, kFeatures);
-    constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/2, /*left_id=*/1, /*right_id=*/2);
-
-    std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4, 5};
-    dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
-    common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
-
-    auto out = constraints.PrepareBatch(kFeatures);
-    auto s_output = constraints.Query(&ctx, s_input_feature_list, 1, out);
-    CompareFeatureList(s_output, {1, 2, 3, 4});
+    dh::device_vector<bst_feature_t> sampled(514);
+    thrust::sequence(sampled.begin(), sampled.end(), 0, 2);
+    auto output = QueryNodeFeatures(&ctx, &constraints, dh::ToSpan(sampled), 1);
+    CompareFeatureList(output, {2, 4, 510, 512, 1026});
   }
 
   // Test choosing free feature in root
@@ -202,12 +230,38 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/2, /*left_id=*/1, /*right_id=*/2);
-    auto out = constraints.PrepareBatch(kFeatures);
-    auto s_output = constraints.Query(&ctx, s_input_feature_list, 1, out);
+    auto s_output = QueryNodeFeatures(&ctx, &constraints, s_input_feature_list, 1);
     CompareFeatureList(s_output, {2});
-    s_output = constraints.Query(&ctx, s_input_feature_list, 2, out);
+    s_output = QueryNodeFeatures(&ctx, &constraints, s_input_feature_list, 2);
     CompareFeatureList(s_output, {2});
   }
+}
+
+TEST(GPUFeatureInteractionConstraint, WideBatch) {
+  auto ctx = MakeCUDACtx(0);
+  auto param = GetParameter();
+  param.max_depth = 10;
+  bst_node_t constexpr kChildren = 1 << 10;
+  bst_feature_t constexpr kFeatures = 100000;
+  FConstraintWrapper constraints{param, kFeatures};
+  // Feature 0 belongs to no group, so every descendant can only split on 0.
+  for (bst_node_t nidx = 0; nidx < kChildren - 1; ++nidx) {
+    constraints.Split(&ctx, nidx, 0, 2 * nidx + 1, 2 * nidx + 2);
+  }
+  dh::device_vector<bst_feature_t> features(kFeatures);
+  thrust::sequence(features.begin(), features.end());
+  std::vector<NodeFeatures> inputs;
+  for (bst_node_t i = 0; i < kChildren; ++i) {
+    inputs.push_back({kChildren - 1 + i, dh::ToSpan(features)});
+  }
+  ASSERT_EQ(QueryBatch(&ctx, &constraints, common::Span{inputs}), 1);
+  ASSERT_EQ(constraints.ResultCapacity(), kChildren);
+  for (std::size_t i = 0; i < inputs.size(); ++i) {
+    ASSERT_EQ(inputs[i].feature_set.size(), 1);
+    ASSERT_EQ(inputs[i].feature_set.data(), inputs.front().feature_set.data() + i);
+  }
+  CompareFeatureList({inputs.front().feature_set.data(), inputs.size()},
+                     std::vector<bst_feature_t>(kChildren, 0));
 }
 
 // Compare eligible features after each prescribed split. The sibling is queried again
@@ -223,7 +277,6 @@ TEST(GPUFeatureInteractionConstraint, PathMatchesCPU) {
     FeatureInteractionConstraintHost cpu;
     cpu.Configure(param, kFeatures);
     FeatureInteractionConstraintDevice gpu{param, kFeatures};
-    auto out = gpu.PrepareBatch(kFeatures);
     auto check = [&](bst_node_t nid) {
       std::vector<bst_feature_t> expected;
       for (bst_feature_t f = 0; f < kFeatures; ++f) {
@@ -231,7 +284,7 @@ TEST(GPUFeatureInteractionConstraint, PathMatchesCPU) {
           expected.push_back(f);
         }
       }
-      CompareFeatureList(gpu.Query(&ctx, dh::ToSpan(sampled), nid, out), expected);
+      CompareFeatureList(QueryNodeFeatures(&ctx, &gpu, dh::ToSpan(sampled), nid), expected);
     };
     auto split = [&](bst_node_t nid, bst_feature_t f, bst_node_t left, bst_node_t right) {
       ASSERT_TRUE(cpu.Query(nid, f));

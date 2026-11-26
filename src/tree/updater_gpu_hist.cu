@@ -265,10 +265,7 @@ struct GPUHistMakerDevice {
                                   right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
     }
     auto max_active_features =
-        cuda_impl::FilterInteractionFeatures(ctx_, &interaction_constraints, h_node_inputs);
-    dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
-                                  h_node_inputs.size() * sizeof(EvaluateSplitInputs),
-                                  cudaMemcpyDefault));
+        interaction_constraints.Query(ctx_, h_node_inputs, dh::ToSpan(d_node_inputs));
 
     this->evaluator_.EvaluateSplits(ctx_, nidx, max_active_features, dh::ToSpan(d_node_inputs),
                                     shared_inputs, dh::ToSpan(entries));
