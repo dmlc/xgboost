@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_CONSTRAINTS_H_
 #define XGBOOST_TREE_CONSTRAINTS_H_
@@ -12,6 +12,9 @@
 #include "xgboost/base.h"
 
 namespace xgboost {
+namespace detail {
+void CheckFeatureInteractionSplit(bst_node_t nidx, bst_node_t left_idx, bst_node_t right_idx);
+}  // namespace detail
 /*!
  * \brief Feature interaction constraint implementation for CPU tree updaters.
  *
@@ -22,13 +25,13 @@ class FeatureInteractionConstraintHost {
   // interaction_constraints_[constraint_id] contains a single interaction
   //   constraint, which specifies a group of feature IDs that can interact
   //   with each other
-  std::vector< std::unordered_set<bst_feature_t> > interaction_constraints_;
-  // int_cont_[nid] contains the set of all feature IDs that are allowed to
+  std::vector<std::unordered_set<bst_feature_t> > interaction_constraints_;
+  // node_constraints_[nid] contains the set of all feature IDs that are allowed to
   //   be used for a split at node nid
-  std::vector< std::unordered_set<bst_feature_t> > node_constraints_;
+  std::vector<std::unordered_set<bst_feature_t> > node_constraints_;
   // splits_[nid] contains the set of all feature IDs that have been used for
   //   splits in node nid and its parents
-  std::vector< std::unordered_set<bst_feature_t> > splits_;
+  std::vector<std::unordered_set<bst_feature_t> > splits_;
   // string passed by user.
   std::string interaction_constraint_str_;
   // number of features in DMatrix/Booster
@@ -50,7 +53,9 @@ class FeatureInteractionConstraintHost {
   }
 
   bool Query(bst_node_t nid, bst_feature_t fid) const {
-    if (!enabled_) { return true; }
+    if (!enabled_) {
+      return true;
+    }
     return node_constraints_.at(nid).find(fid) != node_constraints_.at(nid).cend();
   }
 

@@ -13,6 +13,7 @@
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
 #include "constraints.cuh"
+#include "constraints.h"
 #include "param.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
@@ -199,10 +200,7 @@ void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t no
   if (!has_constraint_) {
     return;
   }
-  CHECK_NE(node_id, left_id) << " Split node: " << node_id << " and its left child: " << left_id
-                             << " cannot be the same.";
-  CHECK_NE(node_id, right_id) << " Split node: " << node_id << " and its right child: " << right_id
-                              << " cannot be the same.";
+  detail::CheckFeatureInteractionSplit(node_id, left_id, right_id);
   CHECK_LT(right_id, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
 
