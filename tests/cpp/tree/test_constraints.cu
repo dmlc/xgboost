@@ -25,7 +25,7 @@ struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
   FConstraintWrapper(tree::TrainParam param, bst_feature_t n_features)
       : FeatureInteractionConstraintDevice(param, n_features) {}
 
-  dh::device_vector<bst_feature_t> const& GetDSets() const { return d_sets_; }
+  dh::device_vector<GroupId> const& GetDSets() const { return d_sets_; }
   std::vector<size_t> const& GetSetsPtr() const { return h_sets_ptr_; }
 };
 
@@ -87,7 +87,7 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     tree::TrainParam param = GetParameter();
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 6]])";
     FConstraintWrapper constraints(param, kFeatures);
-    std::vector<bst_feature_t> h_sets{0, 0, 0, 1, 1, 1};
+    std::vector<FConstraintWrapper::GroupId> h_sets{0, 0, 0, 1, 1, 1};
     std::vector<size_t> h_sets_ptr{0, 1, 2, 2, 4, 4, 5, 6};
     auto d_sets = constraints.GetDSets();
     ASSERT_EQ(h_sets.size(), d_sets.size());

@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 
 #include <algorithm>  // for max
+#include <limits>     // for numeric_limits
 #include <set>
 #include <string>
 
@@ -89,8 +90,9 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
 
   // --- Compute interaction sets attached to each feature.
   // Use a set to eliminate duplicated entries.
-  std::vector<std::set<int32_t>> h_features_set(n_features);
-  int32_t cid = 0;
+  CHECK_LE(n_sets_, std::numeric_limits<GroupId>::max());
+  std::vector<std::set<GroupId>> h_features_set(n_features);
+  GroupId cid = 0;
   for (auto const& constraints : h_feature_constraints) {
     for (auto const& feat : constraints) {
       h_features_set.at(feat).insert(cid);
@@ -98,7 +100,7 @@ void FeatureInteractionConstraintDevice::Configure(tree::TrainParam const& param
     cid++;
   }
   // Compute device sets.
-  std::vector<int32_t> h_sets;
+  std::vector<GroupId> h_sets;
   h_sets_ptr_.assign(1, 0);
   for (auto const& feature : h_features_set) {
     for (auto constraint_id : feature) {
@@ -151,28 +153,30 @@ common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
 // One block per group containing the split feature. Children inherit only groups that
 // also contained every earlier split feature on this path.
 __global__ void InteractionConstraintSplitKernel(
-    bst_feature_t split_feature, bool is_root, common::Span<bst_feature_t const> groups,
+    bst_feature_t split_feature, bool is_root,
+    common::Span<FeatureInteractionConstraintDevice::GroupId const> groups,
     common::Span<bst_feature_t const> members, common::Span<std::size_t const> group_ptr,
     LBitField64 parent_groups, LBitField64 left_groups, LBitField64 right_groups,
     LBitField64 left_features, LBitField64 right_features) {
-  if (blockIdx.x == 0 && threadIdx.x == 0) {
+  auto group_idx_in_set = blockIdx.x;  // ID for IC groups that a feature belongs to
+  if (group_idx_in_set == 0 && threadIdx.x == 0) {
     // A feature outside all groups can still be used repeatedly.
     left_features.Set(split_feature);
     right_features.Set(split_feature);
   }
-  if (blockIdx.x >= groups.size()) {
+  if (group_idx_in_set >= groups.size()) {
     return;
   }
-  auto group = groups[blockIdx.x];
-  if (!is_root && !parent_groups.Check(group)) {
+  auto ic_group_idx = groups[group_idx_in_set];  // The actual IC group ID.
+  if (!is_root && !parent_groups.Check(ic_group_idx)) {
     return;
   }
   if (threadIdx.x == 0) {
-    left_groups.Set(group);
-    right_groups.Set(group);
+    left_groups.Set(ic_group_idx);
+    right_groups.Set(ic_group_idx);
   }
-  auto end = group_ptr[group + 1];
-  for (auto i = group_ptr[group] + threadIdx.x; i < end; i += blockDim.x) {
+  auto end = group_ptr[ic_group_idx + 1];
+  for (auto i = group_ptr[ic_group_idx] + threadIdx.x; i < end; i += blockDim.x) {
     left_features.Set(members[i]);
     right_features.Set(members[i]);
   }
@@ -200,7 +204,7 @@ void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t ni
   auto s_sets = dh::ToSpan(this->d_sets_);
   auto groups = s_sets.subspan(begin, h_sets_ptr_.at(feature_id + 1) - begin);
   // A single block handles the split feature itself when it belongs to no group.
-  CHECK_LE(groups.size(), std::numeric_limits<std::uint32_t>::max());
+  CHECK_LE(groups.size(), std::numeric_limits<GroupId>::max());
   auto n_blocks = static_cast<std::uint32_t>(std::max<std::size_t>(1, groups.size()));
   dh::LaunchKernel{n_blocks, 256u, 0, ctx->CUDACtx()->Stream()}(
       InteractionConstraintSplitKernel, feature_id, nidx == RegTree::kRoot, groups, s_fconstraints_,

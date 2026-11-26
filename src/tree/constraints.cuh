@@ -7,6 +7,7 @@
 #define XGBOOST_TREE_CONSTRAINTS_CUH_
 
 #include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
 #include <vector>   // for vector
 
 #include "../common/bitfield.h"         // for LBitField64
@@ -17,6 +18,8 @@
 namespace xgboost {
 // Feature interaction constraints built for GPU Hist updater.
 struct FeatureInteractionConstraintDevice {
+  using GroupId = std::uint32_t;
+
  protected:
   // Whether interaction constraint is used.
   bool has_constraint_;
@@ -36,7 +39,7 @@ struct FeatureInteractionConstraintDevice {
    *
    * h_sets_ptr_:                        |0, 1, 3, 4|
    */
-  dh::device_vector<bst_feature_t> d_sets_;
+  dh::device_vector<GroupId> d_sets_;
   // Host offsets into d_sets_ for looking up the groups containing a split feature.
   std::vector<std::size_t> h_sets_ptr_;
 
