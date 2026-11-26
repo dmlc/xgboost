@@ -1207,7 +1207,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             )
 
         return Categories(
-            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))),
+            arrow_arrays,
+            self.feature_types,
         )
 
     def num_row(self) -> int:
@@ -2237,7 +2239,9 @@ class Booster:
             )
 
         return Categories(
-            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))),
+            arrow_arrays,
+            self.feature_types,
         )
 
     def set_param(

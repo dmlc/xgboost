@@ -35,6 +35,23 @@ TEST(CatContainer, Mixed) {
   TestCatContainerMixed<DfTest>(&ctx, eq_check);
 }
 
+TEST(CatContainer, Empty) {
+  auto df = DfTest::Make(DfTest::MakeInts(), DfTest::MakeInts());
+  CatContainer cats{df.View(), false};
+  ASSERT_TRUE(cats.Empty());
+  ASSERT_FALSE(cats.HasCategorical());
+  ASSERT_EQ(cats.NumFeatures(), 0);
+
+  auto legacy = Json::Load(R"({"enc":[{"offsets":[],"values":[]},{"offsets":[],"values":[]}],)"
+                           R"("feature_segments":[0,0,0],"sorted_idx":[]})");
+  cats.Load(legacy);
+  ASSERT_TRUE(cats.Empty());
+  ASSERT_FALSE(cats.HasCategorical());
+  ASSERT_EQ(cats.NumFeatures(), 0);
+  ASSERT_TRUE(cats.HostView().Empty());
+  ASSERT_TRUE(cats.HostView().feature_segments.empty());
+}
+
 template <typename T, typename JsonArray>
 void TestUnsignedSerialization(std::vector<T> const& values, std::int64_t type) {
   std::vector<enc::HostCatIndexView> columns{common::Span<T const>{values.data(), values.size()}};
