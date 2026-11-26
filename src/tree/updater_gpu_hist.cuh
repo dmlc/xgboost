@@ -110,81 +110,73 @@ inline void InitRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64
   collective::SafeColl(rc);
 }
 
-/** @brief Split evaluation shared by the scalar and the vector leaf implementations. */
-struct SplitEvaluation {
-  Context const* ctx;
-  common::HistogramCuts const& cuts;
-  common::Span<FeatureType const> feature_types;
-  GradientQuantiserGroup const& quantiser;
-  TrainParam const& param;
-  common::ColumnSampler* column_sampler;
-  FeatureInteractionConstraintDevice* interaction_constraints;
-  DeviceHistogramBuilder* histogram;
-  GPUHistEvaluator* evaluator;
-
-  /**
-   * @brief Evaluate the root, or the children of the candidates. The results are copied
-   *        to the host, and the stream is synchronized before returning.
-   */
-  void operator()(RegTree const& tree, std::vector<GPUExpandEntry> const& candidates,
-                  common::Span<GPUExpandEntry> h_out) const {
-    std::vector<EvaluateSplitInputs> h_inputs;
-    // Keep the feature sets alive until the kernel is finished.
-    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
-    bst_feature_t max_active_feature = 0;
-    bst_node_t min_nidx = std::numeric_limits<bst_node_t>::max(), max_nidx = 0;
-    auto push = [&](bst_node_t nidx, bst_node_t depth) {
-      feature_sets.emplace_back(column_sampler->GetFeatureSet(ctx, depth));
-      feature_sets.back()->SetDevice(ctx->Device());
-      auto feature_set =
-          interaction_constraints->Query(feature_sets.back()->ConstDeviceSpan(), nidx);
-      // The node sum is calculated in the last apply tree split.
-      h_inputs.push_back({nidx, depth, evaluator->GetNodeSum(nidx), feature_set,
-                          histogram->GetNodeHistogram(nidx)});
-      max_active_feature =
-          std::max(max_active_feature, static_cast<bst_feature_t>(feature_set.size()));
-      min_nidx = std::min(min_nidx, nidx);
-      max_nidx = std::max(max_nidx, nidx);
-    };
-    if (candidates.empty()) {
-      push(RegTree::kRoot, 0);
-    }
-    for (auto const& c : candidates) {
-      push(tree.LeftChild(c.nidx), c.depth + 1);
-      push(tree.RightChild(c.nidx), c.depth + 1);
-    }
-    CHECK_EQ(h_inputs.size(), h_out.size());
-
-    dh::CachingDeviceUVector<EvaluateSplitInputs> d_inputs(h_inputs.size());
-    dh::CachingDeviceUVector<GPUExpandEntry> d_out(h_inputs.size());
-    auto stream = ctx->CUDACtx()->Stream();
-    dh::safe_cuda(cudaMemcpyAsync(d_inputs.data(), h_inputs.data(),
-                                  common::SizeBytes<EvaluateSplitInputs>(h_inputs.size()),
-                                  cudaMemcpyDefault, stream));
-    std::size_t cat_storage_size = 0;
-    if (cuts.HasCategorical()) {
-      cat_storage_size =
-          common::CatBitField::ComputeStorageSize(common::AsCat(cuts.MaxCategory()) + 1);
-    }
-    EvaluateSplitSharedInputs shared{quantiser.DeviceSpan(),
-                                     cuts.cut_ptrs_.ConstDeviceSpan(),
-                                     cuts.cut_values_.ConstDevicePointer(),
-                                     feature_types,
-                                     cat_storage_size,
-                                     static_cast<bst_bin_t>(cuts.TotalBins()),
-                                     max_active_feature,
-                                     EvalParam{param}};
-    evaluator->EvaluateSplits(ctx, dh::ToSpan(d_inputs), shared, max_nidx, dh::ToSpan(d_out));
-    dh::safe_cuda(cudaMemcpyAsync(h_out.data(), d_out.data(), h_out.size_bytes(),
-                                  cudaMemcpyDefault, stream));
-    if (!tree.IsMultiTarget()) {
-      // The scalar tree is expanded on the host.
-      evaluator->CopyToHost(ctx, min_nidx, max_nidx);
-    }
-    // Synchronize before the input buffer goes out of scope.
-    stream.Sync();
+/**
+ * @brief Evaluate the root or the children of the candidates. Copy the results to the host
+ *        and synchronize the stream before returning.
+ */
+inline void EvaluateSplits(Context const* ctx, common::HistogramCuts const& cuts,
+                           common::Span<FeatureType const> feature_types,
+                           GradientQuantiserGroup const& quantiser, TrainParam const& param,
+                           common::ColumnSampler* column_sampler,
+                           FeatureInteractionConstraintDevice* interaction_constraints,
+                           DeviceHistogramBuilder* histogram, GPUHistEvaluator* evaluator,
+                           RegTree const& tree, std::vector<GPUExpandEntry> const& candidates,
+                           common::Span<GPUExpandEntry> h_out) {
+  std::vector<EvaluateSplitInputs> h_inputs;
+  // Keep the feature sets alive until the kernel is finished.
+  std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+  bst_feature_t max_active_feature = 0;
+  bst_node_t min_nidx = std::numeric_limits<bst_node_t>::max(), max_nidx = 0;
+  auto push = [&](bst_node_t nidx, bst_node_t depth) {
+    feature_sets.emplace_back(column_sampler->GetFeatureSet(ctx, depth));
+    feature_sets.back()->SetDevice(ctx->Device());
+    auto feature_set = interaction_constraints->Query(feature_sets.back()->ConstDeviceSpan(), nidx);
+    // The node sum is calculated in the last apply tree split.
+    h_inputs.push_back(
+        {nidx, depth, evaluator->GetNodeSum(nidx), feature_set, histogram->GetNodeHistogram(nidx)});
+    max_active_feature =
+        std::max(max_active_feature, static_cast<bst_feature_t>(feature_set.size()));
+    min_nidx = std::min(min_nidx, nidx);
+    max_nidx = std::max(max_nidx, nidx);
+  };
+  if (candidates.empty()) {
+    push(RegTree::kRoot, 0);
   }
-};
+  for (auto const& c : candidates) {
+    push(tree.LeftChild(c.nidx), c.depth + 1);
+    push(tree.RightChild(c.nidx), c.depth + 1);
+  }
+  CHECK_EQ(h_inputs.size(), h_out.size());
+
+  dh::CachingDeviceUVector<EvaluateSplitInputs> d_inputs(h_inputs.size());
+  dh::CachingDeviceUVector<GPUExpandEntry> d_out(h_inputs.size());
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::safe_cuda(cudaMemcpyAsync(d_inputs.data(), h_inputs.data(),
+                                common::SizeBytes<EvaluateSplitInputs>(h_inputs.size()),
+                                cudaMemcpyDefault, stream));
+  std::size_t cat_storage_size = 0;
+  if (cuts.HasCategorical()) {
+    cat_storage_size =
+        common::CatBitField::ComputeStorageSize(common::AsCat(cuts.MaxCategory()) + 1);
+  }
+  EvaluateSplitSharedInputs shared{quantiser.DeviceSpan(),
+                                   cuts.cut_ptrs_.ConstDeviceSpan(),
+                                   cuts.cut_values_.ConstDevicePointer(),
+                                   feature_types,
+                                   cat_storage_size,
+                                   static_cast<bst_bin_t>(cuts.TotalBins()),
+                                   max_active_feature,
+                                   EvalParam{param}};
+  evaluator->EvaluateSplits(ctx, dh::ToSpan(d_inputs), shared, max_nidx, dh::ToSpan(d_out));
+  dh::safe_cuda(
+      cudaMemcpyAsync(h_out.data(), d_out.data(), h_out.size_bytes(), cudaMemcpyDefault, stream));
+  if (!tree.IsMultiTarget()) {
+    // The scalar tree is expanded on the host.
+    evaluator->CopyToHost(ctx, min_nidx, max_nidx);
+  }
+  // Synchronize before the input buffer goes out of scope.
+  stream.Sync();
+}
 
 /**
  * @brief Implementation for vector leaf.
@@ -251,16 +243,12 @@ class MultiTargetHistMaker {
                                     h_hists);
   }
 
-  [[nodiscard]] SplitEvaluation Evaluation() {
-    return {this->ctx_,
-            *this->cuts_,
-            this->feature_types_,
-            *this->split_quantizer_,
-            this->param_,
-            this->column_sampler_.get(),
-            this->interaction_constraints_.get(),
-            &this->histogram_,
-            &this->evaluator_};
+  void EvaluateSplits(RegTree const& tree, std::vector<GPUExpandEntry> const& candidates,
+                      common::Span<GPUExpandEntry> h_out) {
+    cuda_impl::EvaluateSplits(this->ctx_, *this->cuts_, this->feature_types_,
+                              *this->split_quantizer_, this->param_, this->column_sampler_.get(),
+                              this->interaction_constraints_.get(), &this->histogram_,
+                              &this->evaluator_, tree, candidates, h_out);
   }
 
  public:
@@ -332,7 +320,7 @@ class MultiTargetHistMaker {
     this->histogram_.AllReduceHist(ctx_, RegTree::kRoot, 1);
 
     auto entry = this->pinned_.GetSpan<GPUExpandEntry>(1);
-    this->Evaluation()(*p_tree, {}, entry);
+    this->EvaluateSplits(*p_tree, {}, entry);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry[0].left_hess + entry[0].right_hess);
     auto base_weight = this->evaluator_.GetNodeWeights().Base(RegTree::kRoot);
@@ -653,7 +641,7 @@ class MultiTargetHistMaker {
 
       if (!valid_candidates.empty()) {
         // The evaluation synchronizes the stream.
-        this->Evaluation()(*p_tree, valid_candidates, new_candidates);
+        this->EvaluateSplits(*p_tree, valid_candidates, new_candidates);
       } else {
         this->ctx_->CUDACtx()->Stream().Sync();
       }

@@ -198,16 +198,13 @@ struct GPUHistMakerDevice {
     return p_fmat;
   }
 
-  [[nodiscard]] cuda_impl::SplitEvaluation Evaluation(DMatrix const* p_fmat) {
-    return {this->ctx_,
-            *this->cuts_,
-            p_fmat->Info().feature_types.ConstDeviceSpan(),
-            *this->quantiser,
-            this->param,
-            this->column_sampler_.get(),
-            &this->interaction_constraints,
-            &this->histogram_,
-            &this->evaluator_};
+  void EvaluateSplits(DMatrix const* p_fmat, RegTree const& tree,
+                      std::vector<GPUExpandEntry> const& candidates,
+                      common::Span<GPUExpandEntry> h_out) {
+    cuda_impl::EvaluateSplits(
+        this->ctx_, *this->cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(), *this->quantiser,
+        this->param, this->column_sampler_.get(), &this->interaction_constraints, &this->histogram_,
+        &this->evaluator_, tree, candidates, h_out);
   }
 
   // Build histograms for all the nodes in one kernel launch.
@@ -486,7 +483,7 @@ struct GPUHistMakerDevice {
 
     // Generate first split
     auto entry = this->pinned.GetSpan<GPUExpandEntry>(1);
-    this->Evaluation(p_fmat)(*p_tree, {}, entry);
+    this->EvaluateSplits(p_fmat, *p_tree, {}, entry);
     auto weight = this->evaluator_.GetHostNodeWeights().Base(kRootNIdx)[0];
     p_tree->SetRoot(weight, static_cast<float>(entry[0].left_hess + entry[0].right_hess));
 
@@ -519,7 +516,7 @@ struct GPUHistMakerDevice {
 
       if (!valid_candidates.empty()) {
         // The evaluation synchronizes the stream.
-        this->Evaluation(p_fmat)(*p_tree, valid_candidates, new_candidates);
+        this->EvaluateSplits(p_fmat, *p_tree, valid_candidates, new_candidates);
       } else {
         this->ctx_->CUDACtx()->Stream().Sync();
       }
