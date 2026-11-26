@@ -128,11 +128,9 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
   Source(source, format='svg').render('../_static/feature_interaction_illustration3', view=False)
 
 .. |fig1| image:: ../_static/feature_interaction_illustration2.svg
-   :scale: 7%
    :align: middle
 
 .. |fig2| image:: ../_static/feature_interaction_illustration3.svg
-   :scale: 7%
    :align: middle
 
 +-----------+---------+

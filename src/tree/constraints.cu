@@ -136,17 +136,17 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::PrepareBatch(
 }
 
 common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(
-    Context const* ctx, bst_node_t node_id, common::Span<bst_feature_t> out) const {
+    Context const* ctx, bst_node_t nidx, common::Span<bst_feature_t> out) const {
   if (!has_constraint_) {
     return {};
   }
-  CHECK_LT(node_id, s_node_constraints_.size());
+  CHECK_LT(nidx, s_node_constraints_.size());
   CHECK_GE(out.size(), this->Features());
-  auto allowed = s_node_constraints_[node_id];
+  auto allowed = s_node_constraints_[nidx];
   auto begin = dh::make_counting_iterator(bst_feature_t{0});
   auto end = thrust::copy_if(
       ctx->CUDACtx()->CTP(), begin, begin + this->Features(), dh::tbegin(out),
-      [=] __device__(bst_feature_t fidx) { return node_id == 0 || allowed.Check(fidx); });
+      [=] __device__(bst_feature_t fidx) { return nidx == 0 || allowed.Check(fidx); });
   return out.first(end - dh::tbegin(out));
 }
 
