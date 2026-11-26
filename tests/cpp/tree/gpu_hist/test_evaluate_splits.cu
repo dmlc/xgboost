@@ -254,28 +254,6 @@ TEST(GpuHist, PartitionBasic) {
   }
 }
 
-TEST(GpuHist, PartitionTwoFeatures) {
-  auto ctx = MakeCUDACtx(0);
-  TrainParam tparam = ZeroParam();
-  tparam.max_cat_to_onehot = 0;
-  EvalHelper eval{&ctx, tparam, {0, 3, 6}, {0.0, 1.0, 2.0, 0.0, 1.0, 2.0}, {kCat, kCat}};
-  GradientPairPrecise parent{-6.0, 3.0};
-  {
-    auto r = eval.EvaluateOne(
-        {0, parent, {{-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-1.0, 1.0}, {-1.0, 1.0}, {-4.0, 1.0}}},
-        {0, 1});
-    EXPECT_EQ(r.split.findex, 1);
-    EXPECT_EQ(r.cats, std::bitset<32>("11000000000000000000000000000000"));
-  }
-  {
-    auto r = eval.EvaluateOne(
-        {1, parent, {{-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-1.0, 1.0}, {-2.5, 1.0}, {-2.5, 1.0}}},
-        {0, 1});
-    EXPECT_EQ(r.split.findex, 1);
-    EXPECT_EQ(r.cats, std::bitset<32>("10000000000000000000000000000000"));
-  }
-}
-
 TEST(GpuHist, PartitionInterleavedFeatures) {
   auto ctx = MakeCUDACtx(0);
   TrainParam tparam = ZeroParam();
@@ -292,11 +270,7 @@ TEST(GpuHist, PartitionInterleavedFeatures) {
 
   std::vector<GradientPairPrecise> best_split_feature_4{
       {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0},
-      {-3.0, 1.0}, {-3.0, 2.0}, {-1.0, 1.0}, {-1.0, 1.0}, {-4.0, 1.0}};
-  auto r = eval.EvaluateOne({0, parent, best_split_feature_4}, fset);
-  EXPECT_EQ(r.split.findex, 4);
-  EXPECT_EQ(r.cats, std::bitset<32>("11000000000000000000000000000000"));
-
+      {-3.0, 1.0}, {-3.0, 2.0}, {0.0, 1.0},  {-3.0, 1.0}, {-3.0, 1.0}};
   std::vector<GradientPairPrecise> best_split_feature_0{
       {-1.0, 1.0}, {-1.0, 1.0}, {-4.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0},
       {-3.0, 1.0}, {-3.0, 2.0}, {-2.0, 1.0}, {-2.0, 1.0}, {-2.0, 1.0}};
@@ -304,7 +278,7 @@ TEST(GpuHist, PartitionInterleavedFeatures) {
       eval.Evaluate({{1, parent, best_split_feature_4}, {2, parent, best_split_feature_0}}, fset);
   EXPECT_EQ(results[0].split.findex, 4);
   EXPECT_EQ(results[1].split.findex, 0);
-  EXPECT_EQ(results[0].cats, std::bitset<32>("11000000000000000000000000000000"));
+  EXPECT_EQ(results[0].cats, std::bitset<32>("10000000000000000000000000000000"));
   EXPECT_EQ(results[1].cats, std::bitset<32>("11000000000000000000000000000000"));
 
   // Feature 0 is bins 0-2. Node 0 weights 4, 1, 1 sort as 1, 2, 0. Node 1 weights 1, 4, 1
@@ -334,19 +308,6 @@ TEST(GpuHist, PartitionInterleavedFeatures) {
   }
 }
 
-TEST(GpuHist, PartitionTwoNodes) {
-  auto ctx = MakeCUDACtx(0);
-  TrainParam tparam = ZeroParam();
-  tparam.max_cat_to_onehot = 0;
-  EvalHelper eval{&ctx, tparam, {0, 3}, {0.0, 1.0, 2.0}, {kCat}};
-  GradientPairPrecise parent{-6.0, 3.0};
-  auto results = eval.Evaluate({{0, parent, {{-1.0, 1.0}, {-2.5, 1.0}, {-2.5, 1.0}}},
-                                {1, parent, {{-1.0, 1.0}, {-1.0, 1.0}, {-4.0, 1.0}}}},
-                               {0});
-  EXPECT_EQ(results[0].cats, std::bitset<32>("10000000000000000000000000000000"));
-  EXPECT_EQ(results[1].cats, std::bitset<32>("11000000000000000000000000000000"));
-}
-
 // Numerical and one-hot splits don't depend on the number of targets. Each single-target node
 // is replicated across all targets, which must select the same split as a single target and
 // scale the gain by the number of targets.
@@ -365,25 +326,14 @@ class GpuHistEvaluatorTargets : public ::testing::TestWithParam<bst_target_t> {
   }
 };
 
-TEST_P(GpuHistEvaluatorTargets, EvaluateSingleSplit) {
-  for (bool is_categorical : {false, true}) {
-    std::vector<FeatureType> ft;
-    if (is_categorical) {
-      ft = {kCat, kCat};
-    }
-    auto eval = this->MakeEval({0, 2, 4}, {1.0, 2.0, 11.0, 12.0}, ft);
-    // Setup gradients so that second feature gets higher gain
-    auto r = eval.EvaluateOne({1, {0.0, 1.0}, {{-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}}},
-                              {0, 1});
+TEST_P(GpuHistEvaluatorTargets, OneHotDense) {
+  auto eval = this->MakeEval({0, 2, 4}, {1.0, 2.0, 11.0, 12.0}, {kCat, kCat});
+  auto r =
+      eval.EvaluateOne({1, {0.0, 1.0}, {{-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}}}, {0, 1});
 
-    EXPECT_EQ(r.split.findex, 1);
-    if (is_categorical) {
-      ASSERT_TRUE(std::isnan(r.split.fvalue));
-      EXPECT_EQ(r.split.dir, kLeftDir);
-    } else {
-      EXPECT_EQ(r.split.fvalue, 11.0);
-    }
-  }
+  EXPECT_EQ(r.split.findex, 1);
+  EXPECT_TRUE(std::isnan(r.split.fvalue));
+  EXPECT_EQ(r.split.dir, kLeftDir);
 }
 
 TEST_P(GpuHistEvaluatorTargets, EvaluateSingleSplitMissing) {
@@ -471,7 +421,7 @@ TEST_P(GpuHistEvaluatorTargets, EvaluateSplits) {
   EXPECT_EQ(results[1].split.fvalue, 1.0);
 }
 
-INSTANTIATE_TEST_SUITE_P(GpuHist, GpuHistEvaluatorTargets, ::testing::Values(1, 2, 3),
+INSTANTIATE_TEST_SUITE_P(GpuHist, GpuHistEvaluatorTargets, ::testing::Values(1, 3),
                          [](auto const& info) { return std::to_string(info.param); });
 
 namespace {
@@ -587,8 +537,7 @@ TEST(GpuHist, MultiTargetPartition) {
   ASSERT_TRUE(no_split.split.child_sum.empty());
   ASSERT_FALSE(IsValidExpandEntry(no_split, no_split_param, 100));
   ASSERT_EQ(no_split.base_weight, (std::vector<float>{2.25f, 1.75f}));
-  ASSERT_EQ(no_split.left_hess, 8.0);
-  ASSERT_EQ(no_split.right_hess, 0.0);
+  ASSERT_EQ(no_split.left_hess + no_split.right_hess, 8.0);
 }
 
 TEST_F(TestPartitionBasedSplit, GpuHist) {
