@@ -20,6 +20,7 @@
 #include "../../common/cuda_compat.cuh"  // for CUDA compatibility
 #include "../../common/cuda_context.cuh"
 #include "../../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "../split_gain.h"            // for CanRankCategory
 #include "../tree_view.h"             // for MultiTargetTreeView
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -520,6 +521,14 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
         }
 
         auto const &node = d_inputs[nidx_in_set];
+        double hess = 0.0;
+        for (bst_target_t t = 0; t < shared_inputs.Targets(); ++t) {
+          auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
+          hess += shared_inputs.roundings[t].ToFloatingPoint(target_hist[bin_idx]).GetHess();
+        }
+        if (!CanRankCategory(shared_inputs.param, hess / shared_inputs.Targets())) {
+          return cuda::std::make_tuple(nidx_in_set, fidx, sc);
+        }
         for (bst_target_t t = 0; t < shared_inputs.Targets(); ++t) {
           auto quantizer = shared_inputs.roundings[t];
           auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
