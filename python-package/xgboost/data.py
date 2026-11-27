@@ -1544,6 +1544,16 @@ def dispatch_meta_backend(
         _check_pyarrow_for_polars()
         _meta_from_arrow_table(data.to_arrow(), name, dtype, handle)
         return
+    if name == "qid":
+        qid = data.squeeze(axis="columns") if _is_pandas_df(data) else data
+        if (
+            _is_pandas_series(qid)
+            and pandas_nullable_mapper.get(qid.dtype.name) == "int"
+        ):
+            # float64 preserves every uint32 query ID as well as the NA sentinel.
+            ids = qid.to_numpy(dtype=np.float64, na_value=np.nan)
+            _meta_from_numpy(ids, name, dtype, handle)
+            return
     if _is_pandas_df(data):
         _meta_from_pandas_df(data, name, dtype=dtype, handle=handle)
         return

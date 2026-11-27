@@ -273,6 +273,14 @@ class TestPandas:
             from_numpy.get_uint_info("group_ptr"),
         )
 
+    @pytest.mark.parametrize("dtype", ["Int64", "UInt32"])
+    @pytest.mark.parametrize("as_frame", [False, True])
+    def test_nullable_qid(self, dtype: str, as_frame: bool) -> None:
+        qid = pd.Series(np.repeat(np.arange(2**24, 2**24 + 4), 2), dtype=dtype)
+        X = np.arange(len(qid)).reshape(-1, 1)
+        data = xgb.DMatrix(X, qid=qid.to_frame() if as_frame else qid)
+        np.testing.assert_array_equal(data.get_uint_info("group_ptr"), [0, 2, 4, 6, 8])
+
     def test_base_margin(self):
         run_base_margin_info(pd.DataFrame, xgb.DMatrix, "cpu")
 
