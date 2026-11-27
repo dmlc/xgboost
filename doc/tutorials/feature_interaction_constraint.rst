@@ -128,11 +128,9 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
   Source(source, format='svg').render('../_static/feature_interaction_illustration3', view=False)
 
 .. |fig1| image:: ../_static/feature_interaction_illustration2.svg
-   :scale: 7%
    :align: middle
 
 .. |fig2| image:: ../_static/feature_interaction_illustration3.svg
-   :scale: 7%
    :align: middle
 
 +-----------+---------+
@@ -187,15 +185,13 @@ feature interaction constraint can be specified as ``[["f0", "f2"]]`` (Python) o
 Advanced topic
 **************
 
-The intuition behind interaction constraints is simple.  Users may have prior knowledge about
-relations between different features, and encode it as constraints during model
-construction.  But there are also some subtleties around specifying constraints.  Take
-the constraint ``[[1, 2], [2, 3, 4]]`` as an example.  The second feature appears in two
-different interaction sets, ``[1, 2]`` and ``[2, 3, 4]``.  So the union set of features
-allowed to interact with ``2`` is ``{1, 3, 4}``.  In the following diagram, the root splits at
-feature ``2``.  Because all its descendants should be able to interact with it, all 4 features
-are legitimate split candidates at the second layer. At first sight, this might look like
-disregarding the specified constraint sets, but it is not.
+A feature can split at the root regardless of its group membership. For a branch to use
+multiple distinct features, at least one interaction group must contain all of them.
+A feature omitted from every group can therefore split repeatedly on the same branch.
+
+With ``[[1, 2], [2, 3, 4]]``, a root split on feature ``2`` leaves both groups available.
+Either child can split on any feature in their union, ``{1, 2, 3, 4}``. If one child then
+splits on feature ``1``, only ``[1, 2]`` contains both features used on that path.
 
 .. plot::
   :nofigs:
@@ -237,13 +233,9 @@ found out that the above constraint is the same as simply ``[[0, 1, 2]]``.  Sinc
 feature is chosen for split in the root node, all its descendants are allowed to include every
 feature as legitimate split candidates without violating interaction constraints.
 
-For one last example, we use ``[[0, 1], [1, 3, 4]]`` and choose feature ``0`` as split for
-the root node.  At the second layer of the built tree, ``1`` is the only legitimate split
-candidate except for ``0`` itself, since they belong to the same constraint set.
-Following the grow path of our example tree below, the node at the second layer splits at
-feature ``1``.  But due to the fact that ``1`` also belongs to second constraint set ``[1,
-3, 4]``, at the third layer, we are allowed to include all features as split candidates and
-still comply with the interaction constraints of its ascendants.
+With ``[[0, 1], [1, 3, 4]]``, a root split on feature ``0`` leaves only group
+``[0, 1]`` available. After a split on feature ``1``, that same group is the only
+one containing the full path. The candidates for the next split are still ``{0, 1}``.
 
 .. plot::
   :nofigs:
@@ -257,8 +249,8 @@ still comply with the interaction constraints of its ascendants.
       0 [label=<x<SUB><FONT POINT-SIZE="11">0</FONT></SUB>>, shape=box, color=black, fontcolor=black];
       1 [label="...", shape=none];
       2 [label=<x<SUB><FONT POINT-SIZE="11">1</FONT></SUB>>, shape=box, color=black, fontcolor=black];
-      3 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
-      4 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      3 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      4 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
       5 [label="...", shape=none];
       6 [label="...", shape=none];
       7 [label="...", shape=none];
@@ -281,4 +273,4 @@ still comply with the interaction constraints of its ascendants.
    :align: center
    :figwidth: 80 %
 
-   ``{0, 1, 3, 4}`` represents the sets of legitimate split features.
+   Either child can split on feature ``0`` or feature ``1``.

@@ -6,7 +6,7 @@
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <algorithm>  // for copy_if, max, transform
-#include <memory>     // for unique_ptr
+#include <memory>     // for shared_ptr, unique_ptr
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
@@ -125,7 +125,7 @@ class MultiTargetHistMaker {
 
   MultiHistEvaluator evaluator_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  std::unique_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
+  std::shared_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
   // Feature types on device for categorical detection, cached in Reset. Empty when there
   // are no categorical features.
   common::Span<FeatureType const> feature_types_;
@@ -196,8 +196,8 @@ class MultiTargetHistMaker {
     auto const& info = p_fmat->Info();
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
-    // Clear the per-node allowed-feature sets before growing a new tree.
-    this->interaction_constraints_->Reset(this->ctx_);
+    this->interaction_constraints_->Reset(this->ctx_, param_,
+                                          static_cast<bst_feature_t>(info.num_col_));
 
     // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -270,8 +270,7 @@ class MultiTargetHistMaker {
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
+    auto feature_set = sampled_features->ConstDeviceSpan();
     MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
@@ -553,7 +552,6 @@ class MultiTargetHistMaker {
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
 
     auto n_targets = this->split_gpair_.Shape(1);
-    bst_feature_t max_active_feature = 0;
     // Track max node ID for buffer allocation
     bst_node_t max_nidx = 0;
 
@@ -565,13 +563,11 @@ class MultiTargetHistMaker {
       auto child_depth = candidate.depth + 1;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      auto left_feature_set = left_sampled_features->ConstDeviceSpan();
 
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      auto right_feature_set = right_sampled_features->ConstDeviceSpan();
 
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
@@ -584,15 +580,13 @@ class MultiTargetHistMaker {
       h_node_inputs[i * 2] = left;
       h_node_inputs[i * 2 + 1] = right;
 
-      max_active_feature = std::max({left_feature_set.size(), right_feature_set.size(),
-                                     static_cast<std::size_t>(max_active_feature)});
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
-    dh::safe_cuda(cudaMemcpyAsync(inputs.data(), h_node_inputs.data(),
-                                  common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
-                                  cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
+    auto max_active_feature =
+        interaction_constraints_->Query(ctx_, common::Span{h_node_inputs}, dh::ToSpan(inputs));
 
-    auto shared_inputs = MakeSharedInputs(max_active_feature);
+    // An all-empty batch still needs one invalid candidate per node to finalize its leaf weight.
+    auto shared_inputs = MakeSharedInputs(std::max<bst_feature_t>(1, max_active_feature));
     this->evaluator_.EvaluateSplits(this->ctx_, dh::ToSpan(inputs), shared_inputs, max_nidx,
                                     dh::ToSpan(outputs));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data(),
@@ -683,6 +677,7 @@ class MultiTargetHistMaker {
   explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
                                 HistMakerTrainParam const* hist_param,
                                 std::shared_ptr<common::ColumnSampler> column_sampler,
+                                std::shared_ptr<FeatureInteractionConstraintDevice> constraints,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
                                 bool dense_compressed)
@@ -695,7 +690,6 @@ class MultiTargetHistMaker {
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         HistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
-        interaction_constraints_{
-            std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}
+        interaction_constraints_{std::move(constraints)} {}
 };
 }  // namespace xgboost::tree::cuda_impl
