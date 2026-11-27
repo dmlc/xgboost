@@ -128,18 +128,28 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
     if len(data.indices) != len(data.data):
         raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
 
+    canonical = data.has_canonical_format
+    if not canonical and data.dtype == np.bool_:
+        # scipy sums boolean duplicates with logical or, do it before the conversion
+        # to float.
+        data = data.copy()
+        data.sum_duplicates()
+        canonical = True
     indptr, _ = _ensure_np_dtype(data.indptr, data.indptr.dtype)
     indices, _ = _ensure_np_dtype(data.indices, data.indices.dtype)
     values, _ = _ensure_np_dtype(data.data, data.data.dtype)
     if (
-        indptr is not data.indptr
+        not canonical
+        or indptr is not data.indptr
         or indices is not data.indices
         or values is not data.data
     ):
-        if is_csr:
-            data = ss.csr_matrix((values, indices, indptr), shape=data.shape)
-        else:
-            data = ss.csc_matrix((values, indices, indptr), shape=data.shape)
+        cls = ss.csr_matrix if is_csr else ss.csc_matrix
+        # Copy before summing so that the input is not modified.
+        data = cls((values, indices, indptr), shape=data.shape, copy=not canonical)
+    if not canonical:
+        # Follow scipy and sum the duplicated entries.
+        data.sum_duplicates()
     return data
 
 
