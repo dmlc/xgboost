@@ -40,6 +40,7 @@
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
+#include "xgboost/cache.h"                // for DMatrixCache
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
@@ -1049,9 +1050,11 @@ class LearnerImpl : public LearnerIO {
     common::MemoryFixSizeBuffer fs(buf.data(), buf.size());
     this->Load(&fs);
 
-    // Learner self cache. Prediction is cleared in the load method
+    // Learner self cache. The booster's prediction cache is cleared in the load method.
     CHECK(this->cache_data_.empty());
     this->gpair_ = decltype(this->gpair_){};
+    this->output_predictions_ =
+        decltype(this->output_predictions_){decltype(this->output_predictions_)::DefaultSize()};
   }
 
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
@@ -1067,7 +1070,8 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
-    HostDeviceVector<float> predt;
+    auto p_predt = output_predictions_.CacheItem(train);
+    auto& predt = *p_predt;
 
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &predt, true, 0, 0);
@@ -1124,7 +1128,8 @@ class LearnerImpl : public LearnerIO {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
       this->ValidateDMatrix(m.get(), false);
-      HostDeviceVector<float> out;
+      auto p_out = output_predictions_.CacheItem(m);
+      auto& out = *p_out;
       auto shape = this->PredictRaw(m, &out, false, 0, 0);
 
       obj_->EvalTransform(&out, std::move(shape));
@@ -1295,6 +1300,12 @@ class LearnerImpl : public LearnerIO {
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
   GradientContainer gpair_;
+  // Prediction buffers for training and evaluation, keyed by DMatrix and thread and reused
+  // across iterations so that each round does not allocate and zero-fill a new
+  // n_samples x n_outputs vector. A buffer (device memory when running on CUDA) is freed by
+  // Reset(), or on the next training or evaluation call after its DMatrix has been released.
+  DMatrixCache<HostDeviceVector<float>> output_predictions_{
+      DMatrixCache<HostDeviceVector<float>>::DefaultSize()};
 };
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;
