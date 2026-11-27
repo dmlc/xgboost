@@ -778,24 +778,19 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   const std::size_t mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
   const std::size_t crow_chunk = ngroup * (ncolumns + 1);
 
-  // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
+  // allocate space for (number of features^2) times the number of rows
   std::vector<bst_float> &contribs = out_contribs->HostVector();
   contribs.resize(info.num_row_ * ngroup * (ncolumns + 1) * (ncolumns + 1));
-  HostDeviceVector<bst_float> contribs_off_hdv(info.num_row_ * ngroup * (ncolumns + 1));
-  auto &contribs_off = contribs_off_hdv.HostVector();
-  HostDeviceVector<bst_float> contribs_on_hdv(info.num_row_ * ngroup * (ncolumns + 1));
-  auto &contribs_on = contribs_on_hdv.HostVector();
   HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * ngroup * (ncolumns + 1));
   auto &contribs_diag = contribs_diag_hdv.HostVector();
 
-  // Compute the difference in effects when conditioning on each of the features on and off
-  // see: Axiomatic characterizations of probabilistic and
-  //      cardinal-probabilistic interaction indices
+  // Approximate contributions ignore feature conditioning, so contribs_off and contribs_on
+  // are the same unconditioned values. The loop below only reads them, so they can share
+  // storage with contribs_diag.
   ApproxFeatureImportance(ctx, p_fmat, &contribs_diag_hdv, model, tree_end, tree_weights);
+  auto &contribs_off = contribs_diag;
+  auto &contribs_on = contribs_diag;
   for (size_t i = 0; i < ncolumns + 1; ++i) {
-    ApproxFeatureImportance(ctx, p_fmat, &contribs_off_hdv, model, tree_end, tree_weights);
-    ApproxFeatureImportance(ctx, p_fmat, &contribs_on_hdv, model, tree_end, tree_weights);
-
     for (size_t j = 0; j < info.num_row_; ++j) {
       for (std::remove_const_t<decltype(ngroup)> l = 0; l < ngroup; ++l) {
         const std::size_t o_offset = j * row_chunk + l * mrow_chunk;
