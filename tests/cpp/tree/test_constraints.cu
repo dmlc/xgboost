@@ -220,6 +220,7 @@ void CompareFeatureList(common::Span<bst_feature_t const> s_output,
 
 TEST(GPUFeatureInteractionConstraint, Query) {
   auto ctx = MakeCUDACtx(0);
+  dh::CachingDeviceUVector<bst_feature_t> out;
   {
     tree::TrainParam param = GetParameter();
     bst_feature_t constexpr kFeatures = 6;
@@ -228,7 +229,7 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(s_input_feature_list, 0);
+    auto s_output = constraints.Query(s_input_feature_list, 0, &out);
     CompareFeatureList(s_output, h_input_feature_list);
   }
   {
@@ -257,17 +258,17 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(s_input_feature_list, 1);
+    auto s_output = constraints.Query(s_input_feature_list, 1, &out);
     CompareFeatureList(s_output, {0, 1, 2});
-    s_output = constraints.Query(s_input_feature_list, 2);
+    s_output = constraints.Query(s_input_feature_list, 2, &out);
     CompareFeatureList(s_output, {1, 2});
-    s_output = constraints.Query(s_input_feature_list, 3);
+    s_output = constraints.Query(s_input_feature_list, 3, &out);
     CompareFeatureList(s_output, {0, 1, 2});
-    s_output = constraints.Query(s_input_feature_list, 4);
+    s_output = constraints.Query(s_input_feature_list, 4, &out);
     CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
-    s_output = constraints.Query(s_input_feature_list, 5);
+    s_output = constraints.Query(s_input_feature_list, 5, &out);
     CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
-    s_output = constraints.Query(s_input_feature_list, 6);
+    s_output = constraints.Query(s_input_feature_list, 6, &out);
     CompareFeatureList(s_output, {0, 1, 2, 3, 4, 5});
   }
 
@@ -285,7 +286,7 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
 
-    auto s_output = constraints.Query(s_input_feature_list, 1);
+    auto s_output = constraints.Query(s_input_feature_list, 1, &out);
     CompareFeatureList(s_output, {1, 2, 3, 4});
   }
 
@@ -300,11 +301,34 @@ TEST(GPUFeatureInteractionConstraint, Query) {
     dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
     common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
     constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/2, /*left_id=*/1, /*right_id=*/2);
-    auto s_output = constraints.Query(s_input_feature_list, 1);
+    auto s_output = constraints.Query(s_input_feature_list, 1, &out);
     CompareFeatureList(s_output, {2});
-    s_output = constraints.Query(s_input_feature_list, 2);
+    s_output = constraints.Query(s_input_feature_list, 2, &out);
     CompareFeatureList(s_output, {2});
   }
+}
+
+TEST(GPUFeatureInteractionConstraint, QueryMultipleNodes) {
+  auto ctx = MakeCUDACtx(0);
+  tree::TrainParam param = GetParameter();
+  param.interaction_constraints = R"constraint([[0, 1], [1, 3, 4]])constraint";
+  bst_feature_t constexpr kFeatures = 5;
+  FConstraintWrapper constraints(param, kFeatures);
+  constraints.Split(&ctx, /*node_id=*/0, /*feature_id=*/3, /*left_id=*/1, /*right_id=*/2);
+  constraints.Split(&ctx, /*node_id=*/1, /*feature_id=*/1, /*left_id=*/3, /*right_id=*/4);
+  constraints.Split(&ctx, /*node_id=*/2, /*feature_id=*/4, /*left_id=*/5, /*right_id=*/6);
+
+  std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4};
+  dh::device_vector<bst_feature_t> d_input_feature_list(h_input_feature_list);
+  common::Span<bst_feature_t> s_input_feature_list = dh::ToSpan(d_input_feature_list);
+
+  // Split evaluation queries all nodes in a batch before reading any of the results.
+  dh::CachingDeviceUVector<bst_feature_t> out_5;
+  dh::CachingDeviceUVector<bst_feature_t> out_3;
+  auto s_output_5 = constraints.Query(s_input_feature_list, 5, &out_5);
+  auto s_output_3 = constraints.Query(s_input_feature_list, 3, &out_3);
+  CompareFeatureList(s_output_5, {1, 3, 4});
+  CompareFeatureList(s_output_3, {0, 1, 3, 4});
 }
 
 }  // namespace xgboost

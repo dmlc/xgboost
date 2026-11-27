@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "../common/bitfield.h"
-#include "../common/device_vector.cuh"  // for device_vector
+#include "../common/device_vector.cuh"  // for device_vector, CachingDeviceUVector
 #include "constraints.h"
 #include "param.h"
 #include "xgboost/span.h"
@@ -49,7 +49,7 @@ struct FeatureInteractionConstraintDevice {
   std::vector<LBitField64> node_constraints_;
   common::Span<LBitField64> s_node_constraints_;
 
-  // buffer storing return feature list from Query, of size n_features.
+  // buffer storing return feature list from QueryNode, of size n_features.
   dh::device_vector<bst_feature_t> result_buffer_;
   common::Span<bst_feature_t> s_result_buffer_;
 
@@ -85,12 +85,15 @@ struct FeatureInteractionConstraintDevice {
    *
    * @param feature_list A list of features
    * @param nidx node id
+   * @param p_out Storage for the result, the returned span can point into it. Nodes that are
+   *              evaluated together need their own.
    *
    * @return A list of features picked from `feature_list' that conform to constraints in
    * node.
    */
   common::Span<bst_feature_t const> Query(common::Span<bst_feature_t const> feature_list,
-                                          bst_node_t nidx);
+                                          bst_node_t nidx,
+                                          dh::CachingDeviceUVector<bst_feature_t>* p_out);
   /*! \brief Apply split for node_id. */
   void Split(Context const* ctx, bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id,
              bst_node_t right_id);

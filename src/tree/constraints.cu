@@ -197,7 +197,8 @@ __global__ void QueryFeatureListKernel(LBitField64 node_constraints,
 }
 
 common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
-    common::Span<bst_feature_t const> feature_list, bst_node_t nidx) {
+    common::Span<bst_feature_t const> feature_list, bst_node_t nidx,
+    dh::CachingDeviceUVector<bst_feature_t>* p_out) {
   if (!has_constraint_ || nidx == 0) {
     return feature_list;
   }
@@ -219,16 +220,15 @@ common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
 
   LBitField64 local_result_buffer = output_buffer_bits_;
 
-  thrust::device_ptr<bst_feature_t> const out_end = thrust::copy_if(
-      thrust::device, begin, end, result_buffer_.data(), [=] __device__(int32_t pos) {
+  p_out->resize(feature_list.size());
+  auto const out_end =
+      thrust::copy_if(thrust::device, begin, end, p_out->begin(), [=] __device__(int32_t pos) {
         bool res = local_result_buffer.Check(pos);
         return res;
       });
-  size_t const n_available = std::distance(result_buffer_.data(), out_end);
-
-  common::Span<bst_feature_t> result = {s_result_buffer_.data(),
-                                        s_result_buffer_.data() + n_available};
-  return result;
+  size_t const n_available = std::distance(p_out->begin(), out_end);
+  p_out->resize(n_available);
+  return dh::ToSpan(*p_out);
 }
 
 // Find interaction sets for each feature, then store all features in
