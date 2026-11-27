@@ -37,7 +37,7 @@ PackedReduceResult EvalCuda(Context const* ctx, HostDeviceVector<float> const& p
       [=] XGBOOST_DEVICE(std::size_t i) {
         auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
         float weight = weights[sample_id];
-        float residue = eval(labels(sample_id, target_id), predts[i]) * weight;
+        float residue = weight == 0 ? 0.0f : eval(labels(sample_id, target_id), predts[i]) * weight;
         return PackedReduceResult{residue, weight};
       },
       PackedReduceResult{}, thrust::plus<PackedReduceResult>());

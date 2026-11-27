@@ -12,6 +12,7 @@
 #include <string>   // for string
 
 #include "elementwise_metric.h"  // for elementwise kernels
+#include "poisson_metric.h"      // for PoissonNegLogLikNoConst
 #include "xgboost/base.h"        // for bst_float, kRtEps
 
 namespace xgboost::metric {
@@ -30,6 +31,9 @@ struct EvalTweedieNLogLik {
   }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float operator()(bst_float y, bst_float p) const {
+    if (rho_ == 1.0f) {
+      return PoissonNegLogLikNoConst(y, p);
+    }
     bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;

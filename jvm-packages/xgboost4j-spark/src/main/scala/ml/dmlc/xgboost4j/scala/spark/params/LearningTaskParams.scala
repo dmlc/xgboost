@@ -66,7 +66,7 @@ private[spark] trait LearningTaskParams extends Params {
   // Parameters for Tweedie Regression (objective=reg:tweedie)
   final val tweedieVariancePower = new DoubleParam(this, "tweedie_variance_power", "Parameter " +
     "that controls the variance of the Tweedie distribution var(y) ~ E(y)^tweedie_variance_power.",
-    ParamValidators.inRange(1, 2, false, false))
+    ParamValidators.inRange(1, 2, true, false))
 
   final def getTweedieVariancePower: Double = $(tweedieVariancePower)
 
