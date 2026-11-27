@@ -292,7 +292,7 @@ def ltr_metric_decorator(
                 return 1.0
             return func(gy, gp)
 
-        workers = n_jobs if n_jobs is not None else os.cpu_count()
+        workers = n_jobs if n_jobs is not None and n_jobs > 0 else os.cpu_count()
         with ThreadPoolExecutor(max_workers=workers) as executor:
             for i in range(1, group_ptr.size):
                 f = executor.submit(task, i)

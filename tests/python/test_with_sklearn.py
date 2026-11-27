@@ -289,7 +289,8 @@ def test_ranking_categorical() -> None:
 
 @pytest.mark.parametrize("multiple", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
-def test_ranking_metric(multiple: bool, weighted: bool) -> None:
+@pytest.mark.parametrize("n_jobs", [None, 0, -1])
+def test_ranking_metric(multiple: bool, weighted: bool, n_jobs: Optional[int]) -> None:
     from sklearn.metrics import mean_squared_error, roc_auc_score
 
     X, y, qid, w = make_ltr(128, 4, 4, 1)
@@ -297,6 +298,7 @@ def test_ranking_metric(multiple: bool, weighted: bool) -> None:
     metrics = [roc_auc_score, mean_squared_error] if multiple else [roc_auc_score]
     ltr = xgb.XGBRanker(
         eval_metric=metrics if multiple else metrics[0],
+        n_jobs=n_jobs,
         n_estimators=3,
         max_depth=2,
         objective="rank:pairwise",
