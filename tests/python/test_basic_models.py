@@ -236,6 +236,50 @@ class TestModels:
         predt_2 = booster.predict(Xy)
         np.testing.assert_allclose(predt_0, predt_2)
 
+    @pytest.mark.parametrize("tree_method", ["hist", "exact", "approx"])
+    def test_base_score_prediction_cache(self, tree_method: str) -> None:
+        X = np.array([[0], [1]], dtype=np.float32)
+        dtrain = xgb.DMatrix(X, label=[-1, 1])
+        dtest = xgb.DMatrix(X)
+        params = {
+            "tree_method": tree_method,
+            "max_depth": 1,
+            "eta": 1,
+            "base_score": 0,
+        }
+        booster = xgb.train(params, dtrain, num_boost_round=1)
+        # With one sample per leaf and lambda=1, each leaf has weight y/2.
+        tree_predt = np.array([-0.5, 0.5])
+        for data in (dtrain, dtest):
+            np.testing.assert_allclose(booster.predict(data), tree_predt)
+
+        for base_score in (1.0, -0.25, 2.0, 2.0, 0.0):
+            booster.set_param({"base_score": base_score})
+            for data in (dtrain, dtest):
+                np.testing.assert_allclose(
+                    booster.predict(data), tree_predt + base_score
+                )
+
+        # Loading the same trees gives a reference without a prediction cache.
+        fresh = xgb.Booster(params=params, model_file=booster.save_raw())
+        trees = booster.get_dump(dump_format="json")
+        for model in (booster, fresh):
+            model.set_param({"base_score": 0.25})
+            assert model.get_dump(dump_format="json") == trees
+            # Update directly: training must refresh predictions before computing
+            # gradients, without requiring an intervening predict call.
+            model.update(dtrain, iteration=1)
+
+        assert booster.get_dump(dump_format="json") == fresh.get_dump(
+            dump_format="json"
+        )
+        # The new intercept makes predictions [-0.25, 0.75]. With lambda=1,
+        # the next tree has leaf weights [-0.375, 0.125].
+        expected = np.array([-0.625, 0.875])
+        for model in (booster, fresh):
+            for data in (dtrain, dtest, xgb.DMatrix(X)):
+                np.testing.assert_allclose(model.predict(data), expected)
+
     def test_feature_names_validation(self):
         X = np.random.random((10, 3))
         y = np.random.randint(2, size=(10,))
