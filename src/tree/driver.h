@@ -38,7 +38,7 @@ template <typename ExpandEntryT>
 [[nodiscard]] bool IsValidExpandEntry(ExpandEntryT const& entry, TrainParam const& param,
                                       bst_node_t num_leaves) {
   auto loss_chg = entry.GetLossChange();
-  if (loss_chg <= kRtEps) {
+  if (!(loss_chg > 0.0f)) {  // Use !(a > b) to handle NaN and whatnot.
     return false;
   }
   if (loss_chg < param.min_split_loss) {
@@ -72,7 +72,7 @@ class Driver {
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntryT& e = *it;
-      if (e.GetLossChange() > kRtEps) {
+      if (e.GetLossChange() > 0.0f) {
         queue_.push(e);
       }
     }

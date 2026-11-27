@@ -15,6 +15,7 @@
 #include "param.h"
 #include "sample_position.h"  // for SamplePosition
 #include "split_evaluator.h"
+#include "split_gain.h"        // for ThresholdLossChange
 #include "tree_view.h"         // for ScalarTreeView
 #include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
@@ -511,7 +512,7 @@ class ColMaker : public TreeUpdater {
       for (int nid : qexpand) {
         NodeEntry const &e = snode_[nid];
         // now we know the solution in snode[nid], set split
-        if (e.best.loss_chg > kRtEps) {
+        if (ThresholdLossChange(e.best.loss_chg, e.root_gain) > 0.0f) {
           float left_weight = evaluator.CalcWeight(nid, param_, e.best.left_sum);
           float right_weight = evaluator.CalcWeight(nid, param_, e.best.right_sum);
           p_tree->Expand(
