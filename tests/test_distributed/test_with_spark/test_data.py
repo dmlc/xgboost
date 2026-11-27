@@ -13,6 +13,7 @@ from xgboost.spark.data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
     create_dmatrix_from_partitions,
+    make_qdm,
     stack_series,
 )
 
@@ -163,3 +164,92 @@ def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
     np.testing.assert_array_equal(sm.indptr, [0, 2, 5, 8, 10])
     np.testing.assert_array_equal(sm.indices, [0, 2, 0, 1, 2, 0, 1, 2, 1, 2])
     assert sm.shape == (4, 3)
+
+
+def _unwrapped_sparse_chunk(
+    X: np.ndarray, y: np.ndarray, valid: np.ndarray
+) -> pd.DataFrame:
+    """Mimic a pandas chunk with unwrapped spark vector columns, as passed to
+    the sparse data optimization path."""
+    n = X.shape[0]
+    return pd.DataFrame(
+        {
+            "featureVectorType": [1] * n,
+            "featureVectorSize": [None] * n,
+            "featureVectorIndices": [None] * n,
+            "featureVectorValues": [np.asarray(row, dtype=np.float64) for row in X],
+            alias.label: y,
+            alias.valid: valid,
+        }
+    )
+
+
+def test_sparse_dmatrix_ctor_with_empty_validation_slice() -> None:
+    # A batch that lands entirely in the training set leaves an empty
+    # validation slice, which should be skipped instead of being converted to
+    # a csr matrix. See https://github.com/dmlc/xgboost/issues/12639
+    rng = np.random.default_rng(0)
+    n_features = 4
+    all_train = _unwrapped_sparse_chunk(
+        rng.normal(size=(8, n_features)), rng.normal(size=8), np.zeros(8, np.bool_)
+    )
+    mixed = _unwrapped_sparse_chunk(
+        rng.normal(size=(8, n_features)),
+        rng.normal(size=8),
+        np.array([i % 2 == 0 for i in range(8)]),
+    )
+    train_Xy, valid_Xy = create_dmatrix_from_partitions(
+        iterator=iter([all_train, mixed]),
+        feature_cols=None,
+        dev_ordinal=None,
+        use_qdm=True,
+        kwargs={"missing": 0.0, "max_bin": 32},
+        enable_sparse_data_optim=True,
+        has_validation_col=True,
+    )
+    assert train_Xy.num_row() == 8 + 4
+    assert valid_Xy.num_row() == 4
+    assert train_Xy.num_col() == n_features
+    assert valid_Xy.num_col() == n_features
+
+
+def test_dmatrix_ctor_with_empty_validation_data() -> None:
+    # All rows belong to the training set, so the validation DMatrix is empty.
+    # It must still carry the same parameters (e.g. max_bin) as the training
+    # DMatrix to remain compatible with it.
+    rng = np.random.default_rng(0)
+    n_features = 8
+    X = rng.normal(size=(16, n_features))
+    df = pd.DataFrame(
+        {
+            alias.data: pd.Series(list(X)),
+            alias.label: rng.normal(size=16),
+            alias.valid: np.zeros(16, np.bool_),
+        }
+    )
+    train_Xy, valid_Xy = create_dmatrix_from_partitions(
+        iterator=iter([df]),
+        feature_cols=None,
+        dev_ordinal=None,
+        use_qdm=True,
+        kwargs={"max_bin": 32},
+        enable_sparse_data_optim=False,
+        has_validation_col=True,
+    )
+    assert isinstance(train_Xy, QuantileDMatrix)
+    assert isinstance(valid_Xy, QuantileDMatrix)
+    assert train_Xy.num_row() == 16
+    assert valid_Xy.num_row() == 0
+    assert valid_Xy.num_col() == train_Xy.num_col()
+
+
+def test_make_qdm_with_empty_partition() -> None:
+    # An empty QuantileDMatrix should preserve the parameters like max_bin so
+    # that it can be used as a reference for other DMatrices.
+    params = {"max_bin": 32, "missing": 0.0}
+    empty = make_qdm({}, None, {}, None, params, n_features=4)
+    assert empty.num_row() == 0
+
+    rng = np.random.default_rng(0)
+    dmat = QuantileDMatrix(rng.normal(size=(64, 4)), max_bin=32, ref=empty)
+    assert dmat.num_row() == 64

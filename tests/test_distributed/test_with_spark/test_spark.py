@@ -750,6 +750,65 @@ class TestClassifier:
         for row in pred_result:
             assert row.prediction in [0.0, 1.0]
 
+    def test_empty_validation_slice_with_sparse_optim(
+        self, spark: SparkSession
+    ) -> None:
+        # Every row is marked as a training row, so each Arrow chunk leaves an
+        # empty validation slice and the validation DMatrix of every worker is
+        # empty. Together with enable_sparse_data_optim and a non-default
+        # max_bin, this exercises the sparse DMatrix construction and the
+        # empty QuantileDMatrix path.
+        # See https://github.com/dmlc/xgboost/issues/12639
+        raw_df = (
+            spark.range(0, 2, 1, 2)
+            .withColumn("label", (spark_sql_func.col("id") % 2).cast("int"))
+            .withColumn("val_col", spark_sql_func.lit(False))
+        )
+        vector_assembler = (
+            VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+        )
+        data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
+        classifier = SparkXGBClassifier(
+            num_workers=2,
+            missing=0.0,
+            enable_sparse_data_optim=True,
+            max_bin=16,
+            validation_indicator_col="val_col",
+            n_estimators=2,
+        )
+        model = classifier.fit(data_trans)
+        pred_result = model.transform(data_trans).collect()
+        for row in pred_result:
+            assert row.prediction in [0.0, 1.0]
+
+    def test_empty_partition_with_sparse_optim(self, spark: SparkSession) -> None:
+        # The second partition of spark.range(0, 1, 1, 2) is empty. With the
+        # approx tree method the plain DMatrix path handles it, while
+        # enable_sparse_data_optim requires the empty chunks to be skipped
+        # during the sparse DMatrix construction.
+        # See https://github.com/dmlc/xgboost/issues/12639
+        raw_df = (
+            spark.range(0, 1, 1, 2)
+            .withColumn("label", (spark_sql_func.col("id") % 2).cast("int"))
+            .withColumn("val_col", spark_sql_func.lit(False))
+        )
+        vector_assembler = (
+            VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+        )
+        data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
+        classifier = SparkXGBClassifier(
+            num_workers=2,
+            missing=0.0,
+            enable_sparse_data_optim=True,
+            tree_method="approx",
+            validation_indicator_col="val_col",
+            n_estimators=2,
+        )
+        model = classifier.fit(data_trans)
+        pred_result = model.transform(data_trans).collect()
+        for row in pred_result:
+            assert row.prediction in [0.0, 1.0]
+
     def test_classifier_with_cross_validator(self, clf_data: ClfData) -> None:
         xgb_classifier = SparkXGBClassifier(n_estimators=1)
         param_maps = (
