@@ -6,7 +6,9 @@
 #ifndef XGBOOST_METRIC_POISSON_METRIC_H_
 #define XGBOOST_METRIC_POISSON_METRIC_H_
 
-#include <cmath>  // for log, isfinite
+#include <math.h>  // NOLINT
+
+#include <cmath>  // for log
 
 #include "../common/math.h"      // for LogGamma
 #include "elementwise_metric.h"  // for elementwise kernels
@@ -15,7 +17,7 @@
 namespace xgboost::metric {
 // Poisson negative log-likelihood without the log(y!) term, taking 0 * log(p) as 0.
 [[nodiscard]] XGBOOST_DEVICE inline double PoissonNegLogLikNoConst(double y, double p) {
-  return y == 0 || !std::isfinite(p) ? p : p - y * std::log(p);
+  return y == 0 || isinf(p) ? p : p - y * std::log(p);
 }
 
 struct EvalPoissonNegLogLik {
