@@ -397,7 +397,18 @@ class HistEvaluator {
             for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
               auto bin = cut_ptr[fidx] + bin_idx;
               if (n_split_targets == 1) {
-                scores[bin_idx] = evaluator.CalcWeightCat(node_hist[0][bin]);
+                auto const &stats = node_hist[0][bin];
+                scores[bin_idx] = CanRankCategory(*param_, stats.GetHess())
+                                      ? evaluator.CalcWeightCat(stats)
+                                      : 0.0;
+                continue;
+              }
+              double hess = 0.0;
+              for (std::size_t t = 0; t < n_split_targets; ++t) {
+                hess += node_hist[t][bin].GetHess();
+              }
+              if (!CanRankCategory(*param_, hess / n_split_targets)) {
+                scores[bin_idx] = 0.0;
                 continue;
               }
               // s_c = w_p^T w_c. Since we care only about the ordering, no need to divide the norm.

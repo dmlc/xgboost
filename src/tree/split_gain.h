@@ -38,6 +38,19 @@ XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_h
 }
 
 /**
+ * @brief Whether a category has enough Hessian in a node to be ranked by its weight when the
+ *        categories are sorted for a partition split.
+ *
+ * With several targets, pass the mean Hessian over the split targets, as for IsValidSplit. A
+ * category below min_child_weight gets the neutral key 0 instead: its -G/H rests on a few rows,
+ * and with many categories such keys fill both ends of the order, where the partition scan starts.
+ */
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE bool CanRankCategory(TrainingParams const &p, T hess) {
+  return hess > 0.0 && hess >= p.min_child_weight;
+}
+
+/**
  * @brief Function for L1 cost
  *
  *  @f$ L1(G, a) = sign(G) max(|G| - a, 0) @f$

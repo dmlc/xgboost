@@ -15,6 +15,7 @@
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
+#include "../split_gain.h"           // for CanRankCategory
 #include "evaluate_splits.cuh"
 #include "xgboost/data.h"
 
@@ -100,7 +101,9 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
         auto bin = global_idx % total_bins;
         auto const &input = d_inputs[node];
         auto grad = shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[bin]);
-        auto lw = evaluator.CalcWeightCat(grad);
+        auto lw = CanRankCategory(shared_inputs.param, grad.GetHess())
+                      ? evaluator.CalcWeightCat(grad)
+                      : 0.0f;
         partition_key[k] = cuda::std::make_tuple(global_idx, lw);
       });
   // Sort an array segmented according to

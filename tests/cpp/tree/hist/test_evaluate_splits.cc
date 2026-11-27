@@ -341,6 +341,34 @@ TYPED_TEST(TestHistEvaluator, PartitionMissing) {
   }
 }
 
+TYPED_TEST(TestHistEvaluator, PartitionMinChildWeight) {
+  // Category 4 has the largest -G/H but too little Hessian to be ranked by it.
+  this->cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0, 4.0}, {0, 5}, DeviceOrd::CPU());
+  std::vector<GradientPairPrecise> bins{
+      {-4.0, 4.0}, {-4.0, 4.0}, {-12.0, 4.0}, {-12.0, 4.0}, {-3.0, 0.5}};
+  this->Evaluate({bins}, {}, {{"min_child_weight", "1"}});
+  this->CheckCategories({true, true, false, false, true});
+  this->CheckApply();
+
+  // A category at exactly min_child_weight is ranked.
+  this->Evaluate({bins}, {}, {{"min_child_weight", "0.5"}});
+  this->CheckCategories({true, true, false, false, false});
+
+  // Without min_child_weight, the same category is ranked by its -G/H.
+  this->Evaluate({bins});
+  this->CheckCategories({true, true, false, false, false});
+
+  if constexpr (TestFixture::kSplitTargets == 2) {
+    // Category 4 passes min_child_weight in target 0 alone, but not on the mean over targets.
+    std::vector<GradientPairPrecise> t0{
+        {-4.0, 4.0}, {-4.0, 4.0}, {-12.0, 4.0}, {-12.0, 4.0}, {-15.0, 1.5}};
+    std::vector<GradientPairPrecise> t1{
+        {-4.0, 4.0}, {-4.0, 4.0}, {-12.0, 4.0}, {-12.0, 4.0}, {-0.6, 0.1}};
+    this->Evaluate({t0, t1}, {}, {{"min_child_weight", "1"}});
+    this->CheckCategories({true, true, false, false, true});
+  }
+}
+
 TYPED_TEST(TestHistEvaluator, PartitionParentWeight) {
   // Shift all category gradients to give the parent a positive, zero, or negative weight.
   for (auto offset : {-2.0, 0.0, 2.0}) {
