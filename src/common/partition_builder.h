@@ -126,10 +126,11 @@ class PartitionBuilder {
 
     auto pred_hist = [&](auto ridx, auto bin_id) {
       if (any_cat && is_cat) {
-        auto gidx = gmat.GetGindex(ridx, fid);
+        // `bin_id` is the global bin index read from the column: the same value `GetGindex` finds
+        // by searching the row, which is slow on sparse data. Missing values never reach here.
         bool go_left = default_left;
-        if (gidx > -1) {
-          go_left = Decision(node_cats, cut_values[gidx]);
+        if (bin_id > -1) {
+          go_left = Decision(node_cats, cut_values[bin_id]);
         }
         return go_left;
       } else {
@@ -237,9 +238,8 @@ class PartitionBuilder {
     } else {
       auto pred_hist = [&](auto ridx, auto bin_id) {
         if (any_cat && is_cat) {
-          auto gidx = gmat.GetGindex(ridx, fid);
-          CHECK_GT(gidx, -1);
-          return Decision(node_cats, cut_values[gidx]);
+          // See `Partition`: `bin_id` is the global bin index of a non-missing value.
+          return Decision(node_cats, cut_values[bin_id]);
         } else {
           return bin_id <= split_cond;
         }
