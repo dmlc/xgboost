@@ -411,13 +411,12 @@ def mknfold(
     elif folds is not None:
         # Use user specified custom split using indices
         try:
-            in_idset = [x[0] for x in folds]
-            out_idset = [x[1] for x in folds]
+            splits = list(folds)
         except TypeError:
             # Custom stratification using Sklearn KFoldSplit object
             splits = list(folds.split(X=dall.get_label(), y=dall.get_label()))
-            in_idset = [x[0] for x in splits]
-            out_idset = [x[1] for x in splits]
+        in_idset = [x[0] for x in splits]
+        out_idset = [x[1] for x in splits]
         nfold = len(out_idset)
     else:
         # Do standard stratified k-fold split
