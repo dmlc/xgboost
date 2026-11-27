@@ -37,6 +37,12 @@ XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_h
          right_hess >= p.min_child_weight;
 }
 
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_hess,
+                                 double n_targets) {
+  return IsValidSplit(p, left_hess / n_targets, right_hess / n_targets);
+}
+
 /**
  * @brief Function for L1 cost
  *

@@ -154,6 +154,14 @@ class TreeEvaluator {
       return this->ApplyBounds(nidx, target, pooled_weight);
     }
 
+    // Whether the child weights satisfy the monotone constraint of the feature.
+    [[nodiscard]] XGBOOST_DEVICE bool IsOrdered(bst_feature_t fidx, float wleft,
+                                                float wright) const {
+      auto constraint = constraints[fidx];
+      return constraint == 0 || (constraint > 0 && wleft <= wright) ||
+             (constraint < 0 && wleft >= wright);
+    }
+
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableScaGrad<LeftGradientSumT, RightGradientSumT> = 0>
     [[nodiscard]] XGBOOST_DEVICE std::tuple<float, float> CalcSplitWeights(
@@ -166,10 +174,7 @@ class TreeEvaluator {
         return {wleft, wright};
       }
 
-      auto constraint = constraints[fidx];
-      bool ordered = constraint == 0 || (constraint > 0 && wleft <= wright) ||
-                     (constraint < 0 && wleft >= wright);
-      if (ordered) {
+      if (this->IsOrdered(fidx, wleft, wright)) {
         return {wleft, wright};
       }
 
@@ -204,6 +209,40 @@ class TreeEvaluator {
       }
     }
 
+    /**
+     * @brief Split gain of a single target, without the hessian validity check.
+     *
+     * @param is_single Whether the split has a single target. Equal scalar leaf weights cannot
+     *                  improve on the parent and are rejected.
+     */
+    template <typename GradientSumT>
+    XGBOOST_DEVICE double CalcTargetSplitGain(ParamT const& param, bst_node_t nidx,
+                                              bst_feature_t fidx, bst_target_t t, bool is_single,
+                                              GradientSumT const& left,
+                                              GradientSumT const& right) const {
+      if (!has_constraint) {
+        return tree::CalcGain(param, left.GetGrad(), left.GetHess()) +
+               tree::CalcGain(param, right.GetGrad(), right.GetHess());
+      }
+      constexpr double kNegInf = -std::numeric_limits<double>::infinity();
+      auto l_w = this->CalcWeight(nidx, t, param, left);
+      auto r_w = this->CalcWeight(nidx, t, param, right);
+      if (!this->IsOrdered(fidx, l_w, r_w)) {
+        // A single target would pool into equal weights.
+        if (is_single) {
+          return kNegInf;
+        }
+        l_w = r_w = this->CalcPooledWeight(param, nidx, t, left, right);
+      }
+      // Reject before score subtraction can turn a zero gain into a positive gain through
+      // rounding.
+      if (is_single && l_w == r_w) {
+        return kNegInf;
+      }
+      return tree::CalcGainGivenWeight(param, left.GetGrad(), left.GetHess(), l_w) +
+             tree::CalcGainGivenWeight(param, right.GetGrad(), right.GetHess(), r_w);
+    }
+
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableVecGrad<LeftGradientSumT, RightGradientSumT> = 0>
     XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, bst_node_t nidx, bst_feature_t fidx,
@@ -218,31 +257,10 @@ class TreeEvaluator {
         auto const right_t = right(t);
         left_hess += left_t.GetHess();
         right_hess += right_t.GetHess();
-        if (!has_constraint) {
-          gain += tree::CalcGain(param, left_t.GetGrad(), left_t.GetHess());
-          gain += tree::CalcGain(param, right_t.GetGrad(), right_t.GetHess());
-        }
+        gain += this->CalcTargetSplitGain(param, nidx, fidx, t, n_targets == 1, left_t, right_t);
       }
-
-      auto k = static_cast<double>(n_targets);
-      if (!IsValidSplit(param, left_hess / k, right_hess / k)) {
+      if (!IsValidSplit(param, left_hess, right_hess, n_targets)) {
         return -std::numeric_limits<double>::infinity();
-      }
-      if (!has_constraint) {
-        return gain;
-      }
-
-      for (std::size_t t = 0; t < n_targets; ++t) {
-        auto const left_t = left(t);
-        auto const right_t = right(t);
-        auto [l_w, r_w] = this->CalcSplitWeights(param, nidx, fidx, t, left_t, right_t);
-        // Equal scalar leaf weights cannot improve on the parent. Reject before score
-        // subtraction can turn a zero gain into a positive gain through rounding.
-        if (n_targets == 1 && l_w == r_w) {
-          return -std::numeric_limits<double>::infinity();
-        }
-        gain += tree::CalcGainGivenWeight(param, left_t.GetGrad(), left_t.GetHess(), l_w);
-        gain += tree::CalcGainGivenWeight(param, right_t.GetGrad(), right_t.GetHess(), r_w);
       }
       return gain;
     }

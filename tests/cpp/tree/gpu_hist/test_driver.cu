@@ -20,15 +20,13 @@ TEST(GpuHist, DriverDepthWise) {
   EXPECT_TRUE(driver.Pop().empty());
   DeviceSplitCandidate split;
   split.loss_chg = 1.0f;
-  split.left_sum = {0, 1};
-  split.right_sum = {0, 1};
-  GPUExpandEntry root(0, 0, split, 2.0f, 1.0f, 1.0f);
+  GPUExpandEntry root{0, 0, split, 1.0, 1.0};
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nidx, 0);
-  driver.Push({GPUExpandEntry{1, 1, split, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{2, 1, split, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{3, 1, split, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{4, 2, split, 2.0f, 1.0f, 1.0f}});
+  driver.Push({GPUExpandEntry{1, 1, split, 1.0, 1.0}});
+  driver.Push({GPUExpandEntry{2, 1, split, 1.0, 1.0}});
+  driver.Push({GPUExpandEntry{3, 1, split, 1.0, 1.0}});
+  driver.Push({GPUExpandEntry{4, 2, split, 1.0, 1.0}});
   // Should return 2 entries from level 1
   // as we limited the driver to pop maximum 2 nodes
   auto res = driver.Pop();
@@ -49,8 +47,6 @@ TEST(GpuHist, DriverDepthWise) {
 
 TEST(GpuHist, DriverLossGuided) {
   DeviceSplitCandidate high_gain;
-  high_gain.left_sum = {0, 1};
-  high_gain.right_sum = {0, 1};
   high_gain.loss_chg = 5.0f;
   DeviceSplitCandidate low_gain = high_gain;
   low_gain.loss_chg = 1.0f;
@@ -60,12 +56,12 @@ TEST(GpuHist, DriverLossGuided) {
 
   Driver<GPUExpandEntry> driver(p);
   EXPECT_TRUE(driver.Pop().empty());
-  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f);
+  GPUExpandEntry root{0, 0, high_gain, 1.0, 1.0};
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nidx, 0);
   // Select high gain first
-  driver.Push({GPUExpandEntry{1, 1, low_gain, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{2, 2, high_gain, 2.0f, 1.0f, 1.0f}});
+  driver.Push({GPUExpandEntry{1, 1, low_gain, 1.0, 1.0}});
+  driver.Push({GPUExpandEntry{2, 2, high_gain, 1.0, 1.0}});
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 1);
   EXPECT_EQ(res[0].nidx, 2);
@@ -74,8 +70,8 @@ TEST(GpuHist, DriverLossGuided) {
   EXPECT_EQ(res[0].nidx, 1);
 
   // If equal gain, use nid
-  driver.Push({GPUExpandEntry{2, 1, low_gain, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{1, 1, low_gain, 2.0f, 1.0f, 1.0f}});
+  driver.Push({GPUExpandEntry{2, 1, low_gain, 1.0, 1.0}});
+  driver.Push({GPUExpandEntry{1, 1, low_gain, 1.0, 1.0}});
   res = driver.Pop();
   EXPECT_EQ(res[0].nidx, 1);
   res = driver.Pop();
@@ -86,9 +82,7 @@ namespace {
 GPUExpandEntry MakeGPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
   DeviceSplitCandidate split;
   split.loss_chg = loss_chg;
-  split.left_sum = {0, 1};
-  split.right_sum = {0, 1};
-  return GPUExpandEntry{nidx, depth, split, 2.0f, 1.0f, 1.0f};
+  return GPUExpandEntry{nidx, depth, split, 1.0, 1.0};
 }
 }  // namespace
 
