@@ -652,6 +652,14 @@ def _is_iter(data: DataType) -> TypeGuard[DataIter]:
     return isinstance(data, DataIter)
 
 
+def _check_data_iter_meta(*meta: object) -> None:
+    if any(info is not None for info in meta):
+        raise ValueError(
+            "If data iterator is used as input, data like label should be "
+            "specified as batch argument."
+        )
+
+
 class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     """An iterator for single batch data to help creating device DMatrix.
     Transforming input directly to histogram with normal single batch data API
@@ -833,6 +841,18 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         from .data import dispatch_data_backend
 
         if _is_iter(data):
+            _check_data_iter_meta(
+                label,
+                weight,
+                base_margin,
+                feature_names,
+                feature_types,
+                group,
+                qid,
+                label_lower_bound,
+                label_upper_bound,
+                feature_weights,
+            )
             self._init_from_iter(data, enable_categorical)
             assert self.handle is not None
             return
@@ -1551,27 +1571,6 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
                 "Only one of the eval_qid or eval_group for each evaluation "
                 "dataset should be provided."
             )
-        if isinstance(data, DataIter):
-            if any(
-                info is not None
-                for info in (
-                    label,
-                    weight,
-                    base_margin,
-                    feature_names,
-                    feature_types,
-                    group,
-                    qid,
-                    label_lower_bound,
-                    label_upper_bound,
-                    feature_weights,
-                )
-            ):
-                raise ValueError(
-                    "If data iterator is used as input, data like label should be "
-                    "specified as batch argument."
-                )
-
         self._init(
             data,
             ref=ref,
@@ -1604,6 +1603,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
             # it can't be transformed twice.
             data = _transform_dlpack(data)
         if _is_iter(data):
+            _check_data_iter_meta(*meta.values())
             it = data
         else:
             it = SingleBatchInternalIter(data=data, **meta)

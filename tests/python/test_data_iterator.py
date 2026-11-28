@@ -64,6 +64,30 @@ def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
     assert from_np.get_dump() == from_it.get_dump()
 
 
+@pytest.mark.parametrize("dmatrix", [xgb.DMatrix, xgb.QuantileDMatrix])
+@pytest.mark.parametrize(
+    "meta",
+    [
+        {"label": [0, 1]},
+        {"weight": [1, 9]},
+        {"base_margin": [0, 1]},
+        {"group": [2]},
+        {"qid": [0, 0]},
+        {"label_lower_bound": [0, 1]},
+        {"label_upper_bound": [0, 1]},
+        {"feature_names": ["a"]},
+        {"feature_types": ["int"]},
+        {"feature_weights": [1]},
+    ],
+)
+def test_iterator_constructor_meta(
+    dmatrix: type[xgb.DMatrix], meta: Dict[str, Any]
+) -> None:
+    X = np.arange(2).reshape(2, 1)
+    with pytest.raises(ValueError, match="specified as batch argument"):
+        dmatrix(SingleBatch(data=X), **meta)
+
+
 def test_with_cat_single() -> None:
     X, y = tm.make_categorical(
         n_samples=128, n_features=3, n_categories=6, onehot=False
