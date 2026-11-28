@@ -53,6 +53,19 @@ class XGBoostParamsSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
     assert(v1 == 0.66f)
   }
 
+  test("recall metric names follow existing exact-name validation") {
+    val estimator = new XGBoostRanker()
+    Seq("recall", "recall-", "recall@n", "recall@n-").foreach { name =>
+      estimator.setEvalMetric(name)
+      assert(estimator.getEvalMetric == name)
+    }
+    // Numeric cutoff parsing remains the native metric's job; this Param uses
+    // the same literal placeholders as the existing MAP/NDCG entries.
+    Seq("recall@2", "recall@2-").foreach { name =>
+      intercept[IllegalArgumentException] { estimator.setEvalMetric(name) }
+    }
+  }
+
   test("setNumEarlyStoppingRounds") {
     val estimator = new XGBoostClassifier()
     assert(estimator.getNumEarlyStoppingRounds == 0)

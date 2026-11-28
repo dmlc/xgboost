@@ -23,7 +23,7 @@
 namespace xgboost::metric {
 
 inline void VerifyRankingKernelCache(DeviceOrd device, std::string const& name, double initial,
-                                     double reordered) {
+                                     double reordered, double reloaded = 0.25) {
   auto ctx = MakeCUDACtx(device.ordinal);
   auto dmat = EmptyDMatrix();
   auto& info = dmat->Info();
@@ -46,7 +46,7 @@ inline void VerifyRankingKernelCache(DeviceOrd device, std::string const& name, 
   config["lambdarank_param"]["lambdarank_num_pair_per_sample"] = String{"1"};
   metric->LoadConfig(config);
   preds.HostVector() = {3, 2, 1, 3, 2, 1};
-  EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.25, 1e-6);
+  EXPECT_NEAR(metric->Evaluate(preds, dmat), reloaded, 1e-6);
 }
 
 inline void VerifyRankingCutoff(DeviceOrd device, std::string const& name, double expected) {
@@ -149,6 +149,85 @@ inline void VerifyNDCG(DeviceOrd device) {
               1.f - 0.001f);
 
   delete metric;
+}
+
+inline void VerifyRecallMetadataMutation(DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  for (bool minus : {false, true}) {
+    auto dmat = EmptyDMatrix();
+    auto& info = dmat->Info();
+    info.num_row_ = 4;
+    info.labels = linalg::Matrix<float>{{0, 0, 1, 0}, {4, 1}, device};
+    info.group_ptr_ = {0, 4};
+    HostDeviceVector<float> preds{4, 3, 2, 1};
+    std::unique_ptr<Metric> metric{Metric::Create(minus ? "recall@1-" : "recall@1", &ctx)};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.0, kRtEps);
+    info.group_ptr_ = {0, 2, 4};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.5 : 1.0, kRtEps);
+    info.group_ptr_ = {0, 1, 4};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.0 : 0.5, kRtEps);
+    info.group_ptr_.clear();
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.0, kRtEps);
+    info.group_ptr_ = {0, 2, 4};
+    info.weights_.HostVector() = {1, 3};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.75 : 1.0, kRtEps);
+    info.weights_.HostVector() = {3, 1};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), minus ? 0.25 : 1.0, kRtEps);
+    info.labels = linalg::Matrix<float>{{2, 0, 1, 0}, {4, 1}, device};
+    EXPECT_ANY_THROW(metric->Evaluate(preds, dmat));
+    info.labels = linalg::Matrix<float>{{1, 0, 0, 1}, {4, 1}, device};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.75, kRtEps);
+    info.group_ptr_ = {0, 1, 3};
+    EXPECT_ANY_THROW(metric->Evaluate(preds, dmat));
+    info.group_ptr_ = {0, 4};
+    info.weights_.HostVector() = {2};
+    EXPECT_NEAR(metric->Evaluate(preds, dmat), 0.5, kRtEps);
+  }
+}
+
+inline void VerifyRecall(DeviceOrd device) {
+  VerifyRecallMetadataMutation(device);
+  VerifyRankingCutoff(device, "recall", 1.0);
+  VerifyRankingKernelCache(device, "recall", 0.875, 1.0, 0.125);
+  auto ctx = MakeCUDACtx(device.ordinal);
+  for (auto name : {"recall", "recall-", "recall@1", "recall@2", "recall@2-", "recall@8"}) {
+    std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
+    ASSERT_STREQ(metric->Name(), name);
+    Json config{Object{}};
+    metric->SaveConfig(&config);
+    std::unique_ptr<Metric> loaded{Metric::Create(name, &ctx)};
+    loaded->LoadConfig(config);
+    Json roundtrip{Object{}};
+    loaded->SaveConfig(&roundtrip);
+    EXPECT_EQ(config, roundtrip);
+  }
+  EXPECT_ANY_THROW(Metric::Create("recall@0", &ctx));
+  std::unique_ptr<Metric> metric{Metric::Create("recall@2", &ctx)};
+  // More positives than the cutoff: recall divides by all five positives.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {5, 4, 3, 2, 1}, {1, 1, 1, 1, 1}), 0.4, kRtEps);
+  // Ties at the cutoff retain original row order, not optimistic tie averaging.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 1, 1, 1}, {0, 0, 1, 1}), 0.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 1, 1, 1}, {1, 1, 0, 0}), 1.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {3, 2, 1}, {0, 0, 0}), 1.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}), 1.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {0}), 0.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {2, 1}, {1, 0}, {0}, {0, 2}), 0.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {2, 1}, {0, 0}, {0}, {0, 2}), 0.0, kRtEps);
+  EXPECT_ANY_THROW(GetMetricEval(metric.get(), {2, 1}, {1, 0}, {1, 2}, {0, 2}));
+  EXPECT_ANY_THROW(GetMetricEval(metric.get(), {2, 1}, {0.5, 0}));
+  // A zero-document query is not the same as zero total queries.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {2, 1, 2, 1}, {0, 0, 1, 0}, {1, 2, 1}, {0, 2, 2, 4}), 1.0,
+              kRtEps);
+  std::unique_ptr<Metric> minus_metric{Metric::Create("recall@2-", &ctx)};
+  EXPECT_NEAR(
+      GetMetricEval(minus_metric.get(), {2, 1, 2, 1}, {0, 0, 1, 0}, {1, 2, 1}, {0, 2, 2, 4}), 0.25,
+      kRtEps);
+  // Accepted epsilon perturbations count as binary documents, not positive mass.
+  EXPECT_NEAR(GetMetricEval(metric.get(), {3, 2, 1}, {kRtEps / 2, 1 - kRtEps / 2, 1}), 0.5, kRtEps);
+  metric.reset(Metric::Create("recall@2-", &ctx));
+  EXPECT_NEAR(GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}), 0.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 0}, {0, 0}), 0.0, kRtEps);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {1, 0}, {1, 0}), 1.0, kRtEps);
 }
 
 inline void VerifyMAP(DeviceOrd device) {

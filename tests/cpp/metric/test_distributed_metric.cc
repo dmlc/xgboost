@@ -131,6 +131,7 @@ auto MakeParamsForTest() {
   REFLECT_NAME(Precision);
   REFLECT_NAME(NDCG);
   REFLECT_NAME(MAP);
+  REFLECT_NAME(Recall);
   REFLECT_NAME(NDCGExpGain);
   // AFT
   using namespace xgboost::common;  // NOLINT
@@ -154,6 +155,36 @@ INSTANTIATE_TEST_SUITE_P(
       result += info.param.name;
       return result;
     });
+
+TEST(Metric, RecallUnequalWorkers) {
+  collective::TestDistributedGlobal(3, [] {
+    auto ctx = MakeCUDACtx(-1);
+    auto rank = collective::GetRank();
+    std::unique_ptr<Metric> metric{Metric::Create("recall@1", &ctx)};
+    double result{0.0};
+    if (rank == 0) {
+      result = GetMetricEval(metric.get(), {3, 2, 1}, {1, 1, 0}, {2}, {0, 3});
+    } else if (rank == 1) {
+      result = GetMetricEval(metric.get(), {2, 1, 3, 2, 1}, {0, 1, 1, 1, 1}, {1, 3}, {0, 2, 5});
+    } else {
+      result = GetMetricEval(metric.get(), HostDeviceVector<float>{}, {}, {}, {0});
+    }
+    EXPECT_NEAR(result, 1.0 / 3.0, kRtEps);
+  });
+}
+
+TEST(Metric, RecallSyntheticEmptyWorker) {
+  collective::TestDistributedGlobal(2, [] {
+    auto ctx = MakeCUDACtx(-1);
+    auto rank = collective::GetRank();
+    for (auto minus : {false, true}) {
+      std::unique_ptr<Metric> metric{Metric::Create(minus ? "recall@1-" : "recall@1", &ctx)};
+      auto result = rank == 0 ? GetMetricEval(metric.get(), {2, 1}, {1, 1})
+                              : GetMetricEval(metric.get(), HostDeviceVector<float>{}, {});
+      EXPECT_NEAR(result, minus ? 0.25 : 0.75, kRtEps);
+    }
+  });
+}
 
 TEST(Metric, ExpectileLoadConfig) {
   auto ctx = MakeCUDACtx(GPUIDX);

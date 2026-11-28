@@ -349,6 +349,42 @@ PackedReduceResult NDCGScoreCpu(Context const* ctx, MetaInfo const& info,
 auto const kRegisterNDCGCpu =
     common::KernelRegistration<NDCGEvalKernel>{DeviceOrd::kCPU, &NDCGScoreCpu};
 
+PackedReduceResult RecallScoreCpu(Context const* ctx, MetaInfo const& info,
+                                  HostDeviceVector<float> const& predt, bool minus,
+                                  std::shared_ptr<ltr::RecallCache> p_cache) {
+  auto gptr = p_cache->DataGroupPtr(ctx);
+  auto label = info.labels.HostView().Slice(linalg::All(), 0);
+  auto rank = p_cache->SortedIdx(ctx, predt.ConstHostSpan());
+  auto recall = p_cache->Recall(ctx);
+  auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
+
+  common::ParallelFor(p_cache->Groups(), ctx->Threads(), [&](auto g) {
+    auto g_label = label.Slice(linalg::Range(gptr[g], gptr[g + 1]));
+    auto g_rank = rank.subspan(gptr[g], gptr[g + 1] - gptr[g]);
+    auto n = std::min(static_cast<std::size_t>(p_cache->Param().TopK()), g_label.Size());
+    std::size_t hits{0}, relevant{0};
+    for (std::size_t i = 0; i < g_label.Size(); ++i) {
+      // Validation tolerates rounding around 0 and 1. Count documents, not
+      // raw labels, so a tiny accepted near-zero label remains irrelevant.
+      bool is_relevant = g_label(g_rank[i]) > 0.5f;
+      relevant += is_relevant;
+      hits += is_relevant && i < n;
+    }
+    auto score = relevant == 0 ? (minus ? 0.0 : 1.0)
+                               : static_cast<double>(hits) / static_cast<double>(relevant);
+    recall[g] = score * weight[g];
+  });
+
+  double sw{0.0};
+  for (std::size_t g = 0; g < recall.size(); ++g) {
+    sw += weight[g];
+  }
+  return {std::accumulate(recall.cbegin(), recall.cend(), 0.0), sw};
+}
+
+auto const kRegisterRecallCpu =
+    common::KernelRegistration<RecallEvalKernel>{DeviceOrd::kCPU, &RecallScoreCpu};
+
 PackedReduceResult MAPScoreCpu(Context const* ctx, MetaInfo const& info,
                                HostDeviceVector<float> const& predt, bool minus,
                                std::shared_ptr<ltr::MAPCache> p_cache) {
@@ -444,6 +480,37 @@ class EvalNDCG : public EvalRank<ltr::NDCGCache> {
   }
 };
 
+class EvalRecall : public EvalRank<ltr::RecallCache> {
+ public:
+  using EvalRank::EvalRank;
+
+  double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
+    auto const& info = p_fmat->Info();
+    if (!info.labels.Empty()) {
+      CHECK_EQ(info.labels.Shape(1), 1) << "Ranking metrics do not support multi-target labels.";
+    }
+    CHECK_EQ(preds.Size(), info.labels.Size());
+    // Labels and grouping can change on the same DMatrix. Run constructor
+    // validation and capture current query boundaries on every evaluation.
+    auto p_cache = [&] {
+      // Match DispatchKernel's device lookup: a host fallback should not build
+      // device ranking state only to copy it back for CPU scoring.
+      if (common::GetKernelRegistry<RecallEvalKernel>().Find(ctx_->Device().device)) {
+        return std::make_shared<ltr::RecallCache>(ctx_, info, param_);
+      }
+      auto cpu_ctx = ctx_->MakeCPU();
+      return std::make_shared<ltr::RecallCache>(&cpu_ctx, info, param_);
+    }();
+    return this->Eval(preds, info, std::move(p_cache));
+  }
+
+  double Eval(HostDeviceVector<float> const& predt, MetaInfo const& info,
+              std::shared_ptr<ltr::RecallCache> p_cache) override {
+    auto result = common::DispatchKernel<RecallEvalKernel>(ctx_, info, predt, minus_, p_cache);
+    return Finalize(ctx_, result);
+  }
+};
+
 class EvalMAPScore : public EvalRank<ltr::MAPCache> {
  public:
   using EvalRank::EvalRank;
@@ -458,6 +525,10 @@ class EvalMAPScore : public EvalRank<ltr::MAPCache> {
 XGBOOST_REGISTER_METRIC(Precision, "pre")
     .describe("precision@k for rank.")
     .set_body([](const char* param) { return new EvalPrecision("pre", param); });
+
+XGBOOST_REGISTER_METRIC(Recall, "recall")
+    .describe("recall@k for ranking.")
+    .set_body([](char const* param) { return new EvalRecall{"recall", param}; });
 
 XGBOOST_REGISTER_METRIC(EvalMAP, "map")
     .describe("map@k for ranking.")

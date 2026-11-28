@@ -423,6 +423,7 @@ class EarlyStopping(TrainingCallback):
                 "pre@",
                 "map",
                 "ndcg",
+                "recall",
                 "auc@",
                 "aucpr@",
                 "map@",

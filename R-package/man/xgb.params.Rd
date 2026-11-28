@@ -354,8 +354,15 @@ The \verb{average precision} is defined as:
 \eqn{AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}}
 
 where \eqn{I_{(k)}} is an indicator function that equals to \eqn{1} when the document at \eqn{k} is relevant and \eqn{0} otherwise. The \eqn{P@k} is the precision at \eqn{k}, and \eqn{N} is the total number of relevant documents. Lastly, the \verb{mean average precision} is defined as the weighted average across all queries.
-\item \code{"ndcg@n"}, \code{"map@n"}, \code{"pre@n"}: \eqn{n} can be assigned as an integer to cut off the top positions in the lists for evaluation.
-\item \code{"ndcg-"}, \code{"map-"}, \code{"ndcg@n-"}, \code{"map@n-"}: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as \eqn{1}. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as \eqn{0} to be consistent under some conditions.
+\item \code{"recall"}: Recall for learning to rank: relevant documents in the top cutoff divided
+by all relevant documents in the query, averaged using query weights. Binary labels
+within the existing tolerance are required; accepted labels above 0.5 are relevant.
+Without a cutoff, queries containing relevant documents score 1. Empty queries score
+1 by default or 0 with the minus suffix. Recall uses CPU scoring, including host
+transfers for CUDA contexts; no GPU scoring acceleration is provided.
+
+\item \code{"ndcg@n"}, \code{"map@n"}, \code{"pre@n"}, \code{"recall@n"}: \eqn{n} can be assigned as an integer to cut off the top positions in the lists for evaluation.
+\item \code{"ndcg-"}, \code{"map-"}, \code{"recall-"}, \code{"ndcg@n-"}, \code{"map@n-"}, \code{"recall@n-"}: In XGBoost, NDCG, MAP and recall evaluate the score of a list without any positive samples as \eqn{1}. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as \eqn{0} to be consistent under some conditions.
 \item \code{"poisson-nloglik"}: negative log-likelihood for Poisson regression
 \item \code{"gamma-nloglik"}: negative log-likelihood for gamma regression
 \item \code{"cox-nloglik"}: negative partial log-likelihood for Cox proportional hazards regression

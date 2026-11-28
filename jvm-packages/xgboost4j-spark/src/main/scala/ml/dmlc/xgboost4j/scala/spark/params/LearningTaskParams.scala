@@ -143,7 +143,8 @@ private[spark] object LearningTaskParams {
 
   val SUPPORTED_EVAL_METRICS = HashSet("rmse", "rmsle", "mae", "mape", "mphe", "logloss", "error",
     "error@t", "merror", "mlogloss", "auc", "aucpr", "pre", "ndcg", "map", "ndcg@n", "map@n",
-    "pre@n", "ndcg-", "map-", "ndcg@n-", "map@n-", "poisson-nloglik", "gamma-nloglik",
+    "pre@n", "recall", "recall-", "recall@n", "recall@n-", "ndcg-", "map-", "ndcg@n-", "map@n-",
+    "poisson-nloglik", "gamma-nloglik",
     "cox-nloglik", "gamma-deviance", "tweedie-nloglik", "aft-nloglik", "expectile",
     "interval-regression-accuracy")
 }

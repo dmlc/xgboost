@@ -518,8 +518,28 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       where :math:`I_{(k)}` is an indicator function that equals to :math:`1` when the document at :math:`k` is relevant and :math:`0` otherwise. The :math:`P@k` is the precision at :math:`k`, and :math:`N` is the total number of relevant documents. Lastly, the `mean average precision` is defined as the weighted average across all queries.
 
-    - ``ndcg@n``, ``map@n``, ``pre@n``: :math:`n` can be assigned as an integer to cut off the top positions in the lists for evaluation.
-    - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
+    - ``recall``: Recall at :math:`k` for learning to rank, averaged across queries using
+      query weights. The numerator counts relevant documents in the top :math:`k`; the
+      denominator counts all relevant documents in the query, including those below the
+      cutoff. Labels must be binary (within the existing binary-label tolerance); accepted
+      labels greater than 0.5 count as relevant. Without a cutoff, recall is 1 for every
+      query containing relevant documents. Equal prediction scores preserve input row order.
+      Recall uses CPU scoring, including host transfers when called from a CUDA context;
+      it does not have a GPU-accelerated scoring kernel.
+
+      A query without relevant documents scores 1, or 0 with the minus suffix. Empty input
+      without group information is treated as one empty query, including on an empty
+      distributed worker. A zero-document query within a group list has the same empty-query score and
+      contributes its query weight. No queries at all (group pointer ``[0]``) contribute
+      no score or weight.
+      Distributed evaluation requires each query to remain entirely on one worker and
+      reduces weighted query scores, not averages of worker averages. All-zero query
+      weights produce 0. Spark's existing exact-name parameter validator recognizes bare
+      ``recall`` and ``recall-``; its literal cutoff placeholders do not accept numeric
+      cutoffs through that parameter, as for the other ranking metrics.
+
+    - ``ndcg@n``, ``map@n``, ``pre@n``, ``recall@n``: :math:`n` can be assigned as an integer to cut off the top positions in the lists for evaluation.
+    - ``ndcg-``, ``map-``, ``recall-``, ``ndcg@n-``, ``map@n-``, ``recall@n-``: In XGBoost, NDCG, MAP and recall evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression
     - ``normal-nloglik``: negative log-likelihood for normal-distribution regression

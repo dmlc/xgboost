@@ -125,6 +125,15 @@ void PreCache::InitOnCPU(Context const*, MetaInfo const& info) {
 void PreCache::InitOnCUDA(Context const*, MetaInfo const&) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
+RecallCache::RecallCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p)
+    : RankingCache{ctx, info, p} {
+  // Recall has a CPU scoring kernel. Validate on host even when the base cache
+  // was initialized with a CUDA context, before dispatch transfers scoring to CPU.
+  auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
+  CheckPreLabels("recall", h_label,
+                 [](auto beg, auto end, auto op) { return std::all_of(beg, end, op); });
+}
+
 void MAPCache::InitOnCPU(Context const*, MetaInfo const& info) {
   auto const& h_label = info.labels.HostView().Slice(linalg::All(), 0);
   CheckPreLabels("map", h_label,
