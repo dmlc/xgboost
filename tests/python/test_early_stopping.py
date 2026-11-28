@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple, Union, cast
 
 import numpy as np
 import pytest
@@ -7,12 +7,15 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.updater import get_basescore
 
+if TYPE_CHECKING:
+    import pandas as pd
+
 rng = np.random.RandomState(1994)
 
 
 class TestEarlyStopping:
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_early_stopping_nonparallel(self):
+    def test_early_stopping_nonparallel(self) -> None:
         from sklearn.datasets import load_digits
         from sklearn.model_selection import train_test_split
 
@@ -48,7 +51,9 @@ class TestEarlyStopping:
         assert clf3.best_score == 1
 
     @staticmethod
-    def assert_metrics_length(cv, expected_length):
+    def assert_metrics_length(
+        cv: Union[Dict[str, List[float]], "pd.DataFrame"], expected_length: int
+    ) -> None:
         for key, value in cv.items():
             assert len(value) == expected_length
 
@@ -119,7 +124,7 @@ class TestEarlyStopping:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
+    def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self) -> None:
         from sklearn.datasets import load_breast_cancer
 
         X, y = load_breast_cancer(return_X_y=True)
@@ -139,15 +144,18 @@ class TestEarlyStopping:
 
         # If more than one metrics is given, early stopping should use the last metric
         for i, m in enumerate(metrics):
-            result = xgb.cv(
-                params,
-                dm,
-                num_boost_round=1000,
-                nfold=5,
-                stratified=True,
-                metrics=m,
-                early_stopping_rounds=20,
-                seed=42,
+            result = cast(
+                "pd.DataFrame",
+                xgb.cv(
+                    params,
+                    dm,
+                    num_boost_round=1000,
+                    nfold=5,
+                    stratified=True,
+                    metrics=m,
+                    early_stopping_rounds=20,
+                    seed=42,
+                ),
             )
             num_iteration_history.append(len(result))
             df = result["test-{}-mean".format(m[-1])]
