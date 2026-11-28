@@ -357,6 +357,14 @@ void MetaInfo::LoadBinary(dmlc::Stream* fi) {
   LoadTensorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
+  // Binary files written by CPU slicing of a DMatrix with unset labels or base margin may
+  // contain an empty (n_samples, 0) matrix. It means the field is not set, so restore the
+  // shape of an unset field. This is not an error, unlike a user-supplied empty array.
+  for (auto* p_info : {&labels, &base_margin_}) {
+    if (p_info->Size() == 0 && p_info->Shape(0) != 0) {
+      p_info->Reshape(0, 0);
+    }
+  }
 
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
@@ -434,7 +442,9 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
 
   // Groups is maintained by a higher level Python function.  We should aim at deprecating
   // the slice function.
-  if (this->labels.Size() != this->num_row_) {
+  if (this->labels.Size() == 0 && this->labels.Shape(0) == 0) {
+    // Unset, keep it unset. Same as the CUDA implementation.
+  } else if (this->labels.Size() != this->num_row_) {
     auto t_labels = this->labels.View(this->labels.Data()->Device());
     out.labels.Reshape(ridxs.size(), labels.Shape(1));
     out.labels.Data()->HostVector() =
@@ -455,7 +465,9 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
     out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
   }
 
-  if (this->base_margin_.Size() != this->num_row_) {
+  if (this->base_margin_.Size() == 0 && this->base_margin_.Shape(0) == 0) {
+    // Unset, keep it unset. Same as the CUDA implementation.
+  } else if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Incorrect size of base margin vector.";
     auto t_margin = this->base_margin_.View(this->base_margin_.Data()->Device());
@@ -810,6 +822,15 @@ void CheckDevice(DeviceOrd device, linalg::Tensor<T, D> const& v) {
 }  // anonymous namespace
 
 void MetaInfo::Validate(DeviceOrd device) const {
+  // An empty array for non-empty data is stored as an (n_samples, 0) matrix. It's different
+  // from an unset field, whose shape is (0, 0).
+  auto check_not_empty = [](auto const& info, StringView name) {
+    CHECK(info.Size() != 0 || info.Shape(0) == 0)
+        << "Invalid `" << name << "`: it's empty for data with " << info.Shape(0) << " rows.";
+  };
+  check_not_empty(labels, "label");
+  check_not_empty(base_margin_, "base_margin");
+
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
     return;
