@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 import numpy as np
 import pytest
@@ -17,7 +17,7 @@ from xgboost.testing.continuation import (
 class TestTrainingContinuation:
     num_parallel_tree = 3
 
-    def generate_parameters(self):
+    def generate_parameters(self) -> List[Dict[str, Any]]:
         xgb_params_01_binary = {
             "nthread": 1,
         }
@@ -36,8 +36,12 @@ class TestTrainingContinuation:
         return [xgb_params_01_binary, xgb_params_02_binary, xgb_params_03_binary]
 
     def run_training_continuation(
-        self, xgb_params_01, xgb_params_02, xgb_params_03, tmp_path: Path
-    ):
+        self,
+        xgb_params_01: Dict[str, Any],
+        xgb_params_02: Dict[str, Any],
+        xgb_params_03: Dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
         from sklearn.datasets import load_digits
         from sklearn.metrics import mean_squared_error
 
