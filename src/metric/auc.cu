@@ -508,9 +508,10 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
    * Sort the labels
    */
   auto d_labels = info.labels.View(ctx->Device());
+  auto d_label_values = d_labels.Values();
 
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
-  common::SegmentedArgSort<false, false>(ctx, d_labels.Values(), d_group_ptr, d_sorted_idx);
+  common::SegmentedArgSort<false, false>(ctx, d_label_values, d_group_ptr, d_sorted_idx);
 
   auto d_weights = info.weights_.ConstDeviceSpan();
 
@@ -547,6 +548,10 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
 
         size_t i, j;
         cuda::std::tie(i, j) = get_i_j(idx, query_group_idx);
+        if (d_label_values[d_sorted_idx[i]] == d_label_values[d_sorted_idx[j]]) {
+          // Documents with the same label have no expected order.
+          return RankScanItem{idx, 0, 0, query_group_idx};
+        }
 
         float predt = predts[d_sorted_idx[i]] - predts[d_sorted_idx[j]];
         float w = common::Sqr(d_weights.empty() ? 1.0f : d_weights[query_group_idx]);
@@ -561,8 +566,12 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
         return RankScanItem{idx, predt, w, query_group_idx};
       });
 
-  dh::TemporaryArray<double> d_auc(group_ptr.size() - 1);
+  // A group without any pair of documents with different labels (including groups with less
+  // than 3 documents) or with a zero weight has no AUC and is not counted.
+  dh::TemporaryArray<double> d_auc(group_ptr.size() - 1, 0.0);
   auto s_d_auc = dh::ToSpan(d_auc);
+  dh::TemporaryArray<std::uint32_t> d_valid(group_ptr.size() - 1, 0);
+  auto s_d_valid = dh::ToSpan(d_valid);
   auto out = thrust::make_transform_output_iterator(
       dh::TypedDiscard<RankScanItem>{},
       [=] XGBOOST_DEVICE(RankScanItem const &item) -> RankScanItem {
@@ -572,8 +581,7 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
         if (item.idx == common::LastOf(group_id, d_threads_group_ptr)) {
           if (item.w > 0) {
             s_d_auc[group_id] = item.predt / item.w;
-          } else {
-            s_d_auc[group_id] = 0;
+            s_d_valid[group_id] = 1;
           }
         }
         return {};  // discard
@@ -592,6 +600,8 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
    * Scale the AUC with number of items in each group.
    */
   double auc = thrust::reduce(ctx->CUDACtx()->CTP(), dh::tbegin(s_d_auc), dh::tend(s_d_auc), 0.0);
+  n_valid = thrust::reduce(ctx->CUDACtx()->CTP(), dh::tbegin(s_d_valid), dh::tend(s_d_valid),
+                           static_cast<std::size_t>(0));
   return std::make_pair(auc, n_valid);
 }
 
