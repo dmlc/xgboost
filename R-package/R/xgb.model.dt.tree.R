@@ -109,8 +109,8 @@ xgb.model.dt.tree <- function(model, trees = NULL, use_int_id = FALSE, ...) {
 
   if (is.null(trees)) {
     trees <- 0:max(td$Tree)
-  } else {
-    trees <- trees[trees >= 0 & trees <= max(td$Tree)]
+  } else if (any(trees > max(td$Tree))) {
+    stop("Invalid tree index.")
   }
   td <- td[Tree %in% trees & !is.na(t) & !startsWith(t, 'booster')]
 
